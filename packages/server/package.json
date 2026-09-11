@@ -1,16 +1,19 @@
 {
-  "name": "@helicon/daemon",
+  "name": "@helicon/server",
   "version": "0.1.0",
-  "description": "Helicon daemon: MSP host management, session orchestration, local state, WSL routing",
+  "description": "Helicon local server: REST + SSE bridge between the shared UI and Muse MSP hosts",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
+  "bin": {
+    "helicon-server": "dist/cli.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test dist/test",
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@muse-code/sdk": "^0.1.0"
+    "@helicon/daemon": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
