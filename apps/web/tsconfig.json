@@ -1,14 +1,17 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": ".",
     "jsx": "react-jsx",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node", "react", "react-dom"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "noEmit": false
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+    "paths": {
+      "@helicon/ui": ["../../packages/ui/src/index.ts"]
+    }
   },
   "include": ["src", "vite.config.ts"]
 }
