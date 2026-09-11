@@ -9,6 +9,7 @@ import { TooltipProvider } from "../components/ui/overlays.js";
 import { isMac } from "../components/ui/primitives.js";
 import { Toasts } from "../components/ui/Toasts.js";
 import { HeliconController, type Platform } from "../model/controller.js";
+import type { AppUpdater } from "../model/updates.js";
 import { ControllerProvider, useApp, useController } from "./context.js";
 import { FrameProvider, FrameStrip, WindowControls, type WindowFrame } from "./frame.js";
 
@@ -17,11 +18,19 @@ export interface HeliconAppProps {
   platform?: Platform;
   /** Present when a desktop shell wants the UI to draw the window's title bar. */
   frame?: WindowFrame;
+  /** Present when the shell can update itself. */
+  updater?: AppUpdater;
 }
 
 /** The whole Helicon interface. Web and desktop shells mount this with their transport. */
 export function HeliconApp(props: HeliconAppProps) {
-  const [controller] = useState(() => new HeliconController(props.client, props.platform));
+  const [controller] = useState(() => {
+    const created = new HeliconController(props.client, props.platform);
+    if (props.updater) {
+      created.attachUpdater(props.updater);
+    }
+    return created;
+  });
   useEffect(() => controller.start(), [controller]);
   return (
     <ControllerProvider controller={controller}>

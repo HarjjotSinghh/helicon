@@ -1,5 +1,5 @@
 import { Command } from "cmdk";
-import { FolderPlus, Layers, Monitor, Moon, PanelLeft, RefreshCw, Search, SquarePen, Sun, Folder } from "lucide-react";
+import { FolderPlus, Layers, Monitor, Moon, PanelLeft, RefreshCw, RotateCw, Search, SquarePen, Sun, Folder } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { basename, relativeTime } from "../../model/format.js";
@@ -32,6 +32,7 @@ export function CommandPalette() {
   const baseline = useApp((s) => s.prefs.baseline);
   const lastSeen = useApp((s) => s.prefs.lastSeen);
   const groupBy = useApp((s) => s.prefs.groupBy);
+  const updates = useApp((s) => s.updates);
   const now = useNow(60_000, open);
 
   const sorted = useMemo(
@@ -93,6 +94,16 @@ export function CommandPalette() {
             <Item value="Theme dark" keywords={["appearance"]} icon={<Moon size={15} />} onSelect={() => run(() => controller.setTheme("dark"))}>
               Use dark theme
             </Item>
+            {updates?.status === "ready" ? (
+              <Item value="Restart to update" keywords={["update", "install", "version"]} icon={<RotateCw size={15} />} onSelect={() => run(() => controller.restartToUpdate())}>
+                Restart to install Helicon {updates.update?.version ?? ""}
+              </Item>
+            ) : null}
+            {updates ? (
+              <Item value="Check for updates" keywords={["update", "version"]} icon={<RefreshCw size={15} />} onSelect={() => run(() => controller.checkForUpdates())}>
+                Check for updates
+              </Item>
+            ) : null}
           </Command.Group>
           {sorted.length > 0 ? (
             <Command.Group heading="Threads" className={GROUP}>

@@ -128,6 +128,28 @@ export function MenuOption(props: {
   );
 }
 
+/** A menu item that turns a setting on or off, checked while on. The menu stays open to show the change. */
+export function MenuCheck(props: { checked: boolean; onChange: (checked: boolean) => void; children: ReactNode; description?: ReactNode }) {
+  return (
+    <DropdownMenu.CheckboxItem
+      checked={props.checked}
+      onCheckedChange={(checked) => props.onChange(checked === true)}
+      onSelect={(event) => event.preventDefault()}
+      className={cn(ITEM, "items-start py-2")}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block">{props.children}</span>
+        {props.description ? <span className="mt-0.5 block text-xs leading-snug text-muted">{props.description}</span> : null}
+      </span>
+      <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
+        <DropdownMenu.ItemIndicator className="text-accent-text">
+          <Check size={14} strokeWidth={2.25} />
+        </DropdownMenu.ItemIndicator>
+      </span>
+    </DropdownMenu.CheckboxItem>
+  );
+}
+
 export function MenuLabel(props: { children: ReactNode }) {
   return <DropdownMenu.Label className="px-2 pt-1.5 pb-1 text-xs font-medium text-subtle">{props.children}</DropdownMenu.Label>;
 }

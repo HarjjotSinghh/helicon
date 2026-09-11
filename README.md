@@ -86,6 +86,8 @@ npm run dev --workspace helicon-desktop
 
 Releases ride on tags: push `v0.1.0` and the Release workflow builds the Windows installer and attaches it to a GitHub Release. Every release gets a tag; notable merged PRs bump at least the patch version.
 
+The desktop app updates itself from the newest release's `latest.json`, so releases must not be marked prerelease. The installer is signed with the updater key: the workflow reads `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` from repo secrets, and a local `tauri build` needs the same two variables set.
+
 ## Legal
 
 - Wrapper clients are the intended path (Meta ships an MIT SDK for building MSP clients). This repo builds on that, and on the open-source CLI client.
