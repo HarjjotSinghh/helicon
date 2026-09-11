@@ -5,6 +5,7 @@ import { BootError, BootScreen, NewThread, Onboarding, Welcome } from "../compon
 import { CommandPalette } from "../components/palette/CommandPalette.js";
 import { Sidebar } from "../components/sidebar/Sidebar.js";
 import { ThreadView } from "../components/thread/ThreadView.js";
+import { UsagePage } from "../components/usage/UsagePage.js";
 import { TooltipProvider } from "../components/ui/overlays.js";
 import { isMac } from "../components/ui/primitives.js";
 import { Toasts } from "../components/ui/Toasts.js";
@@ -140,6 +141,9 @@ function Main() {
   const lastProject = useApp((s) => s.prefs.lastProject);
   if (!loaded) {
     return null;
+  }
+  if (route.kind === "usage") {
+    return <UsagePage />;
   }
   if (route.kind === "thread") {
     return <ThreadView key={route.sessionId} sessionId={route.sessionId} />;

@@ -110,6 +110,9 @@ class FakeClient implements HeliconClient {
   async setProjectOrder(cwds: string[]) {
     this.orders.push(cwds);
   }
+  async usage() {
+    return { since: "2026-09-01T00:00:00.000Z", days: 30, buckets: [], threads: [] };
+  }
   compactNoop = false;
   async compact() {
     this.actions.push("compact");

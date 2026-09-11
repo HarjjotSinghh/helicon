@@ -258,6 +258,40 @@ export interface DirectoryListing {
   entries: { name: string }[];
 }
 
+/** One day's tokens for one model, as the server aggregates them for the usage page. */
+export interface UsageBucket {
+  day: string;
+  modelId: string;
+  calls: number;
+  promptTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  reasoningTokens: number;
+  durationMs: number;
+}
+
+export interface UsageThread {
+  sessionId: string;
+  title: string | null;
+  cwd: string | null;
+  calls: number;
+  promptTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  modelIds: string[];
+  lastAt: string;
+}
+
+/** Every model call Helicon has seen, bucketed; the UI puts prices on it. */
+export interface UsageReport {
+  since: string;
+  days: number;
+  buckets: UsageBucket[];
+  threads: UsageThread[];
+}
+
 /** A view notification, live or paged from history. `at` is the emission time when known. */
 export interface ViewEvent {
   method: string;

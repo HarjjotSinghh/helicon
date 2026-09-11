@@ -14,6 +14,7 @@ import {
   type SkillCatalog,
   type TranscriptLoad,
   type TurnOptions,
+  type UsageReport,
   type UserInputAnswer,
 } from "@helicon/ui";
 
@@ -114,6 +115,10 @@ export class WebHeliconClient implements HeliconClient {
 
   async setProjectOrder(cwds: string[]): Promise<void> {
     await call("PATCH", "/api/projects/order", { cwds });
+  }
+
+  usage(days?: number): Promise<UsageReport> {
+    return call<UsageReport>("GET", `/api/usage${days ? `?days=${days}` : ""}`);
   }
 
   async listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]> {

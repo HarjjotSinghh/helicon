@@ -127,7 +127,24 @@ CREATE TABLE IF NOT EXISTS attachments (
   bytes BLOB NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS usage (
+  key TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  turn_id TEXT,
+  model_id TEXT,
+  prompt_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  cached_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+  reasoning_tokens INTEGER NOT NULL DEFAULT 0,
+  duration_ms INTEGER,
+  at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
+CREATE INDEX IF NOT EXISTS idx_usage_at ON usage(at);
+CREATE INDEX IF NOT EXISTS idx_usage_session ON usage(session_id);
 CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id);
 CREATE INDEX IF NOT EXISTS idx_attachments_session ON attachments(session_id, turn_id);
 `;
@@ -175,6 +192,28 @@ export interface AddAttachmentInput {
   width?: number | null;
   height?: number | null;
   bytes: Uint8Array;
+}
+
+/** One model call's tokens, as the store keeps them for the usage page. */
+export interface UsageCall {
+  key: string;
+  sessionId: string;
+  turnId: string | null;
+  modelId: string | null;
+  promptTokens: number;
+  outputTokens: number;
+  inputTokens: number;
+  cachedTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  reasoningTokens: number;
+  durationMs: number | null;
+  at: string;
+}
+
+export interface UsageRow extends UsageCall {
+  sessionTitle: string | null;
+  projectCwd: string | null;
 }
 
 function toAttachment(row: Row): AttachmentRecord {
@@ -239,6 +278,66 @@ export class HeliconStore {
       )
       .all() as Row[];
     return rows.map((row) => this.toProject(row));
+  }
+
+  /**
+   * One model call's tokens. Keyed by the view cursor that carried it, so replaying a thread's history
+   * never counts a call twice.
+   */
+  recordUsage(call: UsageCall): void {
+    this.db
+      .prepare(
+        `INSERT INTO usage (key, session_id, turn_id, model_id, prompt_tokens, output_tokens, input_tokens,
+           cached_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, duration_ms, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(key) DO NOTHING`,
+      )
+      .run(
+        call.key,
+        call.sessionId,
+        call.turnId ?? null,
+        call.modelId ?? null,
+        call.promptTokens,
+        call.outputTokens,
+        call.inputTokens,
+        call.cachedTokens,
+        call.cacheReadTokens,
+        call.cacheWriteTokens,
+        call.reasoningTokens,
+        call.durationMs ?? null,
+        call.at,
+      );
+  }
+
+  /** Every recorded call since `since`, newest last, with the thread and project it belongs to. */
+  listUsage(since?: string): UsageRow[] {
+    const rows = this.db
+      .prepare(
+        `SELECT u.*, s.title AS session_title, p.cwd AS project_cwd
+         FROM usage u
+         LEFT JOIN sessions s ON s.id = u.session_id
+         LEFT JOIN projects p ON p.id = s.project_id
+         ${since ? "WHERE u.at >= ?" : ""}
+         ORDER BY u.at`,
+      )
+      .all(...(since ? [since] : [])) as Row[];
+    return rows.map((row) => ({
+      key: String(row["key"]),
+      sessionId: String(row["session_id"]),
+      turnId: row["turn_id"] === null ? null : String(row["turn_id"]),
+      modelId: row["model_id"] === null ? null : String(row["model_id"]),
+      promptTokens: Number(row["prompt_tokens"] ?? 0),
+      outputTokens: Number(row["output_tokens"] ?? 0),
+      inputTokens: Number(row["input_tokens"] ?? 0),
+      cachedTokens: Number(row["cached_tokens"] ?? 0),
+      cacheReadTokens: Number(row["cache_read_tokens"] ?? 0),
+      cacheWriteTokens: Number(row["cache_write_tokens"] ?? 0),
+      reasoningTokens: Number(row["reasoning_tokens"] ?? 0),
+      durationMs: row["duration_ms"] === null ? null : Number(row["duration_ms"]),
+      at: String(row["at"]),
+      sessionTitle: row["session_title"] === null || row["session_title"] === undefined ? null : String(row["session_title"]),
+      projectCwd: row["project_cwd"] === null || row["project_cwd"] === undefined ? null : String(row["project_cwd"]),
+    }));
   }
 
   /** The order the user dragged projects into; anything not listed keeps falling back to recent activity. */

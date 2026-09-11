@@ -114,11 +114,16 @@ export function routeToHash(route: Route): string {
       return route.cwd ? `#/new/${encodeURIComponent(route.cwd)}` : "#/new";
     case "thread":
       return `#/t/${encodeURIComponent(route.sessionId)}`;
+    case "usage":
+      return "#/usage";
   }
 }
 
 export function hashToRoute(hash: string): Route {
   const h = hash.replace(/^#/, "");
+  if (h === "/usage") {
+    return { kind: "usage" };
+  }
   const thread = h.match(/^\/t\/(.+)$/);
   if (thread) {
     return { kind: "thread", sessionId: decodeURIComponent(thread[1] as string) };
@@ -1053,6 +1058,11 @@ export class HeliconController {
     } finally {
       this.setBusy("addProject", false);
     }
+  }
+
+  /** Token usage across every thread the server knows, for the usage page. */
+  usageReport(days: number): Promise<import("../types.js").UsageReport> {
+    return this.client.usage(days);
   }
 
   /** Moves a project in the sidebar, taking the new order from the row it was dropped on. */

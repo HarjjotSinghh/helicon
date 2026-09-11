@@ -94,7 +94,8 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
 export type Route =
   | { kind: "home" }
   | { kind: "new"; cwd: string | null }
-  | { kind: "thread"; sessionId: string };
+  | { kind: "thread"; sessionId: string }
+  | { kind: "usage" };
 
 export interface ThreadState {
   load: "idle" | "loading" | "ready" | "error";

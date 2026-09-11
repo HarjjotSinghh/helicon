@@ -903,6 +903,12 @@ export class HeliconServer {
       }
     }
 
+    if (method === "GET" && path === "/api/usage") {
+      const requested = Number.parseInt(url.searchParams.get("days") ?? "30", 10);
+      const days = Number.isFinite(requested) ? Math.min(365, Math.max(1, requested)) : 30;
+      this.json(res, 200, this.usageReport(days));
+      return true;
+    }
     const attachmentMatch = path.match(/^\/api\/attachments\/([A-Za-z0-9-]{1,64})$/);
     if (method === "GET" && attachmentMatch) {
       const found = this.store.readAttachment(attachmentMatch[1] as string);
@@ -1535,6 +1541,97 @@ export class HeliconServer {
     return candidate;
   }
 
+  /**
+   * One model call's tokens, kept so the usage page can look across every thread rather than only the ones
+   * open in the UI. The view cursor is the key, so replaying a thread's history never counts a call twice.
+   */
+  private recordUsage(sessionId: string, params: Record<string, unknown>): void {
+    const usage = asRecord(params["usage"]) ?? {};
+    const promptTokens = num(params["promptTokens"]) ?? num(usage["inputTokens"]) ?? 0;
+    const outputTokens = num(usage["outputTokens"]) ?? Math.max(0, (num(params["totalTokens"]) ?? 0) - promptTokens);
+    if (promptTokens === 0 && outputTokens === 0) {
+      return;
+    }
+    this.store.recordUsage({
+      key: str(params["viewCursor"]) ?? `${sessionId}:${str(params["turnId"]) ?? "turn"}:${randomUUID()}`,
+      sessionId,
+      turnId: str(params["turnId"]),
+      modelId: str(params["modelId"]),
+      promptTokens,
+      outputTokens,
+      inputTokens: num(usage["inputTokens"]) ?? 0,
+      cachedTokens: num(usage["cachedTokens"]) ?? 0,
+      cacheReadTokens: num(usage["cacheReadTokens"]) ?? 0,
+      cacheWriteTokens: num(usage["cacheWriteTokens"]) ?? 0,
+      reasoningTokens: num(usage["reasoningTokens"]) ?? 0,
+      durationMs: num(params["durationMs"]) ?? null,
+      at: normalizeIso(params["at"]) ?? nowIso(),
+    });
+  }
+
+  /** Tokens per day and model, plus a row per thread, for the usage page to price. */
+  private usageReport(days: number): Record<string, unknown> {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const rows = this.store.listUsage(since);
+    const buckets = new Map<string, Record<string, unknown>>();
+    const threads = new Map<string, Record<string, unknown>>();
+    for (const row of rows) {
+      const day = row.at.slice(0, 10);
+      const modelId = row.modelId ?? "unknown";
+      const cached = Math.min(row.promptTokens, row.cacheReadTokens || row.cachedTokens);
+      const bucketKey = `${day}|${modelId}`;
+      const bucket = buckets.get(bucketKey) ?? {
+        day,
+        modelId,
+        calls: 0,
+        promptTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        reasoningTokens: 0,
+        durationMs: 0,
+      };
+      bucket["calls"] = (bucket["calls"] as number) + 1;
+      bucket["promptTokens"] = (bucket["promptTokens"] as number) + row.promptTokens;
+      bucket["outputTokens"] = (bucket["outputTokens"] as number) + row.outputTokens;
+      bucket["cachedTokens"] = (bucket["cachedTokens"] as number) + cached;
+      bucket["cacheReadTokens"] = (bucket["cacheReadTokens"] as number) + row.cacheReadTokens;
+      bucket["cacheWriteTokens"] = (bucket["cacheWriteTokens"] as number) + row.cacheWriteTokens;
+      bucket["reasoningTokens"] = (bucket["reasoningTokens"] as number) + row.reasoningTokens;
+      bucket["durationMs"] = (bucket["durationMs"] as number) + (row.durationMs ?? 0);
+      buckets.set(bucketKey, bucket);
+
+      const thread = threads.get(row.sessionId) ?? {
+        sessionId: row.sessionId,
+        title: row.sessionTitle,
+        cwd: row.projectCwd,
+        calls: 0,
+        promptTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        modelIds: [] as string[],
+        lastAt: row.at,
+      };
+      thread["calls"] = (thread["calls"] as number) + 1;
+      thread["promptTokens"] = (thread["promptTokens"] as number) + row.promptTokens;
+      thread["outputTokens"] = (thread["outputTokens"] as number) + row.outputTokens;
+      thread["cachedTokens"] = (thread["cachedTokens"] as number) + cached;
+      const ids = thread["modelIds"] as string[];
+      if (!ids.includes(modelId)) {
+        ids.push(modelId);
+      }
+      thread["lastAt"] = row.at;
+      threads.set(row.sessionId, thread);
+    }
+    return {
+      since,
+      days,
+      buckets: [...buckets.values()],
+      threads: [...threads.values()].sort((a, b) => ((a["lastAt"] as string) < (b["lastAt"] as string) ? 1 : -1)),
+    };
+  }
+
   private attachmentView(record: AttachmentRecord): Record<string, unknown> {
     return {
       id: record.id,
@@ -1603,6 +1700,12 @@ export class HeliconServer {
     }
     live.pendingApprovals = new Set(approvals.map((a) => str(a["approvalId"])).filter((id): id is string => id !== null));
     live.pendingInputs = new Set(userInputs.map((u) => str(u["userInputId"])).filter((id): id is string => id !== null));
+    // Opening a thread backfills the usage page with the calls it made before this server ever ran.
+    for (const event of events) {
+      if (event.method === "session/tokenUsage") {
+        this.recordUsage(sessionId, event.params);
+      }
+    }
     // The history's last goal change is the goal as of now, unless a live one arrived while this load ran.
     for (let index = events.length - 1; live.goalSeq === goalSeqAtStart && index >= 0; index -= 1) {
       const event = events[index];
@@ -1950,6 +2053,10 @@ export class HeliconServer {
         if (modelId) {
           this.store.updateSession(sessionId, { modelId });
         }
+        break;
+      }
+      case "session/tokenUsage": {
+        this.recordUsage(sessionId, params);
         break;
       }
       case "session/goalChanged": {

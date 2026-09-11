@@ -70,6 +70,8 @@ export interface HeliconClient {
   setPinned(cwd: string, pinned: boolean): Promise<void>;
   /** The order the user dragged the sidebar's projects into. */
   setProjectOrder(cwds: string[]): Promise<void>;
+  /** Token usage across every thread the server has seen, for the usage page. */
+  usage(days?: number): Promise<import("./types.js").UsageReport>;
   listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]>;
   discover(cwd?: string): Promise<void>;
   startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string }): Promise<SessionSummary>;
