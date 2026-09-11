@@ -1,87 +1,534 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+@import "@fontsource-variable/newsreader/opsz.css";
 
-@theme {
-  --color-night-950: #0a0a0c;
-  --color-night-900: #101014;
-  --color-night-850: #141419;
-  --color-night-800: #1a1a21;
-  --color-night-700: #26262e;
-  --color-night-600: #33333d;
-  --color-ink-100: #f2f2f5;
-  --color-ink-300: #c9c9d2;
-  --color-ink-500: #9c9ca8;
-  --color-ink-600: #6f6f7a;
-  --color-accent-400: #3fd2e0;
-  --color-accent-500: #22b8c6;
-  --color-danger-500: #f25555;
-  --color-ok-500: #3dd68c;
-  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Code", Consolas, "Courier New", monospace;
-}
+@source "../../../packages/ui/src";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+ * Helicon tokens. Restrained palette: cool-tinted neutrals (hue 255) plus one blue accent,
+ * the blue of the app icon, reserved for action, live state and focus. Every text token
+ * clears 4.5:1 on every surface in both themes (checked with a WCAG script).
+ */
 :root {
-  color-scheme: dark;
-}
-
-:root[data-theme="light"] {
   color-scheme: light;
-  --color-night-950: #f4f4f6;
-  --color-night-900: #ffffff;
-  --color-night-850: #f6f6f8;
-  --color-night-800: #ececf1;
-  --color-night-700: #d9d9e0;
-  --color-night-600: #c2c2cc;
-  --color-ink-100: #17171c;
-  --color-ink-300: #3a3a44;
-  --color-ink-500: #62626e;
-  --color-ink-600: #8a8a96;
+  --bg: oklch(0.992 0.002 255);
+  --bg-sidebar: oklch(0.967 0.004 255);
+  --bg-raised: oklch(1 0 0);
+  --bg-sunken: oklch(0.962 0.004 255);
+  --bg-hover: oklch(0.25 0.02 255 / 0.05);
+  --bg-active: oklch(0.25 0.02 255 / 0.085);
+  --bg-inverse: oklch(0.22 0.01 255);
+  --fg-inverse: oklch(0.985 0.002 255);
+  --border: oklch(0.25 0.02 255 / 0.1);
+  --border-strong: oklch(0.25 0.02 255 / 0.2);
+  --fg: oklch(0.2 0.01 255);
+  --fg-muted: oklch(0.43 0.012 255);
+  --fg-subtle: oklch(0.5 0.012 255);
+  --accent: oklch(0.55 0.19 257);
+  --accent-hover: oklch(0.5 0.19 257);
+  --accent-fg: oklch(0.99 0 0);
+  --accent-text: oklch(0.5 0.18 257);
+  --accent-soft: oklch(0.55 0.19 257 / 0.1);
+  --warn: oklch(0.74 0.16 70);
+  --warn-text: oklch(0.5 0.12 65);
+  --warn-soft: oklch(0.82 0.15 80 / 0.18);
+  --warn-line: oklch(0.7 0.15 70 / 0.45);
+  --danger: oklch(0.58 0.21 27);
+  --danger-text: oklch(0.52 0.19 27);
+  --danger-soft: oklch(0.62 0.2 27 / 0.1);
+  --ok: oklch(0.62 0.15 150);
+  --ok-text: oklch(0.47 0.12 150);
+  --diff-add: oklch(0.7 0.15 150 / 0.16);
+  --diff-del: oklch(0.65 0.2 27 / 0.12);
+  --scrollbar: oklch(0.25 0.02 255 / 0.18);
+  --sh-class: oklch(0.5 0.14 300);
+  --sh-identifier: oklch(0.3 0.02 255);
+  --sh-sign: oklch(0.5 0.012 255);
+  --sh-property: oklch(0.45 0.12 240);
+  --sh-entity: oklch(0.48 0.13 200);
+  --sh-jsxliterals: oklch(0.45 0.12 300);
+  --sh-string: oklch(0.47 0.12 150);
+  --sh-keyword: oklch(0.5 0.17 20);
+  --sh-comment: oklch(0.55 0.01 255);
+  /* Elevation: a hairline ring plus a short layered shadow, never a wide blur. */
+  --elev-btn: 0 0 0 1px var(--border-strong), 0 1px 2px oklch(0.2 0.02 255 / 0.06);
+  --elev-card: 0 0 0 1px var(--border), 0 1px 2px oklch(0.2 0.02 255 / 0.04), 0 2px 6px oklch(0.2 0.02 255 / 0.04);
+  /* First-run folder art (Rare UI FolderComponent), in the accent family. */
+  --folder-back: oklch(0.7 0.13 250);
+  --folder-flap: oklch(0.6 0.15 254 / 0.55);
+  --folder-edge: oklch(0.84 0.08 245);
+  --folder-page: oklch(0.992 0 0);
+  --folder-page-edge: oklch(0.9 0.005 255);
+  --folder-line: oklch(0.87 0.006 255);
 }
 
-html,
-body,
-#root {
-  height: 100%;
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: oklch(0.178 0.004 255);
+  --bg-sidebar: oklch(0.152 0.004 255);
+  --bg-raised: oklch(0.215 0.005 255);
+  --bg-sunken: oklch(0.148 0.004 255);
+  --bg-hover: oklch(0.98 0.005 255 / 0.05);
+  --bg-active: oklch(0.98 0.005 255 / 0.085);
+  --bg-inverse: oklch(0.95 0.003 255);
+  --fg-inverse: oklch(0.17 0.004 255);
+  --border: oklch(0.98 0.005 255 / 0.08);
+  --border-strong: oklch(0.98 0.005 255 / 0.15);
+  --fg: oklch(0.955 0.003 255);
+  --fg-muted: oklch(0.76 0.008 255);
+  --fg-subtle: oklch(0.66 0.009 255);
+  --accent: oklch(0.58 0.18 257);
+  --accent-hover: oklch(0.63 0.17 257);
+  --accent-fg: oklch(0.99 0 0);
+  --accent-text: oklch(0.76 0.12 252);
+  --accent-soft: oklch(0.62 0.17 257 / 0.16);
+  --warn: oklch(0.8 0.15 75);
+  --warn-text: oklch(0.83 0.13 80);
+  --warn-soft: oklch(0.8 0.15 75 / 0.12);
+  --warn-line: oklch(0.8 0.15 75 / 0.35);
+  --danger: oklch(0.68 0.19 25);
+  --danger-text: oklch(0.74 0.15 25);
+  --danger-soft: oklch(0.68 0.19 25 / 0.12);
+  --ok: oklch(0.74 0.15 155);
+  --ok-text: oklch(0.8 0.13 155);
+  --diff-add: oklch(0.7 0.14 150 / 0.14);
+  --diff-del: oklch(0.65 0.18 25 / 0.14);
+  --scrollbar: oklch(0.98 0.005 255 / 0.16);
+  --sh-class: oklch(0.78 0.11 300);
+  --sh-identifier: oklch(0.9 0.01 255);
+  --sh-sign: oklch(0.68 0.01 255);
+  --sh-property: oklch(0.8 0.1 235);
+  --sh-entity: oklch(0.8 0.1 200);
+  --sh-jsxliterals: oklch(0.78 0.11 300);
+  --sh-string: oklch(0.8 0.12 150);
+  --sh-keyword: oklch(0.76 0.13 20);
+  --sh-comment: oklch(0.62 0.01 255);
+  /* In dark mode the ring turns into a faint light edge that melts into the shadow. */
+  --elev-btn: 0 0 0 1px oklch(1 0 0 / 0.1), 0 1px 2px oklch(0 0 0 / 0.3);
+  --elev-card: 0 0 0 1px oklch(1 0 0 / 0.09), 0 1px 2px oklch(0 0 0 / 0.2), 0 2px 6px oklch(0 0 0 / 0.2);
+  --folder-back: oklch(0.52 0.14 256);
+  --folder-flap: oklch(0.42 0.13 256 / 0.6);
+  --folder-edge: oklch(0.68 0.11 250);
+  --folder-page: oklch(0.29 0.006 255);
+  --folder-page-edge: oklch(0.37 0.008 255);
+  --folder-line: oklch(0.44 0.01 255);
 }
 
-body {
-  margin: 0;
-  background: var(--color-night-950);
-  color: var(--color-ink-100);
-  font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+@theme inline {
+  --color-bg: var(--bg);
+  --color-sidebar: var(--bg-sidebar);
+  --color-raised: var(--bg-raised);
+  --color-sunken: var(--bg-sunken);
+  --color-hover: var(--bg-hover);
+  --color-active: var(--bg-active);
+  --color-inverse: var(--bg-inverse);
+  --color-inverse-fg: var(--fg-inverse);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-text: var(--warn-text);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-line: var(--warn-line);
+  --color-danger: var(--danger);
+  --color-danger-text: var(--danger-text);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --color-ok-text: var(--ok-text);
+  --color-diff-add: var(--diff-add);
+  --color-diff-del: var(--diff-del);
+
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, "Segoe UI Variable Text", "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --font-display: "Newsreader Variable", "Newsreader", "Iowan Old Style", Georgia, serif;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.375rem;
+  --text-md: 0.9375rem;
+  --text-md--line-height: 1.6;
+  --text-lg: 1.0625rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.625rem;
+  --text-2xl--line-height: 2.125rem;
+  --text-3xl: 2.125rem;
+  --text-3xl--line-height: 2.5rem;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --shadow-pop: 0 0 0 1px var(--border-strong), 0 8px 12px -8px oklch(0 0 0 / 0.3), 0 2px 4px -1px oklch(0 0 0 / 0.12);
+  --shadow-soft: 0 1px 2px oklch(0 0 0 / 0.06), 0 0 0 1px var(--border);
+  --shadow-btn: var(--elev-btn);
+  --shadow-card: var(--elev-card);
 }
 
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-*::-webkit-scrollbar-thumb {
-  background: var(--color-night-600);
-  border-radius: 8px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
+/* Semantic stacking order; never ad hoc 999s. */
+:root {
+  --z-sticky: 10;
+  --z-resize: 20;
+  --z-dropdown: 50;
+  --z-overlay: 60;
+  --z-modal: 70;
+  --z-toast: 80;
+  --z-tooltip: 90;
 }
 
-button {
-  font: inherit;
-  color: inherit;
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+  }
+
+  button,
+  [role="button"] {
+    cursor: default;
+    user-select: none;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--accent) 28%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+    font-feature-settings: "calt" 0;
+  }
+
+  input,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  textarea::placeholder,
+  input::placeholder {
+    color: var(--fg-subtle);
+  }
 }
 
-input,
-textarea,
-select {
-  font: inherit;
-  color: inherit;
+@layer components {
+  /* Running indicator: a quarter ring that turns. Reduced motion keeps the ring, drops the turn. */
+  .spin-ring {
+    display: inline-block;
+    border-radius: 9999px;
+    border: 1.5px solid color-mix(in oklch, currentColor 22%, transparent);
+    border-top-color: currentColor;
+    animation: helicon-spin 0.9s linear infinite;
+  }
+
+  /* Loading copy only ("Thinking", "Working"): a sheen that says the agent is mid-step. */
+  .shimmer {
+    background-image: linear-gradient(
+      90deg,
+      var(--fg-subtle) 0%,
+      var(--fg-subtle) 38%,
+      var(--fg) 50%,
+      var(--fg-subtle) 62%,
+      var(--fg-subtle) 100%
+    );
+    background-size: 280% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: helicon-sheen 2.4s linear infinite;
+  }
+
+  .attention-pulse {
+    animation: helicon-pulse 1.8s var(--ease-in-out) infinite;
+  }
+
+  /* Popovers grow from their trigger; tooltips after the first skip the animation. */
+  .pop {
+    transform-origin: var(
+      --radix-dropdown-menu-content-transform-origin,
+      var(--radix-tooltip-content-transform-origin, var(--radix-popover-content-transform-origin, center))
+    );
+    animation: helicon-pop-in 150ms var(--ease-out);
+  }
+  .pop[data-state="closed"] {
+    animation: helicon-pop-out 110ms ease-in forwards;
+  }
+  .pop[data-state="instant-open"] {
+    animation: none;
+  }
+  .modal-pop {
+    animation: helicon-modal-in 200ms var(--ease-out);
+  }
+  .modal-pop[data-state="closed"] {
+    animation: helicon-pop-out 120ms ease-in forwards;
+  }
+  .overlay-fade {
+    animation: helicon-fade-in 180ms var(--ease-out);
+  }
+  .overlay-fade[data-state="closed"] {
+    animation: helicon-fade-out 120ms ease-in forwards;
+  }
+  .toast-in {
+    animation: helicon-toast-in 260ms var(--ease-out);
+  }
+  /* Something new arrived in the transcript or dock. */
+  .enter-up {
+    animation: helicon-enter-up 220ms var(--ease-out);
+  }
+
+  /* Beautiful UI LoadingState "Drive": a chevron wavefront through a 3x3 pixel grid. */
+  .pixel-loader > span {
+    opacity: 0.15;
+    animation: helicon-pixel 650ms ease-in-out infinite both;
+  }
+
+  /* A caret at the end of a reply that is still streaming (Beautiful UI StreamText). */
+  .prose-helicon.streaming > :last-child:is(p, h1, h2, h3, h4, blockquote)::after,
+  .prose-helicon.streaming > :is(ul, ol):last-child > li:last-child::after {
+    content: "";
+    display: inline-block;
+    width: 2px;
+    height: 1.05em;
+    margin-inline-start: 2px;
+    border-radius: 1px;
+    background: currentColor;
+    vertical-align: text-bottom;
+    opacity: 0.75;
+  }
+
+  /* Agent prose. Product scale: 15px, 1.6 leading, measured column. */
+  .prose-helicon {
+    font-size: var(--text-md);
+    line-height: 1.65;
+    color: var(--fg);
+    overflow-wrap: anywhere;
+  }
+  .prose-helicon > :first-child {
+    margin-top: 0;
+  }
+  .prose-helicon > :last-child {
+    margin-bottom: 0;
+  }
+  .prose-helicon p {
+    margin: 0 0 0.75em;
+    text-wrap: pretty;
+  }
+  .prose-helicon h1,
+  .prose-helicon h2,
+  .prose-helicon h3,
+  .prose-helicon h4 {
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 1.25em 0 0.5em;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  .prose-helicon h1 {
+    font-size: 1.35em;
+  }
+  .prose-helicon h2 {
+    font-size: 1.2em;
+  }
+  .prose-helicon h3 {
+    font-size: 1.05em;
+  }
+  .prose-helicon h4 {
+    font-size: 1em;
+    color: var(--fg-muted);
+  }
+  .prose-helicon ul,
+  .prose-helicon ol {
+    margin: 0 0 0.75em;
+    padding-inline-start: 1.35em;
+  }
+  .prose-helicon ul {
+    list-style: disc;
+  }
+  .prose-helicon ol {
+    list-style: decimal;
+  }
+  .prose-helicon li {
+    margin: 0.2em 0;
+    padding-inline-start: 0.15em;
+  }
+  .prose-helicon li::marker {
+    color: var(--fg-subtle);
+  }
+  .prose-helicon a {
+    color: var(--accent-text);
+    text-decoration-line: underline;
+    text-decoration-thickness: from-font;
+    text-underline-offset: 2px;
+    text-decoration-color: color-mix(in oklch, var(--accent-text) 40%, transparent);
+  }
+  .prose-helicon a:hover {
+    text-decoration-color: currentColor;
+  }
+  .prose-helicon strong {
+    font-weight: 600;
+  }
+  .prose-helicon blockquote {
+    margin: 0 0 0.75em;
+    padding: 0.25em 0 0.25em 0.9em;
+    border-inline-start: 1px solid var(--border-strong);
+    color: var(--fg-muted);
+  }
+  .prose-helicon hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 1.25em 0;
+  }
+  .prose-helicon :not(pre) > code {
+    font-size: 0.86em;
+    padding: 0.12em 0.36em;
+    border-radius: 5px;
+    background: var(--bg-active);
+    color: var(--fg);
+    overflow-wrap: anywhere;
+  }
+  .prose-helicon table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+    margin: 0 0 0.9em;
+  }
+  .prose-helicon th,
+  .prose-helicon td {
+    border-bottom: 1px solid var(--border);
+    padding: 0.45em 0.6em;
+    text-align: start;
+    vertical-align: top;
+  }
+  .prose-helicon th {
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+
+  .code-surface pre {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.6;
+    tab-size: 2;
+  }
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-accent-500);
-  outline-offset: 1px;
+@keyframes helicon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes helicon-sheen {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes helicon-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes helicon-pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* Tailwind 4 centers with the `translate` property, so only `transform` moves here. */
+@keyframes helicon-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes helicon-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes helicon-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes helicon-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes helicon-enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes helicon-pixel {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  18%,
+  42% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 0.15;
+  }
 }
 
 @keyframes helicon-pulse {
@@ -90,16 +537,28 @@ select {
     opacity: 1;
   }
   50% {
-    opacity: 0.35;
+    opacity: 0.45;
   }
 }
 
-.helicon-pulse {
-  animation: helicon-pulse 1.6s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .helicon-pulse {
+  .spin-ring,
+  .attention-pulse {
     animation: none;
+  }
+  .pixel-loader > span {
+    animation: none;
+    opacity: 0.45;
+  }
+  .shimmer {
+    animation: none;
+    background: none;
+    color: var(--fg-muted);
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
