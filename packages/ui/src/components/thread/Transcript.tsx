@@ -1,9 +1,20 @@
 import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { useController, useNow } from "../../app/context.js";
+import { useSampled } from "../../app/sampled.js";
 import { buildTurns, type LocalEcho, type ThreadFold, type TurnView } from "../../model/fold.js";
-import { describeTool, formatDuration, parseArgs, toolKind } from "../../model/format.js";
+import {
+  describeTool,
+  formatClock,
+  formatDuration,
+  formatFullDate,
+  formatSpeed,
+  formatTokens,
+  parseArgs,
+  toolKind,
+} from "../../model/format.js";
+import { streamingSpeed, turnSpeeds, type TurnSpeed } from "../../model/usage.js";
 import type { ThreadState } from "../../model/store.js";
 import type { MspItem, UserInputAnswer } from "../../types.js";
 import { CopyButton } from "../ui/Markdown.js";
@@ -56,6 +67,7 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
   const turns = useMemo(() => buildTurns(fold), [fold]);
   const gates = useMemo(() => gateMap(fold), [fold.approvals, fold.userInputs]);
   const answers = useMemo(() => answerMap(fold), [fold.settled]);
+  const speeds = useMemo(() => turnSpeeds(fold), [fold.meta.calls, fold.turns, fold.activeTurnId]);
   const echoes = fold.echoes.filter((e) => e.disposition !== "queued");
   const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom({ initial: "instant", resize: "smooth" });
 
@@ -77,6 +89,7 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
               sessionId={props.sessionId}
               isLast={index === turns.length - 1}
               readOnly={thread.readOnly}
+              speed={turn.turnId ? (speeds[turn.turnId] ?? null) : null}
             />
           ))}
           {echoes.map((echo) => (
@@ -121,6 +134,7 @@ const TurnBlock = memo(
     sessionId: string;
     isLast: boolean;
     readOnly: boolean;
+    speed: TurnSpeed | null;
   }) {
     const { turn } = props;
     const info = turn.info;
@@ -129,7 +143,7 @@ const TurnBlock = memo(
     const hasWork = turn.entries.length > 0;
     return (
       <article className="flex flex-col gap-3" aria-label="Turn">
-        {turn.prompt ? <PromptBubble item={turn.prompt} /> : null}
+        {turn.prompt ? <PromptBubble item={turn.prompt} sentAt={sentTime(turn)} /> : null}
         {turn.running ? (
           <div className="flex flex-col gap-1.5">
             {turn.entries.map((item) => (
@@ -138,12 +152,12 @@ const TurnBlock = memo(
             <LiveStatus turn={turn} gates={props.gates} />
           </div>
         ) : hasWork ? (
-          <WorkLog turn={turn} gates={props.gates} answers={props.answers} />
+          <WorkLog turn={turn} gates={props.gates} answers={props.answers} speed={turn.final ? null : props.speed} />
         ) : null}
         {turn.final ? (
           <div className="group/final flex flex-col gap-2">
             <AgentText item={turn.final} />
-            <TurnFooter turn={turn} />
+            <TurnFooter turn={turn} speed={props.speed} />
           </div>
         ) : null}
         {failed ? (
@@ -172,8 +186,27 @@ const TurnBlock = memo(
     a.gates === b.gates &&
     a.answers === b.answers &&
     a.isLast === b.isLast &&
-    a.readOnly === b.readOnly,
+    a.readOnly === b.readOnly &&
+    a.speed?.tokensPerSecond === b.speed?.tokensPerSecond,
 );
+
+function parseTime(iso: string | undefined): number | null {
+  if (!iso) {
+    return null;
+  }
+  const time = Date.parse(iso);
+  return Number.isNaN(time) ? null : time;
+}
+
+/** When the prompt went in: its record time, or when its turn started. */
+function sentTime(turn: TurnView): number | null {
+  return parseTime(turn.prompt?.recordedAt) ?? turn.info?.startedAt ?? null;
+}
+
+/** When the turn finished: the live completion, or its reply's record time for history. */
+function completedTime(turn: TurnView): number | null {
+  return turn.info?.completedAt ?? parseTime(turn.final?.recordedAt) ?? parseTime(turn.entries[turn.entries.length - 1]?.recordedAt);
+}
 
 function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] | null; live?: boolean }) {
   const { item } = props;
@@ -258,7 +291,7 @@ function turnDuration(turn: TurnView): number | null {
  * A finished turn's work, collapsed to one line; the files it changed stay visible as chips.
  * Header grammar via Beautiful UI ToolChips (beautifului.dev), MIT (c) 2026 Shane Levine.
  */
-function WorkLog(props: { turn: TurnView; gates: GateMap; answers: AnswerMap }) {
+function WorkLog(props: { turn: TurnView; gates: GateMap; answers: AnswerMap; speed?: TurnSpeed | null }) {
   const { turn } = props;
   const failed = turn.info?.terminal === "failed";
   const [open, setOpen] = useState(failed);
@@ -280,6 +313,12 @@ function WorkLog(props: { turn: TurnView; gates: GateMap; answers: AnswerMap }) 
             <span className="truncate">{summary}</span>
           </>
         ) : null}
+        {props.speed ? (
+          <>
+            <span className="h-3 w-px shrink-0 bg-line-strong" aria-hidden="true" />
+            <span className="shrink-0 tabular-nums">{formatSpeed(props.speed.tokensPerSecond)}</span>
+          </>
+        ) : null}
       </button>
       <Collapse open={open}>
         <div className="mt-1 ml-[7px] flex flex-col gap-1 border-l border-line pl-4">
@@ -296,6 +335,9 @@ function WorkLog(props: { turn: TurnView; gates: GateMap; answers: AnswerMap }) 
 function LiveStatus(props: { turn: TurnView; gates: GateMap }) {
   const now = useNow(1000);
   const { turn } = props;
+  const infoRef = useRef(turn.info);
+  infoRef.current = turn.info;
+  const speed = useSampled(() => streamingSpeed(infoRef.current), true);
   const startedAt = turn.info?.startedAt;
   const elapsed = startedAt ? formatDuration(now - startedAt) : null;
   const waiting = turn.entries.some((e) => props.gates[e.itemId]);
@@ -326,23 +368,61 @@ function LiveStatus(props: { turn: TurnView; gates: GateMap }) {
         </>
       )}
       {elapsed ? <span className="font-mono text-xs text-subtle tabular-nums">{elapsed}</span> : null}
+      {speed !== null && !waiting ? (
+        <Tip label="Estimated from the text streaming now">
+          <span tabIndex={0} className="font-mono text-xs text-subtle tabular-nums">
+            ~{formatSpeed(speed)}
+          </span>
+        </Tip>
+      ) : null}
       {retry?.reason ? <span className="truncate text-xs text-subtle">{retry.reason}</span> : null}
     </div>
   );
 }
 
-function TurnFooter(props: { turn: TurnView }) {
+/** Under a reply: when it finished, how long it took when there was no work log, and its output speed. */
+function TurnFooter(props: { turn: TurnView; speed: TurnSpeed | null }) {
   const duration = turnDuration(props.turn);
   const hasWork = props.turn.entries.length > 0;
+  const completed = completedTime(props.turn);
+  const dot = (
+    <span aria-hidden="true" className="text-line-strong">
+      ·
+    </span>
+  );
   return (
-    <div className="flex h-6 items-center gap-1 text-xs text-subtle opacity-0 transition-opacity duration-150 group-hover/final:opacity-100 focus-within:opacity-100">
-      <CopyButton text={props.turn.final?.text ?? ""} label="Copy reply" />
-      {duration !== null && !hasWork ? <span className="tabular-nums">{formatDuration(duration)}</span> : null}
+    <div className="flex h-6 items-center gap-1.5 text-xs text-subtle">
+      {completed !== null ? (
+        <Tip label={`Completed ${formatFullDate(completed)}`}>
+          <span tabIndex={0} className="tabular-nums">
+            Completed {formatClock(completed)}
+          </span>
+        </Tip>
+      ) : null}
+      {duration !== null && !hasWork ? (
+        <>
+          {completed !== null ? dot : null}
+          <span className="tabular-nums">{formatDuration(duration)}</span>
+        </>
+      ) : null}
+      {props.speed ? (
+        <>
+          {completed !== null || (duration !== null && !hasWork) ? dot : null}
+          <Tip label={`${formatTokens(props.speed.outputTokens)} output tokens over ${formatDuration(props.speed.generationMs)} of model calls`}>
+            <span tabIndex={0} className="tabular-nums">
+              {formatSpeed(props.speed.tokensPerSecond)}
+            </span>
+          </Tip>
+        </>
+      ) : null}
+      <span className="ml-0.5 opacity-0 transition-opacity duration-150 group-hover/final:opacity-100 focus-within:opacity-100">
+        <CopyButton text={props.turn.final?.text ?? ""} label="Copy reply" />
+      </span>
     </div>
   );
 }
 
-function PromptBubble(props: { item: MspItem }) {
+function PromptBubble(props: { item: MspItem; sentAt: number | null }) {
   const text = props.item.displayText ?? props.item.text ?? "";
   const long = text.split("\n").length > 12 || text.length > 900;
   const [expanded, setExpanded] = useState(false);
@@ -357,13 +437,22 @@ function PromptBubble(props: { item: MspItem }) {
         >
           {text}
         </div>
-        <div className="flex h-6 items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/prompt:opacity-100 focus-within:opacity-100">
-          {long ? (
-            <button type="button" onClick={() => setExpanded((v) => !v)} className="rounded-md px-1.5 py-0.5 text-xs text-subtle hover:bg-hover hover:text-fg">
-              {expanded ? "Show less" : "Show all"}
-            </button>
+        <div className="flex h-6 items-center gap-1">
+          <div className="flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/prompt:opacity-100 focus-within:opacity-100">
+            {long ? (
+              <button type="button" onClick={() => setExpanded((v) => !v)} className="rounded-md px-1.5 py-0.5 text-xs text-subtle hover:bg-hover hover:text-fg">
+                {expanded ? "Show less" : "Show all"}
+              </button>
+            ) : null}
+            <CopyButton text={text} label="Copy prompt" />
+          </div>
+          {props.sentAt !== null ? (
+            <Tip label={`Sent ${formatFullDate(props.sentAt)}`}>
+              <span tabIndex={0} className="px-1 text-xs text-subtle tabular-nums">
+                {formatClock(props.sentAt)}
+              </span>
+            </Tip>
           ) : null}
-          <CopyButton text={text} label="Copy prompt" />
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import {
   Archive,
+  Check,
   ChevronRight,
   Code,
   Copy,
@@ -7,6 +8,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  GitBranch,
   Layers,
   ListFilter,
   Monitor,
@@ -19,16 +21,18 @@ import {
   Search,
   SquarePen,
   Sun,
+  Undo2,
   X,
 } from "lucide-react";
 import { memo, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { shallowEqual, useApp, useController, useNow } from "../../app/context.js";
-import { basename, relativeTime } from "../../model/format.js";
+import { basename, formatElapsed, relativeTime } from "../../model/format.js";
 import {
   STATUS_LABEL,
   groupByProject,
   groupByStatus,
   isLive,
+  settledEntries,
   threadStatus,
   type ProjectGroup,
   type SidebarEntry,
@@ -47,7 +51,7 @@ export function Sidebar() {
   return (
     <aside
       aria-label="Sidebar"
-      className="relative flex h-full shrink-0 flex-col border-r border-line bg-sidebar"
+      className="@container relative flex h-full shrink-0 flex-col border-r border-line bg-sidebar"
       style={{ width }}
     >
       <SidebarTop />
@@ -96,9 +100,12 @@ function NavRow(props: { icon: ReactNode; label: string; keys: string[]; active?
         props.active && "bg-active text-fg",
       )}
     >
-      <span className="flex size-4 items-center justify-center">{props.icon}</span>
-      <span className="flex-1 text-left">{props.label}</span>
-      <Shortcut keys={props.keys} className="opacity-0 transition-opacity duration-150 group-hover/nav:opacity-100" />
+      <span className="flex size-4 shrink-0 items-center justify-center">{props.icon}</span>
+      <span className="min-w-0 flex-1 truncate text-left">{props.label}</span>
+      {/* The hint only takes room once the sidebar is wide enough to keep the label on one line. */}
+      <span className="hidden shrink-0 @min-[16rem]:block">
+        <Shortcut keys={props.keys} className="opacity-0 transition-opacity duration-150 group-hover/nav:opacity-100" />
+      </span>
     </button>
   );
 }
@@ -136,6 +143,7 @@ function ThreadList() {
 
   const projectGroups = useMemo(() => groupByProject(projects, entries), [projects, entries]);
   const statusGroups = useMemo(() => groupByStatus(entries), [entries]);
+  const settled = useMemo(() => settledEntries(entries), [entries]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -166,9 +174,12 @@ function ThreadList() {
             />
           ))
         ) : (
-          statusGroups.map((group) => (
-            <StatusSection key={group.id} label={group.label} entries={group.entries} activeId={activeId} now={now} cap={group.id === "idle"} />
-          ))
+          <>
+            {statusGroups.map((group) => (
+              <StatusSection key={group.id} label={group.label} entries={group.entries} activeId={activeId} now={now} cap={group.id === "idle"} />
+            ))}
+            {settled.length > 0 ? <SettledShelf shelfKey="status" entries={settled} activeId={activeId} now={now} showProject /> : null}
+          </>
         )}
       </nav>
     </div>
@@ -229,7 +240,7 @@ const ProjectSection = memo(function ProjectSection(props: {
           {visible.map((entry) => (
             <ThreadRow key={entry.session.sessionId} entry={entry} active={entry.session.sessionId === props.activeId} now={props.now} />
           ))}
-          {entries.length === 0 ? (
+          {entries.length === 0 && props.group.settled.length === 0 ? (
             <li>
               <button
                 type="button"
@@ -252,6 +263,9 @@ const ProjectSection = memo(function ProjectSection(props: {
             </li>
           ) : null}
         </ul>
+      )}
+      {props.collapsed || props.group.settled.length === 0 ? null : (
+        <SettledShelf shelfKey={`project:${project.cwd}`} entries={props.group.settled} activeId={props.activeId} now={props.now} />
       )}
     </section>
   );
@@ -292,40 +306,140 @@ function StatusSection(props: { label: string; entries: SidebarEntry[]; activeId
   );
 }
 
-function metaFor(entry: SidebarEntry, now: number): { text: string; className: string } {
-  switch (entry.status) {
-    case "approval":
-      return { text: "Approve", className: "font-medium text-warn-text" };
-    case "input":
-      return { text: "Answer", className: "font-medium text-warn-text" };
+const SHELF_PAGE = 10;
+const SHELF_MORE = 25;
+
+/**
+ * Settled threads, collapsed under a "Settled" divider as in T3 Code. While collapsed it still
+ * shows the thread that is open, so the sidebar never loses the current selection.
+ */
+function SettledShelf(props: { shelfKey: string; entries: SidebarEntry[]; activeId: string | null; now: number; showProject?: boolean }) {
+  const controller = useController();
+  const open = useApp((s) => s.prefs.openShelves.includes(props.shelfKey));
+  const [limit, setLimit] = useState(SHELF_PAGE);
+  const visible = open ? props.entries.slice(0, limit) : props.entries.filter((e) => e.session.sessionId === props.activeId);
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => controller.toggleShelf(props.shelfKey)}
+        className="group/shelf flex h-7 w-full items-center gap-2 rounded-lg pr-2 pl-[30px] text-left text-xs text-subtle transition-colors duration-100 hover:text-fg"
+      >
+        <span>Settled</span>
+        <span className="tabular-nums">{props.entries.length}</span>
+        <span aria-hidden="true" className="h-px flex-1 bg-line" />
+        <ChevronRight size={12} className={cn("shrink-0 transition-transform duration-150 ease-out", open && "rotate-90")} />
+      </button>
+      {visible.length > 0 ? (
+        <ul className="flex flex-col gap-px">
+          {visible.map((entry) => (
+            <ThreadRow
+              key={entry.session.sessionId}
+              entry={entry}
+              active={entry.session.sessionId === props.activeId}
+              now={props.now}
+              showProject={props.showProject}
+              settled
+            />
+          ))}
+        </ul>
+      ) : null}
+      {open && props.entries.length > limit ? (
+        <button
+          type="button"
+          onClick={() => setLimit((current) => current + SHELF_MORE)}
+          className="flex h-7 w-full items-center rounded-lg pl-[30px] text-left text-xs text-subtle hover:bg-hover hover:text-fg"
+        >
+          Show {Math.min(SHELF_MORE, props.entries.length - limit)} more
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** "Working 1m" counted from the turn's start and ticking each second, like T3 Code's timer. */
+function WorkingFor(props: { session: SessionSummary }) {
+  const foldStart = useApp((s) => {
+    const fold = s.threads[props.session.sessionId]?.fold;
+    return fold?.activeTurnId ? (fold.turns[fold.activeTurnId]?.startedAt ?? null) : null;
+  });
+  const liveStart = props.session.live?.turnStartedAt ? Date.parse(props.session.live.turnStartedAt) : null;
+  const start = foldStart ?? liveStart;
+  const now = useNow(1000);
+  return (
+    <span className="text-accent-text">
+      Working
+      {start ? <span className="ml-1">{formatElapsed(now - start)}</span> : null}
+    </span>
+  );
+}
+
+/** The right-hand slot of a row: what the thread needs, a running timer, or how long ago it moved. */
+function RowStatus(props: { entry: SidebarEntry; now: number; settled?: boolean }) {
+  const { session, status } = props.entry;
+  if (props.settled) {
+    return <span className="text-subtle">{relativeTime(session.settledAt ?? session.activityAt, props.now)}</span>;
+  }
+  switch (status) {
     case "running":
-      return { text: "Working", className: "text-accent-text" };
+      return <WorkingFor session={session} />;
+    case "approval":
+      return <span className="font-medium text-warn-text">Approval</span>;
+    case "input":
+      return <span className="font-medium text-status-input">Input</span>;
     case "failed":
-      return { text: "Failed", className: "text-danger-text" };
+      return <span className="font-medium text-danger-text">Failed</span>;
+    case "unread":
+      return (
+        <span className="flex items-center gap-1 font-medium text-ok-text">
+          <Check size={11} strokeWidth={2.5} aria-hidden="true" />
+          Done
+        </span>
+      );
     default:
-      return { text: relativeTime(entry.session.activityAt, now), className: "text-subtle" };
+      return <span className="text-subtle">{relativeTime(session.activityAt, props.now)}</span>;
   }
 }
 
+/** The second line of an active card: the project in the status view, and the branch once known. */
+function RowMeta(props: { session: SessionSummary; showProject?: boolean }) {
+  const branch = useApp((s) => s.threads[props.session.sessionId]?.fold.meta.branch ?? null);
+  if (!props.showProject && !branch) {
+    return null;
+  }
+  return (
+    <span className="flex min-w-0 items-center gap-2 text-xs text-subtle">
+      {props.showProject ? <span className="truncate">{basename(props.session.cwd)}</span> : null}
+      {branch ? (
+        <span className="flex min-w-0 items-center gap-1">
+          <GitBranch size={11} className="shrink-0" aria-hidden="true" />
+          <span className="truncate font-mono text-2xs">{branch}</span>
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export const ThreadRow = memo(
-  function ThreadRow(props: { entry: SidebarEntry; active: boolean; now: number; showProject?: boolean }) {
+  function ThreadRow(props: { entry: SidebarEntry; active: boolean; now: number; showProject?: boolean; settled?: boolean }) {
     const controller = useController();
     const { session, status } = props.entry;
     const [renaming, setRenaming] = useState(false);
-    const meta = metaFor(props.entry, props.now);
     const emphasized = props.active || status === "unread" || isLive(status);
     return (
       <li>
         <div
           className={cn(
-            "group/row relative flex items-center gap-2 rounded-lg pr-1 pl-[30px] transition-colors duration-100",
-            props.showProject ? "min-h-11 py-1" : "h-8",
+            "group/row relative flex min-h-8 items-center gap-2 rounded-lg py-1 pr-1 pl-[30px] transition-colors duration-100",
             props.active ? "bg-active" : "hover:bg-hover",
           )}
         >
-          <span className="absolute top-1/2 left-[10px] flex size-4 -translate-y-1/2 items-center justify-center">
-            <StatusGlyph status={status} />
-          </span>
+          {props.settled ? null : (
+            <span className="absolute top-1/2 left-[10px] flex size-4 -translate-y-1/2 items-center justify-center">
+              <StatusGlyph status={status} />
+            </span>
+          )}
           {renaming ? (
             <RenameField
               initial={session.title}
@@ -348,34 +462,40 @@ export const ThreadRow = memo(
               <span
                 className={cn(
                   "block truncate text-sm",
-                  emphasized ? "text-fg" : "text-muted",
-                  status === "unread" && "font-medium",
+                  props.settled ? "text-subtle" : emphasized ? "text-fg" : "text-muted",
+                  status === "unread" && !props.settled && "font-medium",
                 )}
               >
                 {session.title}
               </span>
-              {props.showProject ? <span className="block truncate text-xs text-subtle">{basename(session.cwd)}</span> : null}
+              {props.settled ? null : <RowMeta session={session} showProject={props.showProject} />}
               <span className="sr-only">{`, ${STATUS_LABEL[status]}`}</span>
             </button>
           )}
           {renaming ? null : (
             <>
               <span
-                className={cn(
-                  "shrink-0 text-2xs tabular-nums group-focus-within/row:hidden group-hover/row:hidden group-has-[[data-state=open]]/row:hidden",
-                  meta.className,
-                )}
+                // pr-1.5 on top of the row's pr-1 mirrors the status glyph's 10px inset on the left.
+                className="shrink-0 pr-1.5 text-2xs tabular-nums group-focus-within/row:hidden group-hover/row:hidden group-has-[[data-state=open]]/row:hidden"
                 aria-hidden="true"
               >
-                {meta.text}
+                <RowStatus entry={props.entry} now={props.now} settled={props.settled} />
               </span>
               <div className="relative z-10 hidden items-center group-focus-within/row:flex group-hover/row:flex group-has-[[data-state=open]]/row:flex">
+                {props.settled ? (
+                  <Tip label="Un-settle">
+                    <IconButton size="xs" label="Un-settle thread" onClick={() => void controller.setSettled(session.sessionId, false)}>
+                      <Undo2 size={13} />
+                    </IconButton>
+                  </Tip>
+                ) : isLive(status) ? null : (
+                  <Tip label="Settle">
+                    <IconButton size="xs" label="Settle thread" onClick={() => void controller.setSettled(session.sessionId, true)}>
+                      <Check size={14} />
+                    </IconButton>
+                  </Tip>
+                )}
                 <ThreadMenu session={session} onRename={() => setRenaming(true)} />
-                <Tip label="Archive">
-                  <IconButton size="xs" label="Archive thread" onClick={() => void controller.archive(session.sessionId)}>
-                    <Archive size={13} />
-                  </IconButton>
-                </Tip>
               </div>
             </>
           )}
@@ -383,7 +503,13 @@ export const ThreadRow = memo(
       </li>
     );
   },
-  (a, b) => a.entry.session === b.entry.session && a.entry.status === b.entry.status && a.active === b.active && a.now === b.now && a.showProject === b.showProject,
+  (a, b) =>
+    a.entry.session === b.entry.session &&
+    a.entry.status === b.entry.status &&
+    a.active === b.active &&
+    a.now === b.now &&
+    a.showProject === b.showProject &&
+    a.settled === b.settled,
 );
 
 function RenameField(props: { initial: string; onDone: (title: string | null) => void }) {
