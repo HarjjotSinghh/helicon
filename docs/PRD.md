@@ -100,7 +100,7 @@ Helicon (Unofficial): a sidebar-first desktop app (Tauri 2, Win/Mac/Linux) and w
 
 ## Further Notes
 
-- Name `Helicon` avoids the `Muse` mark; keep `(Unofficial)` + "Not affiliated with Meta" on all surfaces until attorney review.
+- Name `Helicon` avoids the `Muse` mark. Keep the "Not affiliated with Meta" note in README and docs; app UI stays unbranded. Attorney review still pending before first public launch.
 - Repo default branch is `prod`; either keep or migrate to `main` before first tag.
 - Revisit `allow-all` posture and remote-daemon hardening at a security review before any release.
 - Releases: every release gets a git tag plus a GitHub Release with downloadable desktop binaries. Windows is the primary target, with macOS and Linux supported from day one.

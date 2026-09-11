@@ -13,7 +13,7 @@ export interface SidebarProps {
   onNewSession: (cwd: string) => void;
   onTogglePin: (cwd: string, pinned: boolean) => void;
   onRefreshProject: (cwd: string) => void;
-  onOpenSettings: () => void;
+  onAddFolder: (cwd: string) => void;
 }
 
 export function relativeTime(iso: string): string {
@@ -37,6 +37,17 @@ export function relativeTime(iso: string): string {
 
 export function Sidebar(props: SidebarProps): React.ReactElement {
   const query = props.search.trim().toLowerCase();
+  const [adding, setAdding] = React.useState(false);
+  const [folder, setFolder] = React.useState("");
+  const submitFolder = () => {
+    const cwd = folder.trim();
+    if (!cwd) {
+      return;
+    }
+    props.onAddFolder(cwd);
+    setFolder("");
+    setAdding(false);
+  };
   const visible = props.projects.filter(
     (p) =>
       query.length === 0 ||
@@ -59,19 +70,46 @@ export function Sidebar(props: SidebarProps): React.ReactElement {
         <span className="ml-auto" />
         <button
           className="rounded-md p-1.5 text-ink-500 hover:bg-night-800 hover:text-ink-100"
+          title="Add project folder"
+          onClick={() => setAdding((v) => !v)}
+        >
+          <Icon name="plus" />
+        </button>
+        <button
+          className="rounded-md p-1.5 text-ink-500 hover:bg-night-800 hover:text-ink-100"
           title="Refresh all projects"
           onClick={() => visible.forEach((p) => props.onRefreshProject(p.cwd))}
         >
           <Icon name="refresh" />
         </button>
-        <button
-          className="rounded-md p-1.5 text-ink-500 hover:bg-night-800 hover:text-ink-100"
-          title="Settings"
-          onClick={props.onOpenSettings}
-        >
-          <Icon name="gear" />
-        </button>
       </div>
+
+      {adding && (
+        <div className="flex gap-1.5 px-3 pb-2">
+          <input
+            autoFocus
+            className="min-w-0 flex-1 rounded-lg border border-night-600 bg-night-850 px-2.5 py-1.5 text-[13px] placeholder:text-ink-600 focus:outline-none"
+            placeholder="Folder path, then Enter"
+            value={folder}
+            onChange={(e) => setFolder(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                submitFolder();
+              }
+              if (e.key === "Escape") {
+                setAdding(false);
+              }
+            }}
+          />
+          <button
+            className="shrink-0 rounded-lg bg-ink-100 px-3 text-[13px] font-semibold text-night-950 hover:brightness-110 disabled:opacity-40"
+            disabled={folder.trim().length === 0}
+            onClick={submitFolder}
+          >
+            Add
+          </button>
+        </div>
+      )}
 
       <div className="px-3 pb-2">
         <div className="flex items-center gap-2 rounded-lg border border-night-700 bg-night-850 px-2.5 py-1.5">
@@ -184,7 +222,7 @@ export function Sidebar(props: SidebarProps): React.ReactElement {
       </div>
 
       <div className="flex items-center gap-1 border-t border-night-700 px-3 py-2 text-ink-500">
-        <span className="text-[11px]">Unofficial client</span>
+        <span className="text-[11px]">v0.1.0</span>
       </div>
     </aside>
   );

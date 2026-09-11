@@ -1,7 +1,7 @@
 [package]
 name = "helicon"
 version = "0.1.0"
-description = "Helicon (Unofficial): desktop ADE for the Muse Code CLI"
+description = "Helicon: desktop ADE for the Muse Code CLI"
 edition = "2021"
 
 [build-dependencies]

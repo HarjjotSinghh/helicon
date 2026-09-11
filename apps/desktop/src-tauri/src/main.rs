@@ -75,7 +75,7 @@ fn main() {
                     url.parse().expect("server URL parses"),
                 ),
             )
-            .title("Helicon (Unofficial)")
+            .title("Helicon")
             .inner_size(1280.0, 800.0)
             .build()?;
             Ok(())

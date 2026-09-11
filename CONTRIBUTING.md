@@ -4,7 +4,7 @@ Thanks for contributing! Helicon is an unofficial open-source desktop + web ADE 
 
 ## Ground rules
 
-1. Keep the **Unofficial** disclaimer on any user-facing surface ("Not made, endorsed, or supported by Meta").
+1. Keep the "Not affiliated with Meta" note in README and docs. App UI stays unbranded.
 2. Don't use the `Muse` mark in new binary names, bundle IDs, domains, or titles.
 3. Never commit credentials (`auth.json`, `.env`, API keys). Use your own `muse login`.
 4. Never bypass approvals or billing. Surface approval modes honestly.

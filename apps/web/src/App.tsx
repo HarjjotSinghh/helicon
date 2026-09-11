@@ -157,13 +157,13 @@ export function App(): React.ReactElement {
     );
   }
 
-  async function addFolder() {
-    const cwd = folder.trim();
-    if (!cwd) {
+  async function addFolder(cwd?: string) {
+    const target = (cwd ?? folder).trim();
+    if (!target) {
       return;
     }
     try {
-      await client.discover(cwd);
+      await client.discover(target);
       setFolder("");
       await refresh();
     } catch (e) {
@@ -253,7 +253,7 @@ export function App(): React.ReactElement {
         onNewSession={(cwd) => void newSession(cwd)}
         onTogglePin={(cwd, pinned) => void client.setPinned(cwd, pinned).then(refresh).catch((e) => setError(String(e)))}
         onRefreshProject={(cwd) => void client.discover(cwd).then(refresh).catch((e) => setError(String(e)))}
-        onOpenSettings={() => setError("Settings live in a next pass. Approval mode and model pickers sit in the composer below.")}
+        onAddFolder={(cwd) => void addFolder(cwd)}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">

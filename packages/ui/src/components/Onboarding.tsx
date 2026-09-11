@@ -20,7 +20,7 @@ export function Onboarding(props: OnboardingProps): React.ReactElement {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Welcome to Helicon</h1>
         <p className="mt-1 text-[13px] text-ink-500">
-          Unofficial client for the Muse Code CLI. Not made, endorsed, or supported by Meta.
+          A client for the Muse Code CLI. It drives your own Muse login.
         </p>
       </div>
       <ol className="w-full rounded-xl border border-night-700 bg-night-900 p-4 text-left text-[13px]">
