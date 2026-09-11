@@ -835,7 +835,11 @@ export class HeliconController {
       const added = await this.client.cloneProject(url, path);
       await this.refresh();
       this.setAddProjectOpen(false);
-      this.toast("info", "Repository cloned", added.cwd);
+      this.toast(
+        "info",
+        "Repository cloned",
+        added.warning ? `Muse could not list its threads yet: ${added.warning}` : added.cwd,
+      );
       this.newThread(added.cwd);
       return true;
     } catch (error) {
