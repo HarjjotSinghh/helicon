@@ -10,6 +10,8 @@ import {
   probeEnvironment,
   resolveMuseInDistro,
   defaultExec,
+  toWslPath,
+  toWindowsPath,
   type ApprovalMode,
   type CommandConnection,
   type ServeTarget,
@@ -69,6 +71,14 @@ function firstString(record: Record<string, unknown>, keys: string[]): string | 
   return null;
 }
 
+function isWindowsAbs(path: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(path);
+}
+
+function isWslAbs(path: string): boolean {
+  return path.startsWith("/");
+}
+
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -84,6 +94,7 @@ export class HeliconServer {
   private readonly server: Server;
   private readonly store: HeliconStore;
   private readonly hosts = new Map<string, ManagedHost>();
+  private readonly fingerprints = new Map<string, unknown>();
   private readonly sinks = new Set<SseSink>();
   private readonly options: Required<
     Omit<ServerOptions, "staticDir" | "token" | "platform" | "distro" | "musePath" | "hostFactory">
@@ -198,7 +209,11 @@ export class HeliconServer {
     const method = (req.method ?? "GET").toUpperCase();
 
     if (method === "GET" && path === "/api/health") {
-      this.json(res, 200, { ok: true, version: HELICON_VERSION });
+      this.json(res, 200, {
+        ok: true,
+        version: HELICON_VERSION,
+        fingerprintWarnings: Object.fromEntries(this.fingerprints),
+      });
       return;
     }
     if (method === "GET" && path === "/api/env") {
@@ -265,7 +280,7 @@ export class HeliconServer {
       const project = this.store.upsertProject(cwd);
       const manager = await this.managerFor(cwd);
       const started = await manager.startSession({
-        workspaceRoot: cwd,
+        workspaceRoot: this.hostPathFor(cwd),
         approvalMode: mode === undefined ? undefined : (mode as ApprovalMode),
         modelId: str(body["modelId"]) ?? undefined,
       });
@@ -520,9 +535,51 @@ export class HeliconServer {
     };
   }
 
+  private spawnCwdFor(cwd: string): string {
+    if (!cwd) {
+      return process.cwd();
+    }
+    if (this.options.platform !== "win32") {
+      return cwd;
+    }
+    if (isWslAbs(cwd)) {
+      try {
+        return toWindowsPath(cwd);
+      } catch {
+        return process.cwd();
+      }
+    }
+    return cwd;
+  }
+
+  private hostPathFor(cwd: string): string {
+    if (!cwd || this.options.platform !== "win32") {
+      return cwd;
+    }
+    if (isWindowsAbs(cwd)) {
+      try {
+        return toWslPath(cwd);
+      } catch {
+        return cwd;
+      }
+    }
+    return cwd;
+  }
+
+  private storePathFor(remoteRoot: string): string {
+    if (this.options.platform !== "win32" || !isWslAbs(remoteRoot)) {
+      return remoteRoot;
+    }
+    try {
+      return toWindowsPath(remoteRoot);
+    } catch {
+      return remoteRoot;
+    }
+  }
+
   private async discover(cwd?: string): Promise<Record<string, unknown>[]> {
     const manager = await this.managerFor(cwd ?? "");
-    const remote = await manager.listSessions(cwd);
+    const remote = await manager.listSessions(cwd ? this.hostPathFor(cwd) : undefined);
     const known = this.knownSessionIds();
     const views: Record<string, unknown>[] = [];
     for (const item of remote) {
@@ -532,7 +589,9 @@ export class HeliconServer {
       if (!sessionId) {
         continue;
       }
-      const root = (session && str(session["workspaceRoot"])) || (record && str(record["workspaceRoot"])) || cwd || "";
+      const root = this.storePathFor(
+        (session && str(session["workspaceRoot"])) || (record && str(record["workspaceRoot"])) || cwd || "",
+      );
       if (!root) {
         continue;
       }
@@ -555,14 +614,17 @@ export class HeliconServer {
   }
 
   private async managerFor(cwd: string): Promise<SessionManager> {
-    const key = cwd || "__default__";
+    const key = this.hostPathFor(cwd) || "__default__";
     const existing = this.hosts.get(key);
     if (existing) {
       return existing.manager;
     }
     const target = await this.serveTargetFor(cwd);
     const handle = this.options.hostFactory(target);
-    await handle.start(HELICON_VERSION);
+    const started = (await handle.start(HELICON_VERSION)) as {
+      fingerprintWarning?: unknown;
+    } | null;
+    this.fingerprints.set(key, started?.fingerprintWarning ?? null);
     const manager = new SessionManager(handle.connection);
     manager.onNotification((notification) => this.forward(notification));
     this.hosts.set(key, { target, handle, manager, started: true });
@@ -571,7 +633,7 @@ export class HeliconServer {
 
   private async serveTargetFor(cwd: string): Promise<ServeTarget> {
     if (this.options.platform !== "win32") {
-      return { command: this.options.musePath ?? "muse", args: ["serve"], cwd };
+      return { command: this.options.musePath ?? "muse", args: ["serve"], cwd: cwd || process.cwd() };
     }
     let musePath = this.options.musePath ?? null;
     if (!musePath) {
@@ -585,7 +647,7 @@ export class HeliconServer {
       platform: "win32",
       distro: this.options.distro ?? "Ubuntu",
       musePath,
-      cwd,
+      cwd: this.spawnCwdFor(cwd),
     });
     return { command: plan.command, args: plan.args, cwd: plan.cwd };
   }
