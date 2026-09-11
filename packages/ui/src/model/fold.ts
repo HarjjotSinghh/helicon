@@ -72,6 +72,8 @@ export interface ThreadMeta {
   goalSince: number | null;
   /** When the goal's status last changed live, so a paused or finished goal's clock stops there. */
   goalStatusAt: number | null;
+  /** Stretches the goal spent paused or blocked, seen live; its running time and counts leave them out. */
+  goalPauses: { from: number; to: number | null }[];
 }
 
 export interface ThreadFold {
@@ -116,6 +118,7 @@ export function emptyFold(): ThreadFold {
       goalSeen: false,
       goalSince: null,
       goalStatusAt: null,
+      goalPauses: [],
     },
     closed: false,
   };
@@ -133,6 +136,22 @@ function str(value: unknown): string | null {
 
 function numberOr(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/** A goal block from `session/goalChanged`, or null when it is not one. Odd field types fall back to safe values. */
+function asGoal(value: unknown): Goal | null {
+  const record = asRecord(value);
+  const objective = record ? str(record["objective"]) : null;
+  if (!record || !objective) {
+    return null;
+  }
+  return {
+    objective,
+    status: str(record["status"]) ?? "active",
+    percentComplete: numberOr(record["percentComplete"]) ?? 0,
+    currentWork: str(record["currentWork"]) ?? undefined,
+    nextWork: str(record["nextWork"]) ?? undefined,
+  };
 }
 
 function asItem(value: unknown): MspItem | null {
@@ -525,17 +544,32 @@ function applyOne(draft: Draft, event: ViewEvent): void {
       }
       break;
     case "session/goalChanged": {
-      const goal = asRecord(params["goal"]);
-      const next = goal ? (goal as unknown as Goal) : null;
+      const raw = params["goal"];
+      const next = asGoal(raw);
+      // A block that is there but is not a goal (no objective) changes nothing; only null clears.
+      if (raw !== null && raw !== undefined && !next) {
+        break;
+      }
+      const prev = d.meta.goal;
+      const same = next !== null && prev !== null && next.objective === prev.objective;
       // A new objective restarts the live clock; the goal record's own start time wins when there is one.
-      if (!next) {
-        d.meta.goalSince = null;
-      } else if (next.objective !== d.meta.goal?.objective) {
-        d.meta.goalSince = event.at ?? null;
+      if (!same) {
+        d.meta.goalSince = next ? (event.at ?? null) : null;
+        d.meta.goalPauses = [];
       }
       // A pause or finish stops the goal's clock at this moment; history carries no time, so it stays unknown there.
-      if (next?.status !== d.meta.goal?.status || next?.objective !== d.meta.goal?.objective) {
+      if (!same || next?.status !== prev?.status) {
         d.meta.goalStatusAt = next ? (event.at ?? null) : null;
+      }
+      // Time paused or blocked is not running time: a live change marks where each pause began and ended.
+      if (same && next && prev && event.at !== undefined && next.status !== prev.status) {
+        const pauses = d.meta.goalPauses;
+        const open = pauses[pauses.length - 1];
+        if (prev.status === "active") {
+          d.meta.goalPauses = [...pauses, { from: event.at, to: null }];
+        } else if (next.status === "active" && open && open.to === null) {
+          d.meta.goalPauses = [...pauses.slice(0, -1), { from: open.from, to: event.at }];
+        }
       }
       d.meta.goal = next;
       d.meta.goalSeen = true;

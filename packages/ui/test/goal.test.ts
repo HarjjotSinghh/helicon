@@ -133,6 +133,34 @@ describe("goals", () => {
     assert.equal(resumed?.endedAt, null);
   });
 
+  it("leaves paused time, and the turns taken while paused, out of the goal's counts", () => {
+    const view = goalView(
+      applyEvents(emptyFold(), [
+        ...SET,
+        { method: "session/goalChanged", params: { goal: { objective: "Ship the release", status: "paused", percentComplete: 20 } }, at: T0 + 30_000 },
+        prompt("u-aside", "t-aside", T0 + 50_000),
+        usage("t-aside", "c-aside", 8000, 800),
+        { method: "session/goalChanged", params: { goal: { objective: "Ship the release", status: "active", percentComplete: 20 } }, at: T0 + 90_000 },
+        prompt("u-resume", "t-resume", T0 + 95_000),
+        usage("t-resume", "c-resume", 6000, 600),
+        { method: "session/goalChanged", params: { goal: { objective: "Ship the release", status: "complete", percentComplete: 100 } }, at: T0 + 120_000 },
+      ]),
+    );
+    assert.equal(view?.pausedMs, 60_000);
+    assert.equal(view?.endedAt, T0 + 120_000);
+    assert.equal(view?.turns, 2, "the turn that set it and the one after it resumed, not the aside while paused");
+    assert.equal(view?.tokens, 5000 + 200 + 6000 + 600);
+  });
+
+  it("ignores a goal change that carries no goal, and tolerates odd field types", () => {
+    const base = applyEvents(emptyFold(), SET);
+    assert.equal(applyEvents(base, [goalChanged({ status: "paused" })]).meta.goal?.status, "active", "a block without an objective changes nothing");
+    const odd = goalView(applyEvents(base, [goalChanged({ objective: "Ship the release", status: 7, percentComplete: "50", currentWork: 3 })]));
+    assert.equal(odd?.label, "In progress");
+    assert.equal(odd?.percent, 0);
+    assert.equal(odd?.currentWork, null);
+  });
+
   it("names statuses, known or not, and asks the model to set the goal", () => {
     assert.deepEqual(statusLabel("budget_limited"), { label: "Out of budget", tone: "attention" });
     assert.deepEqual(statusLabel("superseded"), { label: "Replaced", tone: "ended" });

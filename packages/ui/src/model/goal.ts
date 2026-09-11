@@ -53,6 +53,8 @@ export interface GoalView {
   startedAt: number | null;
   /** When the clock stopped, for a goal no longer in progress. */
   endedAt: number | null;
+  /** Time it spent paused or blocked before it last resumed, which is not running time. */
+  pausedMs: number;
   lastProgressAt: number | null;
   /** Turns that did work toward the goal. */
   turns: number;
@@ -129,13 +131,15 @@ export function statusLabel(status: string): { label: string; tone: GoalTone } {
   return { label: words ? `${words.charAt(0).toUpperCase()}${words.slice(1)}` : "Unknown", tone: "paused" };
 }
 
-/** Turns with work recorded between `start` and `end`, plus the turn that set the goal. */
+/** Turns with work recorded while the goal ran: from `start` to `end`, outside its pauses, plus the turn that set it. */
 function goalTurns(fold: ThreadFold, start: number, end: number | null, setIn: string | null): Set<string> {
   const turns = new Set<string>();
   if (setIn) {
     turns.add(setIn);
   }
-  const inside = (at: number) => at >= start && (end === null || at <= end);
+  const pauses = fold.meta.goalPauses;
+  const paused = (at: number) => pauses.some((p) => at > p.from && at < (p.to ?? Number.POSITIVE_INFINITY));
+  const inside = (at: number) => at >= start && (end === null || at <= end) && !paused(at);
   for (const id of fold.order) {
     const item = fold.items[id];
     const at = item?.recordedAt ? Date.parse(item.recordedAt) : Number.NaN;
@@ -188,6 +192,7 @@ export function goalView(fold: ThreadFold): GoalView | null {
     nextWork: block?.nextWork ?? record?.nextWork ?? null,
     startedAt,
     endedAt,
+    pausedMs: fold.meta.goalPauses.reduce((total, p) => total + (p.to === null ? 0 : Math.max(0, p.to - p.from)), 0),
     lastProgressAt: record?.lastProgressAt ?? null,
     turns: turns.size,
     tokens,

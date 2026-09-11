@@ -42,7 +42,7 @@ export function GoalPanel(props: { sessionId: string; running: boolean; readOnly
   if (!view) {
     return null;
   }
-  const elapsed = view.startedAt === null ? null : (view.endedAt ?? now) - view.startedAt;
+  const elapsed = view.startedAt === null ? null : Math.max(0, (view.endedAt ?? now) - view.startedAt - view.pausedMs);
   return (
     <section aria-label="Goal" className="enter-up overflow-hidden rounded-2xl bg-raised shadow-card">
       <button
@@ -71,7 +71,9 @@ function GoalBody(props: { view: GoalView; elapsed: number | null; now: number; 
   const muse = view.tokensUsed !== null && view.tokensUsed > 0 ? ` Muse's own count at its last goal update: ${formatTokens(view.tokensUsed)}.` : "";
   const lastUpdate = view.lastProgressAt ?? view.endedAt;
   const newGoal = () => {
-    controller.prefillComposer(props.sessionId, "/goal ");
+    // Keep an unsent draft: it becomes the start of the objective, and nothing is sent until the user does.
+    const draft = document.querySelector<HTMLTextAreaElement>("textarea")?.value.trim() ?? "";
+    controller.prefillComposer(props.sessionId, !draft ? "/goal " : /^\/goal\b/i.test(draft) ? draft : `/goal ${draft}`);
     // The composer takes the text on its next render; put the caret after it.
     requestAnimationFrame(() => {
       const composer = document.querySelector<HTMLTextAreaElement>("textarea[aria-autocomplete], textarea");
