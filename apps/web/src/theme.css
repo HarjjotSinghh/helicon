@@ -347,6 +347,12 @@
     animation: helicon-enter-up 220ms var(--ease-out);
   }
 
+  /* Each word of a streaming reply resolves as it lands, instead of snapping in. */
+  .prose-helicon.streaming .tok {
+    display: inline-block;
+    animation: helicon-token-in 180ms var(--ease-out) both;
+  }
+
   /* Beautiful UI LoadingState "Drive": a chevron wavefront through a 3x3 pixel grid. */
   .pixel-loader > span {
     opacity: 0.15;
@@ -546,6 +552,152 @@
   }
 }
 
+/* The swatch beside each code theme in the picker: its keyword colour, so the menu shows what it changes. */
+.code-swatch-helicon {
+  background: oklch(0.5 0.17 20);
+}
+.code-swatch-ayu {
+  background: #ff8f40;
+}
+.code-swatch-github {
+  background: #cf222e;
+}
+.code-swatch-vercel {
+  background: #ff0080;
+}
+.code-swatch-cursor {
+  background: #c586c0;
+}
+.code-swatch-catppuccin {
+  background: #cba6f7;
+}
+
+/*
+ * Code themes. Each sets sugar-high's token colours and nothing else, so a code theme is free to differ from
+ * the app's own light or dark theme. The dark block carries more attributes, so it wins under a dark UI.
+ */
+:root[data-code-theme="ayu"] {
+  --sh-keyword: #fa8d3e;
+  --sh-string: #86b300;
+  --sh-entity: #f2ae49;
+  --sh-property: #399ee6;
+  --sh-class: #55b4d4;
+  --sh-jsxliterals: #a37acc;
+  --sh-identifier: #5c6166;
+  --sh-sign: #8a9199;
+  --sh-comment: #abb0b6;
+}
+:root[data-theme="dark"][data-code-theme="ayu"] {
+  --sh-keyword: #ff8f40;
+  --sh-string: #aad94c;
+  --sh-entity: #ffb454;
+  --sh-property: #59c2ff;
+  --sh-class: #39bae6;
+  --sh-jsxliterals: #d2a6ff;
+  --sh-identifier: #bfbdb6;
+  --sh-sign: #8a9199;
+  --sh-comment: #7b8288;
+}
+
+:root[data-code-theme="github"] {
+  --sh-keyword: #cf222e;
+  --sh-string: #0a3069;
+  --sh-entity: #8250df;
+  --sh-property: #0550ae;
+  --sh-class: #953800;
+  --sh-jsxliterals: #0a3069;
+  --sh-identifier: #24292f;
+  --sh-sign: #57606a;
+  --sh-comment: #6e7781;
+}
+:root[data-theme="dark"][data-code-theme="github"] {
+  --sh-keyword: #ff7b72;
+  --sh-string: #a5d6ff;
+  --sh-entity: #d2a8ff;
+  --sh-property: #79c0ff;
+  --sh-class: #ffa657;
+  --sh-jsxliterals: #a5d6ff;
+  --sh-identifier: #c9d1d9;
+  --sh-sign: #8b949e;
+  --sh-comment: #8b949e;
+}
+
+:root[data-code-theme="vercel"] {
+  --sh-keyword: #d3268a;
+  --sh-string: #0f8a7e;
+  --sh-entity: #0068d6;
+  --sh-property: #7343d8;
+  --sh-class: #0068d6;
+  --sh-jsxliterals: #7343d8;
+  --sh-identifier: #171717;
+  --sh-sign: #666666;
+  --sh-comment: #8f8f8f;
+}
+:root[data-theme="dark"][data-code-theme="vercel"] {
+  --sh-keyword: #ff0080;
+  --sh-string: #50e3c2;
+  --sh-entity: #52a8ff;
+  --sh-property: #bd8cff;
+  --sh-class: #52a8ff;
+  --sh-jsxliterals: #bd8cff;
+  --sh-identifier: #ededed;
+  --sh-sign: #a1a1a1;
+  --sh-comment: #8f8f8f;
+}
+
+:root[data-code-theme="cursor"] {
+  --sh-keyword: #af00db;
+  --sh-string: #a31515;
+  --sh-entity: #795e26;
+  --sh-property: #0070c1;
+  --sh-class: #267f99;
+  --sh-jsxliterals: #0000ff;
+  --sh-identifier: #1f1f1f;
+  --sh-sign: #575757;
+  --sh-comment: #008000;
+}
+:root[data-theme="dark"][data-code-theme="cursor"] {
+  --sh-keyword: #c586c0;
+  --sh-string: #ce9178;
+  --sh-entity: #dcdcaa;
+  --sh-property: #9cdcfe;
+  --sh-class: #4ec9b0;
+  --sh-jsxliterals: #569cd6;
+  --sh-identifier: #d4d4d4;
+  --sh-sign: #969696;
+  --sh-comment: #6a9955;
+}
+
+:root[data-code-theme="catppuccin"] {
+  --sh-keyword: #8839ef;
+  --sh-string: #40a02b;
+  --sh-entity: #1e66f5;
+  --sh-property: #179299;
+  --sh-class: #df8e1d;
+  --sh-jsxliterals: #ea76cb;
+  --sh-identifier: #4c4f69;
+  --sh-sign: #7c7f93;
+  --sh-comment: #8c8fa1;
+}
+:root[data-theme="dark"][data-code-theme="catppuccin"] {
+  --sh-keyword: #cba6f7;
+  --sh-string: #a6e3a1;
+  --sh-entity: #89b4fa;
+  --sh-property: #94e2d5;
+  --sh-class: #f9e2af;
+  --sh-jsxliterals: #f5c2e7;
+  --sh-identifier: #cdd6f4;
+  --sh-sign: #9399b2;
+  --sh-comment: #7f849c;
+}
+
+@keyframes helicon-token-in {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
+
 @keyframes helicon-pixel {
   0%,
   100% {
@@ -586,7 +738,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .spin-ring,
-  .attention-pulse {
+  .attention-pulse,
+  .prose-helicon.streaming .tok {
     animation: none;
   }
   .pixel-loader > span {

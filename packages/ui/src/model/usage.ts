@@ -194,6 +194,65 @@ export function lastTurnSpeed(fold: ThreadFold): TurnSpeed | null {
   return null;
 }
 
+export interface TurnCost {
+  cost: number;
+  currency: string | null;
+  /** False when a call ran on a model with no listed price, so the total undercounts. */
+  complete: boolean;
+  promptTokens: number;
+  cachedTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+}
+
+/** What one turn would have cost at API rates, from the calls it made. */
+export function turnCost(fold: ThreadFold, turnId: string, models: readonly ModelOption[]): TurnCost | null {
+  let cost = 0;
+  let priced = 0;
+  let calls = 0;
+  let promptTokens = 0;
+  let cachedTokens = 0;
+  let outputTokens = 0;
+  let reasoningTokens = 0;
+  let currency: string | null = null;
+  for (const call of Object.values(fold.meta.calls)) {
+    if (call.turnId !== turnId) {
+      continue;
+    }
+    calls += 1;
+    const cached = cacheReads(call);
+    promptTokens += call.promptTokens;
+    cachedTokens += cached;
+    outputTokens += call.outputTokens;
+    reasoningTokens += call.reasoningTokens;
+    const price = models.find((m) => m.modelId === call.modelId)?.cost ?? null;
+    if (price) {
+      cost += ((call.promptTokens - cached) * price.input + cached * price.cached + call.outputTokens * price.output) / 1_000_000;
+      priced += 1;
+      currency = currency ?? price.currency;
+    }
+  }
+  if (calls === 0) {
+    return null;
+  }
+  return { cost, currency, complete: priced === calls, promptTokens, cachedTokens, outputTokens, reasoningTokens };
+}
+
+/** Every turn's cost, by turn id. */
+export function turnCosts(fold: ThreadFold, models: readonly ModelOption[]): Record<string, TurnCost> {
+  const costs: Record<string, TurnCost> = {};
+  for (const turnId of new Set(Object.values(fold.meta.calls).map((call) => call.turnId))) {
+    if (!turnId) {
+      continue;
+    }
+    const cost = turnCost(fold, turnId, models);
+    if (cost) {
+      costs[turnId] = cost;
+    }
+  }
+  return costs;
+}
+
 /** A rough live speed for the text streaming right now: characters over four, per second of the burst. */
 export function streamingSpeed(info: TurnInfo | null | undefined): number | null {
   const stream = info?.stream;

@@ -38,8 +38,15 @@ function load(overrides: Partial<TranscriptLoad> = {}): TranscriptLoad {
 
 class FakeClient implements HeliconClient {
   handler: EventHandler | null = null;
-  sent: { sessionId: string; text: string; ifBusy?: string; displayText?: string }[] = [];
+  sent: {
+    sessionId: string;
+    text: string;
+    ifBusy?: string;
+    displayText?: string;
+    attachments?: { name: string; mediaType: string; base64: string }[];
+  }[] = [];
   actions: string[] = [];
+  orders: string[][] = [];
   skills: SkillEntry[] = [];
   transcript: () => Promise<TranscriptLoad> = async () => load();
   sendResult: () => Promise<{ turnId: string | null; disposition: string | null }> = async () => ({ turnId: "t9", disposition: "started" });
@@ -75,8 +82,18 @@ class FakeClient implements HeliconClient {
   async updateSession() {
     return SESSION;
   }
-  async sendTurn(sessionId: string, text: string, options?: { ifBusy?: string; displayText?: string }) {
-    this.sent.push({ sessionId, text, ifBusy: options?.ifBusy, displayText: options?.displayText });
+  async sendTurn(
+    sessionId: string,
+    text: string,
+    options?: { ifBusy?: string; displayText?: string; attachments?: { name: string; mediaType: string; base64: string }[] },
+  ) {
+    this.sent.push({
+      sessionId,
+      text,
+      ifBusy: options?.ifBusy,
+      displayText: options?.displayText,
+      attachments: options?.attachments,
+    });
     return this.sendResult();
   }
   async interruptTurn() {}
@@ -90,6 +107,25 @@ class FakeClient implements HeliconClient {
   }
   async setSessionModel() {}
   async setApprovalMode() {}
+  async setProjectOrder(cwds: string[]) {
+    this.orders.push(cwds);
+  }
+  async usage() {
+    return { since: "2026-09-01T00:00:00.000Z", days: 30, buckets: [], threads: [] };
+  }
+  async runShellProxy(sessionId: string, command: string) {
+    this.actions.push(`shell-proxy:${command}`);
+    return {
+      id: `run-${this.actions.length}`,
+      sessionId,
+      command,
+      exitCode: 0,
+      output: `ran ${command}`,
+      truncated: false,
+      durationMs: 12,
+      at: "2026-09-11T22:00:00.000Z",
+    };
+  }
   compactNoop = false;
   async compact() {
     this.actions.push("compact");
@@ -260,7 +296,7 @@ describe("HeliconController", () => {
 
     assert.equal(await controller.send("/compact"), true);
     assert.equal(await controller.send("! git status"), true);
-    assert.deepEqual(client.actions, ["compact", "shell:s1:git status"]);
+    assert.deepEqual(client.actions, ["compact", "shell-proxy:git status"], "Helicon runs `!` itself now");
     client.compactNoop = true;
     assert.equal(await controller.send("/compact"), true);
     assert.equal(controller.store.get().toasts.at(-1)?.title, "Nothing to compact yet");
@@ -314,6 +350,84 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("runs a `!` command itself and hands its output to Muse on request", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.send("!ls -la"), true);
+    const run = controller.store.get().threads["s1"]?.shellRuns[0];
+    assert.equal(run?.command, "ls -la");
+    assert.ok(client.actions.includes("shell-proxy:ls -la"));
+
+    assert.equal(await controller.sendShellOutput("s1", run!), true);
+    const sent = client.sent.at(-1);
+    assert.match(sent?.text ?? "", /I ran this in the workspace/);
+    assert.match(sent?.text ?? "", /ran ls -la/);
+    assert.equal(sent?.displayText, "Shared the output of `ls -la`");
+    stop();
+  });
+
+  it("clears a failed turn's notice when the user retries it", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.handler?.({
+      type: "msp",
+      sessionId: "s1",
+      method: "turn/completed",
+      params: { sessionId: "s1", turnId: "t7", terminal: "failed", error: { kind: "rateLimit", message: "quota", retryable: true } },
+      at: 5,
+    });
+    await settle();
+    assert.equal(controller.store.get().threads["s1"]?.fold.turns["t7"]?.error?.message, "quota");
+
+    controller.dismissTurnError("s1", "t7");
+    const info = controller.store.get().threads["s1"]?.fold.turns["t7"];
+    assert.equal(info?.error, undefined);
+    assert.equal(info?.dismissed, true);
+    stop();
+  });
+
+  it("reorders projects by drag, and puts them back when the server refuses", async () => {
+    const client = new FakeClient();
+    const project = (cwd: string) => ({ cwd, displayName: cwd.slice(6), pinned: false, activityAt: SESSION.activityAt });
+    client.listProjects = async () => [project("/work/a"), project("/work/b"), project("/work/c")];
+    const { controller, stop } = await started(client);
+    const order = () => controller.store.get().projects.map((p) => p.cwd);
+
+    await controller.reorderProjects("/work/c", "/work/a");
+    assert.deepEqual(order(), ["/work/c", "/work/a", "/work/b"]);
+    assert.deepEqual(client.orders.at(-1), ["/work/c", "/work/a", "/work/b"]);
+
+    await controller.reorderProjects("/work/c", null);
+    assert.deepEqual(order(), ["/work/a", "/work/b", "/work/c"], "dropping past the last row sends it to the end");
+
+    client.setProjectOrder = async () => {
+      throw new Error("nope");
+    };
+    await controller.reorderProjects("/work/c", "/work/a");
+    assert.deepEqual(order(), ["/work/a", "/work/b", "/work/c"], "a refused move snaps back");
+    stop();
+  });
+
+  it("sends attached files with a prompt, and shows them while it is in flight", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    const sent = await controller.send("look at this", {
+      attachments: [{ name: "shot.png", mediaType: "image/png", base64: "AAAB" }],
+      previews: [{ name: "shot.png", mediaType: "image/png", kind: "image", url: "blob:preview" }],
+    });
+    assert.equal(sent, true);
+    assert.deepEqual(client.sent.at(-1)?.attachments, [{ name: "shot.png", mediaType: "image/png", base64: "AAAB" }]);
+    assert.equal(controller.store.get().threads["s1"]?.fold.echoes.at(-1)?.attachments?.[0]?.url, "blob:preview");
+
+    assert.equal(
+      await controller.send("", { attachments: [{ name: "notes.pdf", mediaType: "application/pdf", base64: "AAAC" }] }),
+      true,
+      "a file with no text still sends",
+    );
+    assert.equal(await controller.send(""), false, "nothing to send is still nothing");
+    stop();
+  });
+
   it("hands a `!` command the host could not run to the agent", async () => {
     const client = new FakeClient();
     const { controller, stop } = await started(client);
@@ -321,7 +435,9 @@ describe("HeliconController", () => {
     assert.match(client.sent.at(-1)?.text ?? "", /```sh\nls -la\n```/);
     assert.match(client.sent.at(-1)?.text ?? "", /your own shell works/, "the agent is told its own shell is fine");
     assert.equal(await controller.askToRun("s1", "echo '```'"), true);
-    assert.match(client.sent.at(-1)?.text ?? "", /~~~sh\necho '```'\n~~~/, "a command with a fence in it gets the other fence");
+    assert.match(client.sent.at(-1)?.text ?? "", /````sh\necho '```'\n````/, "a fence in the command gets a longer fence around it");
+    assert.equal(await controller.askToRun("s1", "printf '~~~\\n'"), true);
+    assert.match(client.sent.at(-1)?.text ?? "", /```sh\nprintf '~~~\\n'\n```/, "a tilde run in the command changes nothing");
     stop();
   });
 

@@ -118,10 +118,34 @@ function toTurnAck(raw: unknown): TurnAck {
   };
 }
 
+/** An image the user attached to a prompt: the only non-text part MSP v1 takes (tdd SS3.2). */
+export interface TurnImage {
+  base64Data: string;
+  mediaType: string;
+  width?: number;
+  height?: number;
+}
+
 export interface SendTurnOptions {
   displayText?: string;
   ifBusy?: string;
   reasoningEffort?: string;
+  images?: TurnImage[];
+}
+
+/** Prompt parts in order: the text the user typed, then each image they attached. */
+export function turnInput(text: string, images: TurnImage[] = []): unknown[] {
+  const parts: unknown[] = text.length > 0 ? textInput(text) : [];
+  for (const image of images) {
+    parts.push({
+      type: "image",
+      base64Data: image.base64Data,
+      mediaType: image.mediaType,
+      // Muse takes the pair or neither.
+      ...(image.width !== undefined && image.height !== undefined ? { width: image.width, height: image.height } : {}),
+    });
+  }
+  return parts;
 }
 
 export interface ApprovalDecision {
@@ -258,7 +282,7 @@ export class SessionManager {
   ): Promise<TurnAck> {
     const params: Record<string, unknown> = {
       sessionId,
-      input: textInput(text),
+      input: turnInput(text, options.images ?? []),
     };
     if (options.displayText !== undefined) {
       params["displayText"] = options.displayText;

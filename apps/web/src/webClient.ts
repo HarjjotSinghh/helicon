@@ -3,6 +3,7 @@ import {
   parseModelList,
   type ApprovalDecisionInput,
   type ApprovalMode,
+  type AttachmentView,
   type DirectoryListing,
   type EnvironmentStatus,
   type EventHandler,
@@ -11,9 +12,11 @@ import {
   type ModelOption,
   type ProjectView,
   type SessionSummary,
+  type ShellRun,
   type SkillCatalog,
   type TranscriptLoad,
   type TurnOptions,
+  type UsageReport,
   type UserInputAnswer,
 } from "@helicon/ui";
 
@@ -26,16 +29,31 @@ function withToken(path: string): string {
   return `${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
 }
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+/** Long enough for a slow local call, short enough that a wedged one never leaves the UI waiting forever. */
+const CALL_TIMEOUT_MS = 60_000;
+/** A `!` command may run for two minutes on the server; the wait here has to outlast that. */
+const SHELL_TIMEOUT_MS = 150_000;
+
+async function call<T>(method: string, path: string, body?: unknown, timeoutMs = CALL_TIMEOUT_MS): Promise<T> {
   let response: Response;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
     response = await fetch(withToken(path), {
       method,
       headers: body === undefined ? undefined : { "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: abort.signal,
     });
   } catch {
-    throw new HeliconError("The local Helicon server is not reachable. Is it still running?", 0);
+    throw new HeliconError(
+      abort.signal.aborted
+        ? "The local Helicon server took too long to answer."
+        : "The local Helicon server is not reachable. Is it still running?",
+      0,
+    );
+  } finally {
+    clearTimeout(timer);
   }
   const text = await response.text();
   let data: unknown = null;
@@ -99,6 +117,20 @@ export class WebHeliconClient implements HeliconClient {
     await call("PATCH", "/api/projects/pin", { cwd, pinned });
   }
 
+  async setProjectOrder(cwds: string[]): Promise<void> {
+    await call("PATCH", "/api/projects/order", { cwds });
+  }
+
+  usage(days?: number): Promise<UsageReport> {
+    return call<UsageReport>("GET", `/api/usage${days ? `?days=${days}` : ""}`);
+  }
+
+  async runShellProxy(sessionId: string, command: string): Promise<ShellRun> {
+    // The server lets a command run for two minutes, so this must outlast that rather than abandon it early.
+    const result = await call<{ run: ShellRun }>("POST", `/api/sessions/${enc(sessionId)}/shell-proxy`, { command }, SHELL_TIMEOUT_MS);
+    return result.run;
+  }
+
   async listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]> {
     return (await call<{ sessions: SessionSummary[] }>("GET", `/api/sessions${options?.archived ? "?archived=1" : ""}`)).sessions;
   }
@@ -124,15 +156,24 @@ export class WebHeliconClient implements HeliconClient {
     return (await call<{ session: SessionSummary | null }>("PATCH", `/api/sessions/${enc(sessionId)}`, patch)).session;
   }
 
-  async sendTurn(sessionId: string, text: string, options?: TurnOptions): Promise<{ turnId: string | null; disposition: string | null }> {
-    const result = await call<{ turnId: string | null; disposition: unknown }>("POST", "/api/turns", {
+  async sendTurn(
+    sessionId: string,
+    text: string,
+    options?: TurnOptions,
+  ): Promise<{ turnId: string | null; disposition: string | null; attachments?: AttachmentView[] }> {
+    const result = await call<{ turnId: string | null; disposition: unknown; attachments?: AttachmentView[] }>("POST", "/api/turns", {
       sessionId,
       text,
       ifBusy: options?.ifBusy,
       reasoningEffort: options?.reasoningEffort,
       displayText: options?.displayText,
+      attachments: options?.attachments,
     });
-    return { turnId: result.turnId ?? null, disposition: typeof result.disposition === "string" ? result.disposition : null };
+    return {
+      turnId: result.turnId ?? null,
+      disposition: typeof result.disposition === "string" ? result.disposition : null,
+      ...(result.attachments ? { attachments: result.attachments } : {}),
+    };
   }
 
   async interruptTurn(sessionId: string, turnId?: string): Promise<void> {

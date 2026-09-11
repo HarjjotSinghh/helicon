@@ -28,17 +28,28 @@ export interface TurnInfo {
   /** The model text streaming in right now, for a live speed estimate. A pause starts a new burst. */
   stream?: { chars: number; startAt: number; lastAt: number };
   error?: { kind: string; message: string; retryable: boolean };
+  /** The user acted on the failure notice, so the transcript stops showing it. */
+  dismissed?: boolean;
   retry?: { attempt: number; maxAttempts: number; nextAttempt: number; reason: string; retryDelayMs: number };
   retracted?: boolean;
 }
 
 /** A prompt the user sent that the stream has not echoed back yet. */
+/** A file going out with a prompt that has not landed yet; `url` is a local object URL while it is in flight. */
+export interface EchoAttachment {
+  name: string;
+  mediaType: string;
+  kind: "image" | "file";
+  url: string | null;
+}
+
 export interface LocalEcho {
   localId: string;
   text: string;
   turnId: string | null;
   disposition: "sending" | "started" | "queued" | "steered";
   createdAt: number;
+  attachments?: EchoAttachment[];
 }
 
 /** One model call's usage, from its `session/tokenUsage` event. */
@@ -413,13 +424,10 @@ function applyOne(draft: Draft, event: ViewEvent): void {
       if (d.activeTurnId === turnId) {
         d.activeTurnId = null;
       }
+      // The turn is over, so its local copy has done its job: the prompt is either in the transcript or it
+      // never will be. Keeping it would leave a bubble stuck on "Sending" for the rest of the thread.
       const echo = d.echoes.findIndex((e) => e.turnId === turnId);
-      // A finished turn whose prompt is in the transcript needs no local copy, even one no text matched.
-      const landed = d.order.some((id) => {
-        const item = d.items[id];
-        return item?.kind === "userMessage" && item.turnId === turnId && !item.steered;
-      });
-      if (echo >= 0 && (d.turns[turnId]?.terminal !== "completed" || landed)) {
+      if (echo >= 0) {
         draft.removeEcho(echo);
       }
       break;

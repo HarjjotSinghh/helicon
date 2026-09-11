@@ -22,6 +22,66 @@ describe("HeliconStore", () => {
     assert.equal(sessions[0]?.id, "s1");
   });
 
+  it("keeps the commands Helicon ran for a thread", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/p");
+    store.recordSession({ id: "s1", projectId: project.id });
+    store.addShellRun({
+      id: "r1",
+      sessionId: "s1",
+      command: "ls -la",
+      exitCode: 0,
+      output: "total 0",
+      truncated: false,
+      durationMs: 12,
+      at: "2026-09-11T22:00:00.000Z",
+    });
+    store.addShellRun({
+      id: "r2",
+      sessionId: "s1",
+      command: "false",
+      exitCode: 1,
+      output: "",
+      truncated: true,
+      durationMs: null,
+      at: "2026-09-11T22:00:01.000Z",
+    });
+    const runs = store.listShellRuns("s1");
+    assert.deepEqual(runs.map((r) => r.id), ["r1", "r2"]);
+    assert.equal(runs[0]?.output, "total 0");
+    assert.equal(runs[1]?.exitCode, 1);
+    assert.equal(runs[1]?.truncated, true);
+    assert.equal(runs[1]?.durationMs, null);
+    assert.deepEqual(store.listShellRuns("other"), []);
+  });
+
+  it("keeps the bytes of files sent with a prompt", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/p");
+    store.recordSession({ id: "s1", projectId: project.id });
+    const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const saved = store.addAttachment({
+      id: "a1",
+      sessionId: "s1",
+      turnId: "t1",
+      ord: 0,
+      name: "shot.png",
+      mediaType: "image/png",
+      kind: "image",
+      width: 10,
+      height: 20,
+      bytes,
+    });
+    assert.equal(saved.name, "shot.png");
+    assert.equal(saved.kind, "image");
+    assert.equal(saved.turnId, "t1");
+    assert.deepEqual(store.listAttachments("s1").map((a) => a.id), ["a1"]);
+    assert.deepEqual(store.readAttachment("a1")?.bytes, bytes);
+    assert.equal(store.readAttachment("missing"), null);
+  });
+
   it("never lets a weaker title source overwrite a stronger one", () => {
     const store = new HeliconStore();
     after(() => store.close());
@@ -68,6 +128,21 @@ describe("HeliconStore", () => {
     );
     store.recordSession({ id: "a1", projectId: a.id, activityAt: "2026-03-01T00:00:00.000Z" });
     assert.equal(store.listProjects()[0]?.cwd, "/work/a");
+  });
+
+  it("keeps the order the user dragged projects into", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    store.upsertProject("/work/a");
+    store.upsertProject("/work/b");
+    store.upsertProject("/work/c");
+    store.setProjectOrder(["/work/c", "/work/a", "/work/b"]);
+    assert.deepEqual(
+      store.listProjects().map((p) => p.cwd),
+      ["/work/c", "/work/a", "/work/b"],
+    );
+    store.setPinned("/work/b", true);
+    assert.equal(store.listProjects()[0]?.cwd, "/work/b", "a pinned project still comes first");
   });
 
   it("pins projects to the top of the sidebar order", () => {

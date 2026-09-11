@@ -114,13 +114,56 @@ CREATE TABLE IF NOT EXISTS turns (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS attachments (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  turn_id TEXT,
+  ord INTEGER NOT NULL DEFAULT 0,
+  name TEXT NOT NULL,
+  media_type TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'image',
+  width INTEGER,
+  height INTEGER,
+  bytes BLOB NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS shell_runs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  command TEXT NOT NULL,
+  exit_code INTEGER,
+  output TEXT NOT NULL,
+  truncated INTEGER NOT NULL DEFAULT 0,
+  duration_ms INTEGER,
+  at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS usage (
+  key TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  turn_id TEXT,
+  model_id TEXT,
+  prompt_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  cached_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+  reasoning_tokens INTEGER NOT NULL DEFAULT 0,
+  duration_ms INTEGER,
+  at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
+CREATE INDEX IF NOT EXISTS idx_shell_runs_session ON shell_runs(session_id, at);
+CREATE INDEX IF NOT EXISTS idx_usage_at ON usage(at);
+CREATE INDEX IF NOT EXISTS idx_usage_session ON usage(session_id);
 CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_session ON attachments(session_id, turn_id);
 `;
 
 /** Columns added after the first release; applied in place so existing databases keep their data. */
 const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: "projects", column: "hidden", ddl: "ALTER TABLE projects ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0" },
+  { table: "projects", column: "position", ddl: "ALTER TABLE projects ADD COLUMN position INTEGER" },
   {
     table: "sessions",
     column: "title_source",
@@ -134,6 +177,82 @@ const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
 ];
 
 type Row = Record<string, string | number | null>;
+
+/** A file the user attached to a prompt. `kind` is "image" when Muse saw it, "file" when it went to the workspace. */
+export interface AttachmentRecord {
+  id: string;
+  sessionId: string;
+  turnId: string | null;
+  ord: number;
+  name: string;
+  mediaType: string;
+  kind: "image" | "file";
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+}
+
+export interface AddAttachmentInput {
+  id: string;
+  sessionId: string;
+  turnId: string | null;
+  ord: number;
+  name: string;
+  mediaType: string;
+  kind: "image" | "file";
+  width?: number | null;
+  height?: number | null;
+  bytes: Uint8Array;
+}
+
+/** A `!` command Helicon ran itself, with what it printed. */
+export interface ShellRunRecord {
+  id: string;
+  sessionId: string;
+  command: string;
+  exitCode: number | null;
+  output: string;
+  truncated: boolean;
+  durationMs: number | null;
+  at: string;
+}
+
+/** One model call's tokens, as the store keeps them for the usage page. */
+export interface UsageCall {
+  key: string;
+  sessionId: string;
+  turnId: string | null;
+  modelId: string | null;
+  promptTokens: number;
+  outputTokens: number;
+  inputTokens: number;
+  cachedTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  reasoningTokens: number;
+  durationMs: number | null;
+  at: string;
+}
+
+export interface UsageRow extends UsageCall {
+  sessionTitle: string | null;
+  projectCwd: string | null;
+}
+
+function toAttachment(row: Row): AttachmentRecord {
+  return {
+    id: String(row["id"]),
+    sessionId: String(row["session_id"]),
+    turnId: row["turn_id"] === null ? null : String(row["turn_id"]),
+    ord: Number(row["ord"] ?? 0),
+    name: String(row["name"]),
+    mediaType: String(row["media_type"]),
+    kind: row["kind"] === "file" ? "file" : "image",
+    width: row["width"] === null ? null : Number(row["width"]),
+    height: row["height"] === null ? null : Number(row["height"]),
+    createdAt: String(row["created_at"]),
+  };
+}
 
 export class HeliconStore {
   private readonly db: DatabaseSync;
@@ -178,10 +297,111 @@ export class HeliconStore {
       .prepare(
         `SELECT p.*, ${this.projectActivitySql()} AS activity_at
          FROM projects p ${where}
-         ORDER BY p.pinned DESC, activity_at DESC, p.id DESC`,
+         ORDER BY p.pinned DESC, p.position IS NULL, p.position, activity_at DESC, p.id DESC`,
       )
       .all() as Row[];
     return rows.map((row) => this.toProject(row));
+  }
+
+  /** A `!` command Helicon ran itself in the workspace, kept so a reopened thread still shows it. */
+  addShellRun(input: ShellRunRecord): ShellRunRecord {
+    this.db
+      .prepare(
+        `INSERT INTO shell_runs (id, session_id, command, exit_code, output, truncated, duration_ms, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.id,
+        input.sessionId,
+        input.command,
+        input.exitCode ?? null,
+        input.output,
+        input.truncated ? 1 : 0,
+        input.durationMs ?? null,
+        input.at,
+      );
+    return input;
+  }
+
+  listShellRuns(sessionId: string): ShellRunRecord[] {
+    const rows = this.db.prepare(`SELECT * FROM shell_runs WHERE session_id = ? ORDER BY at`).all(sessionId) as Row[];
+    return rows.map((row) => ({
+      id: String(row["id"]),
+      sessionId: String(row["session_id"]),
+      command: String(row["command"]),
+      exitCode: row["exit_code"] === null ? null : Number(row["exit_code"]),
+      output: String(row["output"] ?? ""),
+      truncated: Number(row["truncated"] ?? 0) === 1,
+      durationMs: row["duration_ms"] === null ? null : Number(row["duration_ms"]),
+      at: String(row["at"]),
+    }));
+  }
+
+  /**
+   * One model call's tokens. Keyed by the view cursor that carried it, so replaying a thread's history
+   * never counts a call twice.
+   */
+  recordUsage(call: UsageCall): void {
+    this.db
+      .prepare(
+        `INSERT INTO usage (key, session_id, turn_id, model_id, prompt_tokens, output_tokens, input_tokens,
+           cached_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, duration_ms, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(key) DO NOTHING`,
+      )
+      .run(
+        call.key,
+        call.sessionId,
+        call.turnId ?? null,
+        call.modelId ?? null,
+        call.promptTokens,
+        call.outputTokens,
+        call.inputTokens,
+        call.cachedTokens,
+        call.cacheReadTokens,
+        call.cacheWriteTokens,
+        call.reasoningTokens,
+        call.durationMs ?? null,
+        call.at,
+      );
+  }
+
+  /** Every recorded call since `since`, newest last, with the thread and project it belongs to. */
+  listUsage(since?: string): UsageRow[] {
+    const rows = this.db
+      .prepare(
+        `SELECT u.*, s.title AS session_title, p.cwd AS project_cwd
+         FROM usage u
+         LEFT JOIN sessions s ON s.id = u.session_id
+         LEFT JOIN projects p ON p.id = s.project_id
+         ${since ? "WHERE u.at >= ?" : ""}
+         ORDER BY u.at`,
+      )
+      .all(...(since ? [since] : [])) as Row[];
+    return rows.map((row) => ({
+      key: String(row["key"]),
+      sessionId: String(row["session_id"]),
+      turnId: row["turn_id"] === null ? null : String(row["turn_id"]),
+      modelId: row["model_id"] === null ? null : String(row["model_id"]),
+      promptTokens: Number(row["prompt_tokens"] ?? 0),
+      outputTokens: Number(row["output_tokens"] ?? 0),
+      inputTokens: Number(row["input_tokens"] ?? 0),
+      cachedTokens: Number(row["cached_tokens"] ?? 0),
+      cacheReadTokens: Number(row["cache_read_tokens"] ?? 0),
+      cacheWriteTokens: Number(row["cache_write_tokens"] ?? 0),
+      reasoningTokens: Number(row["reasoning_tokens"] ?? 0),
+      durationMs: row["duration_ms"] === null ? null : Number(row["duration_ms"]),
+      at: String(row["at"]),
+      sessionTitle: row["session_title"] === null || row["session_title"] === undefined ? null : String(row["session_title"]),
+      projectCwd: row["project_cwd"] === null || row["project_cwd"] === undefined ? null : String(row["project_cwd"]),
+    }));
+  }
+
+  /** The order the user dragged projects into; anything not listed keeps falling back to recent activity. */
+  setProjectOrder(cwds: string[]): void {
+    const now = nowIso();
+    const update = this.db.prepare(`UPDATE projects SET position = ?, updated_at = ? WHERE cwd = ?`);
+    cwds.forEach((cwd, index) => update.run(index, now, cwd));
   }
 
   setPinned(cwd: string, pinned: boolean): void {
@@ -195,6 +415,61 @@ export class HeliconStore {
     this.db
       .prepare(`UPDATE projects SET hidden = ?, updated_at = ? WHERE cwd = ?`)
       .run(hidden ? 1 : 0, nowIso(), cwd);
+  }
+
+  /**
+   * Files the user attached to a prompt. Muse keeps only their metadata on the view, so the bytes live here
+   * and a reopened thread can still show what was sent.
+   */
+  addAttachment(input: AddAttachmentInput): AttachmentRecord {
+    this.db
+      .prepare(
+        `INSERT INTO attachments (id, session_id, turn_id, ord, name, media_type, kind, width, height, bytes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.id,
+        input.sessionId,
+        input.turnId ?? null,
+        input.ord,
+        input.name,
+        input.mediaType,
+        input.kind,
+        input.width ?? null,
+        input.height ?? null,
+        input.bytes,
+        nowIso(),
+      );
+    return this.getAttachment(input.id) as AttachmentRecord;
+  }
+
+  listAttachments(sessionId: string): AttachmentRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, session_id, turn_id, ord, name, media_type, kind, width, height, created_at
+         FROM attachments WHERE session_id = ? ORDER BY created_at, ord`,
+      )
+      .all(sessionId) as Row[];
+    return rows.map((row) => toAttachment(row));
+  }
+
+  getAttachment(id: string): AttachmentRecord | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, session_id, turn_id, ord, name, media_type, kind, width, height, created_at
+         FROM attachments WHERE id = ?`,
+      )
+      .get(id) as Row | undefined;
+    return row ? toAttachment(row) : null;
+  }
+
+  /** The stored bytes, for serving one attachment back to the UI. */
+  readAttachment(id: string): { record: AttachmentRecord; bytes: Uint8Array } | null {
+    const row = this.db.prepare(`SELECT * FROM attachments WHERE id = ?`).get(id) as (Row & { bytes?: unknown }) | undefined;
+    if (!row || !(row.bytes instanceof Uint8Array)) {
+      return null;
+    }
+    return { record: toAttachment(row), bytes: row.bytes };
   }
 
   recordSession(input: RecordSessionInput): SessionRecord {

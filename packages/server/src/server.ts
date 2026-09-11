@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdir, readFile, readdir, stat } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { extname, join, normalize, posix, resolve, sep, win32 } from "node:path";
 import {
@@ -19,10 +20,12 @@ import {
   toWslPath,
   toWindowsPath,
   type ApprovalMode,
+  type AttachmentRecord,
   type CommandConnection,
   type ExecFn,
   type ServeTarget,
   type SessionRecord,
+  type TurnImage,
 } from "@helicon/daemon";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
@@ -48,6 +51,12 @@ export type Opener = (path: string, target: OpenTarget) => Promise<void>;
 
 const realHostFactory: HostFactory = (target) => new HeliconMspHost(target);
 
+/** Runs a `!` command where the workspace is, and hands back what it printed. */
+export type ShellRunner = (
+  command: string,
+  args: string[],
+) => Promise<{ output: string; exitCode: number | null; truncated: boolean }>;
+
 export interface ServerOptions {
   port?: number;
   host?: string;
@@ -65,6 +74,8 @@ export interface ServerOptions {
   autoSettleDays?: number | null;
   /** Runs `muse` CLI calls, like listing skills; the real process runner by default. */
   exec?: ExecFn;
+  /** Runs the user's own `!` commands; spawns a real process by default. */
+  shellRunner?: ShellRunner;
 }
 
 interface ManagedHost {
@@ -94,6 +105,8 @@ interface LiveState {
   lastTerminal: string | null;
   lastError: string | null;
   goal: GoalBlock | null;
+  /** Bumped on every live goal change, so a slow transcript load never writes an older goal over a newer one. */
+  goalSeq: number;
 }
 
 export interface LiveView {
@@ -194,6 +207,46 @@ function lastLines(text: string): string {
 }
 
 /** Runs a command to completion; rejects with the tail of its stderr. */
+/** Output kept from a `!` command Helicon runs itself, and how long it may run. */
+const MAX_SHELL_OUTPUT = 64 * 1024;
+const SHELL_TIMEOUT_MS = 2 * 60_000;
+
+/** Runs a program and keeps what it printed, both streams together, as a terminal would show it. */
+function runCapture(
+  command: string,
+  args: string[],
+  cwd: string | undefined,
+  timeoutMs: number,
+): Promise<{ output: string; exitCode: number | null; truncated: boolean }> {
+  return new Promise((done) => {
+    const child = spawn(command, args, { cwd, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let output = "";
+    let truncated = false;
+    const take = (chunk: Buffer) => {
+      output += chunk.toString();
+      if (output.length > MAX_SHELL_OUTPUT) {
+        output = output.slice(-MAX_SHELL_OUTPUT);
+        truncated = true;
+      }
+    };
+    child.stdout?.on("data", take);
+    child.stderr?.on("data", take);
+    const timer = setTimeout(() => {
+      truncated = true;
+      output += "\n[stopped: the command ran longer than two minutes]";
+      child.kill();
+    }, timeoutMs);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      done({ output: `${output}\n${error.message}`.trim(), exitCode: null, truncated });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      done({ output, exitCode: code, truncated });
+    });
+  });
+}
+
 function runProcess(command: string, args: string[], timeoutMs: number): Promise<void> {
   return new Promise((done, fail) => {
     const child = spawn(command, args, {
@@ -244,6 +297,16 @@ function normalizeCwd(value: string): string {
     return trimmed;
   }
   return trimmed.replace(/[\\/]+$/, "");
+}
+
+/** A name safe to write into a workspace: the base name only, and nothing that needs quoting. */
+export function safeFileName(raw: string | null): string {
+  const base = (raw ?? "").split(/[\\/]/).pop() ?? "";
+  const clean = base
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^[-.]+|-+$/g, "")
+    .slice(0, 80);
+  return clean.length > 0 ? clean : "file";
 }
 
 /** First meaningful line of the opening prompt, capped for the sidebar. */
@@ -439,6 +502,22 @@ export function stripFrontmatter(text: string): string {
 
 const SKILL_CACHE_MS = 60_000;
 
+/** Attachment limits: enough for a screenshot or a PDF, not enough to wedge the host. */
+const MAX_ATTACHMENTS = 10;
+const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;
+const MAX_BODY_BYTES = 96 * 1024 * 1024;
+/** Where a non-image attachment lands inside the workspace, so Muse's own tools can open it. */
+const ATTACHMENT_DIR = [".helicon", "attachments"];
+
+interface PreparedAttachment {
+  name: string;
+  mediaType: string;
+  kind: "image" | "file";
+  width: number | null;
+  height: number | null;
+  bytes: Buffer;
+}
+
 export class HeliconServer {
   private readonly server: Server;
   private readonly store: HeliconStore;
@@ -482,6 +561,7 @@ export class HeliconServer {
       home: options.home ?? homedir(),
       autoSettleDays: options.autoSettleDays === undefined ? 3 : options.autoSettleDays,
       exec: options.exec ?? defaultExec,
+      shellRunner: options.shellRunner ?? ((command, args) => runCapture(command, args, undefined, SHELL_TIMEOUT_MS)),
     };
     this.opener = options.opener ?? defaultOpener(this.options.platform);
     this.store = new HeliconStore(
@@ -584,7 +664,12 @@ export class HeliconServer {
 
   private async readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
     const chunks: Buffer[] = [];
+    let size = 0;
     for await (const chunk of req) {
+      size += (chunk as Buffer).length;
+      if (size > MAX_BODY_BYTES) {
+        throw new HttpError(413, "That request is too large.");
+      }
       chunks.push(chunk as Buffer);
     }
     const text = Buffer.concat(chunks).toString("utf8").trim();
@@ -717,6 +802,17 @@ export class HeliconServer {
       this.json(res, 200, { ok: true });
       return true;
     }
+    if (method === "PATCH" && path === "/api/projects/order") {
+      const body = await this.readBody(req);
+      const raw = body["cwds"];
+      if (!Array.isArray(raw)) {
+        throw new HttpError(400, "cwds is required.");
+      }
+      this.store.setProjectOrder(raw.filter((cwd): cwd is string => typeof cwd === "string" && cwd.trim().length > 0).map(normalizeCwd));
+      this.sessionsChanged();
+      this.json(res, 200, { ok: true });
+      return true;
+    }
     if (method === "PATCH" && path === "/api/projects/pin") {
       const body = await this.readBody(req);
       const cwd = str(body["cwd"]);
@@ -779,6 +875,35 @@ export class HeliconServer {
         str(body["modelId"]) ?? undefined,
       );
       this.json(res, 200, { session });
+      return true;
+    }
+
+    const proxyMatch = path.match(/^\/api\/sessions\/([^/]+)\/shell-proxy$/);
+    if (method === "POST" && proxyMatch) {
+      const sessionId = decodeURIComponent(proxyMatch[1] as string);
+      const body = await this.readBody(req);
+      const command = str(body["command"])?.trim();
+      if (!command) {
+        throw new HttpError(400, "command is required.");
+      }
+      const found = this.store.findSession(sessionId);
+      if (!found) {
+        throw new HttpError(404, "Unknown session.");
+      }
+      const result = await this.runInWorkspace(found.cwd, command);
+      const run = this.store.addShellRun({
+        id: randomUUID(),
+        sessionId,
+        command,
+        exitCode: result.exitCode,
+        output: result.output,
+        truncated: result.truncated,
+        durationMs: result.durationMs,
+        at: nowIso(),
+      });
+      this.store.updateSession(sessionId, { activityAt: nowIso() });
+      this.emit("helicon", { type: "shell-run", sessionId, run });
+      this.json(res, 200, { run });
       return true;
     }
 
@@ -856,12 +981,33 @@ export class HeliconServer {
       }
     }
 
+    if (method === "GET" && path === "/api/usage") {
+      const requested = Number.parseInt(url.searchParams.get("days") ?? "30", 10);
+      const days = Number.isFinite(requested) ? Math.min(365, Math.max(1, requested)) : 30;
+      this.json(res, 200, this.usageReport(days));
+      return true;
+    }
+    const attachmentMatch = path.match(/^\/api\/attachments\/([A-Za-z0-9-]{1,64})$/);
+    if (method === "GET" && attachmentMatch) {
+      const found = this.store.readAttachment(attachmentMatch[1] as string);
+      if (!found) {
+        throw new HttpError(404, "No such attachment.");
+      }
+      res.writeHead(200, {
+        "content-type": found.record.mediaType,
+        "content-length": String(found.bytes.length),
+        "cache-control": "private, max-age=86400",
+      });
+      res.end(Buffer.from(found.bytes));
+      return true;
+    }
     if (method === "POST" && path === "/api/turns") {
       const body = await this.readBody(req);
       const sessionId = str(body["sessionId"]);
-      const text = str(body["text"]);
-      if (!sessionId || !text) {
-        throw new HttpError(400, "sessionId and text are required.");
+      const text = str(body["text"]) ?? "";
+      const files = Array.isArray(body["attachments"]) ? body["attachments"] : [];
+      if (!sessionId || (!text && files.length === 0)) {
+        throw new HttpError(400, "sessionId and either text or an attachment are required.");
       }
       const ifBusy = body["ifBusy"];
       if (ifBusy !== undefined && ifBusy !== null && !isIfBusy(ifBusy)) {
@@ -872,14 +1018,33 @@ export class HeliconServer {
         throw new HttpError(400, "Unknown reasoningEffort.");
       }
       const manager = await this.managerForSession(sessionId);
+      const prepared = await this.prepareAttachments(this.store.findSession(sessionId)?.cwd ?? "", files);
       this.wake(sessionId);
-      const ack = await manager.sendTurn(sessionId, text, {
+      const ack = await manager.sendTurn(sessionId, prepared.prompt(text), {
         displayText: str(body["displayText"]) ?? undefined,
         ifBusy: typeof ifBusy === "string" ? ifBusy : undefined,
         reasoningEffort: typeof effort === "string" ? effort : undefined,
+        images: prepared.images,
       });
+      // The saved attachments go back with the ack: the open thread shows them without waiting for a reload.
+      const saved = prepared.files.map((file, index) =>
+        this.attachmentView(
+          this.store.addAttachment({
+            id: randomUUID(),
+            sessionId,
+            turnId: ack.turnId,
+            ord: index,
+            name: file.name,
+            mediaType: file.mediaType,
+            kind: file.kind,
+            width: file.width,
+            height: file.height,
+            bytes: file.bytes,
+          }),
+        ),
+      );
       this.store.updateSession(sessionId, { activityAt: nowIso() });
-      this.json(res, 200, { turnId: ack.turnId, status: ack.status, disposition: ack.disposition });
+      this.json(res, 200, { turnId: ack.turnId, status: ack.status, disposition: ack.disposition, attachments: saved });
       return true;
     }
 
@@ -1070,6 +1235,7 @@ export class HeliconServer {
         lastTerminal: null,
         lastError: null,
         goal: null,
+        goalSeq: 0,
       };
       this.live.set(sessionId, state);
     }
@@ -1379,7 +1545,228 @@ export class HeliconServer {
     return this.summary(record, cwd);
   }
 
+  /**
+   * Files posted with a prompt. Images are the one non-text part MSP takes, so they go straight to the model;
+   * anything else is written into the workspace under `.helicon/attachments` and mentioned in the prompt,
+   * which is how Muse reaches a file. Every one is kept here too, so a reopened thread can show it.
+   */
+  private async prepareAttachments(
+    cwd: string,
+    raw: unknown[],
+  ): Promise<{ images: TurnImage[]; files: PreparedAttachment[]; prompt: (text: string) => string }> {
+    const mentions: string[] = [];
+    const images: TurnImage[] = [];
+    const files: PreparedAttachment[] = [];
+    if (raw.length > MAX_ATTACHMENTS) {
+      throw new HttpError(400, `A message takes at most ${MAX_ATTACHMENTS} files.`);
+    }
+    for (const entry of raw) {
+      const record = asRecord(entry);
+      const base64 = record ? str(record["base64"]) : null;
+      const mediaType = record ? str(record["mediaType"]) : null;
+      if (!record || !base64 || !mediaType) {
+        throw new HttpError(400, "Each attachment needs a name, a mediaType and base64 bytes.");
+      }
+      const name = safeFileName(str(record["name"]));
+      const bytes = Buffer.from(base64, "base64");
+      if (bytes.length === 0) {
+        throw new HttpError(400, `${name} has no content.`);
+      }
+      if (bytes.length > MAX_ATTACHMENT_BYTES) {
+        throw new HttpError(413, `${name} is over ${Math.round(MAX_ATTACHMENT_BYTES / 1024 / 1024)} MB.`);
+      }
+      const width = num(record["width"]) ?? null;
+      const height = num(record["height"]) ?? null;
+      if (mediaType.startsWith("image/")) {
+        images.push({
+          base64Data: base64,
+          mediaType,
+          ...(width !== null && height !== null ? { width, height } : {}),
+        });
+        files.push({ name, mediaType, kind: "image", width, height, bytes });
+        continue;
+      }
+      if (!cwd) {
+        throw new HttpError(400, `${name} needs a workspace to land in.`);
+      }
+      const written = await this.writeIntoWorkspace(cwd, name, bytes);
+      mentions.push(`@${[...ATTACHMENT_DIR, written].join("/")}`);
+      files.push({ name: written, mediaType, kind: "file", width, height, bytes });
+    }
+    return {
+      images,
+      files,
+      prompt: (text: string) => [text, ...mentions].filter((part) => part.length > 0).join("\n\n"),
+    };
+  }
+
+  /** Writes an attached file into the workspace, keeping its name unless one is already taken. */
+  private async writeIntoWorkspace(cwd: string, name: string, bytes: Buffer): Promise<string> {
+    const directory = join(cwd, ...ATTACHMENT_DIR);
+    await mkdir(directory, { recursive: true });
+    const dot = name.lastIndexOf(".");
+    const stem = dot > 0 ? name.slice(0, dot) : name;
+    const suffix = dot > 0 ? name.slice(dot) : "";
+    let candidate = name;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const taken = await stat(join(directory, candidate)).then(
+        () => true,
+        () => false,
+      );
+      if (!taken) {
+        break;
+      }
+      candidate = `${stem}-${attempt + 2}${suffix}`;
+    }
+    await writeFile(join(directory, candidate), bytes);
+    return candidate;
+  }
+
+  /**
+   * One model call's tokens, kept so the usage page can look across every thread rather than only the ones
+   * open in the UI. The view cursor is the key, so replaying a thread's history never counts a call twice.
+   */
+  private recordUsage(sessionId: string, params: Record<string, unknown>): void {
+    const usage = asRecord(params["usage"]) ?? {};
+    const promptTokens = num(params["promptTokens"]) ?? num(usage["inputTokens"]) ?? 0;
+    const outputTokens = num(usage["outputTokens"]) ?? Math.max(0, (num(params["totalTokens"]) ?? 0) - promptTokens);
+    if (promptTokens === 0 && outputTokens === 0) {
+      return;
+    }
+    this.store.recordUsage({
+      key: str(params["viewCursor"]) ?? `${sessionId}:${str(params["turnId"]) ?? "turn"}:${randomUUID()}`,
+      sessionId,
+      turnId: str(params["turnId"]),
+      modelId: str(params["modelId"]),
+      promptTokens,
+      outputTokens,
+      inputTokens: num(usage["inputTokens"]) ?? 0,
+      cachedTokens: num(usage["cachedTokens"]) ?? 0,
+      cacheReadTokens: num(usage["cacheReadTokens"]) ?? 0,
+      cacheWriteTokens: num(usage["cacheWriteTokens"]) ?? 0,
+      reasoningTokens: num(usage["reasoningTokens"]) ?? 0,
+      durationMs: num(params["durationMs"]) ?? null,
+      at: normalizeIso(params["at"]) ?? nowIso(),
+    });
+  }
+
+  /** Tokens per day and model, plus a row per thread, for the usage page to price. */
+  private usageReport(days: number): Record<string, unknown> {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const rows = this.store.listUsage(since);
+    const buckets = new Map<string, Record<string, unknown>>();
+    const threads = new Map<string, Record<string, unknown>>();
+    for (const row of rows) {
+      const day = row.at.slice(0, 10);
+      const modelId = row.modelId ?? "unknown";
+      const cached = Math.min(row.promptTokens, row.cacheReadTokens || row.cachedTokens);
+      const bucketKey = `${day}|${modelId}`;
+      const bucket = buckets.get(bucketKey) ?? {
+        day,
+        modelId,
+        calls: 0,
+        promptTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        reasoningTokens: 0,
+        durationMs: 0,
+      };
+      bucket["calls"] = (bucket["calls"] as number) + 1;
+      bucket["promptTokens"] = (bucket["promptTokens"] as number) + row.promptTokens;
+      bucket["outputTokens"] = (bucket["outputTokens"] as number) + row.outputTokens;
+      bucket["cachedTokens"] = (bucket["cachedTokens"] as number) + cached;
+      bucket["cacheReadTokens"] = (bucket["cacheReadTokens"] as number) + row.cacheReadTokens;
+      bucket["cacheWriteTokens"] = (bucket["cacheWriteTokens"] as number) + row.cacheWriteTokens;
+      bucket["reasoningTokens"] = (bucket["reasoningTokens"] as number) + row.reasoningTokens;
+      bucket["durationMs"] = (bucket["durationMs"] as number) + (row.durationMs ?? 0);
+      buckets.set(bucketKey, bucket);
+
+      const thread = threads.get(row.sessionId) ?? {
+        sessionId: row.sessionId,
+        title: row.sessionTitle,
+        cwd: row.projectCwd,
+        calls: 0,
+        promptTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        modelIds: [] as string[],
+        // A thread that switched models has to be priced per model, not at whichever one it started on.
+        models: [] as Record<string, unknown>[],
+        lastAt: row.at,
+      };
+      thread["calls"] = (thread["calls"] as number) + 1;
+      thread["promptTokens"] = (thread["promptTokens"] as number) + row.promptTokens;
+      thread["outputTokens"] = (thread["outputTokens"] as number) + row.outputTokens;
+      thread["cachedTokens"] = (thread["cachedTokens"] as number) + cached;
+      const ids = thread["modelIds"] as string[];
+      if (!ids.includes(modelId)) {
+        ids.push(modelId);
+      }
+      const perModel = thread["models"] as Record<string, unknown>[];
+      const share = perModel.find((entry) => entry["modelId"] === modelId);
+      if (share) {
+        share["calls"] = (share["calls"] as number) + 1;
+        share["promptTokens"] = (share["promptTokens"] as number) + row.promptTokens;
+        share["outputTokens"] = (share["outputTokens"] as number) + row.outputTokens;
+        share["cachedTokens"] = (share["cachedTokens"] as number) + cached;
+      } else {
+        perModel.push({
+          modelId,
+          calls: 1,
+          promptTokens: row.promptTokens,
+          outputTokens: row.outputTokens,
+          cachedTokens: cached,
+        });
+      }
+      thread["lastAt"] = row.at;
+      threads.set(row.sessionId, thread);
+    }
+    return {
+      since,
+      days,
+      buckets: [...buckets.values()],
+      threads: [...threads.values()].sort((a, b) => ((a["lastAt"] as string) < (b["lastAt"] as string) ? 1 : -1)),
+    };
+  }
+
+  /**
+   * Runs a `!` command where the workspace lives: through WSL on Windows, in the folder itself elsewhere.
+   * This is the user's own shell, not Muse's sandbox, which is the point: Muse cannot run these at all.
+   */
+  private async runInWorkspace(
+    cwd: string,
+    command: string,
+  ): Promise<{ output: string; exitCode: number | null; truncated: boolean; durationMs: number }> {
+    const started = Date.now();
+    const plan = planHostCommand({
+      platform: this.options.platform,
+      distro: this.options.distro,
+      program: "sh",
+      // $1 is the workspace, then the command; a login shell so the user's PATH is the one they expect.
+      args: ["-c", 'cd "$1" || exit 1; shift; exec "${SHELL:-/bin/sh}" -lc "$1"', "sh", this.hostPathFor(cwd), command],
+    });
+    const result = await this.options.shellRunner(plan.command, plan.args);
+    return { ...result, durationMs: Date.now() - started };
+  }
+
+  private attachmentView(record: AttachmentRecord): Record<string, unknown> {
+    return {
+      id: record.id,
+      turnId: record.turnId,
+      name: record.name,
+      mediaType: record.mediaType,
+      kind: record.kind,
+      width: record.width,
+      height: record.height,
+      url: `/api/attachments/${record.id}`,
+    };
+  }
+
   private async loadTranscript(sessionId: string): Promise<Record<string, unknown>> {
+    // A goal change can land while this load is in flight; history must not then write the older goal back.
+    const goalSeqAtStart = this.liveFor(sessionId).goalSeq;
     const found = this.store.findSession(sessionId);
     const host = await this.hostFor(found?.cwd ?? "");
     const manager = host.manager;
@@ -1432,8 +1819,14 @@ export class HeliconServer {
     }
     live.pendingApprovals = new Set(approvals.map((a) => str(a["approvalId"])).filter((id): id is string => id !== null));
     live.pendingInputs = new Set(userInputs.map((u) => str(u["userInputId"])).filter((id): id is string => id !== null));
-    // The history's last goal change is the goal as of now.
-    for (let index = events.length - 1; index >= 0; index -= 1) {
+    // Opening a thread backfills the usage page with the calls it made before this server ever ran.
+    for (const event of events) {
+      if (event.method === "session/tokenUsage") {
+        this.recordUsage(sessionId, event.params);
+      }
+    }
+    // The history's last goal change is the goal as of now, unless a live one arrived while this load ran.
+    for (let index = events.length - 1; live.goalSeq === goalSeqAtStart && index >= 0; index -= 1) {
       const event = events[index];
       const goal = event?.method === "session/goalChanged" ? goalOf(event.params["goal"]) : undefined;
       if (goal !== undefined) {
@@ -1477,6 +1870,8 @@ export class HeliconServer {
         : null,
       events,
       truncated,
+      attachments: this.store.listAttachments(sessionId).map((record) => this.attachmentView(record)),
+      shellRuns: this.store.listShellRuns(sessionId),
       pending: { approvals, userInputs },
       readOnly,
       readOnlyReason,
@@ -1512,9 +1907,9 @@ export class HeliconServer {
       }
       const project = this.store.upsertProject(root);
       const existing = this.store.getSession(sessionId);
-      // Muse titles a session from the text the model got. A Helicon thread already titled from what the
-      // user saw (a `/skill` turn sends instructions but shows the command) keeps that title.
-      const keepOurs = existing?.origin === "helicon" && existing.titleSource !== "placeholder";
+      // Muse names its own sessions, and that name is what the user sees in the CLI, so it wins here too.
+      // Only a title the user typed in Helicon outranks it.
+      const keepOurs = existing?.titleSource === "user";
       const title = keepOurs ? null : firstString(session, ["title", "name"]);
       const stored = this.store.recordSession({
         id: sessionId,
@@ -1780,11 +2175,16 @@ export class HeliconServer {
         }
         break;
       }
+      case "session/tokenUsage": {
+        this.recordUsage(sessionId, params);
+        break;
+      }
       case "session/goalChanged": {
         const goal = goalOf(params["goal"]);
         // A block with no objective is not a goal; the last one stands.
         if (goal !== undefined) {
           live.goal = goal;
+          live.goalSeq += 1;
           changed = true;
         }
         break;

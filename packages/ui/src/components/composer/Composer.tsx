@@ -27,6 +27,8 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { AttachButton, AttachmentTray, readFiles, toOutgoing, toPreview, type PendingFile } from "./attachments.js";
+import { CostMeter } from "./CostPanel.js";
 import { Popover, Slider, Switch } from "radix-ui";
 import { shallowEqual, useApp, useController } from "../../app/context.js";
 import { useSampled } from "../../app/sampled.js";
@@ -117,6 +119,9 @@ function slashMenuFor(text: string, caret: number, commands: SlashCommand[], ski
   return loading ? { kind: "loading", prefix: "/" } : { kind: "unknown", name: parsed.name, prefix: "/" };
 }
 
+/** As many files per message as the server takes. */
+const MAX_FILES = 10;
+
 export interface ComposerProps {
   sessionId: string | null;
   cwd: string | null;
@@ -148,6 +153,24 @@ export function Composer(props: ComposerProps) {
   const hasText = text.trim().length > 0;
   const showStop = props.running && Boolean(props.sessionId) && !hasText;
   const shell = !props.readOnly && /^!\s*\S/.test(text);
+
+  // Files ride along with the next message: Muse sees images itself, anything else lands in the workspace.
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const addFiles = (incoming: Iterable<File>) => {
+    if (props.readOnly) {
+      return;
+    }
+    void readFiles(incoming).then((read) => setFiles((current) => [...current, ...read].slice(0, MAX_FILES)));
+  };
+  const removeFile = (id: string) => {
+    setFiles((current) => {
+      const gone = current.find((file) => file.id === id);
+      if (gone?.url) {
+        URL.revokeObjectURL(gone.url);
+      }
+      return current.filter((file) => file.id !== id);
+    });
+  };
 
   // The slash menu: which commands match, which row is active, and whether Esc closed it for this word.
   const [caret, setCaret] = useState(0);
@@ -199,14 +222,21 @@ export function Composer(props: ComposerProps) {
   }, [props.autoFocus, props.readOnly, props.sessionId, props.cwd]);
 
   const submit = async (steer: boolean) => {
-    if (!hasText || props.readOnly || starting) {
+    if ((!hasText && files.length === 0) || props.readOnly || starting) {
       return;
     }
     const value = text;
+    const outgoing = files;
     setText("");
-    const sent = await controller.send(value, { steer });
+    setFiles([]);
+    const sent = await controller.send(value, {
+      steer,
+      attachments: outgoing.map(toOutgoing),
+      previews: outgoing.map(toPreview),
+    });
     if (!sent) {
       setText(value);
+      setFiles(outgoing);
     }
   };
 
@@ -309,6 +339,24 @@ export function Composer(props: ComposerProps) {
           ref.current?.focus();
         }
       }}
+      onPaste={(event) => {
+        // Only take over the paste when the clipboard actually holds files; pasted text stays text.
+        if (event.clipboardData?.files?.length) {
+          event.preventDefault();
+          addFiles(Array.from(event.clipboardData.files));
+        }
+      }}
+      onDragOver={(event) => {
+        if (event.dataTransfer?.types?.includes("Files")) {
+          event.preventDefault();
+        }
+      }}
+      onDrop={(event) => {
+        if (event.dataTransfer?.files?.length) {
+          event.preventDefault();
+          addFiles(Array.from(event.dataTransfer.files));
+        }
+      }}
     >
       {menu ? (
         <SlashMenu
@@ -328,10 +376,11 @@ export function Composer(props: ComposerProps) {
         <div className="flex items-center gap-1.5 px-4 pt-2.5 text-xs text-muted">
           <SquareTerminal size={13} className="shrink-0" />
           <span className="truncate">
-            Runs in the shell{props.cwd ? ` in ${basename(props.cwd)}` : ""}; the output appears in the thread
+            Helicon runs this{props.cwd ? ` in ${basename(props.cwd)}` : ""}; the output stays here until you send it to Muse
           </span>
         </div>
       ) : null}
+      <AttachmentTray files={files} onRemove={removeFile} />
       <textarea
         id={id}
         ref={ref}
@@ -363,11 +412,13 @@ export function Composer(props: ComposerProps) {
       />
       <div className="flex items-center gap-0.5 px-2 pb-2">
         {/* The new-thread composer sits high, so its menus open downward; they still flip when there is no room. */}
+        <AttachButton onFiles={(picked) => addFiles(Array.from(picked))} disabled={props.readOnly || files.length >= MAX_FILES} />
         <ModelPicker sessionId={props.sessionId} side={props.variant === "home" ? "bottom" : "top"} />
         <EffortPicker side={props.variant === "home" ? "bottom" : "top"} />
         <AccessPicker sessionId={props.sessionId} side={props.variant === "home" ? "bottom" : "top"} />
         <span className="min-w-2 flex-1" />
         {props.sessionId ? <SpeedReadout sessionId={props.sessionId} /> : null}
+        {props.sessionId ? <CostMeter sessionId={props.sessionId} /> : null}
         {props.sessionId ? <ContextMeter sessionId={props.sessionId} /> : null}
         {props.running && props.sessionId && hasText ? (
           <Tip label="Stop the turn" shortcut={["Esc"]}>
@@ -380,7 +431,7 @@ export function Composer(props: ComposerProps) {
           <button
             type="button"
             aria-label={showStop ? "Stop the turn" : shell ? "Run command" : props.running ? "Queue message" : "Send message"}
-            disabled={showStop ? stopping : !hasText || props.readOnly || starting}
+            disabled={showStop ? stopping : (!hasText && files.length === 0) || props.readOnly || starting}
             onClick={() => (showStop ? void controller.stop(props.sessionId as string) : void submit(false))}
             className={cn(
               "ml-1 inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[transform,background-color,color] duration-150 active:scale-95",

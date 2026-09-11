@@ -4,6 +4,7 @@ import {
   SessionManager,
   isApprovalMode,
   textInput,
+  turnInput,
   type CommandConnection,
 } from "../src/sessions.js";
 
@@ -61,6 +62,27 @@ describe("SessionManager", () => {
     conn.reply("session/list", { unexpected: true });
     const manager = new SessionManager(conn);
     assert.deepEqual(await manager.listSessions(), []);
+  });
+
+  it("sends attached images as their own prompt parts", async () => {
+    const conn = new FakeConnection();
+    const manager = new SessionManager(conn);
+    await manager.sendTurn("s1", "what is this?", {
+      images: [
+        { base64Data: "AAAB", mediaType: "image/png", width: 12, height: 8 },
+        { base64Data: "AAAC", mediaType: "image/jpeg" },
+      ],
+    });
+    assert.deepEqual(lastCall(conn).params?.["input"], [
+      { type: "text", text: "what is this?" },
+      { type: "image", base64Data: "AAAB", mediaType: "image/png", width: 12, height: 8 },
+      { type: "image", base64Data: "AAAC", mediaType: "image/jpeg" },
+    ]);
+
+    await manager.sendTurn("s1", "", { images: [{ base64Data: "AAAD", mediaType: "image/png" }] });
+    assert.deepEqual(lastCall(conn).params?.["input"], [{ type: "image", base64Data: "AAAD", mediaType: "image/png" }]);
+
+    assert.deepEqual(turnInput("hello"), [{ type: "text", text: "hello" }]);
   });
 
   it("starts a session with mode and model, and rejects missing ids", async () => {

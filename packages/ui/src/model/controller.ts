@@ -2,7 +2,9 @@ import { errorKind, errorMessage, type HeliconClient } from "../client.js";
 import type {
   ApprovalMode,
   ApprovalRequest,
+  AttachmentView,
   HeliconEvent,
+  OutgoingAttachment,
   ReasoningEffort,
   SessionSummary,
   SkillEntry,
@@ -30,6 +32,7 @@ import {
   foldFromLoad,
   removeEcho,
   updateEcho,
+  type EchoAttachment,
   type LocalEcho,
   type ThreadFold,
 } from "./fold.js";
@@ -39,6 +42,7 @@ import {
   initialState,
   revivePrefs,
   type AppState,
+  type CodeTheme,
   type ComposerPicker,
   type GroupBy,
   type Prefs,
@@ -111,11 +115,16 @@ export function routeToHash(route: Route): string {
       return route.cwd ? `#/new/${encodeURIComponent(route.cwd)}` : "#/new";
     case "thread":
       return `#/t/${encodeURIComponent(route.sessionId)}`;
+    case "usage":
+      return "#/usage";
   }
 }
 
 export function hashToRoute(hash: string): Route {
   const h = hash.replace(/^#/, "");
+  if (h === "/usage") {
+    return { kind: "usage" };
+  }
   const thread = h.match(/^\/t\/(.+)$/);
   if (thread) {
     return { kind: "thread", sessionId: decodeURIComponent(thread[1] as string) };
@@ -128,13 +137,35 @@ export function hashToRoute(hash: string): Route {
 }
 
 function blankThread(): ThreadState {
-  return { load: "idle", error: null, readOnly: false, readOnlyReason: null, truncated: false, fold: emptyFold() };
+  return {
+    load: "idle",
+    error: null,
+    readOnly: false,
+    readOnlyReason: null,
+    truncated: false,
+    fold: emptyFold(),
+    attachments: [],
+    shellRuns: [],
+  };
 }
 
 let localSeq = 0;
 function nextLocalId(): string {
   localSeq += 1;
   return `local-${Date.now().toString(36)}-${localSeq}`;
+}
+
+/** What a prompt carries beyond its text: files for the model, and their local previews for the echo. */
+interface TurnDelivery {
+  steer?: boolean;
+  displayText?: string;
+  attachments?: OutgoingAttachment[];
+  previews?: EchoAttachment[];
+}
+
+export interface SendOptions extends TurnDelivery {
+  /** Send the text as a prompt even when it looks like a slash command. */
+  raw?: boolean;
 }
 
 const FLUSH_MS = 24;
@@ -411,6 +442,8 @@ export class HeliconController {
             readOnlyReason: load.readOnlyReason,
             truncated: load.truncated,
             fold,
+            attachments: load.attachments ?? [],
+            shellRuns: load.shellRuns ?? [],
           },
         },
         sessions: load.session ? { ...s.sessions, [sessionId]: load.session } : s.sessions,
@@ -433,6 +466,11 @@ export class HeliconController {
         const wasLost = this.state.connection === "lost";
         this.update((s) => ({ ...s, connection: "open" }));
         if (wasLost && this.state.boot === "ready") {
+          // Goals could have moved while the stream was down, and only the open thread is reloaded. Let every
+          // other thread take the server's goal again rather than the last one it saw streamed.
+          for (const id of Object.keys(this.state.threads)) {
+            this.patchFold(id, (f) => (f.meta.goalSeen ? { ...f, meta: { ...f.meta, goalSeen: false } } : f));
+          }
           void this.refresh();
           const route = this.state.route;
           if (route.kind === "thread") {
@@ -456,6 +494,9 @@ export class HeliconController {
           const current = s.sessions[event.sessionId];
           return current ? { ...s, sessions: { ...s.sessions, [event.sessionId]: { ...current, live: event.live } } } : s;
         });
+        break;
+      case "shell-run":
+        this.addShellRun(event.sessionId, event.run);
         break;
       case "sessions-changed":
         this.scheduleRefresh();
@@ -519,12 +560,13 @@ export class HeliconController {
    * Send from the composer. `/commands` and `!shell` lines run as themselves; `raw` sends the text as a plain prompt.
    * Returns false when the sending composer should put the text back.
    */
-  async send(text: string, options: { steer?: boolean; raw?: boolean } = {}): Promise<boolean> {
+  async send(text: string, options: SendOptions = {}): Promise<boolean> {
     const trimmed = text.trim();
-    if (!trimmed) {
+    const files = options.attachments ?? [];
+    if (!trimmed && files.length === 0) {
       return false;
     }
-    if (!options.raw) {
+    if (!options.raw && trimmed) {
       const shell = /^!\s*([\s\S]+)$/.exec(trimmed);
       if (shell) {
         return this.runShell((shell[1] as string).trim());
@@ -534,7 +576,7 @@ export class HeliconController {
         return this.runSlash(trimmed, parsed, { steer: options.steer });
       }
     }
-    return this.deliver(trimmed, { steer: options.steer });
+    return this.deliver(trimmed, { steer: options.steer, attachments: files, previews: options.previews });
   }
 
   /** The project a new thread starts in: the new-thread screen's, else the last one used. */
@@ -550,7 +592,7 @@ export class HeliconController {
   }
 
   /** Sends a prompt to the open thread, or starts a thread with it. */
-  private deliver(text: string, options: { steer?: boolean; displayText?: string }): Promise<boolean> {
+  private deliver(text: string, options: TurnDelivery): Promise<boolean> {
     const route = this.state.route;
     if (route.kind === "thread") {
       return this.sendToThread(route.sessionId, text, options, false);
@@ -599,7 +641,16 @@ export class HeliconController {
         sessions: { ...s.sessions, [session.sessionId]: session },
         threads: {
           ...s.threads,
-          [session.sessionId]: { load: "ready", error: null, readOnly: false, readOnlyReason: null, truncated: false, fold },
+          [session.sessionId]: {
+            load: "ready",
+            error: null,
+            readOnly: false,
+            readOnlyReason: null,
+            truncated: false,
+            fold,
+            attachments: [],
+            shellRuns: [],
+          },
         },
       }));
       this.setPrefs({ lastProject: cwd });
@@ -621,7 +672,7 @@ export class HeliconController {
   private async sendToThread(
     sessionId: string,
     text: string,
-    options: { steer?: boolean; displayText?: string },
+    options: TurnDelivery,
     retried: boolean,
   ): Promise<boolean> {
     const thread = this.state.threads[sessionId];
@@ -640,6 +691,7 @@ export class HeliconController {
       turnId: null,
       disposition: running ? (options.steer ? "steered" : "queued") : "sending",
       createdAt: this.platform.now(),
+      ...(options.previews?.length ? { attachments: options.previews } : {}),
     };
     this.patchFold(sessionId, (f) => addEcho(f, echo));
     try {
@@ -647,10 +699,13 @@ export class HeliconController {
         ifBusy: running ? (options.steer ? "steer" : "queue") : undefined,
         reasoningEffort: this.state.prefs.effort ?? undefined,
         displayText: options.displayText,
+        attachments: options.attachments,
       });
       const disposition: LocalEcho["disposition"] =
         ack.disposition === "queued" ? "queued" : ack.disposition === "steered" ? "steered" : "started";
       this.patchFold(sessionId, (f) => updateEcho(f, echo.localId, { turnId: ack.turnId, disposition }));
+      // The echo goes when the prompt lands, so the thread takes the saved files now rather than on a reload.
+      this.keepAttachments(sessionId, ack.attachments ?? []);
       const turnId = ack.turnId;
       if (disposition === "started" && turnId) {
         this.patchFold(sessionId, (f) =>
@@ -704,6 +759,21 @@ export class HeliconController {
     }
   }
 
+  /** Clears a failed turn's notice, for when the user has acted on it and it is only taking up room. */
+  dismissTurnError(sessionId: string, turnId: string | null): void {
+    if (!turnId) {
+      return;
+    }
+    this.patchFold(sessionId, (f) => {
+      const info = f.turns[turnId];
+      if (!info?.error) {
+        return f;
+      }
+      const { error: _error, ...rest } = info;
+      return { ...f, turns: { ...f.turns, [turnId]: { ...rest, dismissed: true } } };
+    });
+  }
+
   async retryTurn(sessionId: string, prompt: string): Promise<void> {
     // A turn started by `/plan …` or `/init` shows the command, so retrying runs the command again.
     const parsed = parseSlash(prompt);
@@ -728,6 +798,13 @@ export class HeliconController {
       return;
     }
     this.setBusy(key, true);
+    // The card goes on the click, not on the host's `approval/resolved`, which can be a second or more behind.
+    const decision = (request.availableChoices ?? []).find((c) => c.choiceId === choiceId)?.decision ?? "approved";
+    this.patchFold(request.sessionId, (f) => {
+      const approvals = { ...f.approvals };
+      delete approvals[request.approvalId];
+      return { ...f, approvals, resolved: { ...f.resolved, [request.approvalId]: { decision, resolvedBy: "user" } } };
+    });
     try {
       await this.client.decideApproval({
         sessionId: request.sessionId,
@@ -739,19 +816,26 @@ export class HeliconController {
     } catch (error) {
       const kind = errorKind(error);
       if (kind === "approvalAlreadyResolved" || kind === "approvalNotFound") {
-        this.patchFold(request.sessionId, (f) => {
-          const approvals = { ...f.approvals };
-          delete approvals[request.approvalId];
-          return { ...f, approvals };
-        });
+        /* it was already settled elsewhere; the card is gone either way */
       } else if (kind === "approvalRequirementStale") {
+        this.restoreApproval(request);
         this.toast("info", "The request changed", "Review the updated request and decide again.");
       } else {
+        this.restoreApproval(request);
         this.toast("error", "Decision not sent", errorMessage(error));
       }
     } finally {
       this.setBusy(key, false);
     }
+  }
+
+  /** Puts a request back when its decision did not land, so the choice is still the user's. */
+  private restoreApproval(request: ApprovalRequest): void {
+    this.patchFold(request.sessionId, (f) => {
+      const resolved = { ...f.resolved };
+      delete resolved[request.approvalId];
+      return { ...f, approvals: { ...f.approvals, [request.approvalId]: request }, resolved };
+    });
   }
 
   private dropInput(request: UserInputRequest): void {
@@ -993,6 +1077,30 @@ export class HeliconController {
     }
   }
 
+  /** Token usage across every thread the server knows, for the usage page. */
+  usageReport(days: number): Promise<import("../types.js").UsageReport> {
+    return this.client.usage(days);
+  }
+
+  /** Moves a project in the sidebar, taking the new order from the row it was dropped on. */
+  async reorderProjects(cwd: string, beforeCwd: string | null): Promise<void> {
+    const current = this.state.projects;
+    const moving = current.find((p) => p.cwd === cwd);
+    if (!moving || cwd === beforeCwd) {
+      return;
+    }
+    const rest = current.filter((p) => p.cwd !== cwd);
+    const at = beforeCwd === null ? rest.length : rest.findIndex((p) => p.cwd === beforeCwd);
+    const next = [...rest.slice(0, at < 0 ? rest.length : at), moving, ...rest.slice(at < 0 ? rest.length : at)];
+    this.update((s) => ({ ...s, projects: next }));
+    try {
+      await this.client.setProjectOrder(next.map((p) => p.cwd));
+    } catch (error) {
+      this.update((s) => ({ ...s, projects: current }));
+      this.toast("error", "Could not reorder the projects", errorMessage(error));
+    }
+  }
+
   async hideProject(cwd: string): Promise<void> {
     const project = this.state.projects.find((p) => p.cwd === cwd);
     if (!project) {
@@ -1106,12 +1214,20 @@ export class HeliconController {
         this.toast("info", "This thread is read-only here", thread.readOnlyReason ?? "Another Muse session has it open.");
         return false;
       }
+      const key = `shell:${sessionId}`;
+      if (this.state.busy[key]) {
+        return false;
+      }
+      this.setBusy(key, true);
       try {
-        await this.client.runShell(sessionId, command);
+        // Helicon runs `!` itself: Muse's own host has no sandbox for these, so it never runs them at all.
+        this.addShellRun(sessionId, await this.client.runShellProxy(sessionId, command));
         return true;
       } catch (error) {
         this.toast("error", "Command not run", errorMessage(error));
         return false;
+      } finally {
+        this.setBusy(key, false);
       }
     };
     const route = this.state.route;
@@ -1120,6 +1236,44 @@ export class HeliconController {
     }
     const target = this.newThreadTarget();
     return target ? this.startThread(target, `!${command}`, run) : false;
+  }
+
+  /** Adds files the server has just saved to the open thread, skipping any it already has. */
+  private keepAttachments(sessionId: string, saved: AttachmentView[]): void {
+    if (saved.length === 0) {
+      return;
+    }
+    this.update((s) => {
+      const thread = s.threads[sessionId];
+      if (!thread) {
+        return s;
+      }
+      const known = new Set(thread.attachments.map((file) => file.id));
+      const added = saved.filter((file) => !known.has(file.id));
+      if (added.length === 0) {
+        return s;
+      }
+      return { ...s, threads: { ...s.threads, [sessionId]: { ...thread, attachments: [...thread.attachments, ...added] } } };
+    });
+  }
+
+  /** Keeps a command Helicon ran in the thread it belongs to, whoever started it. */
+  private addShellRun(sessionId: string, run: import("../types.js").ShellRun): void {
+    this.update((s) => {
+      const thread = s.threads[sessionId];
+      if (!thread || thread.shellRuns.some((existing) => existing.id === run.id)) {
+        return s;
+      }
+      return { ...s, threads: { ...s.threads, [sessionId]: { ...thread, shellRuns: [...thread.shellRuns, run] } } };
+    });
+  }
+
+  /** Hands a command's output to Muse as the next prompt, since Muse never saw it run. */
+  sendShellOutput(sessionId: string, run: import("../types.js").ShellRun): Promise<boolean> {
+    const fence = "`".repeat(Math.max(3, ...(run.output.match(/`+/g) ?? []).map((mark) => mark.length + 1)));
+    const status = run.exitCode === 0 ? "" : ` (exit ${run.exitCode ?? "unknown"})`;
+    const text = `I ran this in the workspace${status}:\n\n${fence}sh\n${run.command}\n${fence}\n\nIts output:\n\n${fence}\n${run.output.trim() || "(no output)"}\n${fence}`;
+    return this.sendToThread(sessionId, text, { displayText: `Shared the output of \`${run.command}\`` }, false);
   }
 
   private async runSlash(typed: string, parsed: ParsedSlash, options: { steer?: boolean }): Promise<boolean> {
@@ -1246,7 +1400,9 @@ export class HeliconController {
 
   /** Hands a `!` command the host could not run to the agent, whose own shell tool can. */
   askToRun(sessionId: string, command: string): Promise<boolean> {
-    const fence = command.includes("```") ? "~~~" : "```";
+    // A fence longer than any run of backticks in the command, so the command cannot close its own block.
+    const runs = command.match(/`+/g) ?? [];
+    const fence = "`".repeat(Math.max(3, ...runs.map((run) => run.length + 1)));
     // The failed `!` item says the environment is broken, which makes the agent refuse; tell it that its own shell is fine.
     const text =
       `Run this with your shell tool and show me the output:\n\n${fence}sh\n${command}\n${fence}\n\n` +
@@ -1328,6 +1484,10 @@ export class HeliconController {
 
   setTheme(theme: ThemePref): void {
     this.setPrefs({ theme });
+  }
+
+  setCodeTheme(codeTheme: CodeTheme): void {
+    this.setPrefs({ codeTheme });
   }
 
   toggleSidebar(): void {

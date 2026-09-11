@@ -47,6 +47,67 @@ export function CopyButton(props: { text: string; label?: string; className?: st
 
 const HIGHLIGHTABLE = /^(js|jsx|ts|tsx|javascript|typescript|json|jsonc|css|scss|html|xml|java|c|cpp|cs|go|rust|rs|swift|kotlin|php|py|python|rb|ruby|sh|bash|zsh|shell|ps1|powershell|sql|yaml|yml|toml|lua|dart)$/i;
 
+/** What a file extension implies about its language, for colouring a diff the same way a code block is coloured. */
+const EXTENSION_LANGUAGE: Record<string, string> = {
+  ts: "ts",
+  tsx: "tsx",
+  mts: "ts",
+  cts: "ts",
+  js: "js",
+  jsx: "jsx",
+  mjs: "js",
+  cjs: "js",
+  json: "json",
+  jsonc: "jsonc",
+  css: "css",
+  scss: "scss",
+  html: "html",
+  xml: "xml",
+  java: "java",
+  c: "c",
+  h: "c",
+  cc: "cpp",
+  cpp: "cpp",
+  hpp: "cpp",
+  cs: "cs",
+  go: "go",
+  rs: "rs",
+  swift: "swift",
+  kt: "kotlin",
+  php: "php",
+  py: "py",
+  rb: "rb",
+  sh: "sh",
+  bash: "bash",
+  zsh: "zsh",
+  ps1: "ps1",
+  sql: "sql",
+  yaml: "yaml",
+  yml: "yml",
+  toml: "toml",
+  lua: "lua",
+  dart: "dart",
+};
+
+/** The language a path implies, or null when nothing here can colour it. */
+export function languageFromPath(path: string | null | undefined): string | null {
+  const extension = /\.([A-Za-z0-9]+)$/.exec(path ?? "")?.[1]?.toLowerCase();
+  const language = extension ? EXTENSION_LANGUAGE[extension] : undefined;
+  return language && HIGHLIGHTABLE.test(language) ? language : null;
+}
+
+/** Highlighted HTML for a line or a block, or null when it is not worth colouring. */
+export function highlightCode(code: string, language: string | null): string | null {
+  if (!language || code.length === 0 || code.length > 2000) {
+    return null;
+  }
+  try {
+    return highlight(code);
+  } catch {
+    return null;
+  }
+}
+
 export const CodeBlock = memo(function CodeBlock(props: { code: string; language: string | null; className?: string }) {
   const html = useMemo(() => {
     if (props.code.length > 60_000 || (props.language && !HIGHLIGHTABLE.test(props.language))) {
@@ -107,11 +168,54 @@ const COMPONENTS: Components = {
 
 const PLUGINS = [remarkGfm];
 
-/** Agent prose: GitHub-flavored markdown with highlighted code blocks. */
-export const Markdown = memo(function Markdown(props: { text: string; className?: string }) {
+interface HastNode {
+  type: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, unknown>;
+  children?: HastNode[];
+}
+
+/**
+ * Wraps each word of prose in a span while text is still streaming, so a word that just arrived can fade in
+ * on its own. Word positions never shift as text is appended, so React keeps the old spans and only the new
+ * ones mount and animate. Code keeps its own markup.
+ */
+function rehypeWords() {
+  const walk = (node: HastNode): void => {
+    if (!node.children || node.tagName === "pre" || node.tagName === "code") {
+      return;
+    }
+    const next: HastNode[] = [];
+    for (const child of node.children) {
+      if (child.type === "text" && child.value) {
+        for (const part of child.value.split(/(\s+)/)) {
+          if (!part) {
+            continue;
+          }
+          next.push(
+            /^\s+$/.test(part)
+              ? { type: "text", value: part }
+              : { type: "element", tagName: "span", properties: { className: ["tok"] }, children: [{ type: "text", value: part }] },
+          );
+        }
+        continue;
+      }
+      walk(child);
+      next.push(child);
+    }
+    node.children = next;
+  };
+  return (tree: HastNode) => walk(tree);
+}
+
+const STREAM_PLUGINS = [rehypeWords];
+
+/** Agent prose: GitHub-flavored markdown with highlighted code blocks. `stream` fades in each new word. */
+export const Markdown = memo(function Markdown(props: { text: string; className?: string; stream?: boolean }) {
   return (
     <div className={cn("prose-helicon", props.className)}>
-      <ReactMarkdown remarkPlugins={PLUGINS} components={COMPONENTS}>
+      <ReactMarkdown remarkPlugins={PLUGINS} rehypePlugins={props.stream ? STREAM_PLUGINS : undefined} components={COMPONENTS}>
         {props.text}
       </ReactMarkdown>
     </div>

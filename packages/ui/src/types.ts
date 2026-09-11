@@ -258,11 +258,82 @@ export interface DirectoryListing {
   entries: { name: string }[];
 }
 
+/** A `!` command Helicon ran itself in the workspace, with what it printed. */
+export interface ShellRun {
+  id: string;
+  sessionId: string;
+  command: string;
+  exitCode: number | null;
+  output: string;
+  truncated: boolean;
+  durationMs: number | null;
+  at: string;
+}
+
+/** One day's tokens for one model, as the server aggregates them for the usage page. */
+export interface UsageBucket {
+  day: string;
+  modelId: string;
+  calls: number;
+  promptTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  reasoningTokens: number;
+  durationMs: number;
+}
+
+export interface UsageThread {
+  sessionId: string;
+  title: string | null;
+  cwd: string | null;
+  calls: number;
+  promptTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  modelIds: string[];
+  /** Tokens split by model, so a thread that switched models is priced at each model's own rate. */
+  models?: { modelId: string; calls: number; promptTokens: number; outputTokens: number; cachedTokens: number }[];
+  lastAt: string;
+}
+
+/** Every model call Helicon has seen, bucketed; the UI puts prices on it. */
+export interface UsageReport {
+  since: string;
+  days: number;
+  buckets: UsageBucket[];
+  threads: UsageThread[];
+}
+
 /** A view notification, live or paged from history. `at` is the emission time when known. */
 export interface ViewEvent {
   method: string;
   params: Record<string, unknown>;
   at?: number;
+}
+
+/** A file the user attached to a prompt, as the server kept it: Muse's own view carries metadata only. */
+export interface AttachmentView {
+  id: string;
+  turnId: string | null;
+  name: string;
+  mediaType: string;
+  kind: "image" | "file";
+  width: number | null;
+  height: number | null;
+  /** Where the bytes are served from, relative to the server. */
+  url: string;
+}
+
+/** A file on its way out with a prompt. */
+export interface OutgoingAttachment {
+  name: string;
+  mediaType: string;
+  /** The file's bytes, base64 without a `data:` prefix. */
+  base64: string;
+  width?: number;
+  height?: number;
 }
 
 export interface TranscriptLoad {
@@ -279,6 +350,10 @@ export interface TranscriptLoad {
   } | null;
   events: ViewEvent[];
   truncated: boolean;
+  /** Every file attached to this thread's prompts, in send order. */
+  attachments?: AttachmentView[];
+  /** Every `!` command Helicon ran itself for this thread. */
+  shellRuns?: ShellRun[];
   pending: { approvals: ApprovalRequest[]; userInputs: UserInputRequest[] };
   readOnly: boolean;
   readOnlyReason: string | null;
@@ -289,5 +364,6 @@ export type HeliconEvent =
   | { type: "msp"; sessionId: string; method: string; params: Record<string, unknown>; at: number }
   | { type: "session-status"; sessionId: string; live: LiveView | null }
   | { type: "sessions-changed" }
+  | { type: "shell-run"; sessionId: string; run: ShellRun }
   | { type: "host"; key: string; state: string; message: string }
   | { type: "connection"; state: "open" | "lost" };

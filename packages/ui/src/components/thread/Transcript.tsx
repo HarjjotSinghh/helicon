@@ -1,7 +1,7 @@
-import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square } from "lucide-react";
-import { memo, useMemo, useRef, useState } from "react";
+import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square, SquareTerminal } from "lucide-react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
-import { useController, useNow } from "../../app/context.js";
+import { useApp, useController, useNow } from "../../app/context.js";
 import { useSampled } from "../../app/sampled.js";
 import { buildTurns, type LocalEcho, type ThreadFold, type TurnView } from "../../model/fold.js";
 import {
@@ -14,9 +14,12 @@ import {
   parseArgs,
   toolKind,
 } from "../../model/format.js";
-import { streamingSpeed, turnSpeeds, type TurnSpeed } from "../../model/usage.js";
+import { streamingSpeed, turnCosts, turnSpeeds, type TurnCost, type TurnSpeed } from "../../model/usage.js";
+import { formatCost } from "../../model/pricing.js";
 import type { ThreadState } from "../../model/store.js";
-import type { MspItem, UserInputAnswer } from "../../types.js";
+import type { AttachmentView, MspItem, ShellRun, UserInputAnswer } from "../../types.js";
+import { CodeBlock } from "../ui/Markdown.js";
+import { SentAttachments } from "../composer/attachments.js";
 import { CopyButton } from "../ui/Markdown.js";
 import { Tip } from "../ui/overlays.js";
 import { Button, Shimmer, Spinner, cn } from "../ui/primitives.js";
@@ -68,8 +71,58 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
   const gates = useMemo(() => gateMap(fold), [fold.approvals, fold.userInputs]);
   const answers = useMemo(() => answerMap(fold), [fold.settled]);
   const speeds = useMemo(() => turnSpeeds(fold), [fold.meta.calls, fold.turns, fold.activeTurnId]);
+  const models = useApp((s) => s.models);
+  const costs = useMemo(() => turnCosts(fold, models), [fold.meta.calls, models]);
   const echoes = fold.echoes.filter((e) => e.disposition !== "queued");
+  // Files the server kept for this thread, grouped by the turn they were sent with.
+  // Turns and the commands Helicon ran share one timeline: a command's output caused the prompt after it.
+  const timeline = useMemo(() => {
+    let last = 0;
+    const blocks = turns.map((turn, index) => {
+      const at = sentTime(turn) ?? completedTime(turn) ?? last + 1;
+      last = at;
+      return { kind: "turn" as const, at, turn, index };
+    });
+    const runs = (thread.shellRuns ?? []).map((run) => ({ kind: "run" as const, at: Date.parse(run.at) || 0, run }));
+    return [...blocks, ...runs].sort((a, b) => a.at - b.at);
+  }, [turns, thread.shellRuns]);
+
+  const attachmentsByTurn = useMemo(() => {
+    const map: Record<string, AttachmentView[]> = {};
+    for (const file of thread.attachments ?? []) {
+      const key = file.turnId ?? "";
+      (map[key] ??= []).push(file);
+    }
+    return map;
+  }, [thread.attachments]);
   const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom({ initial: "instant", resize: "smooth" });
+
+  // The dock below grows when a request or panel appears, which shrinks this viewport. Follow it down so the
+  // last thing Muse said is never left cut off behind the card asking about it.
+  const requests = Object.keys(fold.approvals).length + Object.keys(fold.userInputs).length;
+  useEffect(() => {
+    if (requests > 0) {
+      void scrollToBottom();
+    }
+  }, [requests, scrollToBottom]);
+  const atBottom = useRef(isAtBottom);
+  atBottom.current = isAtBottom;
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    let height = element.clientHeight;
+    const observer = new ResizeObserver(() => {
+      const next = element.clientHeight;
+      if (next < height && atBottom.current) {
+        void scrollToBottom();
+      }
+      height = next;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [scrollRef, scrollToBottom]);
 
   const empty = turns.length === 0 && echoes.length === 0;
   return (
@@ -80,18 +133,24 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
             <p className="text-center text-xs text-subtle">Earlier turns are not shown. Open the session in Muse to see the full history.</p>
           ) : null}
           {thread.load === "loading" && empty ? <TranscriptSkeleton /> : null}
-          {turns.map((turn, index) => (
-            <TurnBlock
-              key={turn.key}
-              turn={turn}
-              gates={gates}
-              answers={answers}
-              sessionId={props.sessionId}
-              isLast={index === turns.length - 1}
-              readOnly={thread.readOnly}
-              speed={turn.turnId ? (speeds[turn.turnId] ?? null) : null}
-            />
-          ))}
+          {timeline.map((entry) =>
+            entry.kind === "turn" ? (
+              <TurnBlock
+                key={entry.turn.key}
+                turn={entry.turn}
+                gates={gates}
+                answers={answers}
+                attachments={attachmentsByTurn}
+                sessionId={props.sessionId}
+                isLast={entry.index === turns.length - 1}
+                readOnly={thread.readOnly}
+                speed={entry.turn.turnId ? (speeds[entry.turn.turnId] ?? null) : null}
+                cost={entry.turn.turnId ? (costs[entry.turn.turnId] ?? null) : null}
+              />
+            ) : (
+              <ShellRunRow key={entry.run.id} run={entry.run} sessionId={props.sessionId} />
+            ),
+          )}
           {echoes.map((echo) => (
             <PendingPrompt key={echo.localId} echo={echo} />
           ))}
@@ -131,21 +190,25 @@ const TurnBlock = memo(
     turn: TurnView;
     gates: GateMap;
     answers: AnswerMap;
+    attachments: Record<string, AttachmentView[]>;
     sessionId: string;
     isLast: boolean;
     readOnly: boolean;
     speed: TurnSpeed | null;
+    cost: TurnCost | null;
   }) {
     const { turn } = props;
     const info = turn.info;
-    const failed = info?.terminal === "failed";
+    const failed = info?.terminal === "failed" && !info.dismissed;
     const cancelled = info?.terminal === "cancelled";
     const hasWork = turn.entries.length > 0;
     // Items outside any turn are the user's own `!` commands: shown as they are, never folded into a work log.
     const standalone = !turn.turnId && !turn.prompt;
     return (
       <article className="flex flex-col gap-3" aria-label="Turn">
-        {turn.prompt ? <PromptBubble item={turn.prompt} sentAt={sentTime(turn)} /> : null}
+        {turn.prompt ? (
+          <PromptBubble item={turn.prompt} sentAt={sentTime(turn)} files={props.attachments[turn.turnId ?? ""] ?? []} />
+        ) : null}
         {turn.running || standalone ? (
           <div className="flex flex-col gap-1.5">
             {turn.entries.map((item) => (
@@ -166,7 +229,7 @@ const TurnBlock = memo(
         {turn.final ? (
           <div className="group/final flex flex-col gap-2">
             <AgentText item={turn.final} />
-            <TurnFooter turn={turn} speed={props.speed} />
+            <TurnFooter turn={turn} speed={props.speed} cost={props.cost} />
           </div>
         ) : null}
         {failed ? (
@@ -175,6 +238,7 @@ const TurnBlock = memo(
             retryable={info?.error?.retryable ?? true}
             prompt={props.isLast && !props.readOnly ? (turn.prompt?.displayText ?? turn.prompt?.text ?? null) : null}
             sessionId={props.sessionId}
+            turnId={turn.turnId}
           />
         ) : null}
         {cancelled ? (
@@ -196,6 +260,9 @@ const TurnBlock = memo(
     a.answers === b.answers &&
     a.isLast === b.isLast &&
     a.readOnly === b.readOnly &&
+    a.attachments === b.attachments &&
+    // Prices arrive after the catalog loads, so a turn's cost can change with nothing else about it changing.
+    a.cost?.cost === b.cost?.cost &&
     a.speed?.tokensPerSecond === b.speed?.tokensPerSecond,
 );
 
@@ -400,7 +467,7 @@ function LiveStatus(props: { turn: TurnView; gates: GateMap }) {
 }
 
 /** Under a reply: when it finished, how long it took when there was no work log, and its output speed. */
-function TurnFooter(props: { turn: TurnView; speed: TurnSpeed | null }) {
+function TurnFooter(props: { turn: TurnView; speed: TurnSpeed | null; cost: TurnCost | null }) {
   const duration = turnDuration(props.turn);
   const hasWork = props.turn.entries.length > 0;
   const completed = completedTime(props.turn);
@@ -434,6 +501,19 @@ function TurnFooter(props: { turn: TurnView; speed: TurnSpeed | null }) {
           </Tip>
         </>
       ) : null}
+      {props.cost && props.cost.cost > 0 ? (
+        <>
+          {completed !== null || props.speed || (duration !== null && !hasWork) ? dot : null}
+          <Tip
+            label={`At API rates: ${formatTokens(props.cost.promptTokens)} in (${formatTokens(props.cost.cachedTokens)} cached), ${formatTokens(props.cost.outputTokens)} out${props.cost.complete ? "" : "; a call here has no published price"}`}
+          >
+            <span tabIndex={0} className="tabular-nums">
+              {formatCost(props.cost.cost, props.cost.currency ?? undefined)}
+              {props.cost.complete ? "" : "+"}
+            </span>
+          </Tip>
+        </>
+      ) : null}
       <span className="ml-0.5 opacity-0 transition-opacity duration-150 group-hover/final:opacity-100 focus-within:opacity-100">
         <CopyButton text={props.turn.final?.text ?? ""} label="Copy reply" />
       </span>
@@ -441,13 +521,15 @@ function TurnFooter(props: { turn: TurnView; speed: TurnSpeed | null }) {
   );
 }
 
-function PromptBubble(props: { item: MspItem; sentAt: number | null }) {
+function PromptBubble(props: { item: MspItem; sentAt: number | null; files?: AttachmentView[] }) {
   const text = props.item.displayText ?? props.item.text ?? "";
   const long = text.split("\n").length > 12 || text.length > 900;
   const [expanded, setExpanded] = useState(false);
+  const files = props.files ?? [];
   return (
     <div className="flex justify-end">
       <div className="group/prompt flex max-w-[85%] flex-col items-end gap-1">
+        {files.length > 0 ? <SentAttachments files={files} className="pb-0.5" /> : null}
         <div
           className={cn(
             "relative rounded-2xl rounded-tr-md bg-active px-4 py-2.5 text-md leading-relaxed whitespace-pre-wrap text-fg [overflow-wrap:anywhere]",
@@ -478,12 +560,45 @@ function PromptBubble(props: { item: MspItem; sentAt: number | null }) {
   );
 }
 
+/**
+ * A `!` command Helicon ran itself. Muse never saw it, so its output stays here until the user hands it over.
+ */
+function ShellRunRow(props: { run: ShellRun; sessionId: string }) {
+  const controller = useController();
+  const { run } = props;
+  const failed = run.exitCode !== 0;
+  const output = run.output.trim();
+  return (
+    <section className="enter-up flex flex-col gap-1.5" aria-label={`Command ${run.command}`}>
+      <div className="flex items-center gap-2">
+        <SquareTerminal size={14} className="shrink-0 text-subtle" />
+        <span className="shrink-0 text-xs text-muted">You ran</span>
+        <code className="min-w-0 flex-1 truncate rounded-md bg-sunken px-1.5 py-0.5 font-mono text-xs text-fg">{run.command}</code>
+        {failed ? <span className="shrink-0 text-xs text-danger-text">Exit {run.exitCode ?? "?"}</span> : null}
+        {run.durationMs !== null ? (
+          <span className="shrink-0 text-2xs text-subtle tabular-nums">{formatDuration(run.durationMs)}</span>
+        ) : null}
+        <Tip label="Muse did not see this run; this sends it the command and its output">
+          <Button size="sm" variant="ghost" onClick={() => void controller.sendShellOutput(props.sessionId, run)}>
+            Send to Muse
+          </Button>
+        </Tip>
+      </div>
+      {output ? <CodeBlock code={run.truncated ? `[earlier output dropped]\n${output}` : output} language="text" className="my-0" /> : null}
+    </section>
+  );
+}
+
 function PendingPrompt(props: { echo: LocalEcho }) {
+  const files = props.echo.attachments ?? [];
   return (
     <div className="enter-up flex flex-col items-end gap-1.5">
-      <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-active px-4 py-2.5 text-md leading-relaxed whitespace-pre-wrap text-fg opacity-75">
-        {props.echo.text}
-      </div>
+      {files.length > 0 ? <SentAttachments files={files} className="max-w-[85%] opacity-75" /> : null}
+      {props.echo.text ? (
+        <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-active px-4 py-2.5 text-md leading-relaxed whitespace-pre-wrap text-fg opacity-75">
+          {props.echo.text}
+        </div>
+      ) : null}
       <span className="flex items-center gap-1.5 text-2xs text-subtle">
         <Spinner size={9} />
         {props.echo.disposition === "steered" ? "Adding to the current turn" : "Sending"}
@@ -492,7 +607,7 @@ function PendingPrompt(props: { echo: LocalEcho }) {
   );
 }
 
-function TurnError(props: { message: string; retryable: boolean; prompt: string | null; sessionId: string }) {
+function TurnError(props: { message: string; retryable: boolean; prompt: string | null; sessionId: string; turnId: string | null }) {
   const controller = useController();
   return (
     <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-3.5 py-3" role="alert">
@@ -503,7 +618,15 @@ function TurnError(props: { message: string; retryable: boolean; prompt: string 
       </div>
       {props.prompt && props.retryable ? (
         <Tip label="Send the same prompt again">
-          <Button size="sm" variant="secondary" onClick={() => void controller.retryTurn(props.sessionId, props.prompt as string)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              // The notice has been acted on; leaving it up only takes room from the answer.
+              controller.dismissTurnError(props.sessionId, props.turnId);
+              void controller.retryTurn(props.sessionId, props.prompt as string);
+            }}
+          >
             <RotateCcw size={13} /> Retry
           </Button>
         </Tip>

@@ -1,10 +1,12 @@
 import type {
   ApprovalMode,
+  AttachmentView,
   EnvironmentStatus,
   ModelOption,
   ProjectView,
   ReasoningEffort,
   SessionSummary,
+  ShellRun,
   SkillEntry,
 } from "../types.js";
 import type { ThreadFold } from "./fold.js";
@@ -42,10 +44,14 @@ export class Store<T> {
 
 export type GroupBy = "project" | "status";
 export type ThemePref = "system" | "light" | "dark";
+/** Syntax colours for code blocks, independent of the app's own light or dark theme. */
+export const CODE_THEMES = ["helicon", "ayu", "github", "vercel", "cursor", "catppuccin"] as const;
+export type CodeTheme = (typeof CODE_THEMES)[number];
 
 export interface Prefs {
   groupBy: GroupBy;
   theme: ThemePref;
+  codeTheme: CodeTheme;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
   collapsedProjects: string[];
@@ -74,6 +80,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
   return {
     groupBy: "project",
     theme: "system",
+    codeTheme: "helicon",
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     sidebarCollapsed: false,
     collapsedProjects: [],
@@ -93,7 +100,8 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
 export type Route =
   | { kind: "home" }
   | { kind: "new"; cwd: string | null }
-  | { kind: "thread"; sessionId: string };
+  | { kind: "thread"; sessionId: string }
+  | { kind: "usage" };
 
 export interface ThreadState {
   load: "idle" | "loading" | "ready" | "error";
@@ -102,6 +110,10 @@ export interface ThreadState {
   readOnlyReason: string | null;
   truncated: boolean;
   fold: ThreadFold;
+  /** Files sent with this thread's prompts; Muse's own view keeps metadata only. */
+  attachments: AttachmentView[];
+  /** `!` commands Helicon ran itself, which Muse's transcript never sees. */
+  shellRuns: ShellRun[];
 }
 
 export interface Toast {
@@ -195,6 +207,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     openShelves: pick("openShelves", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
     lastSeen: pick("lastSeen", (v) => typeof v === "object" && v !== null && !Array.isArray(v)),
     baseline: pick("baseline", (v) => typeof v === "string" && !Number.isNaN(Date.parse(v))),
+    codeTheme: pick("codeTheme", (v) => CODE_THEMES.includes(v as CodeTheme)),
     defaultMode: pick("defaultMode", (v) => v === "onRequest" || v === "promptUnmatched" || v === "denyUnmatched" || v === "allowAll"),
     defaultModelId: pick("defaultModelId", (v) => v === null || typeof v === "string"),
     effort: pick("effort", (v) => v === null || ["none", "minimal", "low", "medium", "high", "xhigh", "ultra"].includes(v as string)),
