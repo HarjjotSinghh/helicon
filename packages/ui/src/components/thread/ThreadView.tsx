@@ -8,6 +8,7 @@ import type { SessionSummary } from "../../types.js";
 import { SidebarToggle } from "../chrome.js";
 import { Composer, ComposerFooter } from "../composer/Composer.js";
 import { ApprovalPanel, PlanPanel, QuestionPanel, QueuedList, ReadOnlyNotice } from "../requests/Requests.js";
+import { GoalPanel } from "./GoalPanel.js";
 import { revealLabel } from "../sidebar/Sidebar.js";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tip } from "../ui/overlays.js";
 import { IconButton, Spinner } from "../ui/primitives.js";
@@ -210,6 +211,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
         {inputs.map((request, index) => (
           <QuestionPanel key={request.userInputId} request={request} keyboard={approvals.length === 0 && index === 0} />
         ))}
+        <GoalPanel sessionId={session.sessionId} running={props.running} readOnly={Boolean(thread?.readOnly)} />
         {showPlan && todo ? <PlanPanel items={todo} /> : null}
         {queued.length > 0 ? <QueuedList sessionId={session.sessionId} items={queued} /> : null}
         <Composer

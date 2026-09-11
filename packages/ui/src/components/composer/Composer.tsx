@@ -362,9 +362,10 @@ export function Composer(props: ComposerProps) {
         )}
       />
       <div className="flex items-center gap-0.5 px-2 pb-2">
-        <ModelPicker sessionId={props.sessionId} />
-        <EffortPicker />
-        <AccessPicker sessionId={props.sessionId} />
+        {/* The new-thread composer sits high, so its menus open downward; they still flip when there is no room. */}
+        <ModelPicker sessionId={props.sessionId} side={props.variant === "home" ? "bottom" : "top"} />
+        <EffortPicker side={props.variant === "home" ? "bottom" : "top"} />
+        <AccessPicker sessionId={props.sessionId} side={props.variant === "home" ? "bottom" : "top"} />
         <span className="min-w-2 flex-1" />
         {props.sessionId ? <SpeedReadout sessionId={props.sessionId} /> : null}
         {props.sessionId ? <ContextMeter sessionId={props.sessionId} /> : null}
@@ -430,7 +431,10 @@ function ContributorBadge(props: { tip?: boolean }) {
   return props.tip ? <Tip label="Your chats may be used to improve Meta's products">{badge}</Tip> : badge;
 }
 
-function ModelPicker(props: { sessionId: string | null }) {
+/** Which way a composer menu opens: away from the screen edge the composer sits against. */
+type PickerSide = "top" | "bottom";
+
+function ModelPicker(props: { sessionId: string | null; side: PickerSide }) {
   const controller = useController();
   const open = useApp((s) => s.picker === "model");
   const models = useApp((s) => s.models);
@@ -459,7 +463,7 @@ function ModelPicker(props: { sessionId: string | null }) {
           }
         />
       </MenuTrigger>
-      <MenuContent side="top" className="w-[330px]">
+      <MenuContent side={props.side} className="w-[330px]">
         <MenuLabel>Model</MenuLabel>
         {models.length === 0 ? (
           <p className="px-2 pb-2 text-xs text-muted">The model list loads once Muse is running.</p>
@@ -502,7 +506,7 @@ const TOP = LEVELS.length - 1;
 const RESTING = 3;
 
 /** Reasoning effort as a stepped slider in a popover, after the Claude desktop effort control. */
-function EffortPicker() {
+function EffortPicker(props: { side: PickerSide }) {
   const controller = useController();
   const open = useApp((s) => s.picker === "effort");
   const effort = useApp((s) => s.prefs.effort);
@@ -528,7 +532,7 @@ function EffortPicker() {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          side="top"
+          side={props.side}
           align="start"
           sideOffset={6}
           collisionPadding={8}
@@ -636,7 +640,7 @@ const MODES: { value: ApprovalMode; label: string; description: string; icon: Re
   },
 ];
 
-function AccessPicker(props: { sessionId: string | null }) {
+function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
   const controller = useController();
   const open = useApp((s) => s.picker === "permissions");
   // `/permissions full` opens the confirmation directly, so it lives in app state rather than here.
@@ -657,7 +661,7 @@ function AccessPicker(props: { sessionId: string | null }) {
             tone={current === "allowAll" ? "warn" : undefined}
           />
         </MenuTrigger>
-        <MenuContent side="top" className="w-[300px]">
+        <MenuContent side={props.side} className="w-[300px]">
           <MenuLabel>Permissions</MenuLabel>
           <MenuRadioGroup
             value={current}

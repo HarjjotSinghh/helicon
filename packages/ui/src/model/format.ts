@@ -1,4 +1,5 @@
 import type { ApprovalRequest, MspItem } from "../types.js";
+import { GOAL_TOOLS } from "./goal.js";
 
 /** Compact relative time for sidebars: now, 4m, 3h, 2d, 3w, then a short date. */
 export function relativeTime(iso: string | null | undefined, now = Date.now()): string {
@@ -177,6 +178,7 @@ export type ToolKind =
   | "question"
   | "plan"
   | "agent"
+  | "goal"
   | "generic";
 
 const PATH_KEYS = ["path", "file_path", "filePath", "filename", "file", "target_file", "targetFile"];
@@ -184,6 +186,10 @@ const PATTERN_KEYS = ["pattern", "query", "regex", "search", "q"];
 
 /** Classify a tool by the words in its name, so `frobnicate` never reads as `cat`. */
 export function toolKind(tool: string | undefined, args: Record<string, unknown> | null): ToolKind {
+  // Muse's goal tools, checked first so `create_goal` never reads as writing a file.
+  if (tool && GOAL_TOOLS.has(tool)) {
+    return "goal";
+  }
   const words = new Set(
     (tool ?? "")
       .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
@@ -248,6 +254,7 @@ const VERBS: Record<ToolKind, [string, string]> = {
   question: ["Asked you", "Asking you"],
   plan: ["Updated the plan", "Updating the plan"],
   agent: ["Delegated", "Delegating"],
+  goal: ["Updated the goal", "Updating the goal"],
   generic: ["Used", "Using"],
 };
 
@@ -297,6 +304,32 @@ export function describeTool(item: MspItem): ToolDescription {
       return { kind, verb, subject: null, mono: false, note };
     case "agent":
       return { kind, verb, subject: pickString(args, ["description", "prompt", "objective", "task"]), mono: false, note: null };
+    case "goal": {
+      if (item.tool === "create_goal") {
+        return { kind, verb: running ? "Setting a goal" : "Set a goal", subject: pickString(args, ["objective"]), mono: false, note: null };
+      }
+      if (item.tool === "report_progress") {
+        const percent = args && typeof args["percent_complete"] === "number" ? `${Math.round(args["percent_complete"])}%` : null;
+        return {
+          kind,
+          verb: running ? "Reporting progress" : "Reported progress",
+          subject: percent,
+          mono: false,
+          note: pickString(args, ["current_work", "next_work"]),
+        };
+      }
+      if (item.tool === "update_goal") {
+        const status = pickString(args, ["status"]);
+        return {
+          kind,
+          verb: running ? "Updating the goal" : "Marked the goal",
+          subject: status === "complete" ? "done" : status,
+          mono: false,
+          note: null,
+        };
+      }
+      return { kind, verb: running ? "Checking the goal" : "Checked the goal", subject: null, mono: false, note: null };
+    }
     default: {
       const firstString = args ? Object.values(args).find((v): v is string => typeof v === "string" && v.length < 160) : null;
       return {
