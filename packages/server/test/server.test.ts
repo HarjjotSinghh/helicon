@@ -573,6 +573,8 @@ describe("slash commands, skills and shell", () => {
       attachments: [{ name: "shot.png", mediaType: "image/png", base64: png, width: 10, height: 20 }],
     });
     assert.equal(sent.status, 200);
+    assert.equal(sent.json.attachments?.[0]?.name, "shot.png", "the ack carries what was saved, for the open thread");
+    assert.match(sent.json.attachments?.[0]?.url ?? "", /^\/api\/attachments\//);
     const turn = connection.calls.find((c) => c.method === "turn/start");
     assert.deepEqual(turn?.params?.["input"], [
       { type: "text", text: "what is this?" },

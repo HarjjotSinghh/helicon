@@ -75,6 +75,18 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
   const costs = useMemo(() => turnCosts(fold, models), [fold.meta.calls, models]);
   const echoes = fold.echoes.filter((e) => e.disposition !== "queued");
   // Files the server kept for this thread, grouped by the turn they were sent with.
+  // Turns and the commands Helicon ran share one timeline: a command's output caused the prompt after it.
+  const timeline = useMemo(() => {
+    let last = 0;
+    const blocks = turns.map((turn, index) => {
+      const at = sentTime(turn) ?? completedTime(turn) ?? last + 1;
+      last = at;
+      return { kind: "turn" as const, at, turn, index };
+    });
+    const runs = (thread.shellRuns ?? []).map((run) => ({ kind: "run" as const, at: Date.parse(run.at) || 0, run }));
+    return [...blocks, ...runs].sort((a, b) => a.at - b.at);
+  }, [turns, thread.shellRuns]);
+
   const attachmentsByTurn = useMemo(() => {
     const map: Record<string, AttachmentView[]> = {};
     for (const file of thread.attachments ?? []) {
@@ -121,23 +133,24 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
             <p className="text-center text-xs text-subtle">Earlier turns are not shown. Open the session in Muse to see the full history.</p>
           ) : null}
           {thread.load === "loading" && empty ? <TranscriptSkeleton /> : null}
-          {turns.map((turn, index) => (
-            <TurnBlock
-              key={turn.key}
-              turn={turn}
-              gates={gates}
-              answers={answers}
-              attachments={attachmentsByTurn}
-              sessionId={props.sessionId}
-              isLast={index === turns.length - 1}
-              readOnly={thread.readOnly}
-              speed={turn.turnId ? (speeds[turn.turnId] ?? null) : null}
-              cost={turn.turnId ? (costs[turn.turnId] ?? null) : null}
-            />
-          ))}
-          {(thread.shellRuns ?? []).map((run) => (
-            <ShellRunRow key={run.id} run={run} sessionId={props.sessionId} />
-          ))}
+          {timeline.map((entry) =>
+            entry.kind === "turn" ? (
+              <TurnBlock
+                key={entry.turn.key}
+                turn={entry.turn}
+                gates={gates}
+                answers={answers}
+                attachments={attachmentsByTurn}
+                sessionId={props.sessionId}
+                isLast={entry.index === turns.length - 1}
+                readOnly={thread.readOnly}
+                speed={entry.turn.turnId ? (speeds[entry.turn.turnId] ?? null) : null}
+                cost={entry.turn.turnId ? (costs[entry.turn.turnId] ?? null) : null}
+              />
+            ) : (
+              <ShellRunRow key={entry.run.id} run={entry.run} sessionId={props.sessionId} />
+            ),
+          )}
           {echoes.map((echo) => (
             <PendingPrompt key={echo.localId} echo={echo} />
           ))}
@@ -247,6 +260,9 @@ const TurnBlock = memo(
     a.answers === b.answers &&
     a.isLast === b.isLast &&
     a.readOnly === b.readOnly &&
+    a.attachments === b.attachments &&
+    // Prices arrive after the catalog loads, so a turn's cost can change with nothing else about it changing.
+    a.cost?.cost === b.cost?.cost &&
     a.speed?.tokensPerSecond === b.speed?.tokensPerSecond,
 );
 

@@ -293,6 +293,8 @@ export interface UsageThread {
   outputTokens: number;
   cachedTokens: number;
   modelIds: string[];
+  /** Tokens split by model, so a thread that switched models is priced at each model's own rate. */
+  models?: { modelId: string; calls: number; promptTokens: number; outputTokens: number; cachedTokens: number }[];
   lastAt: string;
 }
 

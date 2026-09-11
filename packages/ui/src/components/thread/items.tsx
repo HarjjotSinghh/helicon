@@ -32,7 +32,7 @@ import {
   type ToolKind,
 } from "../../model/format.js";
 import type { MspItem, UserInputAnswer } from "../../types.js";
-import { CodeBlock, Markdown } from "../ui/Markdown.js";
+import { CodeBlock, Markdown, highlightCode, languageFromPath } from "../ui/Markdown.js";
 import { Button, Shimmer, Spinner, cn } from "../ui/primitives.js";
 import { Collapse } from "../ui/sourced.js";
 
@@ -157,6 +157,8 @@ export function OutputBlock(props: { text: string; truncated?: boolean; label?: 
 
 export function DiffBlock(props: { diff: DiffView }) {
   const stats = diffStats(props.diff);
+  // A diff is code, so it gets the same colours a code block does; the language comes from the file's name.
+  const language = languageFromPath(props.diff.path);
   const lines: { kind: "add" | "del" | "ctx" | "meta"; text: string }[] = [];
   if ("patch" in props.diff) {
     for (const line of props.diff.patch.split("\n")) {
@@ -215,7 +217,7 @@ export function DiffBlock(props: { diff: DiffView }) {
                 line.kind === "ctx" || line.kind === "meta" ? "text-muted" : "text-fg",
               )}
             >
-              {line.text || " "}
+              {line.kind === "meta" ? line.text || " " : <DiffText text={line.text} language={language} />}
             </span>
           </div>
         ))}
@@ -223,6 +225,15 @@ export function DiffBlock(props: { diff: DiffView }) {
     </div>
   );
 }
+
+/** One diff line's code, coloured when the file's language is one sugar-high knows. */
+const DiffText = memo(function DiffText(props: { text: string; language: string | null }) {
+  const html = useMemo(() => highlightCode(props.text, props.language), [props.text, props.language]);
+  if (html === null) {
+    return <>{props.text || " "}</>;
+  }
+  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+});
 
 export function DiffCount(props: { added: number; removed: number }) {
   return (

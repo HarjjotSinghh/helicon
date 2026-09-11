@@ -3,6 +3,7 @@ import {
   parseModelList,
   type ApprovalDecisionInput,
   type ApprovalMode,
+  type AttachmentView,
   type DirectoryListing,
   type EnvironmentStatus,
   type EventHandler,
@@ -30,11 +31,13 @@ function withToken(path: string): string {
 
 /** Long enough for a slow local call, short enough that a wedged one never leaves the UI waiting forever. */
 const CALL_TIMEOUT_MS = 60_000;
+/** A `!` command may run for two minutes on the server; the wait here has to outlast that. */
+const SHELL_TIMEOUT_MS = 150_000;
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function call<T>(method: string, path: string, body?: unknown, timeoutMs = CALL_TIMEOUT_MS): Promise<T> {
   let response: Response;
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), CALL_TIMEOUT_MS);
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
     response = await fetch(withToken(path), {
       method,
@@ -123,7 +126,9 @@ export class WebHeliconClient implements HeliconClient {
   }
 
   async runShellProxy(sessionId: string, command: string): Promise<ShellRun> {
-    return (await call<{ run: ShellRun }>("POST", `/api/sessions/${enc(sessionId)}/shell-proxy`, { command })).run;
+    // The server lets a command run for two minutes, so this must outlast that rather than abandon it early.
+    const result = await call<{ run: ShellRun }>("POST", `/api/sessions/${enc(sessionId)}/shell-proxy`, { command }, SHELL_TIMEOUT_MS);
+    return result.run;
   }
 
   async listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]> {
@@ -151,8 +156,12 @@ export class WebHeliconClient implements HeliconClient {
     return (await call<{ session: SessionSummary | null }>("PATCH", `/api/sessions/${enc(sessionId)}`, patch)).session;
   }
 
-  async sendTurn(sessionId: string, text: string, options?: TurnOptions): Promise<{ turnId: string | null; disposition: string | null }> {
-    const result = await call<{ turnId: string | null; disposition: unknown }>("POST", "/api/turns", {
+  async sendTurn(
+    sessionId: string,
+    text: string,
+    options?: TurnOptions,
+  ): Promise<{ turnId: string | null; disposition: string | null; attachments?: AttachmentView[] }> {
+    const result = await call<{ turnId: string | null; disposition: unknown; attachments?: AttachmentView[] }>("POST", "/api/turns", {
       sessionId,
       text,
       ifBusy: options?.ifBusy,
@@ -160,7 +169,11 @@ export class WebHeliconClient implements HeliconClient {
       displayText: options?.displayText,
       attachments: options?.attachments,
     });
-    return { turnId: result.turnId ?? null, disposition: typeof result.disposition === "string" ? result.disposition : null };
+    return {
+      turnId: result.turnId ?? null,
+      disposition: typeof result.disposition === "string" ? result.disposition : null,
+      ...(result.attachments ? { attachments: result.attachments } : {}),
+    };
   }
 
   async interruptTurn(sessionId: string, turnId?: string): Promise<void> {

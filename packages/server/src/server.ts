@@ -1026,22 +1026,25 @@ export class HeliconServer {
         reasoningEffort: typeof effort === "string" ? effort : undefined,
         images: prepared.images,
       });
-      prepared.files.forEach((file, index) => {
-        this.store.addAttachment({
-          id: randomUUID(),
-          sessionId,
-          turnId: ack.turnId,
-          ord: index,
-          name: file.name,
-          mediaType: file.mediaType,
-          kind: file.kind,
-          width: file.width,
-          height: file.height,
-          bytes: file.bytes,
-        });
-      });
+      // The saved attachments go back with the ack: the open thread shows them without waiting for a reload.
+      const saved = prepared.files.map((file, index) =>
+        this.attachmentView(
+          this.store.addAttachment({
+            id: randomUUID(),
+            sessionId,
+            turnId: ack.turnId,
+            ord: index,
+            name: file.name,
+            mediaType: file.mediaType,
+            kind: file.kind,
+            width: file.width,
+            height: file.height,
+            bytes: file.bytes,
+          }),
+        ),
+      );
       this.store.updateSession(sessionId, { activityAt: nowIso() });
-      this.json(res, 200, { turnId: ack.turnId, status: ack.status, disposition: ack.disposition });
+      this.json(res, 200, { turnId: ack.turnId, status: ack.status, disposition: ack.disposition, attachments: saved });
       return true;
     }
 
@@ -1689,6 +1692,8 @@ export class HeliconServer {
         outputTokens: 0,
         cachedTokens: 0,
         modelIds: [] as string[],
+        // A thread that switched models has to be priced per model, not at whichever one it started on.
+        models: [] as Record<string, unknown>[],
         lastAt: row.at,
       };
       thread["calls"] = (thread["calls"] as number) + 1;
@@ -1698,6 +1703,22 @@ export class HeliconServer {
       const ids = thread["modelIds"] as string[];
       if (!ids.includes(modelId)) {
         ids.push(modelId);
+      }
+      const perModel = thread["models"] as Record<string, unknown>[];
+      const share = perModel.find((entry) => entry["modelId"] === modelId);
+      if (share) {
+        share["calls"] = (share["calls"] as number) + 1;
+        share["promptTokens"] = (share["promptTokens"] as number) + row.promptTokens;
+        share["outputTokens"] = (share["outputTokens"] as number) + row.outputTokens;
+        share["cachedTokens"] = (share["cachedTokens"] as number) + cached;
+      } else {
+        perModel.push({
+          modelId,
+          calls: 1,
+          promptTokens: row.promptTokens,
+          outputTokens: row.outputTokens,
+          cachedTokens: cached,
+        });
       }
       thread["lastAt"] = row.at;
       threads.set(row.sessionId, thread);

@@ -77,7 +77,12 @@ export interface HeliconClient {
   startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string }): Promise<SessionSummary>;
   loadTranscript(sessionId: string): Promise<TranscriptLoad>;
   updateSession(sessionId: string, patch: { title?: string; archived?: boolean; settled?: boolean }): Promise<SessionSummary | null>;
-  sendTurn(sessionId: string, text: string, options?: TurnOptions): Promise<{ turnId: string | null; disposition: string | null }>;
+  /** `attachments` come back saved, so the open thread can show them without waiting for a reload. */
+  sendTurn(
+    sessionId: string,
+    text: string,
+    options?: TurnOptions,
+  ): Promise<{ turnId: string | null; disposition: string | null; attachments?: import("./types.js").AttachmentView[] }>;
   interruptTurn(sessionId: string, turnId?: string): Promise<void>;
   unqueueTurn(sessionId: string, turnId: string): Promise<void>;
   decideApproval(input: ApprovalDecisionInput): Promise<void>;

@@ -704,6 +704,8 @@ export class HeliconController {
       const disposition: LocalEcho["disposition"] =
         ack.disposition === "queued" ? "queued" : ack.disposition === "steered" ? "steered" : "started";
       this.patchFold(sessionId, (f) => updateEcho(f, echo.localId, { turnId: ack.turnId, disposition }));
+      // The echo goes when the prompt lands, so the thread takes the saved files now rather than on a reload.
+      this.keepAttachments(sessionId, ack.attachments ?? []);
       const turnId = ack.turnId;
       if (disposition === "started" && turnId) {
         this.patchFold(sessionId, (f) =>
@@ -1234,6 +1236,25 @@ export class HeliconController {
     }
     const target = this.newThreadTarget();
     return target ? this.startThread(target, `!${command}`, run) : false;
+  }
+
+  /** Adds files the server has just saved to the open thread, skipping any it already has. */
+  private keepAttachments(sessionId: string, saved: AttachmentView[]): void {
+    if (saved.length === 0) {
+      return;
+    }
+    this.update((s) => {
+      const thread = s.threads[sessionId];
+      if (!thread) {
+        return s;
+      }
+      const known = new Set(thread.attachments.map((file) => file.id));
+      const added = saved.filter((file) => !known.has(file.id));
+      if (added.length === 0) {
+        return s;
+      }
+      return { ...s, threads: { ...s.threads, [sessionId]: { ...thread, attachments: [...thread.attachments, ...added] } } };
+    });
   }
 
   /** Keeps a command Helicon ran in the thread it belongs to, whoever started it. */

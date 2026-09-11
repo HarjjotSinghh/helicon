@@ -207,13 +207,24 @@ function summarize(report: UsageReport, models: readonly ModelOption[]): UsageVi
   const modelRows = [...byModel.values()].sort((a, b) => b.cost - a.cost || b.calls - a.calls);
   const threads = report.threads
     .map((thread) => {
-      const price = priceFor(thread.modelIds[0] ?? "", models);
-      return {
-        ...thread,
-        cost: price
-          ? costOf(price, { promptTokens: thread.promptTokens, outputTokens: thread.outputTokens, cachedTokens: thread.cachedTokens })
-          : 0,
-      };
+      // Each model's own share at its own rate: a thread that moved between tiers is not one flat price.
+      const shares = thread.models ?? [
+        {
+          modelId: thread.modelIds[0] ?? "",
+          calls: thread.calls,
+          promptTokens: thread.promptTokens,
+          outputTokens: thread.outputTokens,
+          cachedTokens: thread.cachedTokens,
+        },
+      ];
+      const cost = shares.reduce((total, share) => {
+        const price = priceFor(share.modelId, models);
+        return price
+          ? total +
+              costOf(price, { promptTokens: share.promptTokens, outputTokens: share.outputTokens, cachedTokens: share.cachedTokens })
+          : total;
+      }, 0);
+      return { ...thread, cost };
     })
     .sort((a, b) => b.cost - a.cost)
     .slice(0, 8);

@@ -47,6 +47,67 @@ export function CopyButton(props: { text: string; label?: string; className?: st
 
 const HIGHLIGHTABLE = /^(js|jsx|ts|tsx|javascript|typescript|json|jsonc|css|scss|html|xml|java|c|cpp|cs|go|rust|rs|swift|kotlin|php|py|python|rb|ruby|sh|bash|zsh|shell|ps1|powershell|sql|yaml|yml|toml|lua|dart)$/i;
 
+/** What a file extension implies about its language, for colouring a diff the same way a code block is coloured. */
+const EXTENSION_LANGUAGE: Record<string, string> = {
+  ts: "ts",
+  tsx: "tsx",
+  mts: "ts",
+  cts: "ts",
+  js: "js",
+  jsx: "jsx",
+  mjs: "js",
+  cjs: "js",
+  json: "json",
+  jsonc: "jsonc",
+  css: "css",
+  scss: "scss",
+  html: "html",
+  xml: "xml",
+  java: "java",
+  c: "c",
+  h: "c",
+  cc: "cpp",
+  cpp: "cpp",
+  hpp: "cpp",
+  cs: "cs",
+  go: "go",
+  rs: "rs",
+  swift: "swift",
+  kt: "kotlin",
+  php: "php",
+  py: "py",
+  rb: "rb",
+  sh: "sh",
+  bash: "bash",
+  zsh: "zsh",
+  ps1: "ps1",
+  sql: "sql",
+  yaml: "yaml",
+  yml: "yml",
+  toml: "toml",
+  lua: "lua",
+  dart: "dart",
+};
+
+/** The language a path implies, or null when nothing here can colour it. */
+export function languageFromPath(path: string | null | undefined): string | null {
+  const extension = /\.([A-Za-z0-9]+)$/.exec(path ?? "")?.[1]?.toLowerCase();
+  const language = extension ? EXTENSION_LANGUAGE[extension] : undefined;
+  return language && HIGHLIGHTABLE.test(language) ? language : null;
+}
+
+/** Highlighted HTML for a line or a block, or null when it is not worth colouring. */
+export function highlightCode(code: string, language: string | null): string | null {
+  if (!language || code.length === 0 || code.length > 2000) {
+    return null;
+  }
+  try {
+    return highlight(code);
+  } catch {
+    return null;
+  }
+}
+
 export const CodeBlock = memo(function CodeBlock(props: { code: string; language: string | null; className?: string }) {
   const html = useMemo(() => {
     if (props.code.length > 60_000 || (props.language && !HIGHLIGHTABLE.test(props.language))) {
