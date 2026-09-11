@@ -1474,7 +1474,12 @@ export class HeliconController {
       this.newThread(cwd);
       return true;
     }
-    return this.startThread(cwd, prompt, (fresh) => this.sendToThread(fresh, prompt, {}, false));
+    // Through the retry path, so a prompt entered as `/goal …` or a skill is expanded again rather than
+    // reaching the model as the literal command the transcript showed.
+    return this.startThread(cwd, prompt, async (fresh) => {
+      await this.retryTurn(fresh, prompt);
+      return true;
+    });
   }
 
   async compactAndRetry(sessionId: string, prompt: string | null): Promise<void> {

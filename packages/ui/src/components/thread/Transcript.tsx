@@ -241,7 +241,7 @@ const TurnBlock = memo(
             sessionId={props.sessionId}
             turnId={turn.turnId}
             readOnly={props.readOnly}
-            hadAttachments={(props.attachments[turn.turnId ?? ""] ?? []).length > 0}
+            hadImages={(props.attachments[turn.turnId ?? ""] ?? []).some((file) => file.kind === "image")}
           />
         ) : null}
         {cancelled ? (
@@ -617,12 +617,12 @@ function TurnError(props: {
   sessionId: string;
   turnId: string | null;
   readOnly: boolean;
-  /** Whether the failed turn carried files of its own, which the provider rejects in the same words. */
-  hadAttachments: boolean;
+  /** Whether the failed turn carried images of its own, which the provider rejects in the same words. */
+  hadImages: boolean;
 }) {
   const controller = useController();
   // Some failures are about the thread, not the turn: retrying sends the same history and fails the same way.
-  const stuck = stuckThread(props.message, { ownAttachments: props.hadAttachments });
+  const stuck = stuckThread(props.message, { ownImages: props.hadImages });
   return (
     <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-3.5 py-3" role="alert">
       <CircleAlert size={16} className="mt-0.5 shrink-0 text-danger" />
@@ -642,7 +642,9 @@ function TurnError(props: {
           <Button
             size="sm"
             onClick={() => {
-              const prompt = props.retryable ? props.prompt : null;
+              // These failures come back non-retryable, but repairing the history is what changes that:
+              // the prompt goes again once the thread can carry it.
+              const prompt = props.prompt;
               controller.dismissTurnError(props.sessionId, props.turnId);
               if (stuck.remedy === "compact") {
                 void controller.compactAndRetry(props.sessionId, prompt);
@@ -653,7 +655,7 @@ function TurnError(props: {
           >
             {stuck.remedy === "compact" ? (
               <>
-                <RotateCcw size={13} /> {props.prompt && props.retryable ? "Compact and retry" : "Compact this thread"}
+                <RotateCcw size={13} /> {props.prompt ? "Compact and retry" : "Compact this thread"}
               </>
             ) : (
               <>

@@ -38,20 +38,21 @@ const PATTERNS: { kind: StuckKind; remedy: StuckRemedy; test: RegExp; message: s
 /**
  * What is wrong with this thread's history, when a failure says a later turn cannot succeed either.
  *
- * `ownAttachments` says the failed turn carried files of its own. The provider words a rejected attachment
- * exactly as it words an unreadable one from earlier, and the difference matters: compacting a thread over
- * the file just sent would drop it and retry the prompt alone, quietly asking something else.
+ * `ownImages` says the failed turn carried images of its own. The provider words a rejected image exactly as
+ * it words an unreadable one from earlier, and the difference matters: compacting a thread over the image
+ * just sent would drop it and retry the prompt alone, quietly asking something else. Only images count:
+ * any other file is written into the workspace and cannot cause an image-decoding failure.
  */
 export function stuckThread(
   message: string | null | undefined,
-  options: { ownAttachments?: boolean } = {},
+  options: { ownImages?: boolean } = {},
 ): StuckThread | null {
   const text = message ?? "";
   const found = text ? PATTERNS.find((pattern) => pattern.test.test(text)) : undefined;
   if (!found) {
     return null;
   }
-  if (found.kind === "image" && options.ownAttachments) {
+  if (found.kind === "image" && options.ownImages) {
     return {
       kind: "image",
       remedy: "none",

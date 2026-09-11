@@ -24,11 +24,12 @@ describe("stuck threads", () => {
 
   it("does not blame the history for the image just sent", () => {
     const message = "API error 400: invalid image data at input[3].content[1]: the `image/png` payload could not be decoded.";
-    const own = stuckThread(message, { ownAttachments: true });
+    const own = stuckThread(message, { ownImages: true });
     assert.equal(own?.kind, "image");
     assert.equal(own?.remedy, "none", "compacting would drop the file and retry the prompt without it");
     assert.match(own?.message ?? "", /sent with this message/);
-    assert.equal(stuckThread(message, { ownAttachments: false })?.remedy, "compact");
+    assert.equal(stuckThread(message, { ownImages: false })?.remedy, "compact");
+    assert.equal(stuckThread(message)?.remedy, "compact", "a turn with only a PDF cannot have caused this");
   });
 
   it("leaves an ordinary failure alone", () => {

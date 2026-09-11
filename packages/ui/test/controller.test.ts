@@ -372,6 +372,11 @@ describe("HeliconController", () => {
     assert.equal(await controller.freshThread("s1", "pick this up again"), true);
     assert.equal(client.sent.at(-1)?.text, "pick this up again");
     assert.equal(controller.store.get().route.kind, "thread");
+
+    // A prompt the transcript showed as `/goal …` is expanded again, not sent as the literal command.
+    assert.equal(await controller.freshThread("s1", "/goal ship the release"), true);
+    assert.equal(client.sent.at(-1)?.displayText, "/goal ship the release");
+    assert.match(client.sent.at(-1)?.text ?? "", /create_goal tool\. Objective: ship the release/);
     stop();
   });
 
