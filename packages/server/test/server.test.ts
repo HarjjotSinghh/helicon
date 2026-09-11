@@ -312,6 +312,20 @@ describe("HeliconServer", () => {
     assert.match(loaded.json.readOnlyReason, /another host/);
   });
 
+  it("surfaces resume failures that are not about another host", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    connection.replies.set("session/resume", new MspTestError("stream mismatch", "sessionStreamMismatch"));
+    connection.replies.set("session/read", { session: { sessionId: "s1", status: "notLoaded", activeTurnId: null } });
+    connection.replies.set("view/page", { events: [], nextCursor: null });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const failed = await send(base, "/api/sessions/s1/resume", {});
+    assert.equal(failed.status, 409);
+    assert.equal(failed.json.kind, "sessionStreamMismatch");
+    assert.equal(failed.json.readOnly, undefined);
+  });
+
   it("reports MSP error kinds with a useful status", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });

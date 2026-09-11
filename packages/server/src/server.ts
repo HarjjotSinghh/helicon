@@ -969,7 +969,8 @@ export class HeliconServer {
       this.sessionHosts.set(sessionId, host.key);
     } catch (error) {
       const info = errorInfo(error);
-      if (info.kind === "sessionNotFound") {
+      // Only another host holding the session makes it read-only here; any other failure is real and surfaces.
+      if (info.kind !== "sessionInUse") {
         throw error;
       }
       readOnly = true;
