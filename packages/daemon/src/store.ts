@@ -30,7 +30,13 @@ export interface SessionRecord {
   createdAt: string;
   updatedAt: string;
   activityAt: string;
+  /** `settled` shelves the thread; `active` keeps it out of auto-settle until its next activity. */
+  settledOverride: SettledOverride | null;
+  settledAt: string | null;
+  unsettledAt: string | null;
 }
+
+export type SettledOverride = "settled" | "active";
 
 export interface TurnRecord {
   id: string;
@@ -60,6 +66,9 @@ export interface SessionPatch {
   turnCount?: number;
   activityAt?: string;
   status?: string;
+  settledOverride?: SettledOverride | null;
+  settledAt?: string | null;
+  unsettledAt?: string | null;
 }
 
 export const PLACEHOLDER_TITLE = "New thread";
@@ -119,6 +128,9 @@ const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   },
   { table: "sessions", column: "activity_at", ddl: "ALTER TABLE sessions ADD COLUMN activity_at TEXT" },
   { table: "sessions", column: "archived", ddl: "ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0" },
+  { table: "sessions", column: "settled_override", ddl: "ALTER TABLE sessions ADD COLUMN settled_override TEXT" },
+  { table: "sessions", column: "settled_at", ddl: "ALTER TABLE sessions ADD COLUMN settled_at TEXT" },
+  { table: "sessions", column: "unsettled_at", ddl: "ALTER TABLE sessions ADD COLUMN unsettled_at TEXT" },
 ];
 
 type Row = Record<string, string | number | null>;
@@ -288,12 +300,35 @@ export class HeliconStore {
       sets.push("status = ?");
       values.push(patch.status);
     }
+    if (patch.settledOverride !== undefined) {
+      sets.push("settled_override = ?");
+      values.push(patch.settledOverride);
+    }
+    if (patch.settledAt !== undefined) {
+      sets.push("settled_at = ?");
+      values.push(patch.settledAt);
+    }
+    if (patch.unsettledAt !== undefined) {
+      sets.push("unsettled_at = ?");
+      values.push(patch.unsettledAt);
+    }
     if (sets.length > 0) {
       sets.push("updated_at = ?");
       values.push(nowIso());
       this.db.prepare(`UPDATE sessions SET ${sets.join(", ")} WHERE id = ?`).run(...values, id);
     }
     return this.getSession(id);
+  }
+
+  /** Visible threads with no settle choice whose last activity is older than `before`. */
+  listSettleCandidates(before: string): SessionRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM sessions
+         WHERE settled_override IS NULL AND archived = 0 AND COALESCE(activity_at, updated_at) < ?`,
+      )
+      .all(before) as Row[];
+    return rows.map((row) => this.toSession(row));
   }
 
   recordTurn(id: string, sessionId: string): TurnRecord {
@@ -370,6 +405,9 @@ export class HeliconStore {
       createdAt: String(row["created_at"]),
       updatedAt: String(row["updated_at"]),
       activityAt: String(row["activity_at"] ?? row["updated_at"]),
+      settledOverride: row["settled_override"] === "settled" || row["settled_override"] === "active" ? row["settled_override"] : null,
+      settledAt: row["settled_at"] === null || row["settled_at"] === undefined ? null : String(row["settled_at"]),
+      unsettledAt: row["unsettled_at"] === null || row["unsettled_at"] === undefined ? null : String(row["unsettled_at"]),
     };
   }
 }

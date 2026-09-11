@@ -376,6 +376,28 @@ describe("HeliconServer", () => {
     assert.deepEqual(opened, [{ path: "D:\\work\\app", target: "editor" }]);
   });
 
+  it("settles and un-settles threads, and wakes a settled thread when work starts", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    connection.replies.set("turn/start", { status: "accepted", turnId: "t1", disposition: "started" });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+
+    const settled = await send(base, "/api/sessions/s1", { settled: true }, "PATCH");
+    assert.equal(settled.json.session.settled, true);
+    assert.ok(settled.json.session.settledAt);
+    const active = await send(base, "/api/sessions/s1", { settled: false }, "PATCH");
+    assert.equal(active.json.session.settled, false);
+    assert.equal(active.json.session.settledAt, null);
+    assert.ok(active.json.session.unsettledAt);
+
+    await send(base, "/api/sessions/s1", { settled: true }, "PATCH");
+    await send(base, "/api/turns", { sessionId: "s1", text: "pick this back up" });
+    const woken = (await get(base, "/api/sessions")).sessions.find((s: { sessionId: string }) => s.sessionId === "s1");
+    assert.equal(woken.settled, false);
+    assert.ok(woken.unsettledAt);
+  });
+
   it("spawns one host per workspace under concurrency and respawns after a crash", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });
