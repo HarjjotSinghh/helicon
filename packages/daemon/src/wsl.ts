@@ -161,6 +161,36 @@ export function planServe(options: {
   };
 }
 
+/**
+ * One program run with an exact argv where Muse lives: directly off Windows, and through `wsl -e` on
+ * Windows, which skips the Linux shell so paths with spaces arrive as single arguments.
+ */
+export function planHostCommand(options: {
+  platform?: string;
+  distro?: string;
+  program: string;
+  args: string[];
+}): { command: string; args: string[] } {
+  const platform = options.platform ?? process.platform;
+  if (platform === "win32") {
+    return { command: "wsl", args: ["-d", options.distro ?? "Ubuntu", "-e", options.program, ...options.args] };
+  }
+  return { command: options.program, args: options.args };
+}
+
+/** A `muse` CLI call. Without a resolved path a login shell finds muse on PATH; `"$@"` passes the arguments through untouched. */
+export function planMuseCli(options: {
+  platform?: string;
+  distro?: string;
+  musePath?: string | null;
+  args: string[];
+}): { command: string; args: string[] } {
+  const direct = options.musePath
+    ? { program: options.musePath, args: options.args }
+    : { program: "sh", args: ["-lc", 'exec muse "$@"', "muse", ...options.args] };
+  return planHostCommand({ platform: options.platform, distro: options.distro, ...direct });
+}
+
 export interface EnvironmentProbe {
   platform: string;
   wslAvailable: boolean;

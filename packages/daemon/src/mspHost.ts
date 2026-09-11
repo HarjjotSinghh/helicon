@@ -81,6 +81,8 @@ export class HeliconMspHost {
     try {
       this.msp = await this.handshake.initialize({
         clientInfo: { name: HELICON_CLIENT_NAME, version: clientVersion },
+        // `!` commands in the composer run through session/userShell, which the host grants per connection.
+        capabilities: { requestedCapabilities: ["userShell"] },
       });
     } catch (error) {
       const tail = this.stderrTail.join("\n").trim();

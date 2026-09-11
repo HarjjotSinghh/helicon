@@ -10,6 +10,8 @@ import {
   isApprovalMode,
   isIfBusy,
   isReasoningEffort,
+  planHostCommand,
+  planMuseCli,
   planServe,
   probeEnvironment,
   resolveMuseInDistro,
@@ -18,12 +20,13 @@ import {
   toWindowsPath,
   type ApprovalMode,
   type CommandConnection,
+  type ExecFn,
   type ServeTarget,
   type SessionRecord,
 } from "@helicon/daemon";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
-export const HELICON_VERSION = "0.4.0";
+export const HELICON_VERSION = "0.5.0";
 
 export interface HostExit {
   code: number | null;
@@ -60,6 +63,8 @@ export interface ServerOptions {
   home?: string;
   /** Days without activity before a thread settles on its own; null turns auto-settle off. */
   autoSettleDays?: number | null;
+  /** Runs `muse` CLI calls, like listing skills; the real process runner by default. */
+  exec?: ExecFn;
 }
 
 interface ManagedHost {
@@ -340,6 +345,68 @@ interface EnvView {
   persistent: boolean;
 }
 
+export interface SkillView {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  shortDescription: string | null;
+  scope: string;
+  activation: string;
+}
+
+/** One workspace's skills. Where each SKILL.md lives stays on the server; the browser only names skills by id. */
+interface SkillListing {
+  at: number;
+  skills: SkillView[];
+  paths: Map<string, string>;
+  error: string | null;
+}
+
+/** Parses `muse skills list --json`, leaving out skills switched off. Null when the output is not that JSON. */
+export function parseSkillList(stdout: string): { skills: SkillView[]; paths: Map<string, string> } | null {
+  let root: Record<string, unknown> | null;
+  try {
+    root = asRecord(JSON.parse(stdout));
+  } catch {
+    return null;
+  }
+  if (!root || !Array.isArray(root["skills"])) {
+    return null;
+  }
+  const skills: SkillView[] = [];
+  const paths = new Map<string, string>();
+  for (const entry of root["skills"]) {
+    const r = asRecord(entry);
+    const id = r ? str(r["id"]) : null;
+    if (!r || !id || str(r["activation"]) === "off") {
+      continue;
+    }
+    const name = str(r["name"]) ?? id;
+    skills.push({
+      id,
+      name,
+      displayName: str(r["display_name"]) ?? name,
+      description: str(r["description"]) ?? "",
+      shortDescription: str(r["short_description"]),
+      scope: str(r["scope"]) ?? "unknown",
+      activation: str(r["activation"]) ?? "on",
+    });
+    const path = str(r["path"]);
+    if (path) {
+      paths.set(id, path);
+    }
+  }
+  return { skills, paths };
+}
+
+/** A SKILL.md body without its YAML frontmatter. */
+export function stripFrontmatter(text: string): string {
+  return text.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, "").trim();
+}
+
+const SKILL_CACHE_MS = 60_000;
+
 export class HeliconServer {
   private readonly server: Server;
   private readonly store: HeliconStore;
@@ -355,16 +422,18 @@ export class HeliconServer {
   private changeTimer: ReturnType<typeof setTimeout> | null = null;
   private settleTimer: ReturnType<typeof setInterval> | null = null;
   private envCache: { at: number; value: EnvView } | null = null;
+  private readonly skillCache = new Map<string, SkillListing>();
   private lastHostError: string | null = null;
   private closed = false;
   private readonly options: Required<
-    Omit<ServerOptions, "staticDir" | "token" | "platform" | "distro" | "musePath" | "hostFactory" | "opener">
+    Omit<ServerOptions, "staticDir" | "token" | "platform" | "distro" | "musePath" | "hostFactory" | "opener" | "exec">
   > &
     Pick<ServerOptions, "staticDir" | "token"> & {
       platform: string;
       distro?: string;
       musePath?: string | null;
       hostFactory: HostFactory;
+      exec: ExecFn;
     };
 
   constructor(options: ServerOptions = {}) {
@@ -380,6 +449,7 @@ export class HeliconServer {
       hostFactory: options.hostFactory ?? realHostFactory,
       home: options.home ?? homedir(),
       autoSettleDays: options.autoSettleDays === undefined ? 3 : options.autoSettleDays,
+      exec: options.exec ?? defaultExec,
     };
     this.opener = options.opener ?? defaultOpener(this.options.platform);
     this.store = new HeliconStore(
@@ -627,6 +697,20 @@ export class HeliconServer {
       this.json(res, 200, { ok: true });
       return true;
     }
+    if (method === "GET" && path === "/api/slash") {
+      const listing = await this.listSkills(normalizeCwd(url.searchParams.get("cwd") ?? ""));
+      this.json(res, 200, { skills: listing.skills, error: listing.error });
+      return true;
+    }
+    if (method === "GET" && path === "/api/slash/skill") {
+      const id = url.searchParams.get("id");
+      if (!id) {
+        throw new HttpError(400, "id is required.");
+      }
+      const body = await this.skillBody(normalizeCwd(url.searchParams.get("cwd") ?? ""), id);
+      this.json(res, 200, { id, body });
+      return true;
+    }
     if (method === "GET" && path === "/api/sessions") {
       const cwd = url.searchParams.get("cwd");
       const includeArchived = url.searchParams.get("archived") === "1";
@@ -666,7 +750,7 @@ export class HeliconServer {
       return true;
     }
 
-    const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(?:\/(resume|model|approval-mode|compact))?$/);
+    const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(?:\/(resume|model|approval-mode|compact|shell|fork))?$/);
     if (sessionMatch) {
       const sessionId = decodeURIComponent(sessionMatch[1] as string);
       const action = sessionMatch[2];
@@ -713,6 +797,21 @@ export class HeliconServer {
         }
         if (action === "compact") {
           this.json(res, 200, { result: await manager.compactSession(sessionId) });
+          return true;
+        }
+        if (action === "shell") {
+          const command = str(body["command"])?.trim();
+          if (!command) {
+            throw new HttpError(400, "command is required.");
+          }
+          this.wake(sessionId);
+          await manager.userShell(sessionId, command);
+          this.store.updateSession(sessionId, { activityAt: nowIso() });
+          this.json(res, 200, { ok: true });
+          return true;
+        }
+        if (action === "fork") {
+          this.json(res, 200, { session: await this.forkSession(sessionId, manager) });
           return true;
         }
         const mode = body["mode"];
@@ -1131,6 +1230,98 @@ export class HeliconServer {
     return resolved.display;
   }
 
+  /** The muse binary for one-off CLI calls; on Windows the environment probe finds it inside WSL. */
+  private async cliMusePath(): Promise<string | null> {
+    const configured = this.options.musePath ?? null;
+    if (this.options.platform !== "win32" || (configured && (configured.includes("/") || configured.includes("\\")))) {
+      return configured;
+    }
+    return (await this.environment(false)).musePath;
+  }
+
+  /** A workspace's skills as `muse skills list` reports them, kept for a minute. A failure comes back as `error`, never a throw. */
+  private async listSkills(cwd: string): Promise<SkillListing> {
+    const key = cwd || "__default__";
+    const cached = this.skillCache.get(key);
+    if (cached && !cached.error && Date.now() - cached.at < SKILL_CACHE_MS) {
+      return cached;
+    }
+    const args = ["skills", "list", "--json"];
+    const root = this.hostPathFor(cwd);
+    if (root) {
+      args.push("--workspace", root);
+    }
+    const plan = planMuseCli({ platform: this.options.platform, distro: this.options.distro, musePath: await this.cliMusePath(), args });
+    const result = await this.options.exec(plan.command, plan.args);
+    const parsed = parseSkillList(result.stdout);
+    const listing: SkillListing = parsed
+      ? { at: Date.now(), ...parsed, error: null }
+      : {
+          at: Date.now(),
+          skills: [],
+          paths: new Map(),
+          error:
+            result.exitCode === 0
+              ? "Muse listed its skills in a form Helicon does not understand."
+              : "Could not list Muse skills. Check that muse runs in a terminal.",
+        };
+    this.skillCache.set(key, listing);
+    return listing;
+  }
+
+  /** A listed skill's instructions, read where Muse keeps them. The path comes from Muse, never from the request. */
+  private async skillBody(cwd: string, id: string): Promise<string> {
+    const path = (await this.listSkills(cwd)).paths.get(id);
+    if (!path) {
+      throw new HttpError(404, "Muse does not list that skill for this workspace.");
+    }
+    const bundled = /^bundled:\/\/(.+)$/.exec(path)?.[1];
+    if (bundled?.split("/").includes("..")) {
+      throw new HttpError(400, "That skill's path is not readable.");
+    }
+    // Bundled skills live in Muse's data folder; the others list a real file path.
+    const script = bundled ? 'exec cat -- "${XDG_DATA_HOME:-$HOME/.local/share}/muse/skills/bundled/$1"' : 'exec cat -- "$1"';
+    const plan = planHostCommand({
+      platform: this.options.platform,
+      distro: this.options.distro,
+      program: "sh",
+      args: ["-c", script, "sh", bundled ?? path],
+    });
+    const result = await this.options.exec(plan.command, plan.args);
+    const body = result.exitCode === 0 ? stripFrontmatter(result.stdout) : "";
+    if (!body) {
+      throw new HttpError(502, "Could not read that skill's instructions.");
+    }
+    return body;
+  }
+
+  private async forkSession(sessionId: string, manager: SessionManager): Promise<Record<string, unknown>> {
+    const found = this.store.findSession(sessionId);
+    if (!found) {
+      throw new HttpError(404, "Unknown session.");
+    }
+    const forked = await manager.forkSession(sessionId);
+    const raw = asRecord(asRecord(forked.raw)?.["session"]);
+    const record = this.store.recordSession({
+      id: forked.sessionId,
+      projectId: found.session.projectId,
+      origin: "helicon",
+      // The fork carries its source's name until the user renames it.
+      title: `${found.session.title} (fork)`,
+      titleSource: "auto",
+      modelId: raw ? str(raw["modelId"]) : found.session.modelId,
+      turnCount: num(raw?.["turnCount"]),
+      createdAt: normalizeIso(raw?.["createdAt"]),
+    });
+    const hostKey = this.sessionHosts.get(sessionId);
+    if (hostKey) {
+      this.sessionHosts.set(forked.sessionId, hostKey);
+    }
+    this.liveFor(forked.sessionId);
+    this.sessionsChanged();
+    return this.summary(record, found.cwd);
+  }
+
   private async startSession(cwd: string, approvalMode?: ApprovalMode, modelId?: string): Promise<Record<string, unknown>> {
     const project = this.store.upsertProject(cwd);
     this.store.setHidden(cwd, false);
@@ -1278,7 +1469,10 @@ export class HeliconServer {
       }
       const project = this.store.upsertProject(root);
       const existing = this.store.getSession(sessionId);
-      const title = firstString(session, ["title", "name"]);
+      // Muse titles a session from the text the model got. A Helicon thread already titled from what the
+      // user saw (a `/skill` turn sends instructions but shows the command) keeps that title.
+      const keepOurs = existing?.origin === "helicon" && existing.titleSource !== "placeholder";
+      const title = keepOurs ? null : firstString(session, ["title", "name"]);
       const stored = this.store.recordSession({
         id: sessionId,
         projectId: project.id,

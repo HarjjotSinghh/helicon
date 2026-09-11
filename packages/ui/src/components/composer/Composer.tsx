@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   ShieldQuestion,
   Square,
+  SquareTerminal,
 } from "lucide-react";
 import {
   forwardRef,
@@ -19,6 +20,7 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -29,12 +31,15 @@ import { Popover, Slider, Switch } from "radix-ui";
 import { shallowEqual, useApp, useController } from "../../app/context.js";
 import { useSampled } from "../../app/sampled.js";
 import { basename, formatDuration, formatSpeed, formatTokens, modelDisplayName } from "../../model/format.js";
+import { matchSlash, parseSlash, resolveSlash, slashCommands, type SlashCommand } from "../../model/slash.js";
+import type { SkillsState } from "../../model/store.js";
 import { lastTurnSpeed, streamingSpeed } from "../../model/usage.js";
 import type { ApprovalMode, ReasoningEffort } from "../../types.js";
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuOption, MenuRadioGroup, MenuSeparator, MenuTrigger, Modal, Tip } from "../ui/overlays.js";
 import { Button, IconButton, MOD, Spinner, cn } from "../ui/primitives.js";
 import { PixelFlow } from "../ui/PixelFlow.js";
 import { ContextMeter } from "./ContextPanel.js";
+import { SlashMenu, slashOptionId, type SlashMenuState } from "./SlashMenu.js";
 import { SwapIcon } from "../ui/sourced.js";
 
 const DRAFT_PREFIX = "helicon.draft.";
@@ -72,6 +77,46 @@ function useDraft(key: string): [string, (value: string) => void] {
   return [value, set];
 }
 
+/** The slash menu for a draft, with what picking a row writes in front of the command's name. */
+type SlashMenuView = SlashMenuState & { prefix: string };
+
+/**
+ * What the menu shows for the draft and caret. While the caret is in the first word it lists matching
+ * commands; `/skill <name>` lists skills; after that it only appears to flag a command Muse does not know.
+ */
+function slashMenuFor(text: string, caret: number, commands: SlashCommand[], skills: SkillsState | undefined): SlashMenuView | null {
+  const first = /^\/(\S*)/.exec(text);
+  if (!first) {
+    return null;
+  }
+  const loading = !skills || skills.status === "loading";
+  const error = skills?.status === "error" ? skills.error : null;
+  // Only while typing the command word: a caret before the slash is not typing a command.
+  if (caret >= 1 && caret <= first[0].length) {
+    const query = first[1] as string;
+    const items = matchSlash(commands, query);
+    if (items.length > 0 || !query) {
+      return { kind: "list", items, loading, error, prefix: "/" };
+    }
+    return loading ? { kind: "loading", prefix: "/" } : { kind: "unknown", name: query.toLowerCase(), prefix: "/" };
+  }
+  const naming = /^\/skill\s+(\S*)$/i.exec(text);
+  if (naming && caret === text.length) {
+    const items = matchSlash(
+      commands.filter((c) => c.kind === "skill"),
+      naming[1] as string,
+    );
+    if (items.length > 0) {
+      return { kind: "list", items, loading, error, prefix: "/skill " };
+    }
+  }
+  const parsed = parseSlash(text);
+  if (!parsed || resolveSlash(parsed, commands, skills?.skills ?? []).kind !== "unknown") {
+    return null;
+  }
+  return loading ? { kind: "loading", prefix: "/" } : { kind: "unknown", name: parsed.name, prefix: "/" };
+}
+
 export interface ComposerProps {
   sessionId: string | null;
   cwd: string | null;
@@ -97,10 +142,40 @@ export function Composer(props: ComposerProps) {
   }, [handoff, draftKey, controller, setText]);
   const ref = useRef<HTMLTextAreaElement>(null);
   const id = useId();
+  const menuId = useId();
   const starting = useApp((s) => Boolean(s.busy["start"]));
   const stopping = useApp((s) => (props.sessionId ? Boolean(s.busy[`stop:${props.sessionId}`]) : false));
   const hasText = text.trim().length > 0;
   const showStop = props.running && Boolean(props.sessionId) && !hasText;
+  const shell = !props.readOnly && /^!\s*\S/.test(text);
+
+  // The slash menu: which commands match, which row is active, and whether Esc closed it for this word.
+  const [caret, setCaret] = useState(0);
+  const [active, setActive] = useState(0);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const skills = useApp((s) => (props.cwd ? s.skills[props.cwd] : undefined));
+  const slashing = !props.readOnly && text.startsWith("/");
+  useEffect(() => {
+    if (slashing && props.cwd) {
+      void controller.loadSkills(props.cwd);
+    }
+  }, [slashing, props.cwd, controller]);
+  const commands = useMemo(
+    () => slashCommands(skills?.skills ?? [], { inThread: Boolean(props.sessionId) }),
+    [skills?.skills, props.sessionId],
+  );
+  const word = /^\/\S*/.exec(text)?.[0] ?? null;
+  /** The menu for a caret position. Keys read the caret live: a restored draft moves it without a select event. */
+  const menuAt = (at: number): SlashMenuView | null => {
+    const view = slashing ? slashMenuFor(text, at, commands, skills) : null;
+    return view && dismissed !== word ? view : null;
+  };
+  const menu = menuAt(caret);
+  const rows = menu?.kind === "list" ? menu.items.length : menu ? 1 : 0;
+  const activeRow = Math.max(0, Math.min(active, rows - 1));
+  useEffect(() => {
+    setActive(0);
+  }, [word, menu?.kind, menu?.prefix]);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -109,11 +184,17 @@ export function Composer(props: ComposerProps) {
     }
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, Math.round(window.innerHeight * 0.4))}px`;
+    // A draft restored, handed back or filled in puts the caret at the end without a select event.
+    setCaret(el.selectionStart);
   }, [text]);
 
   useEffect(() => {
-    if (props.autoFocus && !props.readOnly) {
-      ref.current?.focus({ preventScroll: true });
+    const el = ref.current;
+    if (props.autoFocus && !props.readOnly && el) {
+      el.focus({ preventScroll: true });
+      // Focusing puts the caret before a restored draft; carry on typing at its end instead.
+      el.setSelectionRange(el.value.length, el.value.length);
+      setCaret(el.value.length);
     }
   }, [props.autoFocus, props.readOnly, props.sessionId, props.cwd]);
 
@@ -129,9 +210,73 @@ export function Composer(props: ComposerProps) {
     }
   };
 
+  /** Runs a command picked from the menu, or sends the draft as a plain prompt when Muse has no such command. */
+  const runNow = async (value: string, raw: boolean) => {
+    if (props.readOnly || starting) {
+      return;
+    }
+    setText("");
+    const sent = await controller.send(value, { raw });
+    if (!sent) {
+      setText(value);
+    }
+  };
+
+  const fill = (prefix: string, command: SlashCommand) => {
+    const next = `${prefix}${command.name} `;
+    setText(next);
+    setCaret(next.length);
+    requestAnimationFrame(() => {
+      const el = ref.current;
+      el?.focus();
+      el?.setSelectionRange(next.length, next.length);
+    });
+  };
+
+  const pick = (view: SlashMenuView, command: SlashCommand) => {
+    if (view.prefix === "/" && command.kind === "action" && command.runsBare) {
+      void runNow(`/${command.name}`, false);
+    } else {
+      fill(view.prefix, command);
+    }
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.nativeEvent.isComposing) {
       return;
+    }
+    const live = menuAt(event.currentTarget.selectionStart);
+    if (live) {
+      const list = live.kind === "list" ? live.items : [];
+      const row = Math.max(0, Math.min(active, list.length - 1));
+      if ((event.key === "ArrowDown" || event.key === "ArrowUp") && list.length > 0) {
+        event.preventDefault();
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        setActive((row + step + list.length) % list.length);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setDismissed(word);
+        return;
+      }
+      if (event.key === "Tab" && !event.shiftKey && list[row]) {
+        event.preventDefault();
+        fill(live.prefix, list[row] as SlashCommand);
+        return;
+      }
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        if (live.kind === "list" && list[row]) {
+          pick(live, list[row] as SlashCommand);
+        } else if (live.kind === "unknown") {
+          void runNow(text, true);
+        } else {
+          // Skills are still loading: send anyway, and the controller resolves the command once they arrive.
+          void submit(props.running && (event.metaKey || event.ctrlKey));
+        }
+        return;
+      }
     }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -150,6 +295,8 @@ export function Composer(props: ComposerProps) {
         ? "Describe a change, a fix, or a question about the code. Use @path to point at files."
         : "Reply, or ask for the next change";
 
+  const sendLabel = showStop ? "Stop the turn" : shell ? "Run command" : props.running ? "Queue message" : "Send";
+
   return (
     <div
       className={cn(
@@ -163,9 +310,28 @@ export function Composer(props: ComposerProps) {
         }
       }}
     >
+      {menu ? (
+        <SlashMenu
+          id={menuId}
+          state={menu}
+          placement={props.variant === "home" ? "below" : "above"}
+          active={activeRow}
+          onActive={setActive}
+          onPick={(command) => pick(menu, command)}
+          onSendRaw={() => void runNow(text, true)}
+        />
+      ) : null}
       <label htmlFor={id} className="sr-only">
         Message Muse
       </label>
+      {shell ? (
+        <div className="flex items-center gap-1.5 px-4 pt-2.5 text-xs text-muted">
+          <SquareTerminal size={13} className="shrink-0" />
+          <span className="truncate">
+            Runs in the shell{props.cwd ? ` in ${basename(props.cwd)}` : ""}; the output appears in the thread
+          </span>
+        </div>
+      ) : null}
       <textarea
         id={id}
         ref={ref}
@@ -174,9 +340,26 @@ export function Composer(props: ComposerProps) {
         disabled={props.readOnly}
         placeholder={placeholder}
         spellCheck
-        onChange={(event) => setText(event.currentTarget.value)}
+        role={menu ? "combobox" : undefined}
+        aria-expanded={menu ? true : undefined}
+        aria-controls={menu ? menuId : undefined}
+        aria-autocomplete={menu ? "list" : undefined}
+        aria-activedescendant={menu ? slashOptionId(menuId, activeRow) : undefined}
+        onChange={(event) => {
+          setText(event.currentTarget.value);
+          setCaret(event.currentTarget.selectionStart);
+          if (!event.currentTarget.value.startsWith("/")) {
+            setDismissed(null);
+          }
+        }}
+        onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
         onKeyDown={onKeyDown}
-        className="block max-h-[40vh] min-h-[52px] w-full resize-none bg-transparent px-4 pt-3.5 pb-1.5 text-md leading-relaxed text-fg outline-none placeholder:text-subtle focus-visible:outline-none disabled:cursor-not-allowed"
+        onBlur={() => setDismissed(word)}
+        onFocus={() => setDismissed(null)}
+        className={cn(
+          "block max-h-[40vh] min-h-[52px] w-full resize-none bg-transparent px-4 pb-1.5 text-md leading-relaxed text-fg outline-none placeholder:text-subtle focus-visible:outline-none disabled:cursor-not-allowed",
+          shell ? "pt-1.5 font-mono text-sm" : "pt-3.5",
+        )}
       />
       <div className="flex items-center gap-0.5 px-2 pb-2">
         <ModelPicker sessionId={props.sessionId} />
@@ -192,10 +375,10 @@ export function Composer(props: ComposerProps) {
             </IconButton>
           </Tip>
         ) : null}
-        <Tip label={showStop ? "Stop the turn" : props.running ? "Queue message" : "Send"} shortcut={[showStop ? "Esc" : "Enter"]}>
+        <Tip label={sendLabel} shortcut={[showStop ? "Esc" : "Enter"]}>
           <button
             type="button"
-            aria-label={showStop ? "Stop the turn" : props.running ? "Queue message" : "Send message"}
+            aria-label={showStop ? "Stop the turn" : shell ? "Run command" : props.running ? "Queue message" : "Send message"}
             disabled={showStop ? stopping : !hasText || props.readOnly || starting}
             onClick={() => (showStop ? void controller.stop(props.sessionId as string) : void submit(false))}
             className={cn(
@@ -249,6 +432,7 @@ function ContributorBadge(props: { tip?: boolean }) {
 
 function ModelPicker(props: { sessionId: string | null }) {
   const controller = useController();
+  const open = useApp((s) => s.picker === "model");
   const models = useApp((s) => s.models);
   const sessionModel = useApp((s) =>
     props.sessionId ? (s.threads[props.sessionId]?.fold.meta.modelId ?? s.sessions[props.sessionId]?.modelId ?? null) : null,
@@ -258,7 +442,7 @@ function ModelPicker(props: { sessionId: string | null }) {
   const model = models.find((m) => m.modelId === current);
   const contributor = model?.contributor ?? /contributor/i.test(current ?? "");
   return (
-    <Menu>
+    <Menu open={open} onOpenChange={(next) => (next ? controller.setPicker("model") : controller.closePicker("model"))}>
       <MenuTrigger asChild>
         <ToolbarTrigger
           aria-label={`Model: ${modelDisplayName(current)}`}
@@ -320,6 +504,7 @@ const RESTING = 3;
 /** Reasoning effort as a stepped slider in a popover, after the Claude desktop effort control. */
 function EffortPicker() {
   const controller = useController();
+  const open = useApp((s) => s.picker === "effort");
   const effort = useApp((s) => s.prefs.effort);
   const [resting, setResting] = useState(RESTING);
   const thumb = useRef<HTMLSpanElement>(null);
@@ -337,7 +522,7 @@ function EffortPicker() {
     }
   };
   return (
-    <Popover.Root>
+    <Popover.Root open={open} onOpenChange={(next) => (next ? controller.setPicker("effort") : controller.closePicker("effort"))}>
       <Popover.Trigger asChild>
         <ToolbarTrigger aria-label={`Reasoning effort: ${label}`} icon={<Brain size={13} />} label={label} />
       </Popover.Trigger>
@@ -453,14 +638,17 @@ const MODES: { value: ApprovalMode; label: string; description: string; icon: Re
 
 function AccessPicker(props: { sessionId: string | null }) {
   const controller = useController();
+  const open = useApp((s) => s.picker === "permissions");
+  // `/permissions full` opens the confirmation directly, so it lives in app state rather than here.
+  const confirming = useApp((s) => s.picker === "confirmFullAccess");
   const preferred = useApp((s) => s.prefs.defaultMode);
   const threadMode = useApp((s) => (props.sessionId ? (s.threads[props.sessionId]?.fold.meta.approvalMode ?? null) : null));
   const current = (props.sessionId ? threadMode : null) ?? preferred;
   const mode = MODES.find((m) => m.value === current) ?? MODES[0];
-  const [confirming, setConfirming] = useState(false);
+  const setConfirming = (next: boolean) => (next ? controller.setPicker("confirmFullAccess") : controller.closePicker("confirmFullAccess"));
   return (
     <>
-      <Menu>
+      <Menu open={open} onOpenChange={(next) => (next ? controller.setPicker("permissions") : controller.closePicker("permissions"))}>
         <MenuTrigger asChild>
           <ToolbarTrigger
             aria-label={`Permissions: ${mode?.label}`}
@@ -567,7 +755,7 @@ export function ComposerFooter(props: { cwd: string | null; branch: string | nul
       <span className="hidden truncate md:inline">
         {props.running
           ? `Enter queues, ${MOD}+Enter adds to this turn, Esc stops`
-          : "Enter to send, Shift+Enter for a new line"}
+          : "Enter to send, Shift+Enter for a new line, / for commands, ! for shell"}
       </span>
     </div>
   );

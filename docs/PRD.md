@@ -1,4 +1,4 @@
-# PRD: Helicon v1 - Unofficial Desktop + Web ADE for Muse Code CLI
+# PRD: Helicon v1 - Desktop + Web ADE for Muse Code CLI
 
 > Status: draft · Scope: desktop + web together · Daemon: local-first, self-hosted remote supported · Approvals: configurable · Tests: deep modules
 
@@ -8,7 +8,7 @@ Muse Code is a terminal-only agent (`muse`, macOS/Linux, WSL2 on Windows). Devel
 
 ## Solution
 
-Helicon (Unofficial): a sidebar-first desktop app (Tauri 2, Win/Mac/Linux) and web app sharing one React UI and one daemon design. The daemon spawns one `muse serve` host per workspace over the Muse Session Protocol (MSP) via the official MIT `@muse-code/sdk`. Users see projects grouped by working directory (including isolated worktrees), each with its sessions/tasks, resumable - including sessions started from the `muse` TUI. Windows routes through WSL2 with path translation. Auth stays the user's own `muse login`; Helicon never stores credentials and never bypasses approvals or billing.
+Helicon: a sidebar-first desktop app (Tauri 2, Win/Mac/Linux) and web app sharing one React UI and one daemon design. The daemon spawns one `muse serve` host per workspace over the Muse Session Protocol (MSP) via the official MIT `@muse-code/sdk`. Users see projects grouped by working directory (including isolated worktrees), each with its sessions/tasks, resumable - including sessions started from the `muse` TUI. Windows routes through WSL2 with path translation. Auth stays the user's own `muse login`; Helicon never stores credentials and never bypasses approvals or billing.
 
 ## User Stories
 

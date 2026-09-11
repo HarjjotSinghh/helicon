@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { HeliconError, type EventHandler, type HeliconClient } from "../src/client.js";
 import { HeliconController, type Platform } from "../src/model/controller.js";
 import { buildTurns } from "../src/model/fold.js";
-import type { SessionSummary, TranscriptLoad } from "../src/types.js";
+import type { SessionSummary, SkillEntry, TranscriptLoad } from "../src/types.js";
 import { historyEvents } from "./fixtures/probe.js";
 
 const SESSION: SessionSummary = {
@@ -38,7 +38,9 @@ function load(overrides: Partial<TranscriptLoad> = {}): TranscriptLoad {
 
 class FakeClient implements HeliconClient {
   handler: EventHandler | null = null;
-  sent: { sessionId: string; text: string; ifBusy?: string }[] = [];
+  sent: { sessionId: string; text: string; ifBusy?: string; displayText?: string }[] = [];
+  actions: string[] = [];
+  skills: SkillEntry[] = [];
   transcript: () => Promise<TranscriptLoad> = async () => load();
   sendResult: () => Promise<{ turnId: string | null; disposition: string | null }> = async () => ({ turnId: "t9", disposition: "started" });
 
@@ -73,8 +75,8 @@ class FakeClient implements HeliconClient {
   async updateSession() {
     return SESSION;
   }
-  async sendTurn(sessionId: string, text: string, options?: { ifBusy?: string }) {
-    this.sent.push({ sessionId, text, ifBusy: options?.ifBusy });
+  async sendTurn(sessionId: string, text: string, options?: { ifBusy?: string; displayText?: string }) {
+    this.sent.push({ sessionId, text, ifBusy: options?.ifBusy, displayText: options?.displayText });
     return this.sendResult();
   }
   async interruptTurn() {}
@@ -88,7 +90,24 @@ class FakeClient implements HeliconClient {
   }
   async setSessionModel() {}
   async setApprovalMode() {}
-  async compact() {}
+  compactNoop = false;
+  async compact() {
+    this.actions.push("compact");
+    return { noop: this.compactNoop, reason: this.compactNoop ? "no_compactable_history" : null };
+  }
+  async runShell(sessionId: string, command: string) {
+    this.actions.push(`shell:${sessionId}:${command}`);
+  }
+  async forkSession() {
+    this.actions.push("fork");
+    return { ...SESSION, sessionId: "s2", title: "Probe (fork)" };
+  }
+  async listSkills() {
+    return { skills: this.skills, error: null };
+  }
+  async skillBody(_cwd: string, skillId: string) {
+    return `Instructions for ${skillId}.`;
+  }
   async openFolder() {}
   subscribe(handler: EventHandler) {
     this.handler = handler;
@@ -220,6 +239,76 @@ describe("HeliconController", () => {
     assert.equal(controller.store.get().threads["s1"]?.readOnly, true);
     assert.equal(await controller.send("hello"), false);
     assert.equal(client.sent.length, 0);
+    stop();
+  });
+
+  it("runs slash commands, skills and shell lines instead of sending their text", async () => {
+    const client = new FakeClient();
+    client.skills = [
+      { id: "bundled:plan", name: "plan", displayName: "plan", description: "Plan it.", shortDescription: null, scope: "bundled", activation: "on" },
+      { id: "user:secret", name: "secret", displayName: "secret", description: "By hand.", shortDescription: null, scope: "user", activation: "user-invocable-only" },
+    ];
+    const { controller, stop } = await started(client);
+    await controller.loadSkills("/work/app");
+    assert.equal(controller.store.get().skills["/work/app"]?.status, "ready");
+
+    assert.equal(await controller.send("/plan tidy the API"), true);
+    assert.equal(client.sent.at(-1)?.displayText, "/plan tidy the API", "the transcript shows what was typed");
+    assert.match(client.sent.at(-1)?.text ?? "", /read_skill with name "bundled:plan" first, then apply it to: tidy the API$/);
+    assert.equal(await controller.send("/secret go"), true);
+    assert.match(client.sent.at(-1)?.text ?? "", /<skill-body id="user:secret">\nInstructions for user:secret\.\n<\/skill-body>\n\ngo$/);
+
+    assert.equal(await controller.send("/compact"), true);
+    assert.equal(await controller.send("! git status"), true);
+    assert.deepEqual(client.actions, ["compact", "shell:s1:git status"]);
+    client.compactNoop = true;
+    assert.equal(await controller.send("/compact"), true);
+    assert.equal(controller.store.get().toasts.at(-1)?.title, "Nothing to compact yet");
+    assert.equal(controller.store.get().toasts.at(-1)?.detail, "There is no earlier history to summarize.");
+
+    assert.equal(await controller.send("/effort high"), true);
+    assert.equal(controller.store.get().prefs.effort, "high");
+    assert.equal(await controller.send("/model"), true);
+    assert.equal(controller.store.get().picker, "model");
+    assert.equal(await controller.send("/permissions full"), true);
+    assert.equal(controller.store.get().picker, "confirmFullAccess", "full access still asks first");
+    controller.closePicker("permissions");
+    assert.equal(controller.store.get().picker, "confirmFullAccess", "a menu closing after the hand-off leaves the dialog open");
+
+    const before = client.sent.length;
+    assert.equal(await controller.send("/deploy now"), false);
+    assert.equal(controller.store.get().toasts.at(-1)?.title, "No command named /deploy");
+    assert.equal(client.sent.length, before);
+    assert.equal(await controller.send("/deploy now", { raw: true }), true);
+    assert.equal(client.sent.at(-1)?.text, "/deploy now");
+    assert.equal(await controller.send("/usr/bin/node crashes on start"), true, "a path is a prompt, not a command");
+    assert.equal(client.sent.at(-1)?.text, "/usr/bin/node crashes on start");
+    stop();
+  });
+
+  it("waits for a workspace's skills when a skill is sent before they load", async () => {
+    const client = new FakeClient();
+    client.skills = [
+      { id: "bundled:git", name: "git", displayName: "git", description: "Git safety.", shortDescription: null, scope: "bundled", activation: "on" },
+    ];
+    const { controller, stop } = await started(client);
+    assert.equal(controller.store.get().skills["/work/app"], undefined);
+    assert.equal(await controller.send("/git reply ok"), true);
+    assert.equal(client.sent.at(-1)?.displayText, "/git reply ok");
+    assert.equal(controller.store.get().skills["/work/app"]?.status, "ready");
+    stop();
+  });
+
+  it("forks a thread and opens the fork", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    // Opening the fork loads its transcript, which carries the fork's own summary.
+    client.transcript = async () => load({ session: { ...SESSION, sessionId: "s2", title: "Probe (fork)" } });
+    assert.equal(await controller.send("/fork"), true);
+    const state = controller.store.get();
+    assert.deepEqual(state.route, { kind: "thread", sessionId: "s2" });
+    assert.equal(state.sessions["s2"]?.title, "Probe (fork)");
+    assert.equal(state.toasts.at(-1)?.title, "Forked into a new thread");
     stop();
   });
 });

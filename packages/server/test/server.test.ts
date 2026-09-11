@@ -4,12 +4,14 @@ import {
   HeliconServer,
   deriveTitle,
   normalizeIso,
+  parseSkillList,
+  stripFrontmatter,
   toWireEvent,
   type HostExit,
   type HostHandle,
   type OpenTarget,
 } from "../src/server.js";
-import type { ServeTarget } from "@helicon/daemon";
+import type { ExecFn, ServeTarget } from "@helicon/daemon";
 
 interface Call {
   method: string;
@@ -433,6 +435,111 @@ describe("HeliconServer", () => {
     assert.match((await get(base, "/api/health")).lastHostError, /exited/);
     await send(base, "/api/sessions", { cwd: "/work/proj" });
     assert.equal(probe.targets.length, 2);
+  });
+});
+
+describe("slash commands, skills and shell", () => {
+  const LIST = JSON.stringify({
+    diagnostics: [],
+    skills: [
+      { id: "bundled:plan", name: "plan", display_name: "plan", description: "Plan it. Use ONLY when asked.", short_description: null, scope: "bundled", activation: "on", path: "bundled://muse-core/skills/plan/SKILL.md" },
+      { id: "user:secret", name: "secret", display_name: "secret", description: "Only by hand.", short_description: "Hand only", scope: "user", activation: "user-invocable-only", path: "/home/me/.config/muse/skills/secret/SKILL.md" },
+      { id: "bundled:off", name: "off", display_name: "off", description: "Switched off.", activation: "off", path: "bundled://muse-core/skills/off/SKILL.md" },
+    ],
+  });
+
+  it("lists a workspace's skills through the muse CLI, keeps them a minute, and reads only listed skills", async () => {
+    const calls: string[][] = [];
+    const exec: ExecFn = async (command, args) => {
+      calls.push([command, ...args]);
+      if (args.includes("list")) {
+        return { stdout: LIST, exitCode: 0 };
+      }
+      return { stdout: "---\nname: secret\ndescription: x\n---\n\n# Secret\nDo the thing.\n", exitCode: 0 };
+    };
+    const { base } = await start(new FakeConnection(), { exec });
+    const listed = await get(base, "/api/slash?cwd=%2Fwork%2Fproj");
+    assert.deepEqual(
+      listed.skills.map((s: { id: string }) => s.id),
+      ["bundled:plan", "user:secret"],
+      "skills switched off are left out",
+    );
+    assert.equal(listed.skills[1].activation, "user-invocable-only");
+    assert.equal(listed.error, null);
+    assert.deepEqual(calls[0], ["muse", "skills", "list", "--json", "--workspace", "/work/proj"]);
+    await get(base, "/api/slash?cwd=%2Fwork%2Fproj");
+    assert.equal(calls.length, 1, "a fresh list is reused");
+
+    const body = await get(base, "/api/slash/skill?cwd=%2Fwork%2Fproj&id=user%3Asecret");
+    assert.equal(body.body, "# Secret\nDo the thing.");
+    assert.deepEqual(calls[1], ["sh", "-c", 'exec cat -- "$1"', "sh", "/home/me/.config/muse/skills/secret/SKILL.md"]);
+    await get(base, "/api/slash/skill?cwd=%2Fwork%2Fproj&id=bundled%3Aplan");
+    assert.equal(calls[2]?.[4], "muse-core/skills/plan/SKILL.md", "bundled skills resolve inside Muse's data folder");
+    const unlisted = await fetch(`${base}/api/slash/skill?cwd=%2Fwork%2Fproj&id=%2Fetc%2Fpasswd`);
+    assert.equal(unlisted.status, 404);
+  });
+
+  it("answers a failed skill list with an error instead of failing the request", async () => {
+    const { base } = await start(new FakeConnection(), { exec: async () => ({ stdout: "", exitCode: 127 }) });
+    const listed = await get(base, "/api/slash?cwd=%2Fwork%2Fproj");
+    assert.deepEqual(listed.skills, []);
+    assert.match(listed.error, /Could not list Muse skills/);
+  });
+
+  it("runs shell commands in a session and forks it into a new thread", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const shell = await send(base, "/api/sessions/s1/shell", { command: " git status " });
+    assert.equal(shell.status, 200);
+    assert.deepEqual(connection.calls.at(-1), { method: "session/userShell", params: { sessionId: "s1", commandText: "git status" } });
+    assert.equal((await send(base, "/api/sessions/s1/shell", { command: "  " })).status, 400);
+
+    connection.replies.set("session/fork", { session: { sessionId: "s2", modelId: "muse-spark-1.3" } });
+    const fork = await send(base, "/api/sessions/s1/fork", {});
+    assert.equal(fork.status, 200);
+    assert.equal(fork.json.session.sessionId, "s2");
+    assert.equal(fork.json.session.title, "New thread (fork)");
+    assert.deepEqual(connection.calls.at(-1), { method: "session/fork", params: { sessionId: "s1", excludeItems: true } });
+    const ids = (await get(base, "/api/sessions")).sessions.map((s: { sessionId: string }) => s.sessionId).sort();
+    assert.deepEqual(ids, ["s1", "s2"]);
+  });
+
+  it("keeps a Helicon thread titled from what the user saw when Muse's own title differs", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    connection.notify("item/completed", {
+      sessionId: "s1",
+      item: {
+        itemId: "u1",
+        kind: "userMessage",
+        status: "completed",
+        revision: 1,
+        turnId: "t1",
+        text: 'Use skill bundled:plan: call read_skill with name "bundled:plan" first, then apply it to: tidy the API',
+        displayText: "/plan tidy the API",
+      },
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    const titleOf = async () => (await get(base, "/api/sessions")).sessions.find((s: { sessionId: string }) => s.sessionId === "s1")?.title;
+    assert.equal(await titleOf(), "/plan tidy the API");
+    // Muse titles the session from the text the model got; discovery must not put that over ours.
+    connection.replies.set("session/list", {
+      sessions: [{ sessionId: "s1", workspaceRoot: "/work/proj", title: "Use skill bundled:plan: call read_skill" }],
+      nextCursor: null,
+    });
+    assert.equal((await send(base, "/api/discover", {})).status, 200);
+    assert.equal(await titleOf(), "/plan tidy the API");
+  });
+
+  it("parses skill lists and strips frontmatter", () => {
+    assert.equal(parseSkillList("not json"), null);
+    assert.equal(parseSkillList(JSON.stringify({ skills: [{ name: "no id" }] }))?.skills.length, 0);
+    assert.equal(stripFrontmatter("\uFEFF---\nname: x\n---\nBody"), "Body");
+    assert.equal(stripFrontmatter("No frontmatter"), "No frontmatter");
   });
 });
 

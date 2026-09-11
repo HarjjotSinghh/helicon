@@ -4,6 +4,8 @@ import {
   decodeCliOutput,
   defaultDistro,
   parseWslList,
+  planHostCommand,
+  planMuseCli,
   planServe,
   probeEnvironment,
   resolveMuseInDistro,
@@ -34,6 +36,27 @@ describe("wsl paths", () => {
     assert.equal(distros[0]?.name, "Ubuntu");
     assert.equal(distros[0]?.isDefault, true);
     assert.equal(defaultDistro(distros)?.name, "Ubuntu");
+  });
+});
+
+describe("host commands", () => {
+  it("runs a program through wsl -e on Windows so arguments are not re-parsed by a shell", () => {
+    assert.deepEqual(planHostCommand({ platform: "win32", distro: "Debian", program: "cat", args: ["/mnt/d/my project/a.md"] }), {
+      command: "wsl",
+      args: ["-d", "Debian", "-e", "cat", "/mnt/d/my project/a.md"],
+    });
+    assert.deepEqual(planHostCommand({ platform: "linux", program: "cat", args: ["a b"] }), { command: "cat", args: ["a b"] });
+  });
+
+  it("calls muse by its resolved path, or through a login shell that forwards the arguments", () => {
+    assert.deepEqual(planMuseCli({ platform: "linux", musePath: "/usr/bin/muse", args: ["skills", "list"] }), {
+      command: "/usr/bin/muse",
+      args: ["skills", "list"],
+    });
+    assert.deepEqual(planMuseCli({ platform: "win32", args: ["skills", "list", "--workspace", "/mnt/d/a b"] }), {
+      command: "wsl",
+      args: ["-d", "Ubuntu", "-e", "sh", "-lc", 'exec muse "$@"', "muse", "skills", "list", "--workspace", "/mnt/d/a b"],
+    });
   });
 });
 
