@@ -63,6 +63,14 @@ impl BootError {
     }
 }
 
+/// Why one server start produced no URL. A server that exits at once may have lost its port to another
+/// process between the check and its own bind; one that never answers or never spawned would not be
+/// helped by another port.
+enum StartFailure {
+    Exited,
+    Failed,
+}
+
 /// Tauri hands out `\\?\` verbatim paths on Windows; Node cannot load a main module from one.
 fn plain_path(path: &Path) -> PathBuf {
     let text = path.to_string_lossy();
@@ -89,29 +97,44 @@ fn port_free(port: u16) -> bool {
 
 /// The port the local server had last time, while it is still free. The window's origin includes the
 /// port and the UI keeps its settings in that origin's storage, so a new port each launch would forget
-/// them, automatic updates switched off included. Returns 0, any free port, only when none can be found.
+/// them, automatic updates switched off included.
 fn stable_port(data_dir: Option<&Path>) -> u16 {
-    let file = data_dir.map(|dir| dir.join(PORT_FILE));
-    let saved = file
-        .as_ref()
-        .and_then(|path| std::fs::read_to_string(path).ok())
+    let saved = data_dir
+        .and_then(|dir| std::fs::read_to_string(dir.join(PORT_FILE)).ok())
         .and_then(|text| text.trim().parse::<u16>().ok())
         .filter(|port| *port != 0);
-    if let Some(port) = saved {
-        if port_free(port) {
-            return port;
-        }
+    match saved {
+        Some(port) if port_free(port) => port,
+        _ => fresh_port(data_dir),
     }
-    let fresh = TcpListener::bind(("127.0.0.1", 0))
+}
+
+/// A port nothing is using right now, remembered for the next launch. Returns 0, any free port, only
+/// when none can be found.
+fn fresh_port(data_dir: Option<&Path>) -> u16 {
+    let port = TcpListener::bind(("127.0.0.1", 0))
         .and_then(|listener| listener.local_addr())
         .map(|address| address.port())
         .unwrap_or(0);
-    if fresh != 0 {
-        if let Some(path) = &file {
-            let _ = std::fs::write(path, fresh.to_string());
+    if port != 0 {
+        if let Some(dir) = data_dir {
+            let _ = std::fs::write(dir.join(PORT_FILE), port.to_string());
         }
     }
-    fresh
+    port
+}
+
+/// Starts the server on `port`, and once more on a fresh port if it exits at once.
+fn start_with_retry<T>(
+    port: u16,
+    fresh: impl FnOnce() -> u16,
+    mut spawn: impl FnMut(u16) -> Result<T, StartFailure>,
+) -> Result<T, BootError> {
+    match spawn(port) {
+        Ok(started) => Ok(started),
+        Err(StartFailure::Exited) => spawn(fresh()).map_err(|_| BootError::ServerFailed),
+        Err(StartFailure::Failed) => Err(BootError::ServerFailed),
+    }
 }
 
 /// A child process that never flashes a console window on Windows.
@@ -156,25 +179,20 @@ fn parse_listening_url(line: &str) -> Option<String> {
     Some(format!("http://{}", rest.trim()))
 }
 
-fn boot_server(app: &tauri::AppHandle) -> Result<String, BootError> {
-    if !node_available() {
-        return Err(BootError::NodeMissing);
-    }
-    let resource_dir = app.path().resource_dir().map_err(|_| BootError::ServerMissing)?;
-    let server = find_resource(&resource_dir, "server.cjs").ok_or(BootError::ServerMissing)?;
-    // Projects, pins and thread titles persist per user, next to the app's other data.
-    let data = app
-        .path()
-        .app_data_dir()
-        .ok()
-        .filter(|dir| std::fs::create_dir_all(dir).is_ok())
-        .map(|dir| plain_path(&dir));
+/// One attempt to run the bundled server on `port`, returning it with the URL it announced.
+fn spawn_server(
+    app: &tauri::AppHandle,
+    server: &Path,
+    frontend: Option<&Path>,
+    data: Option<&Path>,
+    port: u16,
+) -> Result<(Child, String), StartFailure> {
     let mut cmd = command("node");
-    cmd.arg(&server).arg("--port").arg(stable_port(data.as_deref()).to_string());
-    if let Some(frontend) = find_resource(&resource_dir, "frontend") {
-        cmd.arg("--static").arg(&frontend);
+    cmd.arg(server).arg("--port").arg(port.to_string());
+    if let Some(frontend) = frontend {
+        cmd.arg("--static").arg(frontend);
     }
-    if let Some(data) = &data {
+    if let Some(data) = data {
         cmd.arg("--data-dir").arg(data);
     }
     let log = app
@@ -186,15 +204,49 @@ fn boot_server(app: &tauri::AppHandle) -> Result<String, BootError> {
         .and_then(|path| OpenOptions::new().create(true).append(true).open(path).ok());
     cmd.stdout(Stdio::piped())
         .stderr(log.map(Stdio::from).unwrap_or_else(Stdio::null));
-    let mut child = cmd.spawn().map_err(|_| BootError::ServerFailed)?;
-    let url = wait_for_url(&mut child);
+    let mut child = cmd.spawn().map_err(|_| StartFailure::Failed)?;
+    if let Some(url) = wait_for_url(&mut child) {
+        return Ok((child, url));
+    }
+    // Its output can end a moment before the exit is reported, so give the exit up to a second to show.
+    let exited = (0..20).any(|_| {
+        let done = matches!(child.try_wait(), Ok(Some(_)));
+        if !done {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        done
+    });
+    let _ = child.kill();
+    let _ = child.wait();
+    Err(if exited { StartFailure::Exited } else { StartFailure::Failed })
+}
+
+fn boot_server(app: &tauri::AppHandle) -> Result<String, BootError> {
+    if !node_available() {
+        return Err(BootError::NodeMissing);
+    }
+    let resource_dir = app.path().resource_dir().map_err(|_| BootError::ServerMissing)?;
+    let server = find_resource(&resource_dir, "server.cjs").ok_or(BootError::ServerMissing)?;
+    let frontend = find_resource(&resource_dir, "frontend");
+    // Projects, pins and thread titles persist per user, next to the app's other data.
+    let data = app
+        .path()
+        .app_data_dir()
+        .ok()
+        .filter(|dir| std::fs::create_dir_all(dir).is_ok())
+        .map(|dir| plain_path(&dir));
+    let (child, url) = start_with_retry(
+        stable_port(data.as_deref()),
+        || fresh_port(data.as_deref()),
+        |port| spawn_server(app, &server, frontend.as_deref(), data.as_deref(), port),
+    )?;
     if let Some(state) = app.try_state::<ServerChild>() {
         if let Ok(mut guard) = state.0.lock() {
             *guard = Some(child);
         }
         app.resources_table().add(ServerGuard(state.0.clone()));
     }
-    url.ok_or(BootError::ServerFailed)
+    Ok(url)
 }
 
 fn main() {
@@ -249,7 +301,10 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{find_resource, parse_listening_url, plain_path, stable_port, BootError, SPLASH_PAGE};
+    use super::{
+        find_resource, fresh_port, parse_listening_url, plain_path, stable_port, start_with_retry, BootError, StartFailure,
+        PORT_FILE, SPLASH_PAGE,
+    };
     use std::net::TcpListener;
     use std::path::{Path, PathBuf};
 
@@ -299,7 +354,43 @@ mod tests {
         assert_ne!(moved, first, "a taken port is replaced");
         drop(held);
         assert_eq!(stable_port(Some(&dir)), moved, "and the replacement is remembered");
+        let fresh = fresh_port(Some(&dir));
+        assert_eq!(std::fs::read_to_string(dir.join(PORT_FILE)).unwrap(), fresh.to_string());
         assert_ne!(stable_port(None), 0);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn retries_on_a_fresh_port_only_when_the_server_exits_at_once() {
+        // Another process took the checked port before the server bound it: the server exits, the retry lands.
+        let mut tried = Vec::new();
+        let started = start_with_retry(4100, || 4200, |port| {
+            tried.push(port);
+            if port == 4100 {
+                Err(StartFailure::Exited)
+            } else {
+                Ok(port)
+            }
+        });
+        assert_eq!(started.ok(), Some(4200));
+        assert_eq!(tried, vec![4100, 4200]);
+
+        // A server that never answers is not helped by another port.
+        let mut tried = Vec::new();
+        let hung = start_with_retry(4100, || 4200, |port| {
+            tried.push(port);
+            Err::<u16, _>(StartFailure::Failed)
+        });
+        assert!(matches!(hung, Err(BootError::ServerFailed)));
+        assert_eq!(tried, vec![4100]);
+
+        // Two exits in a row give up rather than looping.
+        let mut tried = Vec::new();
+        let gone = start_with_retry(4100, || 4200, |port| {
+            tried.push(port);
+            Err::<u16, _>(StartFailure::Exited)
+        });
+        assert!(gone.is_err());
+        assert_eq!(tried, vec![4100, 4200]);
     }
 }

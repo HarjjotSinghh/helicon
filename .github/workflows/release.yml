@@ -22,7 +22,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
       - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
-      - uses: tauri-apps/tauri-action@v0
+      # Pinned to a commit: this step holds the updater signing key, so a moved tag must not change what runs.
+      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signs the installer for the in-app updater, which also publishes latest.json.
