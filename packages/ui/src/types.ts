@@ -12,6 +12,8 @@ export interface EnvironmentStatus {
   musePath: string | null;
   version: string;
   persistent: boolean;
+  /** Whether Bubblewrap, which Muse runs shell commands in on Linux and WSL, is installed; null where it does not apply. */
+  shellSandbox?: "ready" | "missing" | null;
 }
 
 export interface ProjectView {
@@ -29,6 +31,8 @@ export interface LiveView {
   pendingInputs: number;
   lastTerminal: string | null;
   lastError: string | null;
+  /** The session's goal as the server last saw it, for threads the UI has not opened. */
+  goal?: Goal | null;
 }
 
 export interface SessionSummary {

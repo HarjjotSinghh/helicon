@@ -472,7 +472,19 @@ export const ShellRow = memo(function ShellRow(props: { item: MspItem }) {
           <span className="text-2xs text-subtle tabular-nums">{formatDuration(item.durationMs)}</span>
         ) : null
       }
-      body={item.visibleOutput ? <OutputBlock text={item.visibleOutput} truncated={item.truncated} /> : undefined}
+      body={
+        item.visibleOutput ? (
+          <>
+            <OutputBlock text={item.visibleOutput} truncated={item.truncated} />
+            {/shell sandbox is unavailable/i.test(item.visibleOutput) ? (
+              <p className="text-xs text-pretty text-muted">
+                Muse runs shell commands inside Bubblewrap. Install it with <code className="font-mono">sudo apt install bubblewrap</code> (in
+                WSL on Windows), then run the command again.
+              </p>
+            ) : null}
+          </>
+        ) : undefined
+      }
     />
   );
 });

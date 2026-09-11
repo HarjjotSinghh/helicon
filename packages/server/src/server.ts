@@ -77,6 +77,15 @@ interface ManagedHost {
 }
 
 /** What the server knows about a session's live run, derived from the MSP view stream. */
+/** A session's goal block, kept so the sidebar can show goals in threads the UI has not opened. */
+export interface GoalBlock {
+  objective: string;
+  status: string;
+  percentComplete: number;
+  currentWork?: string;
+  nextWork?: string;
+}
+
 interface LiveState {
   activeTurnId: string | null;
   turnStartedAt: string | null;
@@ -84,6 +93,7 @@ interface LiveState {
   pendingInputs: Set<string>;
   lastTerminal: string | null;
   lastError: string | null;
+  goal: GoalBlock | null;
 }
 
 export interface LiveView {
@@ -93,6 +103,28 @@ export interface LiveView {
   pendingInputs: number;
   lastTerminal: string | null;
   lastError: string | null;
+  goal: GoalBlock | null;
+}
+
+/** A `session/goalChanged` goal: null clears it; undefined means the block is not a goal (no objective). */
+function goalOf(value: unknown): GoalBlock | null | undefined {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const record = asRecord(value);
+  const objective = record ? str(record["objective"]) : null;
+  if (!record || !objective) {
+    return undefined;
+  }
+  const currentWork = str(record["currentWork"]);
+  const nextWork = str(record["nextWork"]);
+  return {
+    objective,
+    status: str(record["status"]) ?? "active",
+    percentComplete: num(record["percentComplete"]) ?? 0,
+    ...(currentWork ? { currentWork } : {}),
+    ...(nextWork ? { nextWork } : {}),
+  };
 }
 
 type SseSink = (event: string, data: unknown) => void;
@@ -343,6 +375,7 @@ interface EnvView {
   musePath: string | null;
   version: string;
   persistent: boolean;
+  shellSandbox: "ready" | "missing" | null;
 }
 
 export interface SkillView {
@@ -967,6 +1000,7 @@ export class HeliconServer {
       musePath: probe.musePath,
       version: HELICON_VERSION,
       persistent: this.options.dataDir !== ":memory:",
+      shellSandbox: probe.shellSandbox,
     };
     this.envCache = { at: Date.now(), value };
     return value;
@@ -1037,6 +1071,7 @@ export class HeliconServer {
         pendingInputs: new Set(),
         lastTerminal: null,
         lastError: null,
+        goal: null,
       };
       this.live.set(sessionId, state);
     }
@@ -1055,6 +1090,7 @@ export class HeliconServer {
       pendingInputs: state.pendingInputs.size,
       lastTerminal: state.lastTerminal,
       lastError: state.lastError,
+      goal: state.goal,
     };
   }
 
@@ -1398,6 +1434,15 @@ export class HeliconServer {
     }
     live.pendingApprovals = new Set(approvals.map((a) => str(a["approvalId"])).filter((id): id is string => id !== null));
     live.pendingInputs = new Set(userInputs.map((u) => str(u["userInputId"])).filter((id): id is string => id !== null));
+    // The history's last goal change is the goal as of now.
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const event = events[index];
+      const goal = event?.method === "session/goalChanged" ? goalOf(event.params["goal"]) : undefined;
+      if (goal !== undefined) {
+        live.goal = goal;
+        break;
+      }
+    }
     this.emitStatus(sessionId);
 
     if (found) {
@@ -1734,6 +1779,15 @@ export class HeliconServer {
         const modelId = str(params["modelId"]);
         if (modelId) {
           this.store.updateSession(sessionId, { modelId });
+        }
+        break;
+      }
+      case "session/goalChanged": {
+        const goal = goalOf(params["goal"]);
+        // A block with no objective is not a goal; the last one stands.
+        if (goal !== undefined) {
+          live.goal = goal;
+          changed = true;
         }
         break;
       }

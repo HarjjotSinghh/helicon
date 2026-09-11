@@ -13,6 +13,7 @@ import {
   ShieldQuestion,
   Square,
   SquareTerminal,
+  TriangleAlert,
 } from "lucide-react";
 import {
   forwardRef,
@@ -148,6 +149,9 @@ export function Composer(props: ComposerProps) {
   const hasText = text.trim().length > 0;
   const showStop = props.running && Boolean(props.sessionId) && !hasText;
   const shell = !props.readOnly && /^!\s*\S/.test(text);
+  // Muse runs `!` commands inside Bubblewrap on Linux and WSL; without it every one fails.
+  const sandboxMissing = useApp((s) => s.env?.shellSandbox === "missing");
+  const onWindows = useApp((s) => s.env?.platform === "win32");
 
   // The slash menu: which commands match, which row is active, and whether Esc closed it for this word.
   const [caret, setCaret] = useState(0);
@@ -324,7 +328,16 @@ export function Composer(props: ComposerProps) {
       <label htmlFor={id} className="sr-only">
         Message Muse
       </label>
-      {shell ? (
+      {shell && sandboxMissing ? (
+        <div className="flex items-start gap-1.5 px-4 pt-2.5 text-xs text-warn-text">
+          <TriangleAlert size={13} className="mt-px shrink-0" />
+          <span className="text-pretty">
+            Muse runs shell commands inside Bubblewrap, which is not installed. Run{" "}
+            <code className="font-mono">sudo apt install bubblewrap</code>
+            {onWindows ? " in a WSL terminal" : ""}, then try again.
+          </span>
+        </div>
+      ) : shell ? (
         <div className="flex items-center gap-1.5 px-4 pt-2.5 text-xs text-muted">
           <SquareTerminal size={13} className="shrink-0" />
           <span className="truncate">
