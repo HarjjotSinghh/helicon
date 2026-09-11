@@ -96,6 +96,21 @@ describe("HeliconStore", () => {
     assert.equal(store.listProjects()[0]?.cwd, "/work/a");
   });
 
+  it("keeps the order the user dragged projects into", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    store.upsertProject("/work/a");
+    store.upsertProject("/work/b");
+    store.upsertProject("/work/c");
+    store.setProjectOrder(["/work/c", "/work/a", "/work/b"]);
+    assert.deepEqual(
+      store.listProjects().map((p) => p.cwd),
+      ["/work/c", "/work/a", "/work/b"],
+    );
+    store.setPinned("/work/b", true);
+    assert.equal(store.listProjects()[0]?.cwd, "/work/b", "a pinned project still comes first");
+  });
+
   it("pins projects to the top of the sidebar order", () => {
     const store = new HeliconStore();
     after(() => store.close());

@@ -12,6 +12,7 @@ import type {
   TranscriptLoad,
   UserInputAnswer,
 } from "./types.js";
+import { listedPrice } from "./model/pricing.js";
 
 /** An error from the Helicon server, carrying the MSP error kind when there is one. */
 export class HeliconError extends Error {
@@ -67,6 +68,8 @@ export interface HeliconClient {
   revealPath(path: string): Promise<void>;
   hideProject(cwd: string): Promise<void>;
   setPinned(cwd: string, pinned: boolean): Promise<void>;
+  /** The order the user dragged the sidebar's projects into. */
+  setProjectOrder(cwds: string[]): Promise<void>;
   listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]>;
   discover(cwd?: string): Promise<void>;
   startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string }): Promise<SessionSummary>;
@@ -119,7 +122,8 @@ export function parseModelList(value: unknown): ModelOption[] {
       isActive: r["isActive"] === true,
       contextLimit: typeof r["contextLimit"] === "number" ? r["contextLimit"] : null,
       outputLimit: typeof r["outputLimit"] === "number" ? r["outputLimit"] : null,
-      cost: parseCost(r["cost"]),
+      // Muse's catalog carries no prices today, so the published table stands in when it lists none.
+      cost: parseCost(r["cost"]) ?? listedPrice(modelId),
       contributor: /contributor/i.test(modelId) || /product improvement/i.test(description ?? ""),
     });
   }

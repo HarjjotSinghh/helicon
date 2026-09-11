@@ -135,6 +135,7 @@ CREATE INDEX IF NOT EXISTS idx_attachments_session ON attachments(session_id, tu
 /** Columns added after the first release; applied in place so existing databases keep their data. */
 const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: "projects", column: "hidden", ddl: "ALTER TABLE projects ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0" },
+  { table: "projects", column: "position", ddl: "ALTER TABLE projects ADD COLUMN position INTEGER" },
   {
     table: "sessions",
     column: "title_source",
@@ -234,10 +235,17 @@ export class HeliconStore {
       .prepare(
         `SELECT p.*, ${this.projectActivitySql()} AS activity_at
          FROM projects p ${where}
-         ORDER BY p.pinned DESC, activity_at DESC, p.id DESC`,
+         ORDER BY p.pinned DESC, p.position IS NULL, p.position, activity_at DESC, p.id DESC`,
       )
       .all() as Row[];
     return rows.map((row) => this.toProject(row));
+  }
+
+  /** The order the user dragged projects into; anything not listed keeps falling back to recent activity. */
+  setProjectOrder(cwds: string[]): void {
+    const now = nowIso();
+    const update = this.db.prepare(`UPDATE projects SET position = ?, updated_at = ? WHERE cwd = ?`);
+    cwds.forEach((cwd, index) => update.run(index, now, cwd));
   }
 
   setPinned(cwd: string, pinned: boolean): void {

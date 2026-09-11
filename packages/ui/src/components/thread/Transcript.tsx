@@ -1,7 +1,7 @@
 import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
-import { useController, useNow } from "../../app/context.js";
+import { useApp, useController, useNow } from "../../app/context.js";
 import { useSampled } from "../../app/sampled.js";
 import { buildTurns, type LocalEcho, type ThreadFold, type TurnView } from "../../model/fold.js";
 import {
@@ -14,7 +14,8 @@ import {
   parseArgs,
   toolKind,
 } from "../../model/format.js";
-import { streamingSpeed, turnSpeeds, type TurnSpeed } from "../../model/usage.js";
+import { streamingSpeed, turnCosts, turnSpeeds, type TurnCost, type TurnSpeed } from "../../model/usage.js";
+import { formatCost } from "../../model/pricing.js";
 import type { ThreadState } from "../../model/store.js";
 import type { AttachmentView, MspItem, UserInputAnswer } from "../../types.js";
 import { SentAttachments } from "../composer/attachments.js";
@@ -69,6 +70,8 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
   const gates = useMemo(() => gateMap(fold), [fold.approvals, fold.userInputs]);
   const answers = useMemo(() => answerMap(fold), [fold.settled]);
   const speeds = useMemo(() => turnSpeeds(fold), [fold.meta.calls, fold.turns, fold.activeTurnId]);
+  const models = useApp((s) => s.models);
+  const costs = useMemo(() => turnCosts(fold, models), [fold.meta.calls, models]);
   const echoes = fold.echoes.filter((e) => e.disposition !== "queued");
   // Files the server kept for this thread, grouped by the turn they were sent with.
   const attachmentsByTurn = useMemo(() => {
@@ -128,6 +131,7 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
               isLast={index === turns.length - 1}
               readOnly={thread.readOnly}
               speed={turn.turnId ? (speeds[turn.turnId] ?? null) : null}
+              cost={turn.turnId ? (costs[turn.turnId] ?? null) : null}
             />
           ))}
           {echoes.map((echo) => (
@@ -174,6 +178,7 @@ const TurnBlock = memo(
     isLast: boolean;
     readOnly: boolean;
     speed: TurnSpeed | null;
+    cost: TurnCost | null;
   }) {
     const { turn } = props;
     const info = turn.info;
@@ -207,7 +212,7 @@ const TurnBlock = memo(
         {turn.final ? (
           <div className="group/final flex flex-col gap-2">
             <AgentText item={turn.final} />
-            <TurnFooter turn={turn} speed={props.speed} />
+            <TurnFooter turn={turn} speed={props.speed} cost={props.cost} />
           </div>
         ) : null}
         {failed ? (
@@ -441,7 +446,7 @@ function LiveStatus(props: { turn: TurnView; gates: GateMap }) {
 }
 
 /** Under a reply: when it finished, how long it took when there was no work log, and its output speed. */
-function TurnFooter(props: { turn: TurnView; speed: TurnSpeed | null }) {
+function TurnFooter(props: { turn: TurnView; speed: TurnSpeed | null; cost: TurnCost | null }) {
   const duration = turnDuration(props.turn);
   const hasWork = props.turn.entries.length > 0;
   const completed = completedTime(props.turn);
@@ -471,6 +476,19 @@ function TurnFooter(props: { turn: TurnView; speed: TurnSpeed | null }) {
           <Tip label={`${formatTokens(props.speed.outputTokens)} output tokens over ${formatDuration(props.speed.generationMs)} of model calls`}>
             <span tabIndex={0} className="tabular-nums">
               {formatSpeed(props.speed.tokensPerSecond)}
+            </span>
+          </Tip>
+        </>
+      ) : null}
+      {props.cost && props.cost.cost > 0 ? (
+        <>
+          {completed !== null || props.speed || (duration !== null && !hasWork) ? dot : null}
+          <Tip
+            label={`At API rates: ${formatTokens(props.cost.promptTokens)} in (${formatTokens(props.cost.cachedTokens)} cached), ${formatTokens(props.cost.outputTokens)} out${props.cost.complete ? "" : "; a call here has no published price"}`}
+          >
+            <span tabIndex={0} className="tabular-nums">
+              {formatCost(props.cost.cost, props.cost.currency ?? undefined)}
+              {props.cost.complete ? "" : "+"}
             </span>
           </Tip>
         </>

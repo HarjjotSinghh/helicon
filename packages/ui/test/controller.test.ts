@@ -46,6 +46,7 @@ class FakeClient implements HeliconClient {
     attachments?: { name: string; mediaType: string; base64: string }[];
   }[] = [];
   actions: string[] = [];
+  orders: string[][] = [];
   skills: SkillEntry[] = [];
   transcript: () => Promise<TranscriptLoad> = async () => load();
   sendResult: () => Promise<{ turnId: string | null; disposition: string | null }> = async () => ({ turnId: "t9", disposition: "started" });
@@ -106,6 +107,9 @@ class FakeClient implements HeliconClient {
   }
   async setSessionModel() {}
   async setApprovalMode() {}
+  async setProjectOrder(cwds: string[]) {
+    this.orders.push(cwds);
+  }
   compactNoop = false;
   async compact() {
     this.actions.push("compact");
@@ -327,6 +331,28 @@ describe("HeliconController", () => {
     assert.equal(controller.store.get().toasts.at(-1)?.title, "Add the goal after /goal");
     assert.equal(await controller.continueGoal("s1", "Ship the release"), true);
     assert.equal(client.sent.at(-1)?.displayText, "Keep working on the goal");
+    stop();
+  });
+
+  it("reorders projects by drag, and puts them back when the server refuses", async () => {
+    const client = new FakeClient();
+    const project = (cwd: string) => ({ cwd, displayName: cwd.slice(6), pinned: false, activityAt: SESSION.activityAt });
+    client.listProjects = async () => [project("/work/a"), project("/work/b"), project("/work/c")];
+    const { controller, stop } = await started(client);
+    const order = () => controller.store.get().projects.map((p) => p.cwd);
+
+    await controller.reorderProjects("/work/c", "/work/a");
+    assert.deepEqual(order(), ["/work/c", "/work/a", "/work/b"]);
+    assert.deepEqual(client.orders.at(-1), ["/work/c", "/work/a", "/work/b"]);
+
+    await controller.reorderProjects("/work/c", null);
+    assert.deepEqual(order(), ["/work/a", "/work/b", "/work/c"], "dropping past the last row sends it to the end");
+
+    client.setProjectOrder = async () => {
+      throw new Error("nope");
+    };
+    await controller.reorderProjects("/work/c", "/work/a");
+    assert.deepEqual(order(), ["/work/a", "/work/b", "/work/c"], "a refused move snaps back");
     stop();
   });
 

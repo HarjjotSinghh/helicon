@@ -1040,6 +1040,25 @@ export class HeliconController {
     }
   }
 
+  /** Moves a project in the sidebar, taking the new order from the row it was dropped on. */
+  async reorderProjects(cwd: string, beforeCwd: string | null): Promise<void> {
+    const current = this.state.projects;
+    const moving = current.find((p) => p.cwd === cwd);
+    if (!moving || cwd === beforeCwd) {
+      return;
+    }
+    const rest = current.filter((p) => p.cwd !== cwd);
+    const at = beforeCwd === null ? rest.length : rest.findIndex((p) => p.cwd === beforeCwd);
+    const next = [...rest.slice(0, at < 0 ? rest.length : at), moving, ...rest.slice(at < 0 ? rest.length : at)];
+    this.update((s) => ({ ...s, projects: next }));
+    try {
+      await this.client.setProjectOrder(next.map((p) => p.cwd));
+    } catch (error) {
+      this.update((s) => ({ ...s, projects: current }));
+      this.toast("error", "Could not reorder the projects", errorMessage(error));
+    }
+  }
+
   async hideProject(cwd: string): Promise<void> {
     const project = this.state.projects.find((p) => p.cwd === cwd);
     if (!project) {

@@ -28,6 +28,7 @@ import {
   type ReactNode,
 } from "react";
 import { AttachButton, AttachmentTray, readFiles, toOutgoing, toPreview, type PendingFile } from "./attachments.js";
+import { CostMeter } from "./CostPanel.js";
 import { Popover, Slider, Switch } from "radix-ui";
 import { shallowEqual, useApp, useController } from "../../app/context.js";
 import { useSampled } from "../../app/sampled.js";
@@ -417,6 +418,7 @@ export function Composer(props: ComposerProps) {
         <AccessPicker sessionId={props.sessionId} side={props.variant === "home" ? "bottom" : "top"} />
         <span className="min-w-2 flex-1" />
         {props.sessionId ? <SpeedReadout sessionId={props.sessionId} /> : null}
+        {props.sessionId ? <CostMeter sessionId={props.sessionId} /> : null}
         {props.sessionId ? <ContextMeter sessionId={props.sessionId} /> : null}
         {props.running && props.sessionId && hasText ? (
           <Tip label="Stop the turn" shortcut={["Esc"]}>

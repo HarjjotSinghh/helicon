@@ -753,6 +753,17 @@ export class HeliconServer {
       this.json(res, 200, { ok: true });
       return true;
     }
+    if (method === "PATCH" && path === "/api/projects/order") {
+      const body = await this.readBody(req);
+      const raw = body["cwds"];
+      if (!Array.isArray(raw)) {
+        throw new HttpError(400, "cwds is required.");
+      }
+      this.store.setProjectOrder(raw.filter((cwd): cwd is string => typeof cwd === "string" && cwd.trim().length > 0).map(normalizeCwd));
+      this.sessionsChanged();
+      this.json(res, 200, { ok: true });
+      return true;
+    }
     if (method === "PATCH" && path === "/api/projects/pin") {
       const body = await this.readBody(req);
       const cwd = str(body["cwd"]);

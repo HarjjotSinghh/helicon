@@ -99,6 +99,10 @@ export class WebHeliconClient implements HeliconClient {
     await call("PATCH", "/api/projects/pin", { cwd, pinned });
   }
 
+  async setProjectOrder(cwds: string[]): Promise<void> {
+    await call("PATCH", "/api/projects/order", { cwds });
+  }
+
   async listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]> {
     return (await call<{ sessions: SessionSummary[] }>("GET", `/api/sessions${options?.archived ? "?archived=1" : ""}`)).sessions;
   }
