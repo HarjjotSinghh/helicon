@@ -1,6 +1,6 @@
 [package]
 name = "helicon"
-version = "0.1.0"
+version = "0.2.0"
 description = "Helicon: desktop ADE for the Muse Code CLI"
 edition = "2021"
 
@@ -8,7 +8,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["webview-data-url"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
