@@ -282,7 +282,8 @@ function DailyChart(props: { view: UsageView }) {
       <div className="flex h-40 items-end gap-[3px]">
         {view.days.map((day) => (
           <Tip key={day.day} label={`${day.day}: ${formatCost(day.cost, view.currency)}`}>
-            <div tabIndex={0} className="group/bar flex h-full min-w-[6px] flex-1 flex-col justify-end rounded-t-[3px]">
+            {/* A quiet range must not stretch one day across the card, so a bar has a width it will not pass. */}
+            <div tabIndex={0} className="group/bar flex h-full min-w-[6px] max-w-[44px] flex-1 flex-col justify-end rounded-t-[3px]">
               {day.byModel
                 .slice()
                 .sort((a, b) => order.indexOf(a.modelId) - order.indexOf(b.modelId))
