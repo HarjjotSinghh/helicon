@@ -1,6 +1,6 @@
 import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
-import { HeliconServer, type HostHandle } from "../src/server.js";
+import { HeliconServer, mapNotificationToEvent, type HostHandle } from "../src/server.js";
 import type { ServeTarget } from "@helicon/daemon";
 
 interface Call {
@@ -159,5 +159,33 @@ describe("HeliconServer", () => {
     };
     const cwds = projects.projects.map((p) => p.cwd);
     assert.ok(cwds.includes("D:\\work\\proj"));
+  });
+
+  it("maps nested item notifications to stream events", () => {
+    const started = mapNotificationToEvent("item/started", {
+      sessionId: "s1",
+      item: { itemId: "i1", kind: "message", text: "" },
+    });
+    assert.equal(started?.type, "delta");
+    assert.equal(started?.itemId, "i1");
+
+    const completed = mapNotificationToEvent("item/completed", {
+      sessionId: "s1",
+      item: { itemId: "i1", kind: "message", text: "hello" },
+    });
+    assert.equal(completed?.type, "item-final");
+    assert.equal(completed?.itemId, "i1");
+    assert.equal(completed?.text, "hello");
+
+    const flat = mapNotificationToEvent("item/delta", {
+      sessionId: "s1",
+      itemId: "i2",
+      kind: "message",
+      text: "world",
+    });
+    assert.equal(flat?.type, "delta");
+    assert.equal(flat?.text, "world");
+
+    assert.equal(mapNotificationToEvent("session/todoListChanged", { sessionId: "s1" }), null);
   });
 });

@@ -16,4 +16,13 @@ describe("transcript fold", () => {
     assert.equal(items[0]?.status, "final");
     assert.equal(items[1]?.status, "running");
   });
+
+  it("keeps streamed text when the final arrives empty", () => {
+    let state = emptyFold();
+    state = applyDelta(state, "i1", "message", "Hello world");
+    state = applyFinal(state, "i1", "message", "");
+    const items = orderedItems(state);
+    assert.equal(items[0]?.text, "Hello world");
+    assert.equal(items[0]?.status, "final");
+  });
 });

@@ -655,48 +655,12 @@ export class HeliconServer {
   private forward(notification: { method: string; params?: unknown }): void {
     const params = asRecord(notification.params) ?? {};
     const sessionId = str(params["sessionId"]);
+    const mapped = mapNotificationToEvent(notification.method, params);
+    if (mapped) {
+      this.emit("helicon", mapped);
+      return;
+    }
     switch (notification.method) {
-      case "item/delta": {
-        const itemId = str(params["itemId"]) ?? "";
-        const text = str(params["text"]) ?? str(params["delta"]) ?? "";
-        this.emit("helicon", {
-          type: "delta",
-          sessionId,
-          itemId,
-          kind: str(params["kind"]) ?? "message",
-          text,
-        });
-        break;
-      }
-      case "item/started": {
-        this.emit("helicon", {
-          type: "delta",
-          sessionId,
-          itemId: str(params["itemId"]) ?? "",
-          kind: str(params["kind"]) ?? "message",
-          text: "",
-        });
-        break;
-      }
-      case "item/completed": {
-        this.emit("helicon", {
-          type: "item-final",
-          sessionId,
-          itemId: str(params["itemId"]) ?? "",
-          kind: str(params["kind"]) ?? "message",
-          text: str(params["text"]) ?? "",
-        });
-        break;
-      }
-      case "turn/completed": {
-        this.emit("helicon", {
-          type: "turn-terminal",
-          sessionId,
-          turnId: str(params["turnId"]) ?? "",
-          terminal: str(params["terminal"]) ?? "completed",
-        });
-        break;
-      }
       case "approval/requested": {
         const view = this.toApprovalView(sessionId ?? "", params);
         if (view) {
@@ -777,6 +741,89 @@ export class HeliconServer {
       };
     });
     return { userInputId, sessionId, questions };
+  }
+}
+
+export interface HeliconWireEvent {
+  type: "delta" | "item-final" | "turn-terminal" | "approval" | "approval-resolved" | "user-input";
+  sessionId?: string | null;
+  itemId?: string;
+  kind?: string;
+  text?: string;
+  turnId?: string;
+  terminal?: string;
+  approval?: Record<string, unknown>;
+  approvalId?: string;
+  prompt?: Record<string, unknown>;
+}
+
+function itemIdentity(item: Record<string, unknown>): { itemId: string; kind: string; text: string } {
+  return {
+    itemId: firstString(item, ["itemId", "id"]) ?? "",
+    kind: firstString(item, ["kind", "type"]) ?? "message",
+    text: firstString(item, ["text", "content"]) ?? "",
+  };
+}
+
+export function mapNotificationToEvent(
+  method: string,
+  params: Record<string, unknown>,
+): HeliconWireEvent | null {
+  const sessionId = str(params["sessionId"]);
+  switch (method) {
+    case "item/delta":
+    case "item/updated": {
+      const nested = asRecord(params["item"]);
+      if (nested) {
+        const identity = itemIdentity(nested);
+        return {
+          type: "delta",
+          sessionId,
+          itemId: identity.itemId || str(params["itemId"]) || undefined,
+          kind: identity.kind,
+          text: identity.text || str(params["text"]) || str(params["delta"]) || undefined,
+        };
+      }
+      return {
+        type: "delta",
+        sessionId,
+        itemId: str(params["itemId"]) ?? "",
+        kind: str(params["kind"]) ?? "message",
+        text: str(params["text"]) ?? str(params["delta"]) ?? "",
+      };
+    }
+    case "item/started": {
+      const nested = asRecord(params["item"]);
+      const identity = nested ? itemIdentity(nested) : { itemId: "", kind: "message", text: "" };
+      return {
+        type: "delta",
+        sessionId,
+        itemId: identity.itemId || str(params["itemId"]) || undefined,
+        kind: identity.kind || str(params["kind"]) || undefined,
+        text: identity.text || undefined,
+      };
+    }
+    case "item/completed": {
+      const nested = asRecord(params["item"]);
+      const identity = nested ? itemIdentity(nested) : { itemId: "", kind: "message", text: "" };
+      return {
+        type: "item-final",
+        sessionId,
+        itemId: identity.itemId || str(params["itemId"]) || undefined,
+        kind: identity.kind || str(params["kind"]) || undefined,
+        text: identity.text || str(params["text"]) || undefined,
+      };
+    }
+    case "turn/completed": {
+      return {
+        type: "turn-terminal",
+        sessionId,
+        turnId: str(params["turnId"]) ?? "",
+        terminal: str(params["terminal"]) ?? "completed",
+      };
+    }
+    default:
+      return null;
   }
 }
 

@@ -31,9 +31,11 @@ export function applyFinal(
   kind: string,
   text: string,
 ): FoldState {
+  const existing = state.items.get(itemId);
+  const finalText = text.length > 0 ? text : (existing?.text ?? "");
   const items = new Map(state.items);
-  items.set(itemId, { itemId, kind, text, status: "final" });
-  const order = state.items.has(itemId) ? state.order : [...state.order, itemId];
+  items.set(itemId, { itemId, kind, text: finalText, status: "final" });
+  const order = existing ? state.order : [...state.order, itemId];
   return { items, order };
 }
 
