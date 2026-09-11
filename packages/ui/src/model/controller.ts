@@ -158,6 +158,8 @@ function nextLocalId(): string {
 /** What a prompt carries beyond its text: files for the model, and their local previews for the echo. */
 interface TurnDelivery {
   steer?: boolean;
+  /** Queue behind whatever is running even if this client has not seen the turn start yet. */
+  queue?: boolean;
   displayText?: string;
   attachments?: OutgoingAttachment[];
   previews?: EchoAttachment[];
@@ -683,7 +685,8 @@ export class HeliconController {
       this.toast("info", "This thread is read-only here", thread.readOnlyReason ?? "Another Muse session has it open.");
       return false;
     }
-    const running = thread.fold.activeTurnId !== null;
+    // A caller that knows a turn is starting elsewhere can say so, before its `turn/started` reaches us.
+    const running = thread.fold.activeTurnId !== null || options.queue === true;
     const echo: LocalEcho = {
       localId: nextLocalId(),
       // The echo shows what the transcript will, so it matches the prompt item when that arrives.
@@ -774,7 +777,7 @@ export class HeliconController {
     });
   }
 
-  async retryTurn(sessionId: string, prompt: string): Promise<void> {
+  async retryTurn(sessionId: string, prompt: string, options: { queue?: boolean } = {}): Promise<void> {
     // A turn started by `/plan …` or `/init` shows the command, so retrying runs the command again.
     const parsed = parseSlash(prompt);
     const cwd = this.state.sessions[sessionId]?.cwd ?? null;
@@ -783,11 +786,11 @@ export class HeliconController {
       await this.loadSkills(cwd);
       const skills = this.state.skills[cwd]?.skills ?? [];
       if (resolveSlash(parsed, slashCommands(skills, { inThread: true }), skills).kind !== "unknown") {
-        await this.send(prompt);
+        await this.send(prompt, { queue: options.queue });
         return;
       }
     }
-    await this.sendToThread(sessionId, prompt, {}, false);
+    await this.sendToThread(sessionId, prompt, { queue: options.queue }, false);
   }
 
   // ---------------------------------------------------------------- approvals and questions
@@ -1435,17 +1438,20 @@ export class HeliconController {
     }
   }
 
-  async compact(sessionId: string): Promise<void> {
+  /** True only when Muse took the compaction on: a refusal or a noop leaves the history exactly as it was. */
+  async compact(sessionId: string): Promise<boolean> {
     try {
       const result = await this.client.compact(sessionId);
       if (result.noop) {
         const reason = result.reason === "no_compactable_history" ? "There is no earlier history to summarize." : result.reason;
         this.toast("info", "Nothing to compact yet", reason ? `${reason.charAt(0).toUpperCase()}${reason.slice(1).replace(/_/g, " ")}` : undefined);
-        return;
+        return false;
       }
       this.toast("info", "Compacting context", "Muse will summarize earlier turns to free up the context window.");
+      return true;
     } catch (error) {
       this.toast("error", "Could not compact the context", errorMessage(error));
+      return false;
     }
   }
 
@@ -1454,10 +1460,12 @@ export class HeliconController {
    * behind, then send the prompt again. The retry queues behind the compaction Muse runs as its own turn.
    */
   async compactAndRetry(sessionId: string, prompt: string | null): Promise<void> {
-    await this.compact(sessionId);
-    if (prompt) {
-      await this.retryTurn(sessionId, prompt);
+    // Only a compaction Muse took on changes the history: after a refusal or a noop, the prompt would fail
+    // exactly as before. The retry queues behind the compaction turn, which may not have reached us yet.
+    if (!(await this.compact(sessionId)) || !prompt) {
+      return;
     }
+    await this.retryTurn(sessionId, prompt, { queue: true });
   }
 
   async openFolder(cwd: string, target: "files" | "editor"): Promise<void> {

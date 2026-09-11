@@ -372,10 +372,23 @@ describe("HeliconController", () => {
     await controller.compactAndRetry("s1", "try that again");
     assert.ok(client.actions.includes("compact"), "the history is summarized first");
     assert.equal(client.sent.at(-1)?.text, "try that again");
+    assert.equal(client.sent.at(-1)?.ifBusy, "queue", "the retry waits behind the compaction turn");
 
-    const before = client.sent.length;
+    let before = client.sent.length;
     await controller.compactAndRetry("s1", null);
     assert.equal(client.sent.length, before, "with no prompt to resend, it only compacts");
+
+    // A compaction Muse refused leaves the history exactly as it was, so resending would fail the same way.
+    before = client.sent.length;
+    client.compactNoop = true;
+    await controller.compactAndRetry("s1", "try that again");
+    assert.equal(client.sent.length, before, "nothing is resent after a noop compaction");
+    client.compactNoop = false;
+    client.compact = async () => {
+      throw new Error("no");
+    };
+    await controller.compactAndRetry("s1", "try that again");
+    assert.equal(client.sent.length, before, "nor after one that failed");
     stop();
   });
 

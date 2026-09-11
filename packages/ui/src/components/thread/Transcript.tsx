@@ -240,6 +240,7 @@ const TurnBlock = memo(
             prompt={props.isLast && !props.readOnly ? (turn.prompt?.displayText ?? turn.prompt?.text ?? null) : null}
             sessionId={props.sessionId}
             turnId={turn.turnId}
+            readOnly={props.readOnly}
           />
         ) : null}
         {cancelled ? (
@@ -608,7 +609,14 @@ function PendingPrompt(props: { echo: LocalEcho }) {
   );
 }
 
-function TurnError(props: { message: string; retryable: boolean; prompt: string | null; sessionId: string; turnId: string | null }) {
+function TurnError(props: {
+  message: string;
+  retryable: boolean;
+  prompt: string | null;
+  sessionId: string;
+  turnId: string | null;
+  readOnly: boolean;
+}) {
   const controller = useController();
   // Some failures are about the thread, not the turn: retrying sends the same history and fails the same way.
   const stuck = stuckThread(props.message);
@@ -620,7 +628,7 @@ function TurnError(props: { message: string; retryable: boolean; prompt: string 
         <p className="mt-0.5 text-sm break-words text-muted">{stuck ? stuck.message : props.message}</p>
         {stuck ? <p className="mt-1 text-2xs break-words text-subtle">{props.message}</p> : null}
       </div>
-      {stuck ? (
+      {stuck && !props.readOnly ? (
         <Tip label="Summarize the history, leave behind what cannot be sent, and carry on">
           <Button
             size="sm"
