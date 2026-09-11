@@ -334,6 +334,26 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("clears a failed turn's notice when the user retries it", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.handler?.({
+      type: "msp",
+      sessionId: "s1",
+      method: "turn/completed",
+      params: { sessionId: "s1", turnId: "t7", terminal: "failed", error: { kind: "rateLimit", message: "quota", retryable: true } },
+      at: 5,
+    });
+    await settle();
+    assert.equal(controller.store.get().threads["s1"]?.fold.turns["t7"]?.error?.message, "quota");
+
+    controller.dismissTurnError("s1", "t7");
+    const info = controller.store.get().threads["s1"]?.fold.turns["t7"];
+    assert.equal(info?.error, undefined);
+    assert.equal(info?.dismissed, true);
+    stop();
+  });
+
   it("reorders projects by drag, and puts them back when the server refuses", async () => {
     const client = new FakeClient();
     const project = (cwd: string) => ({ cwd, displayName: cwd.slice(6), pinned: false, activityAt: SESSION.activityAt });

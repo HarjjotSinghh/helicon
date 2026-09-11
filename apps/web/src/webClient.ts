@@ -26,16 +26,29 @@ function withToken(path: string): string {
   return `${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
 }
 
+/** Long enough for a slow local call, short enough that a wedged one never leaves the UI waiting forever. */
+const CALL_TIMEOUT_MS = 60_000;
+
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   let response: Response;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), CALL_TIMEOUT_MS);
   try {
     response = await fetch(withToken(path), {
       method,
       headers: body === undefined ? undefined : { "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: abort.signal,
     });
   } catch {
-    throw new HeliconError("The local Helicon server is not reachable. Is it still running?", 0);
+    throw new HeliconError(
+      abort.signal.aborted
+        ? "The local Helicon server took too long to answer."
+        : "The local Helicon server is not reachable. Is it still running?",
+      0,
+    );
+  } finally {
+    clearTimeout(timer);
   }
   const text = await response.text();
   let data: unknown = null;

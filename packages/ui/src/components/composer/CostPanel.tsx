@@ -85,11 +85,17 @@ function CostPanel(props: { sessionId: string }) {
       {usage.models.length > 0 ? (
         <div className="flex flex-col gap-1.5 border-t border-line pt-3">
           {usage.models.map((model) => {
-            const price = rate(model.modelId);
+            const option = prices.find((m) => m.modelId === model.modelId);
+            const price = option?.cost ?? rate(model.modelId);
             return (
               <div key={model.modelId} className="flex items-baseline justify-between gap-3 text-xs">
                 <div className="min-w-0">
-                  <p className="truncate text-fg">{modelDisplayName(model.modelId)}</p>
+                  <p className="truncate text-fg">
+                    {modelDisplayName(model.modelId)}
+                    {option?.contributor || /contributor/i.test(model.modelId) ? (
+                      <span className="ml-1.5 rounded bg-active px-1 py-px align-middle text-2xs font-medium text-muted">contributor</span>
+                    ) : null}
+                  </p>
                   <p className="text-2xs text-subtle tabular-nums">
                     {price
                       ? `${formatCost(price.input, currency)}/M in · ${formatCost(price.cached, currency)}/M cached · ${formatCost(price.output, currency)}/M out`

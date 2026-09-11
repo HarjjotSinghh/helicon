@@ -737,6 +737,21 @@ export class HeliconController {
     }
   }
 
+  /** Clears a failed turn's notice, for when the user has acted on it and it is only taking up room. */
+  dismissTurnError(sessionId: string, turnId: string | null): void {
+    if (!turnId) {
+      return;
+    }
+    this.patchFold(sessionId, (f) => {
+      const info = f.turns[turnId];
+      if (!info?.error) {
+        return f;
+      }
+      const { error: _error, ...rest } = info;
+      return { ...f, turns: { ...f.turns, [turnId]: { ...rest, dismissed: true } } };
+    });
+  }
+
   async retryTurn(sessionId: string, prompt: string): Promise<void> {
     // A turn started by `/plan …` or `/init` shows the command, so retrying runs the command again.
     const parsed = parseSlash(prompt);

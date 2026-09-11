@@ -182,7 +182,7 @@ const TurnBlock = memo(
   }) {
     const { turn } = props;
     const info = turn.info;
-    const failed = info?.terminal === "failed";
+    const failed = info?.terminal === "failed" && !info.dismissed;
     const cancelled = info?.terminal === "cancelled";
     const hasWork = turn.entries.length > 0;
     // Items outside any turn are the user's own `!` commands: shown as they are, never folded into a work log.
@@ -221,6 +221,7 @@ const TurnBlock = memo(
             retryable={info?.error?.retryable ?? true}
             prompt={props.isLast && !props.readOnly ? (turn.prompt?.displayText ?? turn.prompt?.text ?? null) : null}
             sessionId={props.sessionId}
+            turnId={turn.turnId}
           />
         ) : null}
         {cancelled ? (
@@ -557,7 +558,7 @@ function PendingPrompt(props: { echo: LocalEcho }) {
   );
 }
 
-function TurnError(props: { message: string; retryable: boolean; prompt: string | null; sessionId: string }) {
+function TurnError(props: { message: string; retryable: boolean; prompt: string | null; sessionId: string; turnId: string | null }) {
   const controller = useController();
   return (
     <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-3.5 py-3" role="alert">
@@ -568,7 +569,15 @@ function TurnError(props: { message: string; retryable: boolean; prompt: string 
       </div>
       {props.prompt && props.retryable ? (
         <Tip label="Send the same prompt again">
-          <Button size="sm" variant="secondary" onClick={() => void controller.retryTurn(props.sessionId, props.prompt as string)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              // The notice has been acted on; leaving it up only takes room from the answer.
+              controller.dismissTurnError(props.sessionId, props.turnId);
+              void controller.retryTurn(props.sessionId, props.prompt as string);
+            }}
+          >
             <RotateCcw size={13} /> Retry
           </Button>
         </Tip>

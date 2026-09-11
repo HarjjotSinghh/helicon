@@ -18,6 +18,28 @@ function foldAll(events: ViewEvent[]) {
 }
 
 describe("thread fold against a real muse transcript", () => {
+  it("drops a prompt's local copy once its turn ends, landed or not", () => {
+    const sending = addEcho(emptyFold(), { localId: "e1", text: "hello", turnId: null, disposition: "sending", createdAt: 1 });
+    const started = updateEcho(sending, "e1", { turnId: "t1", disposition: "started" });
+    assert.equal(started.echoes.length, 1);
+
+    // The turn died before Muse committed the prompt, so nothing in the transcript matches the echo.
+    const failed = applyEvent(started, {
+      method: "turn/completed",
+      params: { sessionId: "s1", turnId: "t1", terminal: "failed", error: { kind: "rateLimit", message: "quota", retryable: true } },
+      at: 2,
+    });
+    assert.equal(failed.echoes.length, 0, "a failed turn takes its pending bubble with it");
+
+    const quiet = applyEvent(updateEcho(sending, "e1", { turnId: "t2", disposition: "started" }), {
+      method: "turn/completed",
+      params: { sessionId: "s1", turnId: "t2", terminal: "completed" },
+      at: 3,
+    });
+    assert.equal(quiet.echoes.length, 0, "a turn that committed no prompt item leaves no ghost either");
+  });
+
+
   it("folds the live stream into three finished turns", () => {
     const fold = liveEvents.reduce(applyEvent, emptyFold());
     const turns = buildTurns(fold);
