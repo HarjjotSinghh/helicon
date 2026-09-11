@@ -1,0 +1,93 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import {
+  decodeCliOutput,
+  defaultDistro,
+  parseWslList,
+  planServe,
+  probeEnvironment,
+  resolveMuseInDistro,
+  toWindowsPath,
+  toWslPath,
+  type ExecFn,
+} from "../src/wsl.js";
+
+const SAMPLE_WSL_LIST = `  NAME                   STATE           VERSION
+* Ubuntu                 Running         2
+  docker-desktop         Stopped         2
+`;
+
+describe("wsl paths", () => {
+  it("translates Windows and WSL paths both ways", () => {
+    assert.equal(toWslPath("D:\\work\\helicon"), "/mnt/d/work/helicon");
+    assert.equal(toWslPath("C:/proj"), "/mnt/c/proj");
+    assert.equal(toWindowsPath("/mnt/d/work/helicon"), "D:\\work\\helicon");
+    assert.throws(() => toWslPath("relative/path"), /absolute Windows path/);
+    assert.throws(() => toWindowsPath("/home/harjot"), /\/mnt\/<drive>/);
+  });
+
+  it("decodes UTF-16 WSL output", () => {
+    const utf16 = Buffer.from(SAMPLE_WSL_LIST, "utf16le");
+    const withBom = Buffer.concat([Buffer.from([0xff, 0xfe]), utf16]);
+    const distros = parseWslList(decodeCliOutput(withBom));
+    assert.equal(distros.length, 2);
+    assert.equal(distros[0]?.name, "Ubuntu");
+    assert.equal(distros[0]?.isDefault, true);
+    assert.equal(defaultDistro(distros)?.name, "Ubuntu");
+  });
+});
+
+describe("serve planning", () => {
+  it("routes Windows through WSL with a resolved binary when known", () => {
+    const direct = planServe({
+      platform: "win32",
+      distro: "Ubuntu",
+      musePath: "/home/harjot/.local/bin/muse",
+      cwd: "D:\\work\\helicon",
+    });
+    assert.deepEqual(direct, {
+      command: "wsl",
+      args: ["-d", "Ubuntu", "--", "/home/harjot/.local/bin/muse", "serve"],
+      cwd: "D:\\work\\helicon",
+      viaWsl: true,
+      distro: "Ubuntu",
+    });
+    const loginShell = planServe({ platform: "win32", cwd: "D:\\work\\helicon" });
+    assert.deepEqual(loginShell.args, ["-d", "Ubuntu", "--", "sh", "-lc", "muse serve"]);
+  });
+
+  it("runs natively off Windows", () => {
+    const native = planServe({ platform: "linux", cwd: "/work/proj" });
+    assert.deepEqual(native, {
+      command: "muse",
+      args: ["serve"],
+      cwd: "/work/proj",
+      viaWsl: false,
+      distro: null,
+    });
+  });
+});
+
+describe("environment probe", () => {
+  it("finds muse inside the default distro", async () => {
+    const exec: ExecFn = async (command, args) => {
+      if (command === "wsl" && args[0] === "-l") {
+        return { stdout: SAMPLE_WSL_LIST, exitCode: 0 };
+      }
+      assert.deepEqual(args.slice(0, 3), ["-d", "Ubuntu", "--"]);
+      return { stdout: "/home/harjot/.local/bin/muse\n", exitCode: 0 };
+    };
+    const probe = await probeEnvironment(exec, "win32");
+    assert.equal(probe.wslAvailable, true);
+    assert.equal(probe.defaultDistro, "Ubuntu");
+    assert.equal(probe.musePath, "/home/harjot/.local/bin/muse");
+    assert.equal(await resolveMuseInDistro(exec, "Ubuntu"), "/home/harjot/.local/bin/muse");
+  });
+
+  it("reports missing WSL cleanly", async () => {
+    const exec: ExecFn = async () => ({ stdout: "", exitCode: 1 });
+    const probe = await probeEnvironment(exec, "win32");
+    assert.equal(probe.wslAvailable, false);
+    assert.equal(probe.musePath, null);
+  });
+});
