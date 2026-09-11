@@ -53,10 +53,13 @@ export function stuckThread(
     return null;
   }
   if (found.kind === "image" && options.ownImages) {
+    // Every request carries the whole thread, so a current image does not prove which one the model choked
+    // on. Say both, and leave the thread's own repair available rather than pretending to know.
     return {
       kind: "image",
       remedy: "none",
-      message: "The model could not read the image sent with this message. Send it again as a PNG or JPEG, or without it.",
+      message:
+        "The model could not read one of this thread's images. Most likely the one sent with this message: try it again as a PNG or JPEG. If it opens fine elsewhere, an older image in the thread is the unreadable one, and compacting leaves that behind.",
     };
   }
   return { kind: found.kind, remedy: found.remedy, message: found.message };

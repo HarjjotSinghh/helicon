@@ -28,6 +28,7 @@ describe("stuck threads", () => {
     assert.equal(own?.kind, "image");
     assert.equal(own?.remedy, "none", "compacting would drop the file and retry the prompt without it");
     assert.match(own?.message ?? "", /sent with this message/);
+    assert.match(own?.message ?? "", /older image/, "an older one may be the real culprit, so say so");
     assert.equal(stuckThread(message, { ownImages: false })?.remedy, "compact");
     assert.equal(stuckThread(message)?.remedy, "compact", "a turn with only a PDF cannot have caused this");
   });

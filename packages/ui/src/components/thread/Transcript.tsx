@@ -664,6 +664,20 @@ function TurnError(props: {
             )}
           </Button>
         </Tip>
+      ) : stuck && stuck.remedy === "none" && !props.readOnly ? (
+        <Tip label="If the image you sent opens fine elsewhere, an older one in this thread is the unreadable one">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              // No retry here: the prompt would go back without its image, quietly asking something else.
+              controller.dismissTurnError(props.sessionId, props.turnId);
+              void controller.compactAndRetry(props.sessionId, null);
+            }}
+          >
+            <RotateCcw size={13} /> Compact the thread
+          </Button>
+        </Tip>
       ) : props.prompt && props.retryable ? (
         <Tip label="Send the same prompt again">
           <Button

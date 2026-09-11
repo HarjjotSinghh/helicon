@@ -778,7 +778,8 @@ export class HeliconController {
     });
   }
 
-  async retryTurn(sessionId: string, prompt: string, options: { queue?: boolean } = {}): Promise<void> {
+  /** True when the prompt actually went; a caller can then tell whether to hand the text back to the user. */
+  async retryTurn(sessionId: string, prompt: string, options: { queue?: boolean } = {}): Promise<boolean> {
     // A turn started by `/plan …` or `/init` shows the command, so retrying runs the command again.
     const parsed = parseSlash(prompt);
     const cwd = this.state.sessions[sessionId]?.cwd ?? null;
@@ -787,11 +788,10 @@ export class HeliconController {
       await this.loadSkills(cwd);
       const skills = this.state.skills[cwd]?.skills ?? [];
       if (resolveSlash(parsed, slashCommands(skills, { inThread: true }), skills).kind !== "unknown") {
-        await this.send(prompt, { queue: options.queue });
-        return;
+        return this.send(prompt, { queue: options.queue });
       }
     }
-    await this.sendToThread(sessionId, prompt, { queue: options.queue }, false);
+    return this.sendToThread(sessionId, prompt, { queue: options.queue }, false);
   }
 
   // ---------------------------------------------------------------- approvals and questions
@@ -1476,10 +1476,8 @@ export class HeliconController {
     }
     // Through the retry path, so a prompt entered as `/goal …` or a skill is expanded again rather than
     // reaching the model as the literal command the transcript showed.
-    return this.startThread(cwd, prompt, async (fresh) => {
-      await this.retryTurn(fresh, prompt);
-      return true;
-    });
+    // The real result, so a prompt that did not go comes back to the composer instead of being lost.
+    return this.startThread(cwd, prompt, (fresh) => this.retryTurn(fresh, prompt));
   }
 
   async compactAndRetry(sessionId: string, prompt: string | null): Promise<void> {
