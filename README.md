@@ -62,8 +62,22 @@ npm run build --workspace @helicon/web
 
 # Web app (serves the built UI plus the API on :3127)
 npm run serve --workspace @helicon/web
-# open http://127.0.0.1:3127, add a folder, start a session
+# open http://127.0.0.1:3127, add a folder, start a thread
 ```
+
+Projects, pins, thread titles and archive state persist in `~/.helicon/helicon.db` (pass `--data-dir` to the server to move it, or `:memory:` for a throwaway run). Threads you started from the `muse` terminal are discovered automatically and appear under their project.
+
+UI development with hot reload:
+
+```bash
+# terminal 1: the API against your real muse
+node packages/server/dist/src/cli.js --port 3127
+# terminal 2: Vite compiles packages/ui straight from source
+npm run dev --workspace @helicon/web
+# open http://127.0.0.1:5173
+```
+
+The interface itself lives in `packages/ui` (state model in `src/model`, components in `src/components`); design tokens and the visual system are documented in [docs/DESIGN.md](docs/DESIGN.md).
 
 ```bash
 # Desktop app (dev shell; needs the Tauri prereqs on your OS)
