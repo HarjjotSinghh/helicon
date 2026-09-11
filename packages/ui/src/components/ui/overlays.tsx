@@ -85,7 +85,11 @@ export function MenuItem(props: {
       onSelect={props.onSelect}
       className={cn(ITEM, props.tone === "danger" && "text-danger-text")}
     >
-      {props.icon ? <span className="flex size-4 shrink-0 items-center justify-center text-muted">{props.icon}</span> : null}
+      {props.icon ? (
+        <span className={cn("flex size-4 shrink-0 items-center justify-center", props.tone === "danger" ? "text-danger-text" : "text-muted")}>
+          {props.icon}
+        </span>
+      ) : null}
       <span className="min-w-0 flex-1 truncate">{props.children}</span>
       {props.hint ? <span className="shrink-0 text-xs text-subtle">{props.hint}</span> : null}
     </DropdownMenu.Item>

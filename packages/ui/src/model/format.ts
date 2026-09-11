@@ -53,6 +53,42 @@ export function formatDuration(ms: number | null | undefined): string {
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 }
 
+/** A short wall-clock time: `3:42 PM` today, `Sep 10, 3:42 PM` on another day, with the year once it differs. */
+export function formatClock(ms: number, now = Date.now()): string {
+  const date = new Date(ms);
+  const today = new Date(now);
+  const time = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (date.toDateString() === today.toDateString()) {
+    return time;
+  }
+  const sameYear = date.getFullYear() === today.getFullYear();
+  const day = date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
+  return `${day}, ${time}`;
+}
+
+/** The full date and time, for tooltips behind a short clock time. */
+export function formatFullDate(ms: number): string {
+  return new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "medium" });
+}
+
+/** Output speed: `42 tok/s`, with one decimal below ten. */
+export function formatSpeed(tokensPerSecond: number): string {
+  return `${tokensPerSecond < 10 ? tokensPerSecond.toFixed(1) : Math.round(tokensPerSecond)} tok/s`;
+}
+
+/** A running timer as T3 Code shows it: `42s`, then `7m`, then `1h 7m`. */
+export function formatElapsed(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
 export function formatTokens(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return "0";

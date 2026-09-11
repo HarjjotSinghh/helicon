@@ -3,6 +3,7 @@ import {
   parseModelList,
   type ApprovalDecisionInput,
   type ApprovalMode,
+  type DirectoryListing,
   type EnvironmentStatus,
   type EventHandler,
   type HeliconClient,
@@ -68,9 +69,25 @@ export class WebHeliconClient implements HeliconClient {
     return (await call<{ projects: ProjectView[] }>("GET", "/api/projects")).projects;
   }
 
-  async addProject(cwd: string): Promise<{ cwd: string; warning: string | null }> {
-    const result = await call<{ project: { cwd: string }; warning: string | null }>("POST", "/api/projects", { cwd });
+  async addProject(cwd: string, options?: { create?: boolean }): Promise<{ cwd: string; warning: string | null }> {
+    const result = await call<{ project: { cwd: string }; warning: string | null }>("POST", "/api/projects", {
+      cwd,
+      create: options?.create === true,
+    });
     return { cwd: result.project.cwd, warning: result.warning };
+  }
+
+  async cloneProject(url: string, path: string): Promise<{ cwd: string; warning: string | null }> {
+    const result = await call<{ project: { cwd: string }; warning: string | null }>("POST", "/api/projects/clone", { url, path });
+    return { cwd: result.project.cwd, warning: result.warning };
+  }
+
+  listDirectory(path: string): Promise<DirectoryListing> {
+    return call<DirectoryListing>("GET", `/api/fs/list?path=${enc(path)}`);
+  }
+
+  async revealPath(path: string): Promise<void> {
+    await call("POST", "/api/fs/reveal", { path });
   }
 
   async hideProject(cwd: string): Promise<void> {

@@ -42,6 +42,11 @@ export interface SessionSummary {
   archived: boolean;
   createdAt: string;
   activityAt: string;
+  /** Shelved out of the active list, by hand or after days without activity. */
+  settled: boolean;
+  settledAt: string | null;
+  /** When it was last brought back from the shelf; keeps its place in the active list. */
+  unsettledAt: string | null;
   live: LiveView | null;
 }
 
@@ -50,6 +55,8 @@ export interface TokenUsage {
   outputTokens?: number;
   reasoningTokens?: number;
   cachedTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
 }
 
 export interface WorkflowChild {
@@ -213,8 +220,21 @@ export interface ModelOption {
   isDefault: boolean;
   isActive: boolean;
   contextLimit: number | null;
+  outputLimit: number | null;
+  /** Catalog price per million tokens; null when the catalog lists none. */
+  cost: { input: number; output: number; cached: number; currency: string | null } | null;
   /** Contributor-tier models may use prompts and outputs for product improvement. */
   contributor: boolean;
+}
+
+/** The subfolders of one folder, for the add-project picker. */
+export interface DirectoryListing {
+  /** The folder listed, as an absolute path in the user's style (`~` expanded). */
+  directory: string;
+  parent: string | null;
+  separator: "/" | "\\";
+  exists: boolean;
+  entries: { name: string }[];
 }
 
 /** A view notification, live or paged from history. `at` is the emission time when known. */
@@ -233,6 +253,8 @@ export interface TranscriptLoad {
     approvalMode: string | null;
     workspaceRoot: string | null;
     turnCount: number;
+    contextUsage?: ContextUsage | null;
+    tokenUsage?: TokenTotals | null;
   } | null;
   events: ViewEvent[];
   truncated: boolean;

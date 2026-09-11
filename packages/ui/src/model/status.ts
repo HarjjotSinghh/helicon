@@ -18,7 +18,7 @@ export const STATUS_LABEL: Record<ThreadStatus, string> = {
   input: "Needs your answer",
   running: "Working",
   failed: "Failed",
-  unread: "Ready for review",
+  unread: "Done, not seen yet",
   idle: "Idle",
 };
 
@@ -68,28 +68,35 @@ export interface SidebarEntry {
   status: ThreadStatus;
 }
 
+/** Settled threads leave the active list, unless they are busy again before the server has caught up. */
+export function isSettled(entry: SidebarEntry): boolean {
+  return entry.session.settled && !isLive(entry.status);
+}
+
+/**
+ * Active threads keep a stable order, newest first by when they started or were brought back.
+ * Activity never reshuffles them, as in T3 Code; settling and auto-settle keep the list short.
+ */
+function activeOrder(a: SidebarEntry, b: SidebarEntry): number {
+  const keyA = later(a.session.unsettledAt, a.session.createdAt);
+  const keyB = later(b.session.unsettledAt, b.session.createdAt);
+  return keyA < keyB ? 1 : keyA > keyB ? -1 : 0;
+}
+
+/** Settled threads, most recently settled first. */
+function settledOrder(a: SidebarEntry, b: SidebarEntry): number {
+  const keyA = a.session.settledAt ?? a.session.activityAt;
+  const keyB = b.session.settledAt ?? b.session.activityAt;
+  return keyA < keyB ? 1 : keyA > keyB ? -1 : 0;
+}
+
 export interface ProjectGroup {
   project: ProjectView;
+  /** Active threads, in their stable order. */
   entries: SidebarEntry[];
+  settled: SidebarEntry[];
   attention: number;
   running: number;
-}
-
-function byActivity(a: SidebarEntry, b: SidebarEntry): number {
-  return a.session.activityAt < b.session.activityAt ? 1 : a.session.activityAt > b.session.activityAt ? -1 : 0;
-}
-
-/** Threads that need the user or are working float to the top of their project; the rest follow recency. */
-function projectOrder(a: SidebarEntry, b: SidebarEntry): number {
-  const liveA = isLive(a.status);
-  const liveB = isLive(b.status);
-  if (liveA !== liveB) {
-    return liveA ? -1 : 1;
-  }
-  if (liveA && liveB && a.status !== b.status) {
-    return STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status];
-  }
-  return byActivity(a, b);
 }
 
 export function groupByProject(projects: ProjectView[], entries: SidebarEntry[]): ProjectGroup[] {
@@ -101,12 +108,13 @@ export function groupByProject(projects: ProjectView[], entries: SidebarEntry[])
     buckets.get(entry.session.cwd)?.push(entry);
   }
   return projects.map((project) => {
-    const list = (buckets.get(project.cwd) ?? []).sort(projectOrder);
+    const all = buckets.get(project.cwd) ?? [];
     return {
       project,
-      entries: list,
-      attention: list.filter((e) => e.status === "approval" || e.status === "input").length,
-      running: list.filter((e) => e.status === "running").length,
+      entries: all.filter((e) => !isSettled(e)).sort(activeOrder),
+      settled: all.filter(isSettled).sort(settledOrder),
+      attention: all.filter((e) => e.status === "approval" || e.status === "input").length,
+      running: all.filter((e) => e.status === "running").length,
     };
   });
 }
@@ -126,16 +134,18 @@ const STATUS_GROUPS: { id: StatusGroupId; label: string; statuses: ThreadStatus[
   { id: "idle", label: "Idle", statuses: ["idle"] },
 ];
 
+/** Active threads by what they need; settled ones are left for `settledEntries`. */
 export function groupByStatus(entries: SidebarEntry[]): StatusGroup[] {
+  const active = entries.filter((e) => !isSettled(e));
   return STATUS_GROUPS.map((group) => ({
     id: group.id,
     label: group.label,
-    entries: entries
+    entries: active
       .filter((e) => group.statuses.includes(e.status))
-      .sort((a, b) =>
-        a.status !== b.status && group.statuses.length > 1
-          ? STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status]
-          : byActivity(a, b),
-      ),
+      .sort((a, b) => (a.status !== b.status ? STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status] : activeOrder(a, b))),
   })).filter((group) => group.entries.length > 0);
+}
+
+export function settledEntries(entries: SidebarEntry[]): SidebarEntry[] {
+  return entries.filter(isSettled).sort(settledOrder);
 }

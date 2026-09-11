@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { readFile, stat } from "node:fs/promises";
-import { extname, join, normalize, resolve, sep } from "node:path";
+import { mkdir, readFile, readdir, stat } from "node:fs/promises";
+import { homedir } from "node:os";
+import { extname, join, normalize, posix, resolve, sep, win32 } from "node:path";
 import {
   HeliconMspHost,
   HeliconStore,
@@ -20,8 +21,9 @@ import {
   type ServeTarget,
   type SessionRecord,
 } from "@helicon/daemon";
+import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
-export const HELICON_VERSION = "0.2.0";
+export const HELICON_VERSION = "0.3.0";
 
 export interface HostExit {
   code: number | null;
@@ -54,6 +56,10 @@ export interface ServerOptions {
   musePath?: string | null;
   hostFactory?: HostFactory;
   opener?: Opener;
+  /** Where `~` points in typed paths; the OS home by default. */
+  home?: string;
+  /** Days without activity before a thread settles on its own; null turns auto-settle off. */
+  autoSettleDays?: number | null;
 }
 
 interface ManagedHost {
@@ -91,6 +97,8 @@ const HISTORY_PAGE_SIZE = 1000;
 const DISCOVER_LIMIT = 200;
 const TITLE_BACKFILL_LIMIT = 60;
 const ENV_CACHE_MS = 30_000;
+const CLONE_TIMEOUT_MS = 10 * 60_000;
+const AUTO_SETTLE_SWEEP_MS = 60_000;
 
 class HttpError extends Error {
   constructor(
@@ -138,6 +146,52 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function lastLines(text: string): string {
+  return text
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-3)
+    .join(" ");
+}
+
+/** Runs a command to completion; rejects with the tail of its stderr. */
+function runProcess(command: string, args: string[], timeoutMs: number): Promise<void> {
+  return new Promise((done, fail) => {
+    const child = spawn(command, args, {
+      windowsHide: true,
+      stdio: ["ignore", "ignore", "pipe"],
+      // Fail fast on a private repository instead of waiting for a password nobody can type.
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: "0",
+        WSLENV: [process.env["WSLENV"], "GIT_TERMINAL_PROMPT/u"].filter(Boolean).join(":"),
+      },
+    });
+    let stderr = "";
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr = (stderr + chunk.toString()).slice(-4000);
+    });
+    const timer = setTimeout(() => {
+      child.kill();
+      fail(new HttpError(504, "The clone took too long and was stopped."));
+    }, timeoutMs);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      fail(new HttpError(500, `Could not run ${command}: ${error.message}`));
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) {
+        done();
+      } else {
+        fail(new HttpError(500, lastLines(stderr) || `${command} exited with code ${code ?? "unknown"}.`));
+      }
+    });
+  });
+}
+
 /** MSP timestamps carry microseconds; store them in JS ISO form so they sort as strings. */
 export function normalizeIso(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -182,6 +236,9 @@ function errorInfo(error: unknown): { status: number; message: string; kind: str
   }
   const kind = typeof (error as { kind?: unknown })?.kind === "string" ? ((error as { kind: string }).kind) : null;
   const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof PathError) {
+    return { status: 400, message, kind: null };
+  }
   if (error instanceof SyntaxError) {
     return { status: 400, message: "Request body is not valid JSON.", kind: null };
   }
@@ -296,6 +353,7 @@ export class HeliconServer {
   private readonly titleQueue: string[] = [];
   private titleWorker: Promise<void> | null = null;
   private changeTimer: ReturnType<typeof setTimeout> | null = null;
+  private settleTimer: ReturnType<typeof setInterval> | null = null;
   private envCache: { at: number; value: EnvView } | null = null;
   private lastHostError: string | null = null;
   private closed = false;
@@ -320,6 +378,8 @@ export class HeliconServer {
       distro: options.distro,
       musePath: options.musePath,
       hostFactory: options.hostFactory ?? realHostFactory,
+      home: options.home ?? homedir(),
+      autoSettleDays: options.autoSettleDays === undefined ? 3 : options.autoSettleDays,
     };
     this.opener = options.opener ?? defaultOpener(this.options.platform);
     this.store = new HeliconStore(
@@ -334,6 +394,9 @@ export class HeliconServer {
     await new Promise<void>((resolve) => this.server.listen(this.options.port, this.options.host, resolve));
     const address = this.server.address();
     const port = typeof address === "object" && address ? address.port : this.options.port;
+    // No sweep at startup: which threads are busy in other Muse clients is only known after discovery.
+    this.settleTimer = setInterval(() => this.autoSettle(), AUTO_SETTLE_SWEEP_MS);
+    this.settleTimer.unref?.();
     return { port, host: this.options.host };
   }
 
@@ -342,6 +405,10 @@ export class HeliconServer {
     if (this.changeTimer) {
       clearTimeout(this.changeTimer);
       this.changeTimer = null;
+    }
+    if (this.settleTimer) {
+      clearInterval(this.settleTimer);
+      this.settleTimer = null;
     }
     this.titleQueue.length = 0;
     for (const sink of [...this.sinks]) {
@@ -500,18 +567,42 @@ export class HeliconServer {
       if (!raw || !raw.trim()) {
         throw new HttpError(400, "cwd is required.");
       }
-      const cwd = normalizeCwd(raw);
-      this.store.upsertProject(cwd);
-      this.store.setHidden(cwd, false);
-      let warning: string | null = null;
-      let sessions: Record<string, unknown>[] = [];
-      try {
-        sessions = await this.discover(cwd);
-      } catch (error) {
-        warning = errorInfo(error).message;
+      const cwd = await this.canonicalCwd(raw, body["create"] === true);
+      this.json(res, 200, await this.addProjectFolder(cwd));
+      return true;
+    }
+    if (method === "POST" && path === "/api/projects/clone") {
+      const body = await this.readBody(req);
+      const remote = str(body["url"])?.trim() ?? "";
+      const target = str(body["path"])?.trim() ?? "";
+      if (!remote || !target) {
+        throw new HttpError(400, "url and path are required.");
       }
-      this.sessionsChanged();
-      this.json(res, 200, { project: { cwd, displayName: this.store.getProject(cwd)?.displayName ?? cwd }, sessions, warning });
+      if (!/^(https?:\/\/|ssh:\/\/|git:\/\/)\S+$/.test(remote) && !/^git@[^\s:]+:\S+$/.test(remote)) {
+        throw new HttpError(400, "That does not look like a Git URL.");
+      }
+      const cwd = normalizeCwd(await this.cloneRepository(remote, target));
+      this.json(res, 200, await this.addProjectFolder(cwd));
+      return true;
+    }
+    if (method === "GET" && path === "/api/fs/list") {
+      const target = url.searchParams.get("path") ?? "";
+      this.json(res, 200, await listDirectory(target, await this.pathContext(target)));
+      return true;
+    }
+    if (method === "POST" && path === "/api/fs/reveal") {
+      const body = await this.readBody(req);
+      const target = str(body["path"]);
+      if (!target) {
+        throw new HttpError(400, "path is required.");
+      }
+      const resolved = resolveUserPath(target, await this.pathContext(target));
+      const info = await stat(resolved.local).catch(() => null);
+      if (!info?.isDirectory()) {
+        throw new HttpError(404, "That folder does not exist.");
+      }
+      await this.opener(resolved.local, "files");
+      this.json(res, 200, { ok: true });
       return true;
     }
     if (method === "DELETE" && path === "/api/projects") {
@@ -586,9 +677,16 @@ export class HeliconServer {
           throw new HttpError(404, "Unknown session.");
         }
         const title = typeof body["title"] === "string" ? body["title"].trim().slice(0, 200) : undefined;
+        const settled = typeof body["settled"] === "boolean" ? body["settled"] : undefined;
+        if (settled === true && this.isBusy(sessionId)) {
+          throw new HttpError(409, "Stop the running turn and answer its requests before settling this thread.");
+        }
         const record = this.store.updateSession(sessionId, {
           ...(title ? { title, titleSource: "user" as const } : {}),
           ...(typeof body["archived"] === "boolean" ? { archived: body["archived"] } : {}),
+          // Un-settling by hand keeps the thread out of auto-settle until its next activity.
+          ...(settled === true ? { settledOverride: "settled" as const, settledAt: nowIso(), unsettledAt: null } : {}),
+          ...(settled === false ? { settledOverride: "active" as const, settledAt: null, unsettledAt: nowIso() } : {}),
         });
         this.sessionsChanged();
         this.json(res, 200, { session: record ? this.summary(record, found.cwd) : null });
@@ -643,6 +741,7 @@ export class HeliconServer {
         throw new HttpError(400, "Unknown reasoningEffort.");
       }
       const manager = await this.managerForSession(sessionId);
+      this.wake(sessionId);
       const ack = await manager.sendTurn(sessionId, text, {
         displayText: str(body["displayText"]) ?? undefined,
         ifBusy: typeof ifBusy === "string" ? ifBusy : undefined,
@@ -876,8 +975,50 @@ export class HeliconServer {
       archived: record.archived,
       createdAt: record.createdAt,
       activityAt: record.activityAt,
+      settled: record.settledOverride === "settled",
+      settledAt: record.settledAt,
+      unsettledAt: record.unsettledAt,
       live: this.liveView(record.id),
     };
+  }
+
+  private isBusy(sessionId: string): boolean {
+    const live = this.live.get(sessionId);
+    return Boolean(live && (live.activeTurnId || live.pendingApprovals.size > 0 || live.pendingInputs.size > 0));
+  }
+
+  /** New activity wakes a settled thread, and lifts a manual "keep active" so auto-settle can apply again. */
+  private wake(sessionId: string): void {
+    const record = this.store.getSession(sessionId);
+    if (!record || record.settledOverride === null) {
+      return;
+    }
+    this.store.updateSession(sessionId, {
+      settledOverride: null,
+      settledAt: null,
+      unsettledAt: record.settledOverride === "settled" ? nowIso() : record.unsettledAt,
+    });
+    this.sessionsChanged();
+  }
+
+  /** Settles threads nobody has touched for `autoSettleDays`, as T3 Code does; a busy thread is left alone. */
+  private autoSettle(): void {
+    const days = this.options.autoSettleDays;
+    if (days === null || this.closed) {
+      return;
+    }
+    const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+    let changed = false;
+    for (const record of this.store.listSettleCandidates(cutoff)) {
+      if (this.isBusy(record.id)) {
+        continue;
+      }
+      this.store.updateSession(record.id, { settledOverride: "settled", settledAt: record.activityAt, unsettledAt: null });
+      changed = true;
+    }
+    if (changed) {
+      this.sessionsChanged();
+    }
   }
 
   private spawnCwdFor(cwd: string): string {
@@ -932,6 +1073,62 @@ export class HeliconServer {
       }
     }
     return cwd;
+  }
+
+  /** How typed paths map onto this machine. The WSL distro is only probed for Linux paths on Windows. */
+  private async pathContext(forPath: string): Promise<PathContext> {
+    const platform = this.options.platform ?? process.platform;
+    const value = forPath.trim();
+    let distro: string | null = this.options.distro ?? null;
+    if (!distro && platform === "win32" && value.startsWith("/") && !/^\/mnt\/[A-Za-z](\/|$)/.test(value)) {
+      distro = (await this.environment(false)).defaultDistro;
+    }
+    return { platform, home: this.options.home ?? homedir(), distro };
+  }
+
+  /** The stored form of a project folder: absolute, `~` expanded, one separator style. */
+  private async canonicalCwd(raw: string, create: boolean): Promise<string> {
+    const ctx = await this.pathContext(raw);
+    try {
+      const resolved = create ? await createDirectory(raw, ctx) : resolveUserPath(raw, ctx);
+      return normalizeCwd(resolved.display);
+    } catch (error) {
+      if (create || !(error instanceof PathError)) {
+        throw error;
+      }
+      return normalizeCwd(raw);
+    }
+  }
+
+  private async addProjectFolder(cwd: string): Promise<Record<string, unknown>> {
+    this.store.upsertProject(cwd);
+    this.store.setHidden(cwd, false);
+    let warning: string | null = null;
+    let sessions: Record<string, unknown>[] = [];
+    try {
+      sessions = await this.discover(cwd);
+    } catch (error) {
+      warning = errorInfo(error).message;
+    }
+    this.sessionsChanged();
+    return { project: { cwd, displayName: this.store.getProject(cwd)?.displayName ?? cwd }, sessions, warning };
+  }
+
+  private async cloneRepository(remote: string, target: string): Promise<string> {
+    const ctx = await this.pathContext(target);
+    const resolved = resolveUserPath(target, ctx);
+    const existing = await readdir(resolved.local).catch(() => null);
+    if (existing && existing.length > 0) {
+      throw new HttpError(409, "That folder already exists and is not empty. Pick another name.");
+    }
+    await mkdir((ctx.platform === "win32" ? win32 : posix).dirname(resolved.local), { recursive: true });
+    // A Linux folder under WSL is cloned by WSL's own git, so it gets Linux line endings and permissions.
+    if (ctx.platform === "win32" && resolved.flavor === "posix" && !resolved.display.startsWith("/mnt/")) {
+      await runProcess("wsl.exe", ["-d", ctx.distro ?? "", "--", "git", "clone", "--", remote, resolved.display], CLONE_TIMEOUT_MS);
+    } else {
+      await runProcess("git", ["clone", "--", remote, resolved.local], CLONE_TIMEOUT_MS);
+    }
+    return resolved.display;
   }
 
   private async startSession(cwd: string, approvalMode?: ApprovalMode, modelId?: string): Promise<Record<string, unknown>> {
@@ -1039,6 +1236,9 @@ export class HeliconServer {
             approvalMode: asRecord(msp["approvalMode"])?.["mode"] ?? null,
             workspaceRoot: str(msp["workspaceRoot"]),
             turnCount: num(msp["turnCount"]) ?? 0,
+            // History pages carry no context readings, so pass along the session's own when it has them.
+            contextUsage: asRecord(msp["contextUsage"]) ?? null,
+            tokenUsage: asRecord(msp["tokenUsage"]) ?? null,
           }
         : null,
       events,
@@ -1090,17 +1290,24 @@ export class HeliconServer {
         createdAt: normalizeIso(session["createdAt"]),
         activityAt: normalizeIso(session["updatedAt"]),
       });
-      if (str(session["status"]) === "running" && str(session["activeTurnId"])) {
+      const running = str(session["status"]) === "running" && Boolean(str(session["activeTurnId"]));
+      if (running) {
         const live = this.liveFor(sessionId);
         live.activeTurnId = str(session["activeTurnId"]);
         live.turnStartedAt = live.turnStartedAt ?? nowIso();
         this.sessionHosts.set(sessionId, host.key);
       }
+      // A settled thread that moved on in another Muse client (running now, or updated since) comes back.
+      let current = stored;
+      if (stored.settledOverride === "settled" && (running || (stored.settledAt !== null && stored.activityAt > stored.settledAt))) {
+        this.wake(sessionId);
+        current = this.store.getSession(sessionId) ?? stored;
+      }
       if (stored.titleSource === "placeholder" && backfill < TITLE_BACKFILL_LIMIT) {
         backfill += 1;
         this.queueTitle(sessionId);
       }
-      views.push(this.summary(stored, project.cwd));
+      views.push(this.summary(current, project.cwd));
     }
     this.sessionsChanged();
     return views;
@@ -1268,6 +1475,7 @@ export class HeliconServer {
         live.turnStartedAt = nowIso();
         live.lastError = null;
         changed = true;
+        this.wake(sessionId);
         break;
       }
       case "turn/completed": {
@@ -1296,6 +1504,7 @@ export class HeliconServer {
         if (id && !live.pendingApprovals.has(id)) {
           live.pendingApprovals.add(id);
           changed = true;
+          this.wake(sessionId);
         }
         break;
       }
@@ -1309,6 +1518,7 @@ export class HeliconServer {
         if (id && !live.pendingInputs.has(id)) {
           live.pendingInputs.add(id);
           changed = true;
+          this.wake(sessionId);
         }
         break;
       }

@@ -2,6 +2,7 @@ import {
   ArrowUp,
   Brain,
   ChevronDown,
+  CircleHelp,
   Cpu,
   Folder,
   GitBranch,
@@ -24,11 +25,16 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { useApp, useController } from "../../app/context.js";
-import { basename, formatTokens, modelDisplayName } from "../../model/format.js";
+import { Popover, Slider, Switch } from "radix-ui";
+import { shallowEqual, useApp, useController } from "../../app/context.js";
+import { useSampled } from "../../app/sampled.js";
+import { basename, formatDuration, formatSpeed, formatTokens, modelDisplayName } from "../../model/format.js";
+import { lastTurnSpeed, streamingSpeed } from "../../model/usage.js";
 import type { ApprovalMode, ReasoningEffort } from "../../types.js";
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuOption, MenuRadioGroup, MenuSeparator, MenuTrigger, Modal, Tip } from "../ui/overlays.js";
 import { Button, IconButton, MOD, Spinner, cn } from "../ui/primitives.js";
+import { PixelFlow } from "../ui/PixelFlow.js";
+import { ContextMeter } from "./ContextPanel.js";
 import { SwapIcon } from "../ui/sourced.js";
 
 const DRAFT_PREFIX = "helicon.draft.";
@@ -177,6 +183,7 @@ export function Composer(props: ComposerProps) {
         <EffortPicker />
         <AccessPicker sessionId={props.sessionId} />
         <span className="min-w-2 flex-1" />
+        {props.sessionId ? <SpeedReadout sessionId={props.sessionId} /> : null}
         {props.sessionId ? <ContextMeter sessionId={props.sessionId} /> : null}
         {props.running && props.sessionId && hasText ? (
           <Tip label="Stop the turn" shortcut={["Esc"]}>
@@ -296,38 +303,129 @@ function ModelPicker(props: { sessionId: string | null }) {
   );
 }
 
-const EFFORTS: { value: ReasoningEffort | "auto"; label: string; description?: string }[] = [
-  { value: "auto", label: "Auto", description: "Muse picks how long to think" },
-  { value: "none", label: "Off", description: "Answer without reasoning" },
-  { value: "minimal", label: "Minimal" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "xhigh", label: "Extra high" },
-  { value: "ultra", label: "Ultra", description: "Slowest and most thorough" },
+/** Effort levels on the faster-to-smarter scale. Auto sits outside it: Muse picks per turn. */
+const LEVELS: { value: ReasoningEffort; label: string; description: string }[] = [
+  { value: "none", label: "Off", description: "Answers right away, without reasoning" },
+  { value: "minimal", label: "Minimal", description: "A quick think before answering" },
+  { value: "low", label: "Low", description: "Light reasoning for simple changes" },
+  { value: "medium", label: "Medium", description: "Balanced speed and depth" },
+  { value: "high", label: "High", description: "Thinks harder problems through" },
+  { value: "xhigh", label: "Extra high", description: "Deep reasoning for tricky work" },
+  { value: "ultra", label: "Ultra", description: "The slowest and most thorough" },
 ];
+const TOP = LEVELS.length - 1;
+// Where the slider rests while Auto is on and nothing was picked yet: Medium.
+const RESTING = 3;
 
+/** Reasoning effort as a stepped slider in a popover, after the Claude desktop effort control. */
 function EffortPicker() {
   const controller = useController();
   const effort = useApp((s) => s.prefs.effort);
-  const current = EFFORTS.find((e) => e.value === (effort ?? "auto")) ?? EFFORTS[0];
+  const [resting, setResting] = useState(RESTING);
+  const thumb = useRef<HTMLSpanElement>(null);
+  const switchId = useId();
+  const picked = LEVELS.findIndex((l) => l.value === effort);
+  const auto = picked < 0;
+  const position = auto ? resting : picked;
+  const label = auto ? "Auto" : (LEVELS[picked]?.label ?? "Auto");
+  const ultra = !auto && picked === TOP;
+  const choose = (index: number) => {
+    const level = LEVELS[index];
+    if (level) {
+      setResting(index);
+      controller.setEffort(level.value);
+    }
+  };
   return (
-    <Menu>
-      <MenuTrigger asChild>
-        <ToolbarTrigger aria-label={`Reasoning effort: ${current?.label}`} icon={<Brain size={13} />} label={current?.label} />
-      </MenuTrigger>
-      <MenuContent side="top" className="w-[240px]">
-        <MenuLabel>Reasoning effort</MenuLabel>
-        <MenuRadioGroup
-          value={effort ?? "auto"}
-          onValueChange={(value) => controller.setEffort(value === "auto" ? null : (value as ReasoningEffort))}
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <ToolbarTrigger aria-label={`Reasoning effort: ${label}`} icon={<Brain size={13} />} label={label} />
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          side="top"
+          align="start"
+          sideOffset={6}
+          collisionPadding={8}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            thumb.current?.focus();
+          }}
+          className="pop z-[var(--z-dropdown)] w-[300px] max-w-[calc(100vw-16px)] rounded-xl bg-raised p-3.5 text-fg shadow-pop outline-none"
         >
-          {EFFORTS.map((e) => (
-            <MenuOption key={e.value} value={e.value} label={e.label} description={e.description} />
-          ))}
-        </MenuRadioGroup>
-      </MenuContent>
-    </Menu>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted">Effort</span>
+            <span className={cn("text-sm font-semibold", !auto && picked === TOP ? "text-accent-text" : "text-fg")}>{label}</span>
+            <span className="flex-1" />
+            <Tip label="Higher effort thinks longer for more thorough answers, but each turn takes more time.">
+              <button
+                type="button"
+                aria-label="What effort does"
+                className="-m-1 rounded-full p-1 text-subtle transition-colors duration-100 hover:text-fg"
+              >
+                <CircleHelp size={15} />
+              </button>
+            </Tip>
+          </div>
+          <div className="mt-4 flex justify-between text-xs text-subtle">
+            <span>Faster</span>
+            <span>Smarter</span>
+          </div>
+          <Slider.Root
+            min={0}
+            max={TOP}
+            step={1}
+            value={[position]}
+            onValueChange={([index]) => {
+              if (index !== undefined) {
+                choose(index);
+              }
+            }}
+            aria-label="Reasoning effort"
+            className={cn("effort-slider relative mt-2 flex h-8 touch-none items-center select-none", auto && "opacity-60")}
+          >
+            <Slider.Track className="relative h-full grow overflow-hidden rounded-lg bg-active">
+              <Slider.Range className={cn("effort-range absolute h-full overflow-hidden", ultra ? "bg-accent-soft" : "bg-fg/15")}>
+                {ultra ? <PixelFlow className="text-accent-text" /> : null}
+              </Slider.Range>
+              {/* One dot per level, inset by half the thumb so each sits exactly where the thumb stops. */}
+              {ultra ? null : (
+                <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-[9px] left-[9px]">
+                  {LEVELS.map((level, index) => (
+                    <span
+                      key={level.value}
+                      className="absolute top-1/2 size-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-fg/30"
+                      style={{ left: `${(index / TOP) * 100}%` }}
+                    />
+                  ))}
+                </span>
+              )}
+            </Slider.Track>
+            <Slider.Thumb
+              ref={thumb}
+              aria-valuetext={LEVELS[position]?.label}
+              className="block h-6 w-[18px] rounded-md bg-white shadow-[0_0_0_1px_oklch(0_0_0/0.08),0_1px_3px_oklch(0_0_0/0.3)] outline-none transition-transform duration-100 ease-out focus-visible:ring-2 focus-visible:ring-accent active:scale-95"
+            />
+          </Slider.Root>
+          <p className={cn("mt-2 text-xs", auto ? "text-subtle" : "text-muted")}>
+            {auto ? "Muse picks the effort for each turn" : LEVELS[position]?.description}
+          </p>
+          <div className="mt-3 flex items-center gap-3 border-t border-line pt-3">
+            <label htmlFor={switchId} className="min-w-0 flex-1 cursor-default text-sm text-fg">
+              Let Muse decide
+            </label>
+            <Switch.Root
+              id={switchId}
+              checked={auto}
+              onCheckedChange={(on) => controller.setEffort(on ? null : (LEVELS[position]?.value ?? "medium"))}
+              className="relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full bg-line-strong outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-accent data-[state=checked]:bg-accent"
+            >
+              <Switch.Thumb className="block size-3.5 translate-x-0.5 rounded-full bg-white shadow-[0_1px_2px_oklch(0_0_0/0.3)] transition-transform duration-150 ease-out data-[state=checked]:translate-x-4" />
+            </Switch.Root>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
@@ -414,64 +512,37 @@ function AccessPicker(props: { sessionId: string | null }) {
   );
 }
 
-function ContextMeter(props: { sessionId: string }) {
+/** Output speed beside the context ring: an estimate while text streams, else the last turn's measured speed. */
+function SpeedReadout(props: { sessionId: string }) {
   const controller = useController();
-  const usage = useApp((s) => s.threads[props.sessionId]?.fold.meta.contextUsage ?? null);
-  const totals = useApp((s) => s.threads[props.sessionId]?.fold.meta.tokenTotals ?? null);
-  if (!usage || !usage.windowTokens) {
+  const running = useApp((s) => Boolean(s.threads[props.sessionId]?.fold.activeTurnId));
+  const last = useApp((s) => {
+    const fold = s.threads[props.sessionId]?.fold;
+    const speed = fold ? lastTurnSpeed(fold) : null;
+    return speed ? { tps: speed.tokensPerSecond, tokens: speed.outputTokens, ms: speed.generationMs } : null;
+  }, shallowEqual);
+  const live = useSampled(() => {
+    const fold = controller.store.get().threads[props.sessionId]?.fold;
+    return fold?.activeTurnId ? streamingSpeed(fold.turns[fold.activeTurnId]) : null;
+  }, running);
+  if (running && live !== null) {
+    return (
+      <Tip label="Estimated from the text streaming now">
+        <span tabIndex={0} className="shrink-0 px-1 text-2xs text-subtle tabular-nums">
+          ~{formatSpeed(live)}
+        </span>
+      </Tip>
+    );
+  }
+  if (!last) {
     return null;
   }
-  const share = Math.min(1, usage.usedTokens / usage.windowTokens);
-  const percent = share < 0.01 ? "<1%" : `${Math.round(share * 100)}%`;
-  const tone = usage.pressure === "blocked" ? "text-danger" : usage.pressure === "warning" ? "text-warn" : "text-accent-text";
-  const radius = 6;
-  const circumference = 2 * Math.PI * radius;
   return (
-    <Menu>
-      <Tip label={`${formatTokens(usage.usedTokens)} of ${formatTokens(usage.windowTokens)} tokens in context`}>
-        <MenuTrigger asChild>
-          <button
-            type="button"
-            aria-label={`Context window ${percent} used`}
-            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-1.5 text-2xs text-subtle tabular-nums transition-colors hover:bg-hover hover:text-fg data-[state=open]:bg-hover"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="-rotate-90">
-              <circle cx="8" cy="8" r={radius} fill="none" stroke="var(--border-strong)" strokeWidth="2" />
-              <circle
-                cx="8"
-                cy="8"
-                r={radius}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeDasharray={`${Math.max(circumference * share, share > 0 ? 1.2 : 0)} ${circumference}`}
-                className={tone}
-              />
-            </svg>
-            {percent}
-          </button>
-        </MenuTrigger>
-      </Tip>
-      <MenuContent side="top" align="end" className="w-[270px]">
-        <div className="px-2 pt-1.5 pb-2 text-xs">
-          <p className="font-medium text-fg">Context window</p>
-          <p className="mt-1 text-muted tabular-nums">
-            {formatTokens(usage.usedTokens)} of {formatTokens(usage.windowTokens)} tokens used
-          </p>
-          {totals ? <p className="mt-0.5 text-muted tabular-nums">{formatTokens(totals.totalTokens)} tokens this session</p> : null}
-          {usage.pressure !== "normal" ? (
-            <p className={cn("mt-1.5 font-medium", usage.pressure === "blocked" ? "text-danger-text" : "text-warn-text")}>
-              {usage.pressure === "blocked" ? "The context is full. Compact it to continue." : "The context is filling up."}
-            </p>
-          ) : null}
-        </div>
-        <MenuSeparator />
-        <MenuItem icon={<Minimize2 size={14} />} onSelect={() => void controller.compact(props.sessionId)}>
-          Compact context now
-        </MenuItem>
-      </MenuContent>
-    </Menu>
+    <Tip label={`Last turn: ${formatTokens(last.tokens)} output tokens over ${formatDuration(last.ms)} of model calls`}>
+      <span tabIndex={0} className="shrink-0 px-1 text-2xs text-subtle tabular-nums">
+        {formatSpeed(last.tps)}
+      </span>
+    </Tip>
   );
 }
 

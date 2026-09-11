@@ -53,14 +53,19 @@ export interface ApprovalDecisionInput {
 export interface HeliconClient {
   probeEnvironment(refresh?: boolean): Promise<EnvironmentStatus>;
   listProjects(): Promise<ProjectView[]>;
-  addProject(cwd: string): Promise<{ cwd: string; warning: string | null }>;
+  /** `create` makes the folder first when it does not exist. */
+  addProject(cwd: string, options?: { create?: boolean }): Promise<{ cwd: string; warning: string | null }>;
+  cloneProject(url: string, path: string): Promise<{ cwd: string; warning: string | null }>;
+  listDirectory(path: string): Promise<import("./types.js").DirectoryListing>;
+  /** Opens a folder in the OS file manager. */
+  revealPath(path: string): Promise<void>;
   hideProject(cwd: string): Promise<void>;
   setPinned(cwd: string, pinned: boolean): Promise<void>;
   listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]>;
   discover(cwd?: string): Promise<void>;
   startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string }): Promise<SessionSummary>;
   loadTranscript(sessionId: string): Promise<TranscriptLoad>;
-  updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<SessionSummary | null>;
+  updateSession(sessionId: string, patch: { title?: string; archived?: boolean; settled?: boolean }): Promise<SessionSummary | null>;
   sendTurn(sessionId: string, text: string, options?: TurnOptions): Promise<{ turnId: string | null; disposition: string | null }>;
   interruptTurn(sessionId: string, turnId?: string): Promise<void>;
   unqueueTurn(sessionId: string, turnId: string): Promise<void>;
@@ -99,8 +104,28 @@ export function parseModelList(value: unknown): ModelOption[] {
       isDefault: r["isDefault"] === true,
       isActive: r["isActive"] === true,
       contextLimit: typeof r["contextLimit"] === "number" ? r["contextLimit"] : null,
+      outputLimit: typeof r["outputLimit"] === "number" ? r["outputLimit"] : null,
+      cost: parseCost(r["cost"]),
       contributor: /contributor/i.test(modelId) || /product improvement/i.test(description ?? ""),
     });
   }
   return options;
+}
+
+/** Catalog prices arrive as decimal strings per million tokens. */
+function parseCost(value: unknown): ModelOption["cost"] {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const r = value as Record<string, unknown>;
+  const amount = (v: unknown): number | null => {
+    const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : Number.NaN;
+    return Number.isFinite(n) ? n : null;
+  };
+  const input = amount(r["input"]);
+  const output = amount(r["output"]);
+  if (input === null || output === null) {
+    return null;
+  }
+  return { input, output, cached: amount(r["cached"]) ?? input, currency: typeof r["currency"] === "string" ? r["currency"] : null };
 }

@@ -65,6 +65,15 @@
   --folder-line: oklch(0.87 0.006 255);
   /* The Windows 11 caption close red, the same in both themes like the native button. */
   --caption-close: oklch(0.536 0.191 30.1);
+  /* A thread waiting on the user's answer, T3 Code's indigo. */
+  --status-input: oklch(0.52 0.17 285);
+  /* Data colors for the context breakdown: distinct hues at even lightness. */
+  --chart-1: oklch(0.6 0.17 257);
+  --chart-2: oklch(0.64 0.13 170);
+  --chart-3: oklch(0.72 0.15 75);
+  --chart-4: oklch(0.6 0.17 305);
+  --chart-5: oklch(0.64 0.17 40);
+  --chart-6: oklch(0.62 0.02 255);
 }
 
 :root[data-theme="dark"] {
@@ -117,6 +126,13 @@
   --folder-page: oklch(0.29 0.006 255);
   --folder-page-edge: oklch(0.37 0.008 255);
   --folder-line: oklch(0.44 0.01 255);
+  --status-input: oklch(0.76 0.12 285);
+  --chart-1: oklch(0.68 0.15 257);
+  --chart-2: oklch(0.72 0.12 170);
+  --chart-3: oklch(0.8 0.14 78);
+  --chart-4: oklch(0.7 0.15 305);
+  --chart-5: oklch(0.72 0.15 42);
+  --chart-6: oklch(0.62 0.015 255);
 }
 
 @theme inline {
@@ -150,6 +166,13 @@
   --color-diff-add: var(--diff-add);
   --color-diff-del: var(--diff-del);
   --color-caption-close: var(--caption-close);
+  --color-status-input: var(--status-input);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
 
   --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, "Segoe UI Variable Text", "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
@@ -544,6 +567,20 @@
   }
   50% {
     opacity: 0.45;
+  }
+}
+
+/* The effort slider's thumb and fill glide between stops instead of jumping. */
+.effort-slider > span:has(> [role="slider"]) {
+  transition: left 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.effort-range {
+  transition: right 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .effort-slider > span:has(> [role="slider"]),
+  .effort-range {
+    transition: none;
   }
 }
 

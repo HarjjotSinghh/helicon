@@ -779,6 +779,32 @@ export class HeliconController {
     }
   }
 
+  /** Shelves a thread in its project's Settled list, or brings it back. */
+  async setSettled(sessionId: string, settled: boolean): Promise<void> {
+    const current = this.state.sessions[sessionId];
+    if (!current || current.settled === settled) {
+      return;
+    }
+    const now = new Date(this.platform.now()).toISOString();
+    this.upsertSession(
+      settled ? { ...current, settled: true, settledAt: now, unsettledAt: null } : { ...current, settled: false, settledAt: null, unsettledAt: now },
+    );
+    try {
+      const saved = await this.client.updateSession(sessionId, { settled });
+      if (saved) {
+        this.upsertSession(saved);
+      }
+    } catch (error) {
+      this.upsertSession(current);
+      this.toast("error", settled ? "Could not settle the thread" : "Could not bring the thread back", errorMessage(error));
+    }
+  }
+
+  toggleShelf(key: string): void {
+    const open = this.state.prefs.openShelves;
+    this.setPrefs({ openShelves: open.includes(key) ? open.filter((k) => k !== key) : [...open, key] });
+  }
+
   private async unarchive(session: SessionSummary): Promise<void> {
     try {
       const saved = await this.client.updateSession(session.sessionId, { archived: false });
@@ -788,14 +814,50 @@ export class HeliconController {
     }
   }
 
-  async addProject(cwd: string): Promise<boolean> {
+  listDirectory(path: string): Promise<import("../types.js").DirectoryListing> {
+    return this.client.listDirectory(path);
+  }
+
+  async revealPath(path: string): Promise<void> {
+    try {
+      await this.client.revealPath(path);
+    } catch (error) {
+      this.toast("error", "Could not open the folder", errorMessage(error));
+    }
+  }
+
+  async cloneProject(url: string, path: string): Promise<boolean> {
+    if (this.state.busy["cloneProject"]) {
+      return false;
+    }
+    this.setBusy("cloneProject", true);
+    try {
+      const added = await this.client.cloneProject(url, path);
+      await this.refresh();
+      this.setAddProjectOpen(false);
+      this.toast(
+        "info",
+        "Repository cloned",
+        added.warning ? `Muse could not list its threads yet: ${added.warning}` : added.cwd,
+      );
+      this.newThread(added.cwd);
+      return true;
+    } catch (error) {
+      this.toast("error", "Could not clone the repository", errorMessage(error));
+      return false;
+    } finally {
+      this.setBusy("cloneProject", false);
+    }
+  }
+
+  async addProject(cwd: string, options: { create?: boolean } = {}): Promise<boolean> {
     const path = cwd.trim();
     if (!path || this.state.busy["addProject"]) {
       return false;
     }
     this.setBusy("addProject", true);
     try {
-      const added = await this.client.addProject(path);
+      const added = await this.client.addProject(path, options);
       await this.refresh();
       this.setAddProjectOpen(false);
       if (added.warning) {
