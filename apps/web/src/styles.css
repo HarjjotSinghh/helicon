@@ -1,0 +1,22 @@
+.helicon-app { display: flex; height: 100vh; font-family: system-ui, sans-serif; }
+.helicon-sidebar { width: 320px; border-right: 1px solid #333; overflow-y: auto; padding: 8px; }
+.helicon-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.helicon-search { width: 100%; margin-bottom: 8px; }
+.helicon-project { margin-bottom: 12px; }
+.helicon-project-head { display: flex; gap: 4px; align-items: center; }
+.helicon-project-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.helicon-sessions { list-style: none; padding: 0; margin: 4px 0; }
+.helicon-session { width: 100%; text-align: left; }
+.helicon-session.active { font-weight: bold; }
+.helicon-empty { opacity: 0.6; }
+.helicon-toolbar { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid #333; }
+.helicon-hint { font-size: 12px; opacity: 0.7; }
+.helicon-error { color: #c00; padding: 0 8px; }
+.helicon-session-view { flex: 1; overflow-y: auto; padding: 8px; }
+.helicon-item pre { white-space: pre-wrap; margin: 4px 0; }
+.helicon-approval { border: 1px solid #c90; padding: 8px; margin: 8px; }
+.helicon-approval-actions { display: flex; gap: 8px; margin-top: 8px; }
+.helicon-composer { display: flex; gap: 8px; padding: 8px; border-top: 1px solid #333; }
+.helicon-composer textarea { flex: 1; min-height: 48px; }
+.helicon-input-prompt { border: 1px solid #39c; padding: 8px; margin: 8px; }
+.helicon-onboarding { padding: 24px; max-width: 640px; }

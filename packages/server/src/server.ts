@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
-import { extname, join, normalize, sep } from "node:path";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import {
   HeliconMspHost,
   HeliconStore,
@@ -100,7 +100,7 @@ export class HeliconServer {
       port: options.port ?? 3127,
       host: options.host ?? "127.0.0.1",
       dataDir: options.dataDir ?? ":memory:",
-      staticDir: options.staticDir ?? null,
+      staticDir: options.staticDir ? resolve(options.staticDir) : null,
       token: options.token ?? null,
       platform: options.platform ?? process.platform,
       distro: options.distro,

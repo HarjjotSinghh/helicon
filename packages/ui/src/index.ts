@@ -2,6 +2,7 @@ export { Sidebar } from "./components/Sidebar.js";
 export type { SidebarProps } from "./components/Sidebar.js";
 export { SessionView } from "./components/SessionView.js";
 export type { SessionViewProps } from "./components/SessionView.js";
+export type { SessionView as SessionViewData } from "./types.js";
 export { ApprovalCard } from "./components/ApprovalCard.js";
 export type { ApprovalCardProps } from "./components/ApprovalCard.js";
 export { Composer } from "./components/Composer.js";
