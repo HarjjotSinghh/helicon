@@ -1,0 +1,26 @@
+# Node
+node_modules/
+dist/
+build/
+.next/
+out/
+
+# Rust / Tauri
+target/
+src-tauri/target/
+src-tauri/gen/
+
+# Env / secrets — never commit real keys
+.env
+.env.*
+*.pem
+*.key
+.opencode/
+auth.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
