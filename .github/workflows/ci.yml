@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [prod]
+  pull_request:
+
+jobs:
+  node:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
+      - run: npm run test --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
+      - run: npm run build --workspace @helicon/web

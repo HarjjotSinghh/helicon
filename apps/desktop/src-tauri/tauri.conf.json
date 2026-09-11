@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Helicon",
+  "version": "0.1.0",
+  "identifier": "app.helicon.desktop",
+  "build": {
+    "frontendDist": "../web/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev --workspace @helicon/web",
+    "beforeBuildCommand": "npm run build --workspace @helicon/web && npm run bundle:server --workspace helicon-desktop"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Helicon (Unofficial)",
+        "width": 1280,
+        "height": 800
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' http://127.0.0.1:*; connect-src http://127.0.0.1:*; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.png"],
+    "resources": ["resources/server.cjs", "resources/frontend"]
+  }
+}

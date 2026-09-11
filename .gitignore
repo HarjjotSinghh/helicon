@@ -10,6 +10,7 @@ out/
 target/
 src-tauri/target/
 src-tauri/gen/
+src-tauri/resources/
 
 # Env / secrets — never commit real keys
 .env
