@@ -18,7 +18,7 @@ Thanks for contributing! Helicon is an unofficial open-source desktop + web ADE 
 
 ## Dev (once app code lands)
 
-- `packages/daemon` — MSP client via `@muse-code/sdk`, JSON-RPC over `muse serve` stdio.
-- `packages/ui` — shared React UI.
-- `apps/desktop` — Tauri shell (Windows routes through WSL2).
-- `apps/web` — same UI vs remote daemon.
+- `packages/daemon` - MSP client via `@muse-code/sdk`, JSON-RPC over `muse serve` stdio.
+- `packages/ui` - shared React UI.
+- `apps/desktop` - Tauri shell (Windows routes through WSL2).
+- `apps/web` - same UI vs remote daemon.

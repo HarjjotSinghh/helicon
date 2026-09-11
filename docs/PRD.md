@@ -1,14 +1,14 @@
-# PRD: Helicon v1 — Unofficial Desktop + Web ADE for Muse Code CLI
+# PRD: Helicon v1 - Unofficial Desktop + Web ADE for Muse Code CLI
 
 > Status: draft · Scope: desktop + web together · Daemon: local-first, self-hosted remote supported · Approvals: configurable · Tests: deep modules
 
 ## Problem Statement
 
-Muse Code is a terminal-only agent (`muse`, macOS/Linux, WSL2 on Windows). Developers who live in Codex-style and Claude-Code-desktop-style apps — sidebar of projects, resumable sessions/tasks, inline diffs, approval surfacing — have no equivalent for Muse. On Windows there is not even a native CLI; it only runs inside WSL2. Context lives in the terminal and is lost between sessions.
+Muse Code is a terminal-only agent (`muse`, macOS/Linux, WSL2 on Windows). Developers who live in Codex-style and Claude-Code-desktop-style apps - sidebar of projects, resumable sessions/tasks, inline diffs, approval surfacing - have no equivalent for Muse. On Windows there is not even a native CLI; it only runs inside WSL2. Context lives in the terminal and is lost between sessions.
 
 ## Solution
 
-Helicon (Unofficial): a sidebar-first desktop app (Tauri 2, Win/Mac/Linux) and web app sharing one React UI and one daemon design. The daemon spawns one `muse serve` host per workspace over the Muse Session Protocol (MSP) via the official MIT `@muse-code/sdk`. Users see projects grouped by working directory (including isolated worktrees), each with its sessions/tasks, resumable — including sessions started from the `muse` TUI. Windows routes through WSL2 with path translation. Auth stays the user's own `muse login`; Helicon never stores credentials and never bypasses approvals or billing.
+Helicon (Unofficial): a sidebar-first desktop app (Tauri 2, Win/Mac/Linux) and web app sharing one React UI and one daemon design. The daemon spawns one `muse serve` host per workspace over the Muse Session Protocol (MSP) via the official MIT `@muse-code/sdk`. Users see projects grouped by working directory (including isolated worktrees), each with its sessions/tasks, resumable - including sessions started from the `muse` TUI. Windows routes through WSL2 with path translation. Auth stays the user's own `muse login`; Helicon never stores credentials and never bypasses approvals or billing.
 
 ## User Stories
 
@@ -73,10 +73,10 @@ Helicon (Unofficial): a sidebar-first desktop app (Tauri 2, Win/Mac/Linux) and w
 ## Implementation Decisions
 
 - **Modules (deep, tested in isolation):**
-  - `Daemon` — owns one MSP host per workspace: connect, list/resume sessions, send/steer/queue/interrupt, approvals relay, worktree create, protocol-type regeneration on CLI upgrade. Interface: session/turn/approval events in, user actions out; stdio JSON-RPC hidden inside.
-  - `State store` — local-first persistence of projects (cwd/worktree root) → sessions → turns; records terminal-originated sessions; never stores credentials. Interface: CRUD + search by path/text.
-  - `WSL router` (Windows) — detects distro, spawns serve via the Linux side, translates Windows↔WSL paths, surfaces setup guidance. Interface: `serve(endpoint)` in, translated paths out; no-ops on macOS/Linux.
-  - `UI shell` (thin) — shared React components (sidebar, session view, diffs, approvals, onboarding); desktop and web shells differ only in transport to the daemon.
+  - `Daemon` - owns one MSP host per workspace: connect, list/resume sessions, send/steer/queue/interrupt, approvals relay, worktree create, protocol-type regeneration on CLI upgrade. Interface: session/turn/approval events in, user actions out; stdio JSON-RPC hidden inside.
+  - `State store` - local-first persistence of projects (cwd/worktree root) → sessions → turns; records terminal-originated sessions; never stores credentials. Interface: CRUD + search by path/text.
+  - `WSL router` (Windows) - detects distro, spawns serve via the Linux side, translates Windows↔WSL paths, surfaces setup guidance. Interface: `serve(endpoint)` in, translated paths out; no-ops on macOS/Linux.
+  - `UI shell` (thin) - shared React components (sidebar, session view, diffs, approvals, onboarding); desktop and web shells differ only in transport to the daemon.
 - **Protocol:** MSP over `muse serve` stdio via `@muse-code/sdk`; regenerate wire types from `muse schema generate-ts` on CLI upgrades; support `muse` ≥ 1.0.3.
 - **Approvals:** map 1:1 onto Muse modes; default is user-configurable; `allow-all` gated behind an explicit dangerous opt-in plus sandbox guidance.
 - **Auth contract:** read-only use of the user's `muse login` credentials; key storage via OS credential store or env only; nothing in the state DB or logs.
