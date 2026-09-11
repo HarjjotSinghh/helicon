@@ -442,7 +442,7 @@ export class HeliconController {
 
   // ---------------------------------------------------------------- turns
 
-  /** Send from the composer. Returns false when the text should go back into the box. */
+  /** Send from the composer. Returns false when the sending composer should put the text back. */
   async send(text: string, options: { steer?: boolean } = {}): Promise<boolean> {
     const trimmed = text.trim();
     if (!trimmed) {
@@ -460,6 +460,16 @@ export class HeliconController {
       return false;
     }
     return this.startThread(target, trimmed);
+  }
+
+  /** Called by the composer showing `key`: takes back a prompt that failed to send from elsewhere. */
+  takeDraftHandoff(key: string): string | null {
+    const handoff = this.state.draftHandoff;
+    if (!handoff || handoff.key !== key) {
+      return null;
+    }
+    this.update((s) => ({ ...s, draftHandoff: null }));
+    return handoff.text;
   }
 
   private async startThread(cwd: string, text: string): Promise<boolean> {
@@ -488,7 +498,12 @@ export class HeliconController {
       }));
       this.setPrefs({ lastProject: cwd });
       this.navigate({ kind: "thread", sessionId: session.sessionId });
-      return await this.sendToThread(session.sessionId, text, {}, false);
+      const sent = await this.sendToThread(session.sessionId, text, {}, false);
+      if (!sent) {
+        // The new-thread composer that sent this is gone, so the prompt goes to the new thread's composer.
+        this.update((s) => ({ ...s, draftHandoff: { key: session.sessionId, text } }));
+      }
+      return true;
     } catch (error) {
       this.toast("error", "Could not start a thread", errorMessage(error));
       return false;

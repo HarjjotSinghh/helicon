@@ -186,6 +186,23 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("gives a failed first prompt to the new thread's composer", async () => {
+    const client = new FakeClient();
+    client.sendResult = async () => {
+      throw new HeliconError("turn rejected", 409, "turnRejected");
+    };
+    const { controller, stop } = await started(client, "");
+    // The new-thread composer unmounts on navigation, so it must not take the text back itself.
+    assert.equal(await controller.send("Write the tests"), true);
+    const state = controller.store.get();
+    assert.deepEqual(state.route, { kind: "thread", sessionId: "s1" });
+    assert.equal(state.toasts.at(-1)?.title, "Message not sent");
+    assert.equal(controller.takeDraftHandoff("other"), null);
+    assert.equal(controller.takeDraftHandoff("s1"), "Write the tests");
+    assert.equal(controller.store.get().draftHandoff, null);
+    stop();
+  });
+
   it("marks a read-only thread and refuses to send into it", async () => {
     const client = new FakeClient();
     client.transcript = async () => load({ readOnly: true, readOnlyReason: "session is loaded by another host" });

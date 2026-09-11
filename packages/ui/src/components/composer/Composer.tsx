@@ -77,7 +77,18 @@ export interface ComposerProps {
 
 export function Composer(props: ComposerProps) {
   const controller = useController();
-  const [text, setText] = useDraft(props.sessionId ?? `new:${props.cwd ?? ""}`);
+  const draftKey = props.sessionId ?? `new:${props.cwd ?? ""}`;
+  const [text, setText] = useDraft(draftKey);
+  // A prompt that failed to send from another composer (the new-thread screen) comes back here.
+  const handoff = useApp((s) => (s.draftHandoff?.key === draftKey ? s.draftHandoff : null));
+  useEffect(() => {
+    if (handoff) {
+      const handed = controller.takeDraftHandoff(draftKey);
+      if (handed !== null) {
+        setText(handed);
+      }
+    }
+  }, [handoff, draftKey, controller, setText]);
   const ref = useRef<HTMLTextAreaElement>(null);
   const id = useId();
   const starting = useApp((s) => Boolean(s.busy["start"]));

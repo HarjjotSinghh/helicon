@@ -120,6 +120,8 @@ export interface AppState {
   /** Keys of in-flight user actions, for disabling buttons: `send:<id>`, `approval:<id>`... */
   busy: Record<string, true>;
   hostError: string | null;
+  /** A prompt that could not be sent, waiting for the composer showing `key` to take it back. */
+  draftHandoff: { key: string; text: string } | null;
 }
 
 export function initialState(prefs: Prefs): AppState {
@@ -141,6 +143,7 @@ export function initialState(prefs: Prefs): AppState {
     addProjectOpen: false,
     busy: {},
     hostError: null,
+    draftHandoff: null,
   };
 }
 
