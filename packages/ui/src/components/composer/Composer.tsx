@@ -152,6 +152,12 @@ export function Composer(props: ComposerProps) {
   // Muse runs `!` commands inside Bubblewrap on Linux and WSL; without it every one fails.
   const sandboxMissing = useApp((s) => s.env?.shellSandbox === "missing");
   const onWindows = useApp((s) => s.env?.platform === "win32");
+  // Look again while the warning shows, so it clears soon after Bubblewrap is installed.
+  useEffect(() => {
+    if (shell && sandboxMissing) {
+      void controller.refreshEnvironment();
+    }
+  }, [shell, sandboxMissing, controller]);
 
   // The slash menu: which commands match, which row is active, and whether Esc closed it for this word.
   const [caret, setCaret] = useState(0);

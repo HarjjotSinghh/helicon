@@ -141,6 +141,7 @@ const FLUSH_MS = 24;
 const TOAST_MS = { info: 5000, success: 4000, error: 9000 } as const;
 const SKILLS_FRESH_MS = 60_000;
 const SKILLS_RETRY_MS = 10_000;
+const ENV_RECHECK_MS = 30_000;
 
 /**
  * Owns app state and every side effect: server calls, the event stream, routing and prefs.
@@ -275,6 +276,23 @@ export class HeliconController {
 
   retryBoot(): void {
     void this.boot(true);
+  }
+
+  private envCheckedAt = 0;
+
+  /** Re-checks the environment, at most every half minute, so a fix such as installing Bubblewrap shows without a reload. */
+  async refreshEnvironment(): Promise<void> {
+    const now = this.platform.now();
+    if (now - this.envCheckedAt < ENV_RECHECK_MS) {
+      return;
+    }
+    this.envCheckedAt = now;
+    try {
+      const env = await this.client.probeEnvironment(true);
+      this.update((s) => ({ ...s, env }));
+    } catch {
+      /* the next check or boot tries again */
+    }
   }
 
   // ---------------------------------------------------------------- data
