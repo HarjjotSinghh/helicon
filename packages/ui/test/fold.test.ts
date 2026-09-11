@@ -1,0 +1,203 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import {
+  addEcho,
+  applyEvent,
+  applyEvents,
+  buildTurns,
+  emptyFold,
+  foldFromLoad,
+  gateFor,
+  updateEcho,
+} from "../src/model/fold.js";
+import type { ViewEvent } from "../src/types.js";
+import { historyEvents, liveEvents } from "./fixtures/probe.js";
+
+function foldAll(events: ViewEvent[]) {
+  return applyEvents(emptyFold(), events);
+}
+
+describe("thread fold against a real muse transcript", () => {
+  it("folds the live stream into three finished turns", () => {
+    const fold = liveEvents.reduce(applyEvent, emptyFold());
+    const turns = buildTurns(fold);
+    assert.equal(turns.length, 3);
+    assert.equal(fold.activeTurnId, null);
+
+    const [pong, shell, question] = turns;
+    assert.equal(pong?.prompt?.text, "Reply with exactly one word: pong");
+    assert.equal(pong?.final?.text, "pong");
+    assert.equal(pong?.entries.length, 0, "reminder children stay hidden");
+    assert.equal(pong?.info?.durationMs, 42316);
+
+    assert.equal(shell?.entries.length, 1);
+    assert.equal(shell?.entries[0]?.kind, "toolCall");
+    assert.equal(shell?.entries[0]?.tool, "bash");
+    assert.match(shell?.entries[0]?.visibleOutput ?? "", /README\.md/);
+    assert.match(shell?.final?.text ?? "", /printed 4 entries/);
+
+    assert.equal(question?.entries[0]?.tool, "request_user_input");
+    assert.equal(question?.final?.text, "Blue");
+    assert.deepEqual(Object.keys(fold.userInputs), []);
+    const settled = Object.values(fold.settled)[0];
+    assert.equal(settled?.outcome, "answered");
+    assert.equal(settled?.answers[0]?.selectedLabel, "Blue");
+
+    assert.equal(fold.meta.contextUsage?.windowTokens, 1007997);
+    assert.equal(fold.meta.tokenTotals?.totalTokens, 108605);
+    assert.equal(fold.meta.approvalMode, "onRequest");
+    assert.equal(fold.meta.modelId, "muse-spark-1.3-contributor");
+  });
+
+  it("shows a turn as running with its streaming reply inline", () => {
+    const firstDelta = liveEvents.findIndex((e) => e.method === "item/delta");
+    const fold = foldAll(liveEvents.slice(0, firstDelta + 1));
+    assert.notEqual(fold.activeTurnId, null);
+    const [turn] = buildTurns(fold);
+    assert.equal(turn?.running, true);
+    assert.equal(turn?.final, null);
+    const reply = turn?.entries.find((e) => e.kind === "agentMessage");
+    assert.equal(reply?.text, "pong");
+    assert.equal(reply?.status, "inProgress");
+  });
+
+  it("parks a pending question until it settles", () => {
+    const requested = liveEvents.findIndex((e) => e.method === "userInput/requested");
+    const fold = foldAll(liveEvents.slice(0, requested + 1));
+    const [pending] = Object.values(fold.userInputs);
+    assert.equal(pending?.questions[0]?.question, "Which color do you prefer?");
+    const toolItem = Object.values(fold.items).find((i) => i.tool === "request_user_input");
+    assert.equal(gateFor(fold, toolItem?.itemId ?? "")?.kind, "input");
+  });
+
+  it("renders paged history the same as the live stream", () => {
+    const live = buildTurns(foldAll(liveEvents));
+    const history = buildTurns(foldAll(historyEvents));
+    assert.deepEqual(
+      history.map((t) => [t.prompt?.text, t.final?.text, t.entries.map((e) => e.kind)]),
+      live.map((t) => [t.prompt?.text, t.final?.text, t.entries.map((e) => e.kind)]),
+    );
+  });
+
+  it("never duplicates items when history and live events overlap", () => {
+    const fold = applyEvents(foldAll(historyEvents), liveEvents);
+    const ids = fold.order;
+    assert.equal(new Set(ids).size, ids.length);
+    const live = foldAll(liveEvents);
+    assert.equal(fold.order.length, live.order.length);
+    const reply = Object.values(fold.items).find((i) => i.kind === "agentMessage" && i.text === "pong");
+    assert.equal(reply?.revision, 2, "the higher live revision wins over the paged one");
+  });
+
+  it("keeps streamed text when the final arrives empty and ignores late deltas", () => {
+    let fold = applyEvent(emptyFold(), {
+      method: "item/started",
+      params: { sessionId: "s", item: { itemId: "m1", kind: "agentMessage", status: "inProgress", revision: 1, turnId: "t1" } },
+    });
+    fold = applyEvent(fold, { method: "item/delta", params: { sessionId: "s", itemId: "m1", delta: "Hello world" } });
+    fold = applyEvent(fold, {
+      method: "item/completed",
+      params: { sessionId: "s", item: { itemId: "m1", kind: "agentMessage", status: "completed", revision: 2, turnId: "t1", text: "" } },
+    });
+    assert.equal(fold.items["m1"]?.text, "Hello world");
+    fold = applyEvent(fold, { method: "item/delta", params: { sessionId: "s", itemId: "m1", delta: " again" } });
+    assert.equal(fold.items["m1"]?.text, "Hello world");
+  });
+
+  it("streams reasoning summaries and tool output by field path", () => {
+    let fold = applyEvent(emptyFold(), {
+      method: "item/started",
+      params: { sessionId: "s", item: { itemId: "r1", kind: "reasoning", status: "inProgress", revision: 1, turnId: "t1" } },
+    });
+    fold = applyEvents(fold, [
+      { method: "item/delta", params: { itemId: "r1", field: "summary.0", delta: "Checking " } },
+      { method: "item/delta", params: { itemId: "r1", field: "summary.0", delta: "tests" } },
+      { method: "item/delta", params: { itemId: "r1", field: "summary.1", delta: "Then build" } },
+      { method: "item/delta", params: { itemId: "x9", field: "output", delta: "npm ok" } },
+    ]);
+    assert.deepEqual(fold.items["r1"]?.summary, ["Checking tests", "Then build"]);
+    assert.equal(fold.items["x9"]?.kind, "toolCall");
+    assert.equal(fold.items["x9"]?.visibleOutput, "npm ok");
+  });
+
+  it("tracks approvals from request to resolution", () => {
+    const request = {
+      sessionId: "s",
+      approvalId: "a1",
+      itemId: "tool1",
+      currentRequirementId: { approvalId: "a1", sourceIndex: 0 },
+      availableChoices: [{ choiceId: "yes", label: "Allow once", decision: "approved", scope: "once" }],
+      subject: { kind: "shell", command: "rm -rf dist" },
+    };
+    let fold = applyEvent(emptyFold(), { method: "approval/requested", params: request });
+    assert.equal(gateFor(fold, "tool1")?.kind, "approval");
+    fold = applyEvent(fold, { method: "approval/resolved", params: { sessionId: "s", approvalId: "a1", decision: "approved", resolvedBy: "user" } });
+    assert.deepEqual(fold.approvals, {});
+    assert.equal(fold.resolved["a1"]?.decision, "approved");
+    fold = applyEvent(fold, { method: "approval/requested", params: request });
+    assert.deepEqual(fold.approvals, {}, "a redelivered request for a resolved approval stays resolved");
+  });
+
+  it("records failures, retries and cancellations per turn", () => {
+    const fold = applyEvents(emptyFold(), [
+      { method: "turn/started", params: { turnId: "t1" }, at: 1000 },
+      { method: "turn/retryScheduled", params: { turnId: "t1", attempt: 1, maxAttempts: 3, nextAttempt: 2, reason: "rate limited", retryDelayMs: 2000 } },
+      { method: "turn/completed", params: { turnId: "t1", terminal: "failed", error: { kind: "modelError", message: "Provider down", retryable: true } }, at: 5000 },
+    ]);
+    assert.equal(fold.activeTurnId, null);
+    assert.equal(fold.turns["t1"]?.terminal, "failed");
+    assert.equal(fold.turns["t1"]?.error?.message, "Provider down");
+    assert.equal(fold.turns["t1"]?.retry, undefined);
+    assert.equal(fold.turns["t1"]?.startedAt, 1000);
+  });
+
+  it("drops the local echo once the prompt comes back from the stream", () => {
+    let fold = addEcho(emptyFold(), { localId: "l1", text: "hello  there", turnId: null, disposition: "sending", createdAt: 1 });
+    fold = updateEcho(fold, "l1", { turnId: "t1", disposition: "started" });
+    assert.equal(fold.echoes[0]?.turnId, "t1");
+    fold = applyEvent(fold, {
+      method: "item/completed",
+      params: { item: { itemId: "u1", kind: "userMessage", status: "completed", revision: 1, turnId: "t1", text: "hello there" } },
+    });
+    assert.equal(fold.echoes.length, 0);
+
+    let raced = applyEvent(emptyFold(), {
+      method: "item/completed",
+      params: { item: { itemId: "u2", kind: "userMessage", status: "completed", revision: 1, turnId: "t2", text: "fast" } },
+    });
+    raced = addEcho(raced, { localId: "l2", text: "fast", turnId: null, disposition: "sending", createdAt: 1 });
+    raced = updateEcho(raced, "l2", { turnId: "t2", disposition: "started" });
+    assert.equal(raced.echoes.length, 0, "an echo whose prompt already landed is dropped on ack");
+  });
+
+  it("keeps queued prompts until their turn launches or is reclaimed", () => {
+    let fold = addEcho(emptyFold(), { localId: "q1", text: "next", turnId: "t5", disposition: "queued", createdAt: 1 });
+    fold = applyEvent(fold, { method: "turn/started", params: { turnId: "t5" } });
+    assert.equal(fold.echoes[0]?.disposition, "started");
+    fold = addEcho(fold, { localId: "q2", text: "later", turnId: "t6", disposition: "queued", createdAt: 2 });
+    fold = applyEvent(fold, { method: "turn/unqueued", params: { turnId: "t6", commandId: "t6" } });
+    assert.deepEqual(fold.echoes.map((e) => e.localId), ["q1"]);
+  });
+
+  it("builds a fold from a resume load with the server's pending set", () => {
+    const requested = liveEvents.findIndex((e) => e.method === "userInput/requested");
+    const pendingInput = liveEvents[requested]?.params;
+    const fold = foldFromLoad({
+      session: null,
+      msp: { status: "running", activeTurnId: "t-live", modelId: "m", approvalMode: "denyUnmatched", workspaceRoot: "/w", turnCount: 3 },
+      events: historyEvents,
+      truncated: false,
+      pending: { approvals: [], userInputs: [pendingInput as never] },
+      readOnly: false,
+      readOnlyReason: null,
+    });
+    assert.equal(fold.activeTurnId, "t-live");
+    assert.equal(Object.keys(fold.userInputs).length, 1);
+    assert.equal(fold.meta.approvalMode, "onRequest", "events win over the resume snapshot");
+  });
+
+  it("returns the same fold for an empty batch", () => {
+    const fold = emptyFold();
+    assert.equal(applyEvents(fold, []), fold);
+  });
+});

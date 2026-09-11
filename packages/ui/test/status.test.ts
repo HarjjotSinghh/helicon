@@ -1,0 +1,81 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { applyEvent, emptyFold } from "../src/model/fold.js";
+import { groupByProject, groupByStatus, threadStatus, type SidebarEntry } from "../src/model/status.js";
+import type { LiveView, ProjectView, SessionSummary } from "../src/types.js";
+
+const BASE = "2026-09-01T00:00:00.000Z";
+
+function session(id: string, patch: Partial<SessionSummary> = {}, live: Partial<LiveView> | null = null): SessionSummary {
+  return {
+    sessionId: id,
+    cwd: "/work/a",
+    title: id,
+    titleSource: "auto",
+    turnCount: 1,
+    modelId: null,
+    origin: "helicon",
+    archived: false,
+    createdAt: BASE,
+    activityAt: "2026-09-02T00:00:00.000Z",
+    live: live
+      ? { activeTurnId: null, turnStartedAt: null, pendingApprovals: 0, pendingInputs: 0, lastTerminal: null, lastError: null, ...live }
+      : null,
+    ...patch,
+  };
+}
+
+describe("threadStatus", () => {
+  it("ranks approval over input over running", () => {
+    const ctx = { baseline: BASE, active: false };
+    assert.equal(threadStatus(session("a", {}, { pendingApprovals: 1, pendingInputs: 1, activeTurnId: "t" }), ctx), "approval");
+    assert.equal(threadStatus(session("a", {}, { pendingInputs: 1, activeTurnId: "t" }), ctx), "input");
+    assert.equal(threadStatus(session("a", {}, { activeTurnId: "t" }), ctx), "running");
+  });
+
+  it("marks finished work unread until the user has seen it", () => {
+    const s = session("a", {}, { lastTerminal: "completed" });
+    assert.equal(threadStatus(s, { baseline: BASE, active: false }), "unread");
+    assert.equal(threadStatus(s, { baseline: BASE, lastSeen: "2026-09-03T00:00:00.000Z", active: false }), "idle");
+    assert.equal(threadStatus(s, { baseline: "2026-09-05T00:00:00.000Z", active: false }), "idle", "history from before first run is not unread");
+    assert.equal(threadStatus(s, { baseline: BASE, active: true }), "idle");
+    const failed = session("b", {}, { lastTerminal: "failed" });
+    assert.equal(threadStatus(failed, { baseline: BASE, active: false }), "failed");
+  });
+
+  it("prefers the live fold over the server summary once a thread is open", () => {
+    const s = session("a", {}, { activeTurnId: "t-old" });
+    const fold = applyEvent(emptyFold(), { method: "turn/completed", params: { turnId: "t-old", terminal: "completed" } });
+    assert.equal(threadStatus(s, { fold, baseline: "2026-09-05T00:00:00.000Z", active: false }), "idle");
+  });
+});
+
+describe("sidebar grouping", () => {
+  const projects: ProjectView[] = [
+    { cwd: "/work/a", displayName: "a", pinned: false, activityAt: BASE },
+    { cwd: "/work/b", displayName: "b", pinned: false, activityAt: BASE },
+  ];
+  const entries: SidebarEntry[] = [
+    { session: session("old", { activityAt: "2026-09-01T01:00:00.000Z" }), status: "idle" },
+    { session: session("new", { activityAt: "2026-09-04T00:00:00.000Z" }), status: "unread" },
+    { session: session("busy", { activityAt: "2026-09-01T00:30:00.000Z" }), status: "running" },
+    { session: session("ask", { activityAt: "2026-09-01T00:10:00.000Z" }), status: "approval" },
+    { session: session("other", { cwd: "/work/b" }), status: "idle" },
+    { session: session("hidden-project", { cwd: "/work/hidden" }), status: "idle" },
+  ];
+
+  it("groups by project with live threads first, then recency", () => {
+    const groups = groupByProject(projects, entries);
+    assert.deepEqual(groups.map((g) => g.project.cwd), ["/work/a", "/work/b"]);
+    assert.deepEqual(groups[0]?.entries.map((e) => e.session.sessionId), ["ask", "busy", "new", "old"]);
+    assert.equal(groups[0]?.attention, 1);
+    assert.equal(groups[0]?.running, 1);
+    assert.deepEqual(groups[1]?.entries.map((e) => e.session.sessionId), ["other"]);
+  });
+
+  it("groups by status and drops empty groups", () => {
+    const groups = groupByStatus(entries.filter((e) => e.status !== "running"));
+    assert.deepEqual(groups.map((g) => g.id), ["attention", "review", "idle"]);
+    assert.deepEqual(groups[2]?.entries.map((e) => e.session.sessionId), ["other", "hidden-project", "old"]);
+  });
+});
