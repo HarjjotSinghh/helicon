@@ -321,7 +321,9 @@ describe("HeliconController", () => {
     assert.match(client.sent.at(-1)?.text ?? "", /```sh\nls -la\n```/);
     assert.match(client.sent.at(-1)?.text ?? "", /your own shell works/, "the agent is told its own shell is fine");
     assert.equal(await controller.askToRun("s1", "echo '```'"), true);
-    assert.match(client.sent.at(-1)?.text ?? "", /~~~sh\necho '```'\n~~~/, "a command with a fence in it gets the other fence");
+    assert.match(client.sent.at(-1)?.text ?? "", /````sh\necho '```'\n````/, "a fence in the command gets a longer fence around it");
+    assert.equal(await controller.askToRun("s1", "printf '~~~\\n'"), true);
+    assert.match(client.sent.at(-1)?.text ?? "", /```sh\nprintf '~~~\\n'\n```/, "a tilde run in the command changes nothing");
     stop();
   });
 

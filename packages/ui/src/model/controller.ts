@@ -433,6 +433,11 @@ export class HeliconController {
         const wasLost = this.state.connection === "lost";
         this.update((s) => ({ ...s, connection: "open" }));
         if (wasLost && this.state.boot === "ready") {
+          // Goals could have moved while the stream was down, and only the open thread is reloaded. Let every
+          // other thread take the server's goal again rather than the last one it saw streamed.
+          for (const id of Object.keys(this.state.threads)) {
+            this.patchFold(id, (f) => (f.meta.goalSeen ? { ...f, meta: { ...f.meta, goalSeen: false } } : f));
+          }
           void this.refresh();
           const route = this.state.route;
           if (route.kind === "thread") {
@@ -728,6 +733,13 @@ export class HeliconController {
       return;
     }
     this.setBusy(key, true);
+    // The card goes on the click, not on the host's `approval/resolved`, which can be a second or more behind.
+    const decision = (request.availableChoices ?? []).find((c) => c.choiceId === choiceId)?.decision ?? "approved";
+    this.patchFold(request.sessionId, (f) => {
+      const approvals = { ...f.approvals };
+      delete approvals[request.approvalId];
+      return { ...f, approvals, resolved: { ...f.resolved, [request.approvalId]: { decision, resolvedBy: "user" } } };
+    });
     try {
       await this.client.decideApproval({
         sessionId: request.sessionId,
@@ -739,19 +751,26 @@ export class HeliconController {
     } catch (error) {
       const kind = errorKind(error);
       if (kind === "approvalAlreadyResolved" || kind === "approvalNotFound") {
-        this.patchFold(request.sessionId, (f) => {
-          const approvals = { ...f.approvals };
-          delete approvals[request.approvalId];
-          return { ...f, approvals };
-        });
+        /* it was already settled elsewhere; the card is gone either way */
       } else if (kind === "approvalRequirementStale") {
+        this.restoreApproval(request);
         this.toast("info", "The request changed", "Review the updated request and decide again.");
       } else {
+        this.restoreApproval(request);
         this.toast("error", "Decision not sent", errorMessage(error));
       }
     } finally {
       this.setBusy(key, false);
     }
+  }
+
+  /** Puts a request back when its decision did not land, so the choice is still the user's. */
+  private restoreApproval(request: ApprovalRequest): void {
+    this.patchFold(request.sessionId, (f) => {
+      const resolved = { ...f.resolved };
+      delete resolved[request.approvalId];
+      return { ...f, approvals: { ...f.approvals, [request.approvalId]: request }, resolved };
+    });
   }
 
   private dropInput(request: UserInputRequest): void {
@@ -1246,7 +1265,9 @@ export class HeliconController {
 
   /** Hands a `!` command the host could not run to the agent, whose own shell tool can. */
   askToRun(sessionId: string, command: string): Promise<boolean> {
-    const fence = command.includes("```") ? "~~~" : "```";
+    // A fence longer than any run of backticks in the command, so the command cannot close its own block.
+    const runs = command.match(/`+/g) ?? [];
+    const fence = "`".repeat(Math.max(3, ...runs.map((run) => run.length + 1)));
     // The failed `!` item says the environment is broken, which makes the agent refuse; tell it that its own shell is fine.
     const text =
       `Run this with your shell tool and show me the output:\n\n${fence}sh\n${command}\n${fence}\n\n` +

@@ -252,6 +252,30 @@ describe("HeliconServer", () => {
     assert.equal((await read()).title, "Fix the flaky login test in CI", "only the first prompt names a thread");
   });
 
+  it("takes Muse's own name for a thread, unless the user named it", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    connection.replies.set("session/list", {
+      sessions: [{ sessionId: "s1", workspaceRoot: "/work/proj", title: "Wire up the updater" }],
+      nextCursor: null,
+    });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    connection.notify("item/completed", {
+      sessionId: "s1",
+      item: { itemId: "i1", kind: "userMessage", revision: 1, status: "completed", text: "fix the updater please" },
+    });
+    const read = async () => (await get(base, "/api/sessions")).sessions.find((s: { sessionId: string }) => s.sessionId === "s1");
+    assert.equal((await read()).title, "fix the updater please");
+
+    await send(base, "/api/discover", {});
+    assert.equal((await read()).title, "Wire up the updater", "the name Muse shows in its own CLI wins");
+
+    await send(base, "/api/sessions/s1", { title: "Updater work" }, "PATCH");
+    await send(base, "/api/discover", {});
+    assert.equal((await read()).title, "Updater work", "a title the user typed stays");
+  });
+
   it("loads a transcript from resume, paged history and pending requests", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });
@@ -506,7 +530,7 @@ describe("slash commands, skills and shell", () => {
     assert.deepEqual(ids, ["s1", "s2"]);
   });
 
-  it("keeps a Helicon thread titled from what the user saw when Muse's own title differs", async () => {
+  it("lets Muse's own name replace a title derived from a /skill prompt", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });
     const { base } = await start(connection);
@@ -525,14 +549,14 @@ describe("slash commands, skills and shell", () => {
     });
     await new Promise((r) => setTimeout(r, 20));
     const titleOf = async () => (await get(base, "/api/sessions")).sessions.find((s: { sessionId: string }) => s.sessionId === "s1")?.title;
-    assert.equal(await titleOf(), "/plan tidy the API");
-    // Muse titles the session from the text the model got; discovery must not put that over ours.
+    assert.equal(await titleOf(), "/plan tidy the API", "until Muse has named it, the thread shows what the user typed");
+    // Muse names the session itself, and that name is what its own CLI shows, so discovery takes it.
     connection.replies.set("session/list", {
-      sessions: [{ sessionId: "s1", workspaceRoot: "/work/proj", title: "Use skill bundled:plan: call read_skill" }],
+      sessions: [{ sessionId: "s1", workspaceRoot: "/work/proj", title: "Tidy the API surface" }],
       nextCursor: null,
     });
     assert.equal((await send(base, "/api/discover", {})).status, 200);
-    assert.equal(await titleOf(), "/plan tidy the API");
+    assert.equal(await titleOf(), "Tidy the API surface");
   });
 
   it("keeps each session's goal in its live view for the sidebar", async () => {

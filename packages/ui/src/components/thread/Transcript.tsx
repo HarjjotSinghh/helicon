@@ -1,5 +1,5 @@
 import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square } from "lucide-react";
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { useController, useNow } from "../../app/context.js";
 import { useSampled } from "../../app/sampled.js";
@@ -70,6 +70,33 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
   const speeds = useMemo(() => turnSpeeds(fold), [fold.meta.calls, fold.turns, fold.activeTurnId]);
   const echoes = fold.echoes.filter((e) => e.disposition !== "queued");
   const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom({ initial: "instant", resize: "smooth" });
+
+  // The dock below grows when a request or panel appears, which shrinks this viewport. Follow it down so the
+  // last thing Muse said is never left cut off behind the card asking about it.
+  const requests = Object.keys(fold.approvals).length + Object.keys(fold.userInputs).length;
+  useEffect(() => {
+    if (requests > 0) {
+      void scrollToBottom();
+    }
+  }, [requests, scrollToBottom]);
+  const atBottom = useRef(isAtBottom);
+  atBottom.current = isAtBottom;
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    let height = element.clientHeight;
+    const observer = new ResizeObserver(() => {
+      const next = element.clientHeight;
+      if (next < height && atBottom.current) {
+        void scrollToBottom();
+      }
+      height = next;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [scrollRef, scrollToBottom]);
 
   const empty = turns.length === 0 && echoes.length === 0;
   return (

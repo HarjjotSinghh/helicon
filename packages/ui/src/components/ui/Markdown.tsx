@@ -107,11 +107,54 @@ const COMPONENTS: Components = {
 
 const PLUGINS = [remarkGfm];
 
-/** Agent prose: GitHub-flavored markdown with highlighted code blocks. */
-export const Markdown = memo(function Markdown(props: { text: string; className?: string }) {
+interface HastNode {
+  type: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, unknown>;
+  children?: HastNode[];
+}
+
+/**
+ * Wraps each word of prose in a span while text is still streaming, so a word that just arrived can fade in
+ * on its own. Word positions never shift as text is appended, so React keeps the old spans and only the new
+ * ones mount and animate. Code keeps its own markup.
+ */
+function rehypeWords() {
+  const walk = (node: HastNode): void => {
+    if (!node.children || node.tagName === "pre" || node.tagName === "code") {
+      return;
+    }
+    const next: HastNode[] = [];
+    for (const child of node.children) {
+      if (child.type === "text" && child.value) {
+        for (const part of child.value.split(/(\s+)/)) {
+          if (!part) {
+            continue;
+          }
+          next.push(
+            /^\s+$/.test(part)
+              ? { type: "text", value: part }
+              : { type: "element", tagName: "span", properties: { className: ["tok"] }, children: [{ type: "text", value: part }] },
+          );
+        }
+        continue;
+      }
+      walk(child);
+      next.push(child);
+    }
+    node.children = next;
+  };
+  return (tree: HastNode) => walk(tree);
+}
+
+const STREAM_PLUGINS = [rehypeWords];
+
+/** Agent prose: GitHub-flavored markdown with highlighted code blocks. `stream` fades in each new word. */
+export const Markdown = memo(function Markdown(props: { text: string; className?: string; stream?: boolean }) {
   return (
     <div className={cn("prose-helicon", props.className)}>
-      <ReactMarkdown remarkPlugins={PLUGINS} components={COMPONENTS}>
+      <ReactMarkdown remarkPlugins={PLUGINS} rehypePlugins={props.stream ? STREAM_PLUGINS : undefined} components={COMPONENTS}>
         {props.text}
       </ReactMarkdown>
     </div>

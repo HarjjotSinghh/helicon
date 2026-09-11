@@ -94,6 +94,8 @@ interface LiveState {
   lastTerminal: string | null;
   lastError: string | null;
   goal: GoalBlock | null;
+  /** Bumped on every live goal change, so a slow transcript load never writes an older goal over a newer one. */
+  goalSeq: number;
 }
 
 export interface LiveView {
@@ -1070,6 +1072,7 @@ export class HeliconServer {
         lastTerminal: null,
         lastError: null,
         goal: null,
+        goalSeq: 0,
       };
       this.live.set(sessionId, state);
     }
@@ -1380,6 +1383,8 @@ export class HeliconServer {
   }
 
   private async loadTranscript(sessionId: string): Promise<Record<string, unknown>> {
+    // A goal change can land while this load is in flight; history must not then write the older goal back.
+    const goalSeqAtStart = this.liveFor(sessionId).goalSeq;
     const found = this.store.findSession(sessionId);
     const host = await this.hostFor(found?.cwd ?? "");
     const manager = host.manager;
@@ -1432,8 +1437,8 @@ export class HeliconServer {
     }
     live.pendingApprovals = new Set(approvals.map((a) => str(a["approvalId"])).filter((id): id is string => id !== null));
     live.pendingInputs = new Set(userInputs.map((u) => str(u["userInputId"])).filter((id): id is string => id !== null));
-    // The history's last goal change is the goal as of now.
-    for (let index = events.length - 1; index >= 0; index -= 1) {
+    // The history's last goal change is the goal as of now, unless a live one arrived while this load ran.
+    for (let index = events.length - 1; live.goalSeq === goalSeqAtStart && index >= 0; index -= 1) {
       const event = events[index];
       const goal = event?.method === "session/goalChanged" ? goalOf(event.params["goal"]) : undefined;
       if (goal !== undefined) {
@@ -1512,9 +1517,9 @@ export class HeliconServer {
       }
       const project = this.store.upsertProject(root);
       const existing = this.store.getSession(sessionId);
-      // Muse titles a session from the text the model got. A Helicon thread already titled from what the
-      // user saw (a `/skill` turn sends instructions but shows the command) keeps that title.
-      const keepOurs = existing?.origin === "helicon" && existing.titleSource !== "placeholder";
+      // Muse names its own sessions, and that name is what the user sees in the CLI, so it wins here too.
+      // Only a title the user typed in Helicon outranks it.
+      const keepOurs = existing?.titleSource === "user";
       const title = keepOurs ? null : firstString(session, ["title", "name"]);
       const stored = this.store.recordSession({
         id: sessionId,
@@ -1785,6 +1790,7 @@ export class HeliconServer {
         // A block with no objective is not a goal; the last one stands.
         if (goal !== undefined) {
           live.goal = goal;
+          live.goalSeq += 1;
           changed = true;
         }
         break;

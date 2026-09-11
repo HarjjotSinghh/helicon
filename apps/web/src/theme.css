@@ -347,6 +347,12 @@
     animation: helicon-enter-up 220ms var(--ease-out);
   }
 
+  /* Each word of a streaming reply resolves as it lands, instead of snapping in. */
+  .prose-helicon.streaming .tok {
+    display: inline-block;
+    animation: helicon-token-in 180ms var(--ease-out) both;
+  }
+
   /* Beautiful UI LoadingState "Drive": a chevron wavefront through a 3x3 pixel grid. */
   .pixel-loader > span {
     opacity: 0.15;
@@ -546,6 +552,13 @@
   }
 }
 
+@keyframes helicon-token-in {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
+
 @keyframes helicon-pixel {
   0%,
   100% {
@@ -586,7 +599,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .spin-ring,
-  .attention-pulse {
+  .attention-pulse,
+  .prose-helicon.streaming .tok {
     animation: none;
   }
   .pixel-loader > span {

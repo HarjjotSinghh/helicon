@@ -497,8 +497,17 @@ export const ShellRow = memo(function ShellRow(props: { item: MspItem; sessionId
 
 function AskToRun(props: { sessionId: string; command: string }) {
   const controller = useController();
+  const [sending, setSending] = useState(false);
+  // One ask per click: a second send would run the same command twice.
+  const ask = () => {
+    if (sending) {
+      return;
+    }
+    setSending(true);
+    void controller.askToRun(props.sessionId, props.command).finally(() => setSending(false));
+  };
   return (
-    <Button size="sm" variant="secondary" onClick={() => void controller.askToRun(props.sessionId, props.command)}>
+    <Button size="sm" variant="secondary" loading={sending} onClick={ask}>
       Ask Muse to run it
     </Button>
   );
@@ -627,5 +636,5 @@ export function SteerBubble(props: { item: MspItem }) {
 }
 
 export function AgentText(props: { item: MspItem; streaming?: boolean }) {
-  return <Markdown text={props.item.text ?? ""} className={cn(props.streaming && "streaming")} />;
+  return <Markdown text={props.item.text ?? ""} stream={props.streaming} className={cn(props.streaming && "streaming")} />;
 }
