@@ -66,6 +66,12 @@ export interface ThreadMeta {
   modelId: string | null;
   approvalMode: ApprovalMode | null;
   goal: Goal | null;
+  /** A goal change arrived, so a null goal means cleared rather than never set. */
+  goalSeen: boolean;
+  /** When the current objective first appeared live; the goal record's own start time is preferred. */
+  goalSince: number | null;
+  /** When the goal's status last changed live, so a paused or finished goal's clock stops there. */
+  goalStatusAt: number | null;
 }
 
 export interface ThreadFold {
@@ -107,6 +113,9 @@ export function emptyFold(): ThreadFold {
       modelId: null,
       approvalMode: null,
       goal: null,
+      goalSeen: false,
+      goalSince: null,
+      goalStatusAt: null,
     },
     closed: false,
   };
@@ -517,7 +526,19 @@ function applyOne(draft: Draft, event: ViewEvent): void {
       break;
     case "session/goalChanged": {
       const goal = asRecord(params["goal"]);
-      d.meta.goal = goal ? (goal as unknown as Goal) : null;
+      const next = goal ? (goal as unknown as Goal) : null;
+      // A new objective restarts the live clock; the goal record's own start time wins when there is one.
+      if (!next) {
+        d.meta.goalSince = null;
+      } else if (next.objective !== d.meta.goal?.objective) {
+        d.meta.goalSince = event.at ?? null;
+      }
+      // A pause or finish stops the goal's clock at this moment; history carries no time, so it stays unknown there.
+      if (next?.status !== d.meta.goal?.status || next?.objective !== d.meta.goal?.objective) {
+        d.meta.goalStatusAt = next ? (event.at ?? null) : null;
+      }
+      d.meta.goal = next;
+      d.meta.goalSeen = true;
       break;
     }
     case "session/started": {

@@ -12,6 +12,7 @@ import {
   MessageCircleQuestion,
   Search,
   SquareTerminal,
+  Target,
   Workflow,
   Wrench,
 } from "lucide-react";
@@ -50,6 +51,7 @@ const TOOL_ICONS: Record<ToolKind, (props: { size: number; className?: string })
   question: (p) => <MessageCircleQuestion {...p} />,
   plan: (p) => <ListTodo {...p} />,
   agent: (p) => <Bot {...p} />,
+  goal: (p) => <Target {...p} />,
   generic: (p) => <Wrench {...p} />,
 };
 

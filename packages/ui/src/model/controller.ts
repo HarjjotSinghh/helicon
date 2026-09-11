@@ -11,6 +11,7 @@ import type {
   ViewEvent,
 } from "../types.js";
 import { modelDisplayName } from "./format.js";
+import { goalPrompt } from "./goal.js";
 import {
   INIT_PROMPT,
   findModel,
@@ -569,6 +570,11 @@ export class HeliconController {
     }
     this.update((s) => ({ ...s, draftHandoff: null }));
     return handoff.text;
+  }
+
+  /** Puts text in a thread's composer as if the user typed it, like `/goal ` for a new objective. */
+  prefillComposer(sessionId: string, text: string): void {
+    this.update((s) => ({ ...s, draftHandoff: { key: sessionId, text } }));
   }
 
   /** Starts a thread in `cwd` and runs its first action there; what the user typed goes to its composer if that fails. */
@@ -1155,6 +1161,14 @@ export class HeliconController {
         return true;
       case "init":
         return this.deliver(INIT_PROMPT, { ...options, displayText: typed });
+      case "goal": {
+        if (!args) {
+          this.toast("info", "Add the goal after /goal", "For example: /goal get the test suite passing");
+          return false;
+        }
+        // Served sessions have no goal command, so the model sets the goal with its create_goal tool.
+        return this.deliver(goalPrompt(args), { ...options, displayText: typed });
+      }
       case "model": {
         if (!args) {
           this.setPicker("model");
@@ -1223,6 +1237,11 @@ export class HeliconController {
     }
     const turn = skillTurn(skill, args, typed, body);
     return this.deliver(turn.text, { ...options, displayText: turn.displayText });
+  }
+
+  /** Asks Muse to pick a paused or blocked goal back up; the transcript shows the short form. */
+  continueGoal(sessionId: string, objective: string): Promise<boolean> {
+    return this.sendToThread(sessionId, `Keep working toward the goal: ${objective}`, { displayText: "Keep working on the goal" }, false);
   }
 
   /** Branches a thread into a new one and opens it. */

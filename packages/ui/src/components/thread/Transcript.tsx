@@ -247,6 +247,7 @@ function summarize(entries: MspItem[]): string {
   let edits = 0;
   let reads = 0;
   let searches = 0;
+  let goals = 0;
   let other = 0;
   for (const item of entries) {
     if (item.kind === "userShell") {
@@ -261,6 +262,8 @@ function summarize(entries: MspItem[]): string {
         reads += 1;
       } else if (kind === "search" || kind === "web") {
         searches += 1;
+      } else if (kind === "goal") {
+        goals += 1;
       } else {
         other += 1;
       }
@@ -271,6 +274,7 @@ function summarize(entries: MspItem[]): string {
   if (commands) parts.push(plural(commands, "command", "commands"));
   if (reads) parts.push(plural(reads, "file read", "files read"));
   if (searches) parts.push(plural(searches, "search", "searches"));
+  if (goals) parts.push(plural(goals, "goal update", "goal updates"));
   if (other) parts.push(plural(other, "tool call", "tool calls"));
   return parts.join(", ");
 }

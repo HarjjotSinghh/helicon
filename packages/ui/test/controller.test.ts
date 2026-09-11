@@ -299,6 +299,21 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("sets a goal through the model, and asks for the objective when it is missing", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.send("/goal Ship the release"), true);
+    assert.equal(client.sent.at(-1)?.displayText, "/goal Ship the release");
+    assert.match(client.sent.at(-1)?.text ?? "", /create_goal tool\. Objective: Ship the release/);
+    const count = client.sent.length;
+    assert.equal(await controller.send("/goal"), false);
+    assert.equal(client.sent.length, count);
+    assert.equal(controller.store.get().toasts.at(-1)?.title, "Add the goal after /goal");
+    assert.equal(await controller.continueGoal("s1", "Ship the release"), true);
+    assert.equal(client.sent.at(-1)?.displayText, "Keep working on the goal");
+    stop();
+  });
+
   it("forks a thread and opens the fork", async () => {
     const client = new FakeClient();
     const { controller, stop } = await started(client);
