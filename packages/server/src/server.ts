@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
@@ -6,6 +7,8 @@ import {
   HeliconStore,
   SessionManager,
   isApprovalMode,
+  isIfBusy,
+  isReasoningEffort,
   planServe,
   probeEnvironment,
   resolveMuseInDistro,
@@ -15,17 +18,28 @@ import {
   type ApprovalMode,
   type CommandConnection,
   type ServeTarget,
+  type SessionRecord,
 } from "@helicon/daemon";
 
-export const HELICON_VERSION = "0.1.0";
+export const HELICON_VERSION = "0.2.0";
+
+export interface HostExit {
+  code: number | null;
+  signal: string | null;
+}
 
 export interface HostHandle {
   start(version: string): Promise<unknown>;
   connection: CommandConnection;
   close(): Promise<unknown>;
+  onExit?(handler: (exit: HostExit) => void): void;
+  readonly recentStderr?: string;
 }
 
 export type HostFactory = (target: ServeTarget) => HostHandle;
+
+export type OpenTarget = "files" | "editor";
+export type Opener = (path: string, target: OpenTarget) => Promise<void>;
 
 const realHostFactory: HostFactory = (target) => new HeliconMspHost(target);
 
@@ -39,26 +53,67 @@ export interface ServerOptions {
   distro?: string;
   musePath?: string | null;
   hostFactory?: HostFactory;
+  opener?: Opener;
 }
 
 interface ManagedHost {
+  key: string;
   target: ServeTarget;
   handle: HostHandle;
   manager: SessionManager;
-  started: boolean;
+  serverVersion: string | null;
+  startedAt: string;
+}
+
+/** What the server knows about a session's live run, derived from the MSP view stream. */
+interface LiveState {
+  activeTurnId: string | null;
+  turnStartedAt: string | null;
+  pendingApprovals: Set<string>;
+  pendingInputs: Set<string>;
+  lastTerminal: string | null;
+  lastError: string | null;
+}
+
+export interface LiveView {
+  activeTurnId: string | null;
+  turnStartedAt: string | null;
+  pendingApprovals: number;
+  pendingInputs: number;
+  lastTerminal: string | null;
+  lastError: string | null;
 }
 
 type SseSink = (event: string, data: unknown) => void;
 
+const MAX_HISTORY_PAGES = 4;
+const HISTORY_PAGE_SIZE = 1000;
+const DISCOVER_LIMIT = 200;
+const TITLE_BACKFILL_LIMIT = 60;
+const ENV_CACHE_MS = 30_000;
+
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
-  if (typeof value === "object" && value !== null) {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
     return value as Record<string, unknown>;
   }
   return null;
 }
 
 function str(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function num(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function firstString(record: Record<string, unknown>, keys: string[]): string | null {
@@ -79,6 +134,132 @@ function isWslAbs(path: string): boolean {
   return path.startsWith("/");
 }
 
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+/** MSP timestamps carry microseconds; store them in JS ISO form so they sort as strings. */
+export function normalizeIso(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? undefined : new Date(time).toISOString();
+}
+
+function normalizeCwd(value: string): string {
+  const trimmed = value.trim();
+  if (/^[A-Za-z]:[\\/]?$/.test(trimmed) || trimmed === "/") {
+    return trimmed;
+  }
+  return trimmed.replace(/[\\/]+$/, "");
+}
+
+/** First meaningful line of the opening prompt, capped for the sidebar. */
+export function deriveTitle(text: string): string | null {
+  const line = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find((l) => l.length > 0);
+  if (!line) {
+    return null;
+  }
+  const clean = line.replace(/^[#>*\-\s]+/, "").replace(/\s+/g, " ").trim();
+  if (!clean) {
+    return null;
+  }
+  if (clean.length <= 72) {
+    return clean;
+  }
+  const cut = clean.slice(0, 72);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > 40 ? cut.slice(0, space) : cut).trimEnd()}...`;
+}
+
+function errorInfo(error: unknown): { status: number; message: string; kind: string | null } {
+  if (error instanceof HttpError) {
+    return { status: error.status, message: error.message, kind: null };
+  }
+  const kind = typeof (error as { kind?: unknown })?.kind === "string" ? ((error as { kind: string }).kind) : null;
+  const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof SyntaxError) {
+    return { status: 400, message: "Request body is not valid JSON.", kind: null };
+  }
+  if (kind === "sessionNotFound" || kind === "notFound" || kind === "approvalNotFound" || kind === "userInputNotFound") {
+    return { status: 404, message, kind };
+  }
+  if (kind) {
+    return { status: 409, message, kind };
+  }
+  return { status: 500, message, kind: null };
+}
+
+function stripSource(params: Record<string, unknown>): Record<string, unknown> {
+  const rest = { ...params };
+  delete rest["sourceRange"];
+  return rest;
+}
+
+function stripEvent(event: unknown): { method: string; params: Record<string, unknown> } | null {
+  const record = asRecord(event);
+  const method = record ? str(record["method"]) : null;
+  const params = record ? asRecord(record["params"]) : null;
+  if (!method || !params) {
+    return null;
+  }
+  return { method, params: stripSource(params) };
+}
+
+/** A live MSP notification reshaped for the browser: session-scoped, provenance stripped. */
+export function toWireEvent(
+  method: string,
+  params: Record<string, unknown>,
+  at?: number,
+): { type: "msp"; sessionId: string; method: string; params: Record<string, unknown>; at: number } | null {
+  const session = asRecord(params["session"]);
+  const sessionId = str(params["sessionId"]) ?? (session ? str(session["sessionId"]) : null);
+  if (!sessionId) {
+    return null;
+  }
+  return { type: "msp", sessionId, method, params: stripSource(params), at: at ?? Date.now() };
+}
+
+const CMD_UNSAFE = /[&|<>^%!"\r\n]/;
+
+export function defaultOpener(platform: string): Opener {
+  return (path, target) =>
+    new Promise<void>((resolveOpen, rejectOpen) => {
+      let command: string;
+      let args: string[];
+      if (platform === "win32") {
+        if (CMD_UNSAFE.test(path)) {
+          rejectOpen(new HttpError(400, "That folder path contains characters Helicon will not pass to the shell."));
+          return;
+        }
+        [command, args] = target === "editor" ? ["cmd.exe", ["/d", "/c", "code", path]] : ["explorer.exe", [path]];
+      } else if (platform === "darwin") {
+        [command, args] = target === "editor" ? ["code", [path]] : ["open", [path]];
+      } else {
+        [command, args] = target === "editor" ? ["code", [path]] : ["xdg-open", [path]];
+      }
+      const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true });
+      child.once("error", (error) =>
+        rejectOpen(
+          new HttpError(
+            500,
+            target === "editor"
+              ? `Could not launch VS Code (${error.message}). Make sure the \`code\` command is on your PATH.`
+              : `Could not open the folder (${error.message}).`,
+          ),
+        ),
+      );
+      child.once("spawn", () => {
+        child.unref();
+        resolveOpen();
+      });
+    });
+}
+
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -88,16 +269,38 @@ const MIME: Record<string, string> = {
   ".png": "image/png",
   ".ico": "image/x-icon",
   ".map": "application/json; charset=utf-8",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
 };
+
+interface EnvView {
+  platform: string;
+  wslAvailable: boolean;
+  defaultDistro: string | null;
+  museFound: boolean;
+  musePath: string | null;
+  version: string;
+  persistent: boolean;
+}
 
 export class HeliconServer {
   private readonly server: Server;
   private readonly store: HeliconStore;
   private readonly hosts = new Map<string, ManagedHost>();
+  private readonly starting = new Map<string, Promise<ManagedHost>>();
   private readonly fingerprints = new Map<string, unknown>();
   private readonly sinks = new Set<SseSink>();
+  private readonly live = new Map<string, LiveState>();
+  private readonly sessionHosts = new Map<string, string>();
+  private readonly opener: Opener;
+  private readonly titleQueue: string[] = [];
+  private titleWorker: Promise<void> | null = null;
+  private changeTimer: ReturnType<typeof setTimeout> | null = null;
+  private envCache: { at: number; value: EnvView } | null = null;
+  private lastHostError: string | null = null;
+  private closed = false;
   private readonly options: Required<
-    Omit<ServerOptions, "staticDir" | "token" | "platform" | "distro" | "musePath" | "hostFactory">
+    Omit<ServerOptions, "staticDir" | "token" | "platform" | "distro" | "musePath" | "hostFactory" | "opener">
   > &
     Pick<ServerOptions, "staticDir" | "token"> & {
       platform: string;
@@ -118,6 +321,7 @@ export class HeliconServer {
       musePath: options.musePath,
       hostFactory: options.hostFactory ?? realHostFactory,
     };
+    this.opener = options.opener ?? defaultOpener(this.options.platform);
     this.store = new HeliconStore(
       this.options.dataDir === ":memory:" ? ":memory:" : join(this.options.dataDir, "helicon.db"),
     );
@@ -134,8 +338,17 @@ export class HeliconServer {
   }
 
   async close(): Promise<void> {
+    this.closed = true;
+    if (this.changeTimer) {
+      clearTimeout(this.changeTimer);
+      this.changeTimer = null;
+    }
+    this.titleQueue.length = 0;
     for (const sink of [...this.sinks]) {
       this.sinks.delete(sink);
+    }
+    for (const pending of this.starting.values()) {
+      await pending.catch(() => undefined);
     }
     for (const managed of this.hosts.values()) {
       try {
@@ -145,9 +358,11 @@ export class HeliconServer {
       }
     }
     this.hosts.clear();
+    this.server.closeAllConnections?.();
     await new Promise<void>((resolve, reject) =>
       this.server.close((error) => (error ? reject(error) : resolve())),
     );
+    await this.titleWorker?.catch(() => undefined);
     this.store.close();
   }
 
@@ -159,6 +374,17 @@ export class HeliconServer {
         /* drop broken sinks on next write */
       }
     }
+  }
+
+  /** Coalesce bursts (discovery, title backfill) into one sidebar refresh. */
+  private sessionsChanged(): void {
+    if (this.changeTimer || this.closed) {
+      return;
+    }
+    this.changeTimer = setTimeout(() => {
+      this.changeTimer = null;
+      this.emit("helicon", { type: "sessions-changed" });
+    }, 120);
   }
 
   private authorized(req: IncomingMessage): boolean {
@@ -175,19 +401,19 @@ export class HeliconServer {
 
   private json(res: ServerResponse, status: number, body: unknown): void {
     const text = JSON.stringify(body);
-    res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+    res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
     res.end(text);
   }
 
-  private fail(res: ServerResponse, status: number, message: string): void {
+  private fail(res: ServerResponse, status: number, message: string, kind: string | null = null): void {
     if (!res.headersSent) {
-      this.json(res, status, { error: message });
+      this.json(res, status, { error: message, kind });
     } else {
       res.end();
     }
   }
 
-  private async readBody(req: IncomingMessage): Promise<unknown> {
+  private async readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
     const chunks: Buffer[] = [];
     for await (const chunk of req) {
       chunks.push(chunk as Buffer);
@@ -196,7 +422,7 @@ export class HeliconServer {
     if (!text) {
       return {};
     }
-    return JSON.parse(text) as unknown;
+    return asRecord(JSON.parse(text) as unknown) ?? {};
   }
 
   private async route(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -207,197 +433,268 @@ export class HeliconServer {
       return;
     }
     const method = (req.method ?? "GET").toUpperCase();
+    if (path.startsWith("/api/")) {
+      try {
+        const handled = await this.api(method, path, url, req, res);
+        if (!handled) {
+          this.fail(res, 404, "Not found.");
+        }
+      } catch (error) {
+        const info = errorInfo(error);
+        this.fail(res, info.status, info.message, info.kind);
+      }
+      return;
+    }
+    if (this.options.staticDir && method === "GET") {
+      const served = await this.serveStatic(path, res);
+      if (served) {
+        return;
+      }
+    }
+    this.fail(res, 404, "Not found.");
+  }
 
+  private async api(
+    method: string,
+    path: string,
+    url: URL,
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<boolean> {
     if (method === "GET" && path === "/api/health") {
       this.json(res, 200, {
         ok: true,
         version: HELICON_VERSION,
+        hosts: [...this.hosts.values()].map((h) => ({
+          key: h.key,
+          serverVersion: h.serverVersion,
+          startedAt: h.startedAt,
+        })),
+        lastHostError: this.lastHostError,
         fingerprintWarnings: Object.fromEntries(this.fingerprints),
       });
-      return;
+      return true;
     }
     if (method === "GET" && path === "/api/env") {
-      const probe = await probeEnvironment(defaultExec, this.options.platform);
-      this.json(res, 200, {
-        platform: probe.platform,
-        wslAvailable: probe.wslAvailable,
-        defaultDistro: probe.defaultDistro,
-        museFound: probe.musePath !== null,
-        musePath: probe.musePath,
-      });
-      return;
+      this.json(res, 200, await this.environment(url.searchParams.get("refresh") === "1"));
+      return true;
     }
     if (method === "GET" && path === "/api/events") {
       this.serveEvents(res);
-      return;
+      return true;
     }
     if (method === "GET" && path === "/api/projects") {
-      this.json(res, 200, { projects: this.store.listProjects() });
-      return;
+      this.json(res, 200, {
+        projects: this.store.listProjects().map((p) => ({
+          cwd: p.cwd,
+          displayName: p.displayName,
+          pinned: p.pinned,
+          activityAt: p.activityAt,
+        })),
+      });
+      return true;
+    }
+    if (method === "POST" && path === "/api/projects") {
+      const body = await this.readBody(req);
+      const raw = str(body["cwd"]);
+      if (!raw || !raw.trim()) {
+        throw new HttpError(400, "cwd is required.");
+      }
+      const cwd = normalizeCwd(raw);
+      this.store.upsertProject(cwd);
+      this.store.setHidden(cwd, false);
+      let warning: string | null = null;
+      let sessions: Record<string, unknown>[] = [];
+      try {
+        sessions = await this.discover(cwd);
+      } catch (error) {
+        warning = errorInfo(error).message;
+      }
+      this.sessionsChanged();
+      this.json(res, 200, { project: { cwd, displayName: this.store.getProject(cwd)?.displayName ?? cwd }, sessions, warning });
+      return true;
+    }
+    if (method === "DELETE" && path === "/api/projects") {
+      const cwd = url.searchParams.get("cwd");
+      if (!cwd) {
+        throw new HttpError(400, "cwd is required.");
+      }
+      this.store.setHidden(cwd, true);
+      this.sessionsChanged();
+      this.json(res, 200, { ok: true });
+      return true;
     }
     if (method === "PATCH" && path === "/api/projects/pin") {
-      const body = asRecord(await this.readBody(req));
-      const cwd = body ? str(body["cwd"]) : null;
+      const body = await this.readBody(req);
+      const cwd = str(body["cwd"]);
       if (!cwd) {
-        this.fail(res, 400, "cwd is required.");
-        return;
+        throw new HttpError(400, "cwd is required.");
       }
       this.store.upsertProject(cwd);
-      this.store.setPinned(cwd, body?.["pinned"] === true);
+      this.store.setPinned(cwd, body["pinned"] === true);
+      this.sessionsChanged();
       this.json(res, 200, { ok: true });
-      return;
+      return true;
     }
     if (method === "GET" && path === "/api/sessions") {
       const cwd = url.searchParams.get("cwd");
-      if (cwd) {
-        const project = this.store.upsertProject(cwd);
-        this.json(res, 200, { sessions: this.store.listSessionsByProject(project.id) });
-      } else {
-        const all = this.store.listProjects().flatMap((p) => this.store.listSessionsByProject(p.id));
-        this.json(res, 200, { sessions: all });
-      }
-      return;
+      const includeArchived = url.searchParams.get("archived") === "1";
+      const projects = cwd
+        ? [this.store.getProject(cwd)].filter((p): p is NonNullable<typeof p> => p !== null)
+        : this.store.listProjects();
+      const sessions = projects.flatMap((project) =>
+        this.store
+          .listSessionsByProject(project.id, { includeArchived })
+          .map((record) => this.summary(record, project.cwd)),
+      );
+      this.json(res, 200, { sessions });
+      return true;
     }
     if (method === "POST" && path === "/api/discover") {
-      const body = asRecord(await this.readBody(req));
-      const cwd = body ? str(body["cwd"]) ?? undefined : undefined;
-      const found = await this.discover(cwd);
-      this.json(res, 200, { sessions: found });
-      return;
+      const body = await this.readBody(req);
+      const cwd = str(body["cwd"]) ?? undefined;
+      this.json(res, 200, { sessions: await this.discover(cwd) });
+      return true;
     }
     if (method === "POST" && path === "/api/sessions") {
-      const body = asRecord(await this.readBody(req)) ?? {};
-      const cwd = str(body["cwd"]);
-      if (!cwd) {
-        this.fail(res, 400, "cwd is required.");
-        return;
+      const body = await this.readBody(req);
+      const raw = str(body["cwd"]);
+      if (!raw) {
+        throw new HttpError(400, "cwd is required.");
       }
       const mode = body["approvalMode"];
-      if (mode !== undefined && !isApprovalMode(mode)) {
-        this.fail(res, 400, "Unknown approvalMode.");
-        return;
+      if (mode !== undefined && mode !== null && !isApprovalMode(mode)) {
+        throw new HttpError(400, "Unknown approvalMode.");
       }
-      const project = this.store.upsertProject(cwd);
-      const manager = await this.managerFor(cwd);
-      const started = await manager.startSession({
-        workspaceRoot: this.hostPathFor(cwd),
-        approvalMode: mode === undefined ? undefined : (mode as ApprovalMode),
-        modelId: str(body["modelId"]) ?? undefined,
-      });
-      const sessionId = started.sessionId;
-      const known = this.knownSessionIds();
-      const record = this.store.recordSession({
-        id: sessionId,
-        projectId: project.id,
-        origin: known.has(sessionId) ? "tui" : "helicon",
-      });
-      this.json(res, 200, { session: this.toSessionView(record, cwd) });
-      return;
+      const session = await this.startSession(
+        normalizeCwd(raw),
+        mode === undefined || mode === null ? undefined : (mode as ApprovalMode),
+        str(body["modelId"]) ?? undefined,
+      );
+      this.json(res, 200, { session });
+      return true;
     }
 
-    const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)\/(resume|read|model|approval-mode)$/);
-    if (method === "POST" && sessionMatch) {
+    const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(?:\/(resume|model|approval-mode|compact))?$/);
+    if (sessionMatch) {
       const sessionId = decodeURIComponent(sessionMatch[1] as string);
-      const action = sessionMatch[2] as string;
-      const body = asRecord(await this.readBody(req)) ?? {};
-      const stored = this.findSession(sessionId);
-      const manager = await this.managerFor(stored?.cwd ?? "");
-      if (action === "resume") {
-        const resumed = await manager.resumeSession(sessionId, body["excludeItems"] === true);
-        this.json(res, 200, { resumed });
-        return;
-      }
-      if (action === "read") {
-        this.json(res, 200, { session: await manager.readSession(sessionId) });
-        return;
-      }
-      if (action === "model") {
-        if (!("model" in body)) {
-          this.fail(res, 400, "model is required.");
-          return;
+      const action = sessionMatch[2];
+      if (method === "PATCH" && !action) {
+        const body = await this.readBody(req);
+        const found = this.store.findSession(sessionId);
+        if (!found) {
+          throw new HttpError(404, "Unknown session.");
         }
-        await manager.setSessionModel(sessionId, body["model"]);
+        const title = typeof body["title"] === "string" ? body["title"].trim().slice(0, 200) : undefined;
+        const record = this.store.updateSession(sessionId, {
+          ...(title ? { title, titleSource: "user" as const } : {}),
+          ...(typeof body["archived"] === "boolean" ? { archived: body["archived"] } : {}),
+        });
+        this.sessionsChanged();
+        this.json(res, 200, { session: record ? this.summary(record, found.cwd) : null });
+        return true;
+      }
+      if (method === "POST" && action) {
+        const body = await this.readBody(req);
+        if (action === "resume") {
+          this.json(res, 200, await this.loadTranscript(sessionId));
+          return true;
+        }
+        const manager = await this.managerForSession(sessionId);
+        if (action === "model") {
+          if (!("model" in body)) {
+            throw new HttpError(400, "model is required.");
+          }
+          await manager.setSessionModel(sessionId, body["model"]);
+          const modelId = str(asRecord(body["model"])?.["modelId"]);
+          if (modelId) {
+            this.store.updateSession(sessionId, { modelId });
+          }
+          this.json(res, 200, { ok: true });
+          return true;
+        }
+        if (action === "compact") {
+          this.json(res, 200, { result: await manager.compactSession(sessionId) });
+          return true;
+        }
+        const mode = body["mode"];
+        if (!isApprovalMode(mode)) {
+          throw new HttpError(400, "Unknown mode.");
+        }
+        await manager.setSessionApprovalMode(sessionId, mode);
         this.json(res, 200, { ok: true });
-        return;
+        return true;
       }
-      const mode = body["mode"];
-      if (!isApprovalMode(mode)) {
-        this.fail(res, 400, "Unknown mode.");
-        return;
-      }
-      await manager.setSessionApprovalMode(sessionId, mode);
-      this.json(res, 200, { ok: true });
-      return;
     }
 
     if (method === "POST" && path === "/api/turns") {
-      const body = asRecord(await this.readBody(req)) ?? {};
+      const body = await this.readBody(req);
       const sessionId = str(body["sessionId"]);
       const text = str(body["text"]);
       if (!sessionId || !text) {
-        this.fail(res, 400, "sessionId and text are required.");
-        return;
+        throw new HttpError(400, "sessionId and text are required.");
       }
-      const manager = await this.managerFor(this.findSession(sessionId)?.cwd ?? "");
+      const ifBusy = body["ifBusy"];
+      if (ifBusy !== undefined && ifBusy !== null && !isIfBusy(ifBusy)) {
+        throw new HttpError(400, "Unknown ifBusy.");
+      }
+      const effort = body["reasoningEffort"];
+      if (effort !== undefined && effort !== null && !isReasoningEffort(effort)) {
+        throw new HttpError(400, "Unknown reasoningEffort.");
+      }
+      const manager = await this.managerForSession(sessionId);
       const ack = await manager.sendTurn(sessionId, text, {
         displayText: str(body["displayText"]) ?? undefined,
-        ifBusy: str(body["ifBusy"]) ?? undefined,
-        reasoningEffort: str(body["reasoningEffort"]) ?? undefined,
+        ifBusy: typeof ifBusy === "string" ? ifBusy : undefined,
+        reasoningEffort: typeof effort === "string" ? effort : undefined,
       });
-      if (ack.turnId) {
-        this.safeRecordTurn(sessionId, ack.turnId);
-      }
+      this.store.updateSession(sessionId, { activityAt: nowIso() });
       this.json(res, 200, { turnId: ack.turnId, status: ack.status, disposition: ack.disposition });
-      return;
+      return true;
     }
 
     const turnMatch = path.match(/^\/api\/turns\/(steer|interrupt|cancel|unqueue)$/);
     if (method === "POST" && turnMatch) {
       const action = turnMatch[1] as string;
-      const body = asRecord(await this.readBody(req)) ?? {};
+      const body = await this.readBody(req);
       const sessionId = str(body["sessionId"]);
       const turnId = str(body["turnId"]);
       if (!sessionId) {
-        this.fail(res, 400, "sessionId is required.");
-        return;
+        throw new HttpError(400, "sessionId is required.");
       }
-      const manager = await this.managerFor(this.findSession(sessionId)?.cwd ?? "");
+      const manager = await this.managerForSession(sessionId);
       if (action === "steer") {
         const text = str(body["text"]);
         if (!turnId || !text) {
-          this.fail(res, 400, "turnId and text are required to steer.");
-          return;
+          throw new HttpError(400, "turnId and text are required to steer.");
         }
         await manager.steerTurn(sessionId, turnId, text);
       } else if (action === "interrupt") {
         await manager.interruptTurn(sessionId, turnId ?? undefined, body["retract"] === true);
       } else if (action === "cancel") {
         if (!turnId) {
-          this.fail(res, 400, "turnId is required.");
-          return;
+          throw new HttpError(400, "turnId is required.");
         }
         await manager.cancelTurn(sessionId, turnId);
       } else {
         if (!turnId) {
-          this.fail(res, 400, "turnId is required.");
-          return;
+          throw new HttpError(400, "turnId is required.");
         }
         await manager.unqueueTurn(sessionId, turnId);
       }
       this.json(res, 200, { ok: true });
-      return;
+      return true;
     }
 
     if (method === "POST" && path === "/api/approvals/decide") {
-      const body = asRecord(await this.readBody(req)) ?? {};
+      const body = await this.readBody(req);
       const sessionId = str(body["sessionId"]);
       const approvalId = str(body["approvalId"]);
       const choiceId = str(body["choiceId"]);
       if (!sessionId || !approvalId || !choiceId || !("requirementId" in body)) {
-        this.fail(res, 400, "sessionId, approvalId, requirementId and choiceId are required.");
-        return;
+        throw new HttpError(400, "sessionId, approvalId, requirementId and choiceId are required.");
       }
-      const manager = await this.managerFor(this.findSession(sessionId)?.cwd ?? "");
+      const manager = await this.managerForSession(sessionId);
       await manager.decideApproval({
         sessionId,
         approvalId,
@@ -406,40 +703,75 @@ export class HeliconServer {
         feedback: str(body["feedback"]),
       });
       this.json(res, 200, { ok: true });
-      return;
+      return true;
     }
 
     if (method === "GET" && path === "/api/models") {
       const sessionId = url.searchParams.get("sessionId") ?? undefined;
-      const manager = await this.managerFor(
-        (sessionId ? this.findSession(sessionId)?.cwd : undefined) ?? "",
-      );
+      const manager = sessionId ? await this.managerForSession(sessionId) : (await this.hostFor("")).manager;
       this.json(res, 200, { models: await manager.listModels(sessionId) });
-      return;
+      return true;
     }
 
-    if (method === "POST" && path === "/api/user-input/answer") {
-      const body = asRecord(await this.readBody(req)) ?? {};
+    const inputMatch = path.match(/^\/api\/user-input\/(answer|cancel|clarify)$/);
+    if (method === "POST" && inputMatch) {
+      const action = inputMatch[1] as string;
+      const body = await this.readBody(req);
       const sessionId = str(body["sessionId"]);
       const userInputId = str(body["userInputId"]);
-      const answers = body["answers"];
-      if (!sessionId || !userInputId || !Array.isArray(answers)) {
-        this.fail(res, 400, "sessionId, userInputId and answers are required.");
-        return;
+      if (!sessionId || !userInputId) {
+        throw new HttpError(400, "sessionId and userInputId are required.");
       }
-      const manager = await this.managerFor(this.findSession(sessionId)?.cwd ?? "");
-      await manager.answerUserInput(sessionId, userInputId, answers as never);
+      const manager = await this.managerForSession(sessionId);
+      if (action === "answer") {
+        const answers = body["answers"];
+        if (!Array.isArray(answers)) {
+          throw new HttpError(400, "answers are required.");
+        }
+        await manager.answerUserInput(sessionId, userInputId, answers as never);
+      } else if (action === "cancel") {
+        await manager.cancelUserInput(sessionId, userInputId, str(body["reason"]) ?? undefined);
+      } else {
+        const content = str(body["content"]);
+        if (!content) {
+          throw new HttpError(400, "content is required.");
+        }
+        await manager.clarifyUserInput(sessionId, userInputId, content);
+      }
       this.json(res, 200, { ok: true });
-      return;
+      return true;
     }
 
-    if (this.options.staticDir && method === "GET") {
-      const served = await this.serveStatic(path, res);
-      if (served) {
-        return;
+    if (method === "POST" && path === "/api/open") {
+      const body = await this.readBody(req);
+      const cwd = str(body["cwd"]);
+      if (!cwd || !this.store.getProject(cwd)) {
+        throw new HttpError(404, "Unknown project folder.");
       }
+      const target: OpenTarget = body["target"] === "editor" ? "editor" : "files";
+      await this.opener(this.localPathFor(cwd), target);
+      this.json(res, 200, { ok: true });
+      return true;
     }
-    this.fail(res, 404, "Not found.");
+    return false;
+  }
+
+  private async environment(refresh: boolean): Promise<EnvView> {
+    if (!refresh && this.envCache && Date.now() - this.envCache.at < ENV_CACHE_MS) {
+      return this.envCache.value;
+    }
+    const probe = await probeEnvironment(defaultExec, this.options.platform);
+    const value: EnvView = {
+      platform: probe.platform,
+      wslAvailable: probe.wslAvailable,
+      defaultDistro: probe.defaultDistro,
+      museFound: probe.musePath !== null,
+      musePath: probe.musePath,
+      version: HELICON_VERSION,
+      persistent: this.options.dataDir !== ":memory:",
+    };
+    this.envCache = { at: Date.now(), value };
+    return value;
   }
 
   private serveEvents(res: ServerResponse): void {
@@ -456,6 +788,7 @@ export class HeliconServer {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
     this.sinks.add(sink);
+    sink("helicon", { type: "hello", version: HELICON_VERSION });
     const heartbeat = setInterval(() => {
       if (res.writableEnded) {
         clearInterval(heartbeat);
@@ -484,7 +817,11 @@ export class HeliconServer {
       const info = await stat(full);
       const file = info.isDirectory() ? join(full, "index.html") : full;
       const body = await readFile(file);
-      res.writeHead(200, { "content-type": MIME[extname(file)] ?? "application/octet-stream" });
+      const immutable = file.includes(`${sep}assets${sep}`);
+      res.writeHead(200, {
+        "content-type": MIME[extname(file)] ?? "application/octet-stream",
+        "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
+      });
       res.end(body);
       return true;
     } catch {
@@ -492,46 +829,54 @@ export class HeliconServer {
     }
   }
 
-  private knownSessionIds(): Set<string> {
-    const ids = new Set<string>();
-    for (const project of this.store.listProjects()) {
-      for (const session of this.store.listSessionsByProject(project.id)) {
-        ids.add(session.id);
-      }
+  private liveFor(sessionId: string): LiveState {
+    let state = this.live.get(sessionId);
+    if (!state) {
+      state = {
+        activeTurnId: null,
+        turnStartedAt: null,
+        pendingApprovals: new Set(),
+        pendingInputs: new Set(),
+        lastTerminal: null,
+        lastError: null,
+      };
+      this.live.set(sessionId, state);
     }
-    return ids;
+    return state;
   }
 
-  private findSession(sessionId: string): { cwd: string } | null {
-    for (const project of this.store.listProjects()) {
-      const match = this.store.listSessionsByProject(project.id).find((s) => s.id === sessionId);
-      if (match) {
-        return { cwd: project.cwd };
-      }
+  private liveView(sessionId: string): LiveView | null {
+    const state = this.live.get(sessionId);
+    if (!state) {
+      return null;
     }
-    return null;
+    return {
+      activeTurnId: state.activeTurnId,
+      turnStartedAt: state.turnStartedAt,
+      pendingApprovals: state.pendingApprovals.size,
+      pendingInputs: state.pendingInputs.size,
+      lastTerminal: state.lastTerminal,
+      lastError: state.lastError,
+    };
   }
 
-  private safeRecordTurn(sessionId: string, turnId: string): void {
-    try {
-      this.store.recordTurn(turnId, sessionId);
-    } catch {
-      /* session not tracked locally; turns still flow over MSP */
-    }
+  private emitStatus(sessionId: string): void {
+    this.emit("helicon", { type: "session-status", sessionId, live: this.liveView(sessionId) });
   }
 
-  private toSessionView(
-    record: { id: string; title: string; status: string; turnCount: number; modelId: string | null; origin: string },
-    cwd: string,
-  ): Record<string, unknown> {
+  private summary(record: SessionRecord, cwd: string): Record<string, unknown> {
     return {
       sessionId: record.id,
       cwd,
       title: record.title,
-      status: record.status,
+      titleSource: record.titleSource,
       turnCount: record.turnCount,
       modelId: record.modelId,
       origin: record.origin,
+      archived: record.archived,
+      createdAt: record.createdAt,
+      activityAt: record.activityAt,
+      live: this.liveView(record.id),
     };
   }
 
@@ -577,58 +922,311 @@ export class HeliconServer {
     }
   }
 
+  /** A path the local OS can open: WSL `/mnt/x` roots become `X:\` on Windows. */
+  private localPathFor(cwd: string): string {
+    if (this.options.platform === "win32" && isWslAbs(cwd)) {
+      try {
+        return toWindowsPath(cwd);
+      } catch {
+        return cwd;
+      }
+    }
+    return cwd;
+  }
+
+  private async startSession(cwd: string, approvalMode?: ApprovalMode, modelId?: string): Promise<Record<string, unknown>> {
+    const project = this.store.upsertProject(cwd);
+    this.store.setHidden(cwd, false);
+    const host = await this.hostFor(cwd);
+    const started = await host.manager.startSession({
+      workspaceRoot: this.hostPathFor(cwd),
+      approvalMode,
+      modelId,
+    });
+    const raw = asRecord(asRecord(started.raw)?.["session"]);
+    const record = this.store.recordSession({
+      id: started.sessionId,
+      projectId: project.id,
+      origin: "helicon",
+      modelId: raw ? str(raw["modelId"]) : null,
+      createdAt: normalizeIso(raw?.["createdAt"]),
+    });
+    this.sessionHosts.set(started.sessionId, host.key);
+    this.liveFor(started.sessionId);
+    this.sessionsChanged();
+    return this.summary(record, cwd);
+  }
+
+  private async loadTranscript(sessionId: string): Promise<Record<string, unknown>> {
+    const found = this.store.findSession(sessionId);
+    const host = await this.hostFor(found?.cwd ?? "");
+    const manager = host.manager;
+    let readOnly = false;
+    let readOnlyReason: string | null = null;
+    let msp: Record<string, unknown> | null = null;
+    try {
+      msp = asRecord(asRecord(await manager.resumeSession(sessionId, true))?.["session"]);
+      this.sessionHosts.set(sessionId, host.key);
+    } catch (error) {
+      const info = errorInfo(error);
+      if (info.kind === "sessionNotFound") {
+        throw error;
+      }
+      readOnly = true;
+      readOnlyReason = info.message;
+      const read = await manager.readSession(sessionId, true).catch(() => null);
+      msp = asRecord(asRecord(read)?.["session"]);
+    }
+
+    const pages: unknown[][] = [];
+    let cursor: string | undefined;
+    let truncated = false;
+    for (let page = 0; page < MAX_HISTORY_PAGES; page += 1) {
+      const result = await manager.pageView(sessionId, { cursor, direction: "backward", limit: HISTORY_PAGE_SIZE });
+      pages.unshift(result.events);
+      if (!result.nextCursor || result.events.length === 0) {
+        break;
+      }
+      cursor = result.nextCursor;
+      truncated = page === MAX_HISTORY_PAGES - 1;
+    }
+    const events = pages
+      .flat()
+      .map(stripEvent)
+      .filter((e): e is NonNullable<typeof e> => e !== null);
+
+    const pending = await manager.listPending(sessionId).catch(() => ({ approvals: [], userInputs: [] }));
+    const approvals = pending.approvals.map((a) => stripSource(asRecord(a) ?? {}));
+    const userInputs = pending.userInputs.map((u) => stripSource(asRecord(u) ?? {}));
+
+    const live = this.liveFor(sessionId);
+    if (msp) {
+      const active = str(msp["activeTurnId"]);
+      if (active !== live.activeTurnId) {
+        live.activeTurnId = active;
+        live.turnStartedAt = active ? (live.turnStartedAt ?? nowIso()) : null;
+      }
+    }
+    live.pendingApprovals = new Set(approvals.map((a) => str(a["approvalId"])).filter((id): id is string => id !== null));
+    live.pendingInputs = new Set(userInputs.map((u) => str(u["userInputId"])).filter((id): id is string => id !== null));
+    this.emitStatus(sessionId);
+
+    if (found) {
+      this.store.recordSession({
+        id: sessionId,
+        projectId: found.session.projectId,
+        turnCount: num(msp?.["turnCount"]),
+        modelId: msp ? str(msp["modelId"]) : null,
+        activityAt: normalizeIso(msp?.["updatedAt"]),
+      });
+      if (found.session.titleSource === "placeholder") {
+        const title = titleFromEvents(events);
+        if (title) {
+          this.store.updateSession(sessionId, { title, titleSource: "auto" });
+          this.sessionsChanged();
+        }
+      }
+    }
+    const record = this.store.getSession(sessionId);
+    return {
+      session: record && found ? this.summary(record, found.cwd) : null,
+      msp: msp
+        ? {
+            status: str(msp["status"]),
+            activeTurnId: str(msp["activeTurnId"]),
+            modelId: str(msp["modelId"]),
+            approvalMode: asRecord(msp["approvalMode"])?.["mode"] ?? null,
+            workspaceRoot: str(msp["workspaceRoot"]),
+            turnCount: num(msp["turnCount"]) ?? 0,
+          }
+        : null,
+      events,
+      truncated,
+      pending: { approvals, userInputs },
+      readOnly,
+      readOnlyReason,
+    };
+  }
+
   private async discover(cwd?: string): Promise<Record<string, unknown>[]> {
-    const manager = await this.managerFor(cwd ?? "");
-    const remote = await manager.listSessions(cwd ? this.hostPathFor(cwd) : undefined);
-    const known = this.knownSessionIds();
+    const host = await this.hostFor(cwd ?? "");
+    const remote: unknown[] = [];
+    let cursor: string | null = null;
+    do {
+      const page = await host.manager.listSessionsPage({
+        workspaceRoot: cwd ? this.hostPathFor(cwd) : undefined,
+        limit: 100,
+        cursor,
+      });
+      remote.push(...page.sessions);
+      cursor = page.nextCursor;
+    } while (cursor && remote.length < DISCOVER_LIMIT);
+
     const views: Record<string, unknown>[] = [];
+    let backfill = 0;
     for (const item of remote) {
       const record = asRecord(item);
-      const session = record && asRecord(record["session"]);
-      const sessionId = (session && str(session["sessionId"])) || (record && str(record["sessionId"]));
-      if (!sessionId) {
+      const session = (record && asRecord(record["session"])) ?? record;
+      const sessionId = session ? str(session["sessionId"]) : null;
+      if (!session || !sessionId) {
         continue;
       }
-      const root = this.storePathFor(
-        (session && str(session["workspaceRoot"])) || (record && str(record["workspaceRoot"])) || cwd || "",
-      );
+      const root = this.storePathFor(firstString(session, ["workspaceRoot"]) ?? cwd ?? "");
       if (!root) {
         continue;
       }
       const project = this.store.upsertProject(root);
-      const title =
-        (session && firstString(session, ["title", "name"])) ||
-        (record && firstString(record, ["title", "name"])) ||
-        "Session";
+      const existing = this.store.getSession(sessionId);
+      const title = firstString(session, ["title", "name"]);
       const stored = this.store.recordSession({
         id: sessionId,
         projectId: project.id,
-        title: known.has(sessionId) ? this.store.listSessionsByProject(project.id).find((s) => s.id === sessionId)?.title ?? title : title,
-        origin: known.has(sessionId) ? "helicon" : "tui",
+        origin: existing?.origin ?? "tui",
+        title: title ?? undefined,
+        titleSource: title ? "auto" : undefined,
+        turnCount: num(session["turnCount"]),
+        modelId: str(session["modelId"]),
+        createdAt: normalizeIso(session["createdAt"]),
+        activityAt: normalizeIso(session["updatedAt"]),
       });
-      views.push(this.toSessionView(stored, root));
-      known.add(sessionId);
+      if (str(session["status"]) === "running" && str(session["activeTurnId"])) {
+        const live = this.liveFor(sessionId);
+        live.activeTurnId = str(session["activeTurnId"]);
+        live.turnStartedAt = live.turnStartedAt ?? nowIso();
+        this.sessionHosts.set(sessionId, host.key);
+      }
+      if (stored.titleSource === "placeholder" && backfill < TITLE_BACKFILL_LIMIT) {
+        backfill += 1;
+        this.queueTitle(sessionId);
+      }
+      views.push(this.summary(stored, project.cwd));
     }
-    this.emit("sessions-changed", { cwd: cwd ?? null });
+    this.sessionsChanged();
     return views;
   }
 
-  private async managerFor(cwd: string): Promise<SessionManager> {
+  private queueTitle(sessionId: string): void {
+    if (this.closed || this.titleQueue.includes(sessionId)) {
+      return;
+    }
+    this.titleQueue.push(sessionId);
+    if (!this.titleWorker) {
+      this.titleWorker = this.drainTitles().finally(() => {
+        this.titleWorker = null;
+      });
+    }
+  }
+
+  private async drainTitles(): Promise<void> {
+    while (this.titleQueue.length > 0 && !this.closed) {
+      const sessionId = this.titleQueue.shift() as string;
+      try {
+        const current = this.store.getSession(sessionId);
+        if (!current || current.titleSource !== "placeholder") {
+          continue;
+        }
+        const host = await this.hostFor("");
+        const page = await host.manager.pageView(sessionId, { direction: "forward", limit: 30 });
+        if (this.closed) {
+          return;
+        }
+        const title = titleFromEvents(page.events.map(stripEvent).filter((e): e is NonNullable<typeof e> => e !== null));
+        if (title) {
+          this.store.updateSession(sessionId, { title, titleSource: "auto" });
+          this.sessionsChanged();
+        }
+      } catch {
+        /* a title is a nicety; the placeholder stays */
+      }
+    }
+  }
+
+  private async managerForSession(sessionId: string): Promise<SessionManager> {
+    const key = this.sessionHosts.get(sessionId);
+    const loaded = key ? this.hosts.get(key) : undefined;
+    if (loaded) {
+      return loaded.manager;
+    }
+    const found = this.store.findSession(sessionId);
+    return (await this.hostFor(found?.cwd ?? "")).manager;
+  }
+
+  private async hostFor(cwd: string): Promise<ManagedHost> {
     const key = this.hostPathFor(cwd) || "__default__";
     const existing = this.hosts.get(key);
     if (existing) {
-      return existing.manager;
+      return existing;
     }
+    const pending = this.starting.get(key);
+    if (pending) {
+      return pending;
+    }
+    if (this.closed) {
+      throw new HttpError(503, "Helicon is shutting down.");
+    }
+    const startup = this.spawnHost(key, cwd);
+    this.starting.set(key, startup);
+    try {
+      return await startup;
+    } finally {
+      this.starting.delete(key);
+    }
+  }
+
+  private async spawnHost(key: string, cwd: string): Promise<ManagedHost> {
     const target = await this.serveTargetFor(cwd);
     const handle = this.options.hostFactory(target);
-    const started = (await handle.start(HELICON_VERSION)) as {
-      fingerprintWarning?: unknown;
-    } | null;
+    let started: { fingerprintWarning?: unknown; initializeResult?: unknown } | null;
+    try {
+      started = (await handle.start(HELICON_VERSION)) as typeof started;
+    } catch (error) {
+      this.lastHostError = error instanceof Error ? error.message : String(error);
+      this.emit("helicon", { type: "host", key, state: "failed", message: this.lastHostError });
+      throw new HttpError(502, `Could not start Muse: ${this.lastHostError}`);
+    }
+    this.lastHostError = null;
     this.fingerprints.set(key, started?.fingerprintWarning ?? null);
     const manager = new SessionManager(handle.connection);
-    manager.onNotification((notification) => this.forward(notification));
-    this.hosts.set(key, { target, handle, manager, started: true });
-    return manager;
+    manager.onNotification((notification) => this.forward(key, notification));
+    const serverInfo = asRecord(asRecord(started?.initializeResult)?.["serverInfo"]);
+    const managed: ManagedHost = {
+      key,
+      target,
+      handle,
+      manager,
+      serverVersion: serverInfo ? str(serverInfo["version"]) : null,
+      startedAt: nowIso(),
+    };
+    handle.onExit?.((exit) => this.hostExited(managed, exit));
+    this.hosts.set(key, managed);
+    return managed;
+  }
+
+  private hostExited(managed: ManagedHost, exit: HostExit): void {
+    if (this.hosts.get(managed.key) !== managed) {
+      return;
+    }
+    this.hosts.delete(managed.key);
+    const detail = managed.handle.recentStderr?.trim();
+    const message = `The Muse host exited (${exit.code ?? exit.signal ?? "unknown"}).${detail ? ` ${detail}` : ""}`;
+    this.lastHostError = message;
+    this.emit("helicon", { type: "host", key: managed.key, state: "exited", message });
+    for (const [sessionId, key] of this.sessionHosts) {
+      if (key !== managed.key) {
+        continue;
+      }
+      this.sessionHosts.delete(sessionId);
+      const live = this.live.get(sessionId);
+      if (live && (live.activeTurnId || live.pendingApprovals.size || live.pendingInputs.size)) {
+        live.activeTurnId = null;
+        live.turnStartedAt = null;
+        live.pendingApprovals.clear();
+        live.pendingInputs.clear();
+        live.lastTerminal = "failed";
+        live.lastError = message;
+        this.emitStatus(sessionId);
+      }
+    }
   }
 
   private async serveTargetFor(cwd: string): Promise<ServeTarget> {
@@ -636,11 +1234,8 @@ export class HeliconServer {
       return { command: this.options.musePath ?? "muse", args: ["serve"], cwd: cwd || process.cwd() };
     }
     let musePath = this.options.musePath ?? null;
-    if (!musePath) {
-      const probe = await probeEnvironment(defaultExec, "win32");
-      musePath = probe.musePath;
-    } else if (!musePath.includes("/") && !musePath.includes("\\")) {
-      const probe = await probeEnvironment(defaultExec, "win32");
+    if (!musePath || (!musePath.includes("/") && !musePath.includes("\\"))) {
+      const probe = await this.environment(false);
       musePath = probe.musePath;
     }
     const plan = planServe({
@@ -652,179 +1247,130 @@ export class HeliconServer {
     return { command: plan.command, args: plan.args, cwd: plan.cwd };
   }
 
-  private forward(notification: { method: string; params?: unknown }): void {
+  private forward(hostKey: string, notification: { method: string; params?: unknown; emittedAtMs?: number }): void {
     const params = asRecord(notification.params) ?? {};
-    const sessionId = str(params["sessionId"]);
-    const mapped = mapNotificationToEvent(notification.method, params);
-    if (mapped) {
-      this.emit("helicon", mapped);
+    const event = toWireEvent(notification.method, params, notification.emittedAtMs);
+    if (!event) {
       return;
     }
-    switch (notification.method) {
+    this.sessionHosts.set(event.sessionId, hostKey);
+    this.track(event.sessionId, notification.method, params);
+    this.emit("helicon", event);
+  }
+
+  private track(sessionId: string, method: string, params: Record<string, unknown>): void {
+    const live = this.liveFor(sessionId);
+    let changed = false;
+    switch (method) {
+      case "turn/started": {
+        live.activeTurnId = str(params["turnId"]);
+        live.turnStartedAt = nowIso();
+        live.lastError = null;
+        changed = true;
+        break;
+      }
+      case "turn/completed": {
+        const turnId = str(params["turnId"]);
+        if (!live.activeTurnId || live.activeTurnId === turnId) {
+          live.activeTurnId = null;
+          live.turnStartedAt = null;
+        }
+        const terminal = str(params["terminal"]) ?? "completed";
+        live.lastTerminal = terminal;
+        live.lastError = terminal === "failed" ? (str(asRecord(params["error"])?.["message"]) ?? "The turn failed.") : null;
+        if (turnId) {
+          try {
+            this.store.recordTurn(turnId, sessionId);
+            this.store.updateTurnStatus(turnId, terminal);
+          } catch {
+            /* session not tracked locally */
+          }
+        }
+        changed = true;
+        this.sessionsChanged();
+        break;
+      }
       case "approval/requested": {
-        const view = this.toApprovalView(sessionId ?? "", params);
-        if (view) {
-          this.emit("helicon", { type: "approval", approval: view });
+        const id = str(params["approvalId"]);
+        if (id && !live.pendingApprovals.has(id)) {
+          live.pendingApprovals.add(id);
+          changed = true;
         }
         break;
       }
       case "approval/resolved": {
-        const approvalId = str(params["approvalId"]);
-        if (approvalId) {
-          this.emit("helicon", { type: "approval-resolved", approvalId });
-        }
+        const id = str(params["approvalId"]);
+        changed = id ? live.pendingApprovals.delete(id) : false;
         break;
       }
       case "userInput/requested": {
-        const view = this.toUserInputView(sessionId ?? "", params);
-        if (view) {
-          this.emit("helicon", { type: "user-input", prompt: view });
+        const id = str(params["userInputId"]);
+        if (id && !live.pendingInputs.has(id)) {
+          live.pendingInputs.add(id);
+          changed = true;
+        }
+        break;
+      }
+      case "userInput/settled": {
+        const id = str(params["userInputId"]);
+        changed = id ? live.pendingInputs.delete(id) : false;
+        break;
+      }
+      case "session/closed": {
+        changed = live.activeTurnId !== null || live.pendingApprovals.size > 0 || live.pendingInputs.size > 0;
+        live.activeTurnId = null;
+        live.turnStartedAt = null;
+        live.pendingApprovals.clear();
+        live.pendingInputs.clear();
+        this.sessionHosts.delete(sessionId);
+        break;
+      }
+      case "session/modelChanged": {
+        const modelId = str(params["modelId"]);
+        if (modelId) {
+          this.store.updateSession(sessionId, { modelId });
+        }
+        break;
+      }
+      case "item/completed": {
+        const item = asRecord(params["item"]);
+        if (item && item["kind"] === "userMessage") {
+          this.maybeTitle(sessionId, item);
         }
         break;
       }
       default:
         break;
     }
-  }
-
-  private toApprovalView(
-    sessionId: string,
-    params: Record<string, unknown>,
-  ): Record<string, unknown> | null {
-    const approvalId = str(params["approvalId"]);
-    if (!approvalId) {
-      return null;
+    if (changed) {
+      this.emitStatus(sessionId);
     }
-    const rawChoices = Array.isArray(params["availableChoices"]) ? params["availableChoices"] : [];
-    const choices = rawChoices.map((choice, index) => {
-      const record = asRecord(choice) ?? {};
-      const choiceId = str(record["choiceId"]) ?? str(record["id"]) ?? `choice-${index}`;
-      return {
-        choiceId,
-        label: firstString(record, ["label", "title", "name"]) ?? choiceId,
-        acceptsFeedback: record["acceptsFeedback"] === true,
-      };
-    });
-    return {
-      approvalId,
-      sessionId,
-      requirementId: params["currentRequirementId"] ?? params["requirementId"] ?? null,
-      subject:
-        firstString(params, ["subject", "title", "summary", "description"]) ??
-        `Approval ${approvalId}`,
-      choices,
-    };
   }
 
-  private toUserInputView(
-    sessionId: string,
-    params: Record<string, unknown>,
-  ): Record<string, unknown> | null {
-    const userInputId = str(params["userInputId"]) ?? str(params["id"]);
-    if (!userInputId) {
-      return null;
+  private maybeTitle(sessionId: string, item: Record<string, unknown>): void {
+    const record = this.store.getSession(sessionId);
+    if (!record || record.titleSource !== "placeholder") {
+      return;
     }
-    const rawQuestions = Array.isArray(params["questions"]) ? params["questions"] : [];
-    const questions = rawQuestions.map((question) => {
-      const record = asRecord(question) ?? {};
-      const options = Array.isArray(record["options"])
-        ? record["options"].map((o) => {
-            const option = asRecord(o);
-            return str(option?.["label"] ?? o) ?? "";
-          })
-        : [];
-      return {
-        questionId: str(record["questionId"]) ?? "",
-        prompt: firstString(record, ["prompt", "question", "text"]) ?? "",
-        mode: str(record["mode"]) ?? "freeText",
-        options,
-      };
-    });
-    return { userInputId, sessionId, questions };
+    const title = deriveTitle(str(item["displayText"]) ?? str(item["text"]) ?? "");
+    if (title) {
+      this.store.updateSession(sessionId, { title, titleSource: "auto" });
+      this.sessionsChanged();
+    }
   }
 }
 
-export interface HeliconWireEvent {
-  type: "delta" | "item-final" | "turn-terminal" | "approval" | "approval-resolved" | "user-input";
-  sessionId?: string | null;
-  itemId?: string;
-  kind?: string;
-  text?: string;
-  turnId?: string;
-  terminal?: string;
-  approval?: Record<string, unknown>;
-  approvalId?: string;
-  prompt?: Record<string, unknown>;
-}
-
-function itemIdentity(item: Record<string, unknown>): { itemId: string; kind: string; text: string } {
-  return {
-    itemId: firstString(item, ["itemId", "id"]) ?? "",
-    kind: firstString(item, ["kind", "type"]) ?? "message",
-    text: firstString(item, ["text", "content"]) ?? "",
-  };
-}
-
-export function mapNotificationToEvent(
-  method: string,
-  params: Record<string, unknown>,
-): HeliconWireEvent | null {
-  const sessionId = str(params["sessionId"]);
-  switch (method) {
-    case "item/delta":
-    case "item/updated": {
-      const nested = asRecord(params["item"]);
-      if (nested) {
-        const identity = itemIdentity(nested);
-        return {
-          type: "delta",
-          sessionId,
-          itemId: identity.itemId || str(params["itemId"]) || undefined,
-          kind: identity.kind,
-          text: identity.text || str(params["text"]) || str(params["delta"]) || undefined,
-        };
+function titleFromEvents(events: { method: string; params: Record<string, unknown> }[]): string | null {
+  for (const event of events) {
+    const item = asRecord(event.params["item"]);
+    if (item && item["kind"] === "userMessage") {
+      const title = deriveTitle(str(item["displayText"]) ?? str(item["text"]) ?? "");
+      if (title) {
+        return title;
       }
-      return {
-        type: "delta",
-        sessionId,
-        itemId: str(params["itemId"]) ?? "",
-        kind: str(params["kind"]) ?? "message",
-        text: str(params["text"]) ?? str(params["delta"]) ?? "",
-      };
     }
-    case "item/started": {
-      const nested = asRecord(params["item"]);
-      const identity = nested ? itemIdentity(nested) : { itemId: "", kind: "message", text: "" };
-      return {
-        type: "delta",
-        sessionId,
-        itemId: identity.itemId || str(params["itemId"]) || undefined,
-        kind: identity.kind || str(params["kind"]) || undefined,
-        text: identity.text || undefined,
-      };
-    }
-    case "item/completed": {
-      const nested = asRecord(params["item"]);
-      const identity = nested ? itemIdentity(nested) : { itemId: "", kind: "message", text: "" };
-      return {
-        type: "item-final",
-        sessionId,
-        itemId: identity.itemId || str(params["itemId"]) || undefined,
-        kind: identity.kind || str(params["kind"]) || undefined,
-        text: identity.text || str(params["text"]) || undefined,
-      };
-    }
-    case "turn/completed": {
-      return {
-        type: "turn-terminal",
-        sessionId,
-        turnId: str(params["turnId"]) ?? "",
-        terminal: str(params["terminal"]) ?? "completed",
-      };
-    }
-    default:
-      return null;
   }
+  return null;
 }
 
 export async function resolveMusePath(

@@ -5,20 +5,31 @@ export interface Project {
   cwd: string;
   displayName: string;
   pinned: boolean;
+  hidden: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Latest activity across the project's visible sessions, or its creation time. */
+  activityAt: string;
 }
+
+/** How a session title was chosen; a higher rank is never overwritten by a lower one. */
+export type TitleSource = "placeholder" | "auto" | "user";
+
+const TITLE_RANK: Record<TitleSource, number> = { placeholder: 0, auto: 1, user: 2 };
 
 export interface SessionRecord {
   id: string;
   projectId: number;
   title: string;
+  titleSource: TitleSource;
   status: string;
   turnCount: number;
   modelId: string | null;
   origin: string;
+  archived: boolean;
   createdAt: string;
   updatedAt: string;
+  activityAt: string;
 }
 
 export interface TurnRecord {
@@ -29,6 +40,30 @@ export interface TurnRecord {
   updatedAt: string;
 }
 
+export interface RecordSessionInput {
+  id: string;
+  projectId: number;
+  title?: string;
+  titleSource?: TitleSource;
+  modelId?: string | null;
+  origin?: string;
+  turnCount?: number;
+  createdAt?: string;
+  activityAt?: string;
+}
+
+export interface SessionPatch {
+  title?: string;
+  titleSource?: TitleSource;
+  archived?: boolean;
+  modelId?: string | null;
+  turnCount?: number;
+  activityAt?: string;
+  status?: string;
+}
+
+export const PLACEHOLDER_TITLE = "New thread";
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -37,6 +72,10 @@ function displayNameFor(cwd: string): string {
   const trimmed = cwd.replace(/[\\/]+$/, "");
   const parts = trimmed.split(/[\\/]/);
   return parts[parts.length - 1] || trimmed;
+}
+
+function isTitleSource(value: unknown): value is TitleSource {
+  return value === "placeholder" || value === "auto" || value === "user";
 }
 
 const SCHEMA = `
@@ -70,12 +109,36 @@ CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
 CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id);
 `;
 
+/** Columns added after the first release; applied in place so existing databases keep their data. */
+const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
+  { table: "projects", column: "hidden", ddl: "ALTER TABLE projects ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0" },
+  {
+    table: "sessions",
+    column: "title_source",
+    ddl: "ALTER TABLE sessions ADD COLUMN title_source TEXT NOT NULL DEFAULT 'placeholder'",
+  },
+  { table: "sessions", column: "activity_at", ddl: "ALTER TABLE sessions ADD COLUMN activity_at TEXT" },
+  { table: "sessions", column: "archived", ddl: "ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0" },
+];
+
+type Row = Record<string, string | number | null>;
+
 export class HeliconStore {
   private readonly db: DatabaseSync;
 
   constructor(path = ":memory:") {
     this.db = new DatabaseSync(path);
     this.db.exec(SCHEMA);
+    this.migrate();
+  }
+
+  private migrate(): void {
+    for (const migration of MIGRATIONS) {
+      const columns = this.db.prepare(`PRAGMA table_info(${migration.table})`).all() as Row[];
+      if (!columns.some((c) => c["name"] === migration.column)) {
+        this.db.exec(migration.ddl);
+      }
+    }
   }
 
   upsertProject(cwd: string): Project {
@@ -87,16 +150,25 @@ export class HeliconStore {
          ON CONFLICT(cwd) DO UPDATE SET updated_at = excluded.updated_at`,
       )
       .run(cwd, displayNameFor(cwd), now, now);
-    const row = this.db
-      .prepare(`SELECT * FROM projects WHERE cwd = ?`)
-      .get(cwd) as Record<string, string | number>;
-    return this.toProject(row);
+    return this.getProject(cwd) as Project;
   }
 
-  listProjects(): Project[] {
+  getProject(cwd: string): Project | null {
+    const row = this.db
+      .prepare(`SELECT p.*, ${this.projectActivitySql()} AS activity_at FROM projects p WHERE p.cwd = ?`)
+      .get(cwd) as Row | undefined;
+    return row ? this.toProject(row) : null;
+  }
+
+  listProjects(options: { includeHidden?: boolean } = {}): Project[] {
+    const where = options.includeHidden ? "" : "WHERE p.hidden = 0";
     const rows = this.db
-      .prepare(`SELECT * FROM projects ORDER BY pinned DESC, updated_at DESC`)
-      .all() as Record<string, string | number>[];
+      .prepare(
+        `SELECT p.*, ${this.projectActivitySql()} AS activity_at
+         FROM projects p ${where}
+         ORDER BY p.pinned DESC, activity_at DESC, p.id DESC`,
+      )
+      .all() as Row[];
     return rows.map((row) => this.toProject(row));
   }
 
@@ -106,40 +178,122 @@ export class HeliconStore {
       .run(pinned ? 1 : 0, nowIso(), cwd);
   }
 
-  recordSession(input: {
-    id: string;
-    projectId: number;
-    title?: string;
-    modelId?: string | null;
-    origin?: string;
-  }): SessionRecord {
-    const now = nowIso();
+  /** Hiding removes a project from the sidebar without touching Muse's own session data. */
+  setHidden(cwd: string, hidden: boolean): void {
     this.db
-      .prepare(
-        `INSERT INTO sessions (id, project_id, title, status, turn_count, model_id, origin, created_at, updated_at)
-         VALUES (?, ?, ?, 'active', 0, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
-           title = excluded.title,
-           model_id = excluded.model_id,
-           updated_at = excluded.updated_at`,
-      )
-      .run(
-        input.id,
-        input.projectId,
-        input.title ?? "New session",
-        input.modelId ?? null,
-        input.origin ?? "helicon",
-        now,
-        now,
-      );
-    return this.getSession(input.id);
+      .prepare(`UPDATE projects SET hidden = ?, updated_at = ? WHERE cwd = ?`)
+      .run(hidden ? 1 : 0, nowIso(), cwd);
   }
 
-  listSessionsByProject(projectId: number): SessionRecord[] {
+  recordSession(input: RecordSessionInput): SessionRecord {
+    const now = nowIso();
+    const existing = this.getSession(input.id);
+    if (!existing) {
+      const titleSource = input.titleSource ?? (input.title ? "auto" : "placeholder");
+      this.db
+        .prepare(
+          `INSERT INTO sessions (id, project_id, title, title_source, status, turn_count, model_id, origin,
+             archived, created_at, updated_at, activity_at)
+           VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 0, ?, ?, ?)`,
+        )
+        .run(
+          input.id,
+          input.projectId,
+          input.title ?? PLACEHOLDER_TITLE,
+          titleSource,
+          input.turnCount ?? 0,
+          input.modelId ?? null,
+          input.origin ?? "helicon",
+          input.createdAt ?? now,
+          now,
+          input.activityAt ?? input.createdAt ?? now,
+        );
+      return this.getSession(input.id) as SessionRecord;
+    }
+    const patch: SessionPatch = {};
+    if (input.title !== undefined) {
+      const incoming = input.titleSource ?? "auto";
+      if (TITLE_RANK[incoming] >= TITLE_RANK[existing.titleSource]) {
+        patch.title = input.title;
+        patch.titleSource = incoming;
+      }
+    }
+    if (input.modelId !== undefined && input.modelId !== null) {
+      patch.modelId = input.modelId;
+    }
+    if (input.turnCount !== undefined && input.turnCount > existing.turnCount) {
+      patch.turnCount = input.turnCount;
+    }
+    if (input.activityAt !== undefined && input.activityAt > existing.activityAt) {
+      patch.activityAt = input.activityAt;
+    }
+    if (existing.projectId !== input.projectId) {
+      this.db.prepare(`UPDATE sessions SET project_id = ? WHERE id = ?`).run(input.projectId, input.id);
+    }
+    return this.updateSession(input.id, patch) ?? existing;
+  }
+
+  getSession(id: string): SessionRecord | null {
+    const row = this.db.prepare(`SELECT * FROM sessions WHERE id = ?`).get(id) as Row | undefined;
+    return row ? this.toSession(row) : null;
+  }
+
+  /** The session plus the project directory it belongs to, in one lookup. */
+  findSession(id: string): { session: SessionRecord; cwd: string } | null {
+    const row = this.db
+      .prepare(`SELECT s.*, p.cwd AS project_cwd FROM sessions s JOIN projects p ON p.id = s.project_id WHERE s.id = ?`)
+      .get(id) as Row | undefined;
+    return row ? { session: this.toSession(row), cwd: String(row["project_cwd"]) } : null;
+  }
+
+  listSessionsByProject(projectId: number, options: { includeArchived?: boolean } = {}): SessionRecord[] {
+    const archived = options.includeArchived ? "" : "AND archived = 0";
     const rows = this.db
-      .prepare(`SELECT * FROM sessions WHERE project_id = ? ORDER BY updated_at DESC`)
-      .all(projectId) as Record<string, string | number>[];
+      .prepare(
+        `SELECT * FROM sessions WHERE project_id = ? ${archived}
+         ORDER BY COALESCE(activity_at, updated_at) DESC`,
+      )
+      .all(projectId) as Row[];
     return rows.map((row) => this.toSession(row));
+  }
+
+  updateSession(id: string, patch: SessionPatch): SessionRecord | null {
+    const sets: string[] = [];
+    const values: (string | number | null)[] = [];
+    if (patch.title !== undefined) {
+      sets.push("title = ?");
+      values.push(patch.title);
+    }
+    if (patch.titleSource !== undefined) {
+      sets.push("title_source = ?");
+      values.push(patch.titleSource);
+    }
+    if (patch.archived !== undefined) {
+      sets.push("archived = ?");
+      values.push(patch.archived ? 1 : 0);
+    }
+    if (patch.modelId !== undefined) {
+      sets.push("model_id = ?");
+      values.push(patch.modelId);
+    }
+    if (patch.turnCount !== undefined) {
+      sets.push("turn_count = ?");
+      values.push(patch.turnCount);
+    }
+    if (patch.activityAt !== undefined) {
+      sets.push("activity_at = ?");
+      values.push(patch.activityAt);
+    }
+    if (patch.status !== undefined) {
+      sets.push("status = ?");
+      values.push(patch.status);
+    }
+    if (sets.length > 0) {
+      sets.push("updated_at = ?");
+      values.push(nowIso());
+      this.db.prepare(`UPDATE sessions SET ${sets.join(", ")} WHERE id = ?`).run(...values, id);
+    }
+    return this.getSession(id);
   }
 
   recordTurn(id: string, sessionId: string): TurnRecord {
@@ -153,9 +307,9 @@ export class HeliconStore {
       .run(id, sessionId, now, now);
     this.db
       .prepare(
-        `UPDATE sessions SET turn_count = turn_count + 1, updated_at = ? WHERE id = ?`,
+        `UPDATE sessions SET turn_count = turn_count + 1, updated_at = ?, activity_at = ? WHERE id = ?`,
       )
-      .run(now, sessionId);
+      .run(now, now, sessionId);
     return this.getTurn(id);
   }
 
@@ -169,20 +323,13 @@ export class HeliconStore {
     this.db.close();
   }
 
-  private getSession(id: string): SessionRecord {
-    const row = this.db.prepare(`SELECT * FROM sessions WHERE id = ?`).get(id) as
-      | Record<string, string | number>
-      | undefined;
-    if (!row) {
-      throw new Error(`HeliconStore: unknown session ${id}.`);
-    }
-    return this.toSession(row);
+  private projectActivitySql(): string {
+    return `COALESCE((SELECT MAX(COALESCE(s.activity_at, s.updated_at)) FROM sessions s
+      WHERE s.project_id = p.id AND s.archived = 0), p.created_at)`;
   }
 
   private getTurn(id: string): TurnRecord {
-    const row = this.db.prepare(`SELECT * FROM turns WHERE id = ?`).get(id) as
-      | Record<string, string | number>
-      | undefined;
+    const row = this.db.prepare(`SELECT * FROM turns WHERE id = ?`).get(id) as Row | undefined;
     if (!row) {
       throw new Error(`HeliconStore: unknown turn ${id}.`);
     }
@@ -195,28 +342,34 @@ export class HeliconStore {
     };
   }
 
-  private toProject(row: Record<string, string | number>): Project {
+  private toProject(row: Row): Project {
     return {
       id: Number(row["id"]),
       cwd: String(row["cwd"]),
       displayName: String(row["display_name"]),
       pinned: Number(row["pinned"]) === 1,
+      hidden: Number(row["hidden"] ?? 0) === 1,
       createdAt: String(row["created_at"]),
       updatedAt: String(row["updated_at"]),
+      activityAt: String(row["activity_at"] ?? row["created_at"]),
     };
   }
 
-  private toSession(row: Record<string, string | number>): SessionRecord {
+  private toSession(row: Row): SessionRecord {
+    const titleSource = row["title_source"];
     return {
       id: String(row["id"]),
       projectId: Number(row["project_id"]),
       title: String(row["title"]),
+      titleSource: isTitleSource(titleSource) ? titleSource : "placeholder",
       status: String(row["status"]),
       turnCount: Number(row["turn_count"]),
       modelId: row["model_id"] === null ? null : String(row["model_id"]),
       origin: String(row["origin"]),
+      archived: Number(row["archived"] ?? 0) === 1,
       createdAt: String(row["created_at"]),
       updatedAt: String(row["updated_at"]),
+      activityAt: String(row["activity_at"] ?? row["updated_at"]),
     };
   }
 }

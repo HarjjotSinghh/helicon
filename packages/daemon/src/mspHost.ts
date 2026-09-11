@@ -48,9 +48,14 @@ export function serveExitMessage(exitClass: ServeExitClass): string {
   }
 }
 
+const STDERR_TAIL_LINES = 12;
+
 export class HeliconMspHost {
   private handshake: MspHandshake | null = null;
   private msp: MspSession | null = null;
+  private stderrTail: string[] = [];
+  private exitHandlers: ((exit: ServeExit) => void)[] = [];
+  private closing = false;
 
   constructor(
     private readonly target: ServeTarget,
@@ -67,11 +72,27 @@ export class HeliconMspHost {
       args: this.target.args,
       cwd: this.target.cwd,
       env: this.target.env,
-      onStderr: (chunk: unknown) => onStderr(String(chunk)),
+      onStderr: (chunk: unknown) => {
+        const text = String(chunk);
+        this.rememberStderr(text);
+        onStderr(text);
+      },
     } as Parameters<SpawnMspConnection>[0]);
-    this.msp = await this.handshake.initialize({
-      clientInfo: { name: HELICON_CLIENT_NAME, version: clientVersion },
-    });
+    try {
+      this.msp = await this.handshake.initialize({
+        clientInfo: { name: HELICON_CLIENT_NAME, version: clientVersion },
+      });
+    } catch (error) {
+      const tail = this.stderrTail.join("\n").trim();
+      throw new Error(tail ? `${String(error)}\n${tail}` : String(error));
+    }
+    const exited = (this.msp as { exited?: Promise<ServeExit> }).exited;
+    if (exited) {
+      void exited.then(
+        (exit) => this.notifyExit({ code: exit.code, signal: exit.signal }),
+        () => this.notifyExit({ code: null, signal: null }),
+      );
+    }
     return {
       initializeResult: this.msp.initializeResult,
       fingerprintWarning: this.msp.fingerprintWarning ?? null,
@@ -85,11 +106,39 @@ export class HeliconMspHost {
     return this.msp.connection as unknown as CommandConnection;
   }
 
+  /** Last lines the host wrote to stderr, for surfacing a crash to the user. */
+  get recentStderr(): string {
+    return this.stderrTail.join("\n").trim();
+  }
+
+  /** Called once when the host process ends for any reason other than our own close(). */
+  onExit(handler: (exit: ServeExit) => void): void {
+    this.exitHandlers.push(handler);
+  }
+
   async close(): Promise<ServeExit> {
     if (!this.msp) {
       throw new Error("HeliconMspHost: call start() before close().");
     }
+    this.closing = true;
     const exit = await this.msp.close();
     return { code: exit.code, signal: exit.signal };
+  }
+
+  private notifyExit(exit: ServeExit): void {
+    if (this.closing) {
+      return;
+    }
+    for (const handler of this.exitHandlers) {
+      handler(exit);
+    }
+  }
+
+  private rememberStderr(text: string): void {
+    const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+    this.stderrTail.push(...lines);
+    if (this.stderrTail.length > STDERR_TAIL_LINES) {
+      this.stderrTail = this.stderrTail.slice(-STDERR_TAIL_LINES);
+    }
   }
 }
