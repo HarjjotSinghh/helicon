@@ -42,6 +42,7 @@ import {
   initialState,
   revivePrefs,
   type AppState,
+  type CodeTheme,
   type ComposerPicker,
   type GroupBy,
   type Prefs,
@@ -1421,6 +1422,10 @@ export class HeliconController {
 
   setTheme(theme: ThemePref): void {
     this.setPrefs({ theme });
+  }
+
+  setCodeTheme(codeTheme: CodeTheme): void {
+    this.setPrefs({ codeTheme });
   }
 
   toggleSidebar(): void {

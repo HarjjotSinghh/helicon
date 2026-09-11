@@ -52,6 +52,10 @@ export function HeliconApp(props: HeliconAppProps) {
 
 function ThemeSync() {
   const theme = useApp((s) => s.prefs.theme);
+  const codeTheme = useApp((s) => s.prefs.codeTheme);
+  useEffect(() => {
+    document.documentElement.dataset["codeTheme"] = codeTheme;
+  }, [codeTheme]);
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
