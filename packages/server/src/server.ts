@@ -394,7 +394,7 @@ export class HeliconServer {
     await new Promise<void>((resolve) => this.server.listen(this.options.port, this.options.host, resolve));
     const address = this.server.address();
     const port = typeof address === "object" && address ? address.port : this.options.port;
-    this.autoSettle();
+    // No sweep at startup: which threads are busy in other Muse clients is only known after discovery.
     this.settleTimer = setInterval(() => this.autoSettle(), AUTO_SETTLE_SWEEP_MS);
     this.settleTimer.unref?.();
     return { port, host: this.options.host };
@@ -1290,17 +1290,24 @@ export class HeliconServer {
         createdAt: normalizeIso(session["createdAt"]),
         activityAt: normalizeIso(session["updatedAt"]),
       });
-      if (str(session["status"]) === "running" && str(session["activeTurnId"])) {
+      const running = str(session["status"]) === "running" && Boolean(str(session["activeTurnId"]));
+      if (running) {
         const live = this.liveFor(sessionId);
         live.activeTurnId = str(session["activeTurnId"]);
         live.turnStartedAt = live.turnStartedAt ?? nowIso();
         this.sessionHosts.set(sessionId, host.key);
       }
+      // A settled thread that moved on in another Muse client (running now, or updated since) comes back.
+      let current = stored;
+      if (stored.settledOverride === "settled" && (running || (stored.settledAt !== null && stored.activityAt > stored.settledAt))) {
+        this.wake(sessionId);
+        current = this.store.getSession(sessionId) ?? stored;
+      }
       if (stored.titleSource === "placeholder" && backfill < TITLE_BACKFILL_LIMIT) {
         backfill += 1;
         this.queueTitle(sessionId);
       }
-      views.push(this.summary(stored, project.cwd));
+      views.push(this.summary(current, project.cwd));
     }
     this.sessionsChanged();
     return views;
