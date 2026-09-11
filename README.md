@@ -48,6 +48,8 @@ apps/web         same UI against a remote daemon
 - [ ] `apps/desktop` - Tauri shell + WSL2 routing + path translation
 - [ ] `apps/web` - remote daemon mode
 - [ ] Windows E2E (WSL2 Ubuntu 20.04+), macOS + Linux parity
+- [ ] GitHub Releases with downloadable binaries (Windows primary, macOS + Linux day one)
+- [ ] Post-v1: mobile relay to steer running sessions from a phone
 
 ## Quickstart (placeholder)
 

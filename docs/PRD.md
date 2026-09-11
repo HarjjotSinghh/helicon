@@ -93,7 +93,7 @@ Helicon (Unofficial): a sidebar-first desktop app (Tauri 2, Win/Mac/Linux) and w
 
 ## Out of Scope
 
-- Mobile apps; native IDE plugins; hosted multi-user cloud with shared billing.
+- Mobile apps in v1 (planned later: a relay to monitor and steer running sessions from a phone); native IDE plugins; hosted multi-user cloud with shared billing.
 - Credential hosting, key resale, or any billing/auth bypass.
 - Training or fine-tuning models; telemetry beyond local opt-in crash reports.
 - Non-Muse providers (single-provider v1 keeps MSP semantics honest).
@@ -103,3 +103,5 @@ Helicon (Unofficial): a sidebar-first desktop app (Tauri 2, Win/Mac/Linux) and w
 - Name `Helicon` avoids the `Muse` mark; keep `(Unofficial)` + "Not affiliated with Meta" on all surfaces until attorney review.
 - Repo default branch is `prod`; either keep or migrate to `main` before first tag.
 - Revisit `allow-all` posture and remote-daemon hardening at a security review before any release.
+- Releases: every release gets a git tag plus a GitHub Release with downloadable desktop binaries. Windows is the primary target, with macOS and Linux supported from day one.
+- Versioning: semver. Merged PRs with considerable work bump at least the patch version, never major for routine work.

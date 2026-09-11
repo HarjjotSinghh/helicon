@@ -13,8 +13,13 @@ Thanks for contributing! Helicon is an unofficial open-source desktop + web ADE 
 ## Workflow
 
 - Open an issue first for anything beyond a typo.
-- Branch from `main`, keep PRs small and tested.
-- `git commit` messages: short imperative subject (≤50 chars), body only when "why" isn't obvious.
+- Branch from `prod`, keep PRs small and tested.
+- `git commit` messages: short imperative subject (50 chars max), body only when "why" is not obvious.
+
+## Versioning
+
+- Semver. Every release gets a git tag and a GitHub Release with binaries.
+- Merged PRs with considerable work bump at least the patch version, never major for routine work.
 
 ## Dev (once app code lands)
 
