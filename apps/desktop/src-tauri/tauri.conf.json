@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "app.helicon.desktop",
   "build": {
-    "frontendDist": "../web/dist",
+    "frontendDist": "../../web/dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "npm run dev --workspace @helicon/web",
     "beforeBuildCommand": "npm run build --workspace @helicon/web && npm run bundle:server --workspace helicon-desktop"
