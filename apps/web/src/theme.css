@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+@theme {
+  --color-night-950: #0a0a0c;
+  --color-night-900: #101014;
+  --color-night-850: #141419;
+  --color-night-800: #1a1a21;
+  --color-night-700: #26262e;
+  --color-night-600: #33333d;
+  --color-ink-100: #f2f2f5;
+  --color-ink-300: #c9c9d2;
+  --color-ink-500: #9c9ca8;
+  --color-ink-600: #6f6f7a;
+  --color-accent-400: #3fd2e0;
+  --color-accent-500: #22b8c6;
+  --color-danger-500: #f25555;
+  --color-ok-500: #3dd68c;
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", Consolas, "Courier New", monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-night-950: #f4f4f6;
+  --color-night-900: #ffffff;
+  --color-night-850: #f6f6f8;
+  --color-night-800: #ececf1;
+  --color-night-700: #d9d9e0;
+  --color-night-600: #c2c2cc;
+  --color-ink-100: #17171c;
+  --color-ink-300: #3a3a44;
+  --color-ink-500: #62626e;
+  --color-ink-600: #8a8a96;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-night-950);
+  color: var(--color-ink-100);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-night-600);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent-500);
+  outline-offset: 1px;
+}
+
+@keyframes helicon-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.helicon-pulse {
+  animation: helicon-pulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .helicon-pulse {
+    animation: none;
+  }
+}
