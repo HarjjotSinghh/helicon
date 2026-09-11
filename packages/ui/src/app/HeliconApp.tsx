@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import type { HeliconClient } from "../client.js";
 import { AddProjectDialog } from "../components/sidebar/AddProjectDialog.js";
 import { BootError, BootScreen, NewThread, Onboarding, Welcome } from "../components/home/Home.js";
@@ -10,10 +10,13 @@ import { isMac } from "../components/ui/primitives.js";
 import { Toasts } from "../components/ui/Toasts.js";
 import { HeliconController, type Platform } from "../model/controller.js";
 import { ControllerProvider, useApp, useController } from "./context.js";
+import { FrameProvider, FrameStrip, WindowControls, type WindowFrame } from "./frame.js";
 
 export interface HeliconAppProps {
   client: HeliconClient;
   platform?: Platform;
+  /** Present when a desktop shell wants the UI to draw the window's title bar. */
+  frame?: WindowFrame;
 }
 
 /** The whole Helicon interface. Web and desktop shells mount this with their transport. */
@@ -22,14 +25,17 @@ export function HeliconApp(props: HeliconAppProps) {
   useEffect(() => controller.start(), [controller]);
   return (
     <ControllerProvider controller={controller}>
-      <TooltipProvider>
-        <ThemeSync />
-        <GlobalShortcuts />
-        <Shell />
-        <CommandPalette />
-        <AddProjectDialog />
-        <Toasts />
-      </TooltipProvider>
+      <FrameProvider frame={props.frame}>
+        <TooltipProvider>
+          <ThemeSync />
+          <GlobalShortcuts />
+          <Shell />
+          <CommandPalette />
+          <AddProjectDialog />
+          <Toasts />
+          <WindowControls />
+        </TooltipProvider>
+      </FrameProvider>
     </ControllerProvider>
   );
 }
@@ -91,14 +97,22 @@ function Shell() {
   const boot = useApp((s) => s.boot);
   const env = useApp((s) => s.env);
   const collapsed = useApp((s) => s.prefs.sidebarCollapsed);
+  // Boot, setup and error screens fill the window with no header, so they get a bare drag strip.
+  let screen: ReactElement | null = null;
   if (!env) {
-    return boot === "error" ? <BootError /> : <BootScreen />;
+    screen = boot === "error" ? <BootError /> : <BootScreen />;
+  } else if (!env.museFound) {
+    screen = <Onboarding />;
+  } else if (boot === "error") {
+    screen = <BootError />;
   }
-  if (!env.museFound) {
-    return <Onboarding />;
-  }
-  if (boot === "error") {
-    return <BootError />;
+  if (screen) {
+    return (
+      <>
+        {screen}
+        <FrameStrip />
+      </>
+    );
   }
   return (
     <div className="flex h-full w-full bg-bg text-fg">

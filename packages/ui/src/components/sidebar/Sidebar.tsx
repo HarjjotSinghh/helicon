@@ -62,8 +62,8 @@ function SidebarTop() {
   const controller = useController();
   const routeKind = useApp((s) => s.route.kind);
   return (
-    <div className="flex flex-col gap-px px-2 pt-2.5 pb-1.5">
-      <div className="mb-1.5 flex h-8 items-center gap-2 pr-0.5 pl-1.5">
+    <div data-drag-region className="flex flex-col gap-px px-2 pt-2 pb-1.5">
+      <div className="mb-2 flex h-8 items-center gap-2 pr-0.5 pl-1.5">
         <Logo size={20} />
         <span className="text-[14px] font-semibold tracking-[-0.01em] text-fg">Helicon</span>
         <span className="flex-1" />

@@ -1,6 +1,7 @@
 import { Archive, Code, Copy, Ellipsis, Folder, FolderOpen, GitBranch, Lock, Minimize2, Pencil, Square, SquarePen } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
+import { CaptionSpacer } from "../../app/frame.js";
 import { basename, formatDuration } from "../../model/format.js";
 import type { ThreadState } from "../../model/store.js";
 import type { SessionSummary } from "../../types.js";
@@ -37,7 +38,7 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
   const startedAt = fold?.activeTurnId ? fold.turns[fold.activeTurnId]?.startedAt : undefined;
   const now = useNow(1000, props.running && startedAt !== undefined);
   return (
-    <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-line px-3">
+    <header data-drag-region className="flex h-12 shrink-0 items-center gap-1.5 border-b border-line px-3">
       <SidebarToggle />
       <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
         {renaming ? (
@@ -52,6 +53,7 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
           />
         ) : (
           <h1
+            data-no-drag
             className="min-w-0 cursor-text truncate text-sm font-semibold text-fg"
             title={`${session.title} (double-click to rename)`}
             onDoubleClick={() => setRenaming(true)}
@@ -122,6 +124,7 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
           </MenuItem>
         </MenuContent>
       </Menu>
+      <CaptionSpacer />
     </header>
   );
 }
@@ -227,8 +230,9 @@ function MissingThread() {
   const controller = useController();
   return (
     <div className="flex h-full flex-1 flex-col">
-      <header className="flex h-12 items-center px-3">
+      <header data-drag-region className="flex h-12 items-center px-3">
         <SidebarToggle />
+        <CaptionSpacer />
       </header>
       <div className="flex flex-1 flex-col items-center justify-center gap-3 pb-[12vh] text-center">
         <p className="font-display text-2xl text-fg">This thread is not here anymore</p>

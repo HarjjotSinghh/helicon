@@ -12,6 +12,12 @@ use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
 
 struct ServerChild(Mutex<Option<Child>>);
 
+/// Windows gets Helicon's own title bar, drawn by the UI; other platforms keep the native frame.
+const CUSTOM_FRAME: bool = cfg!(windows);
+
+/// Tells the UI, before it loads, to draw the window controls and drag regions.
+const FRAME_SCRIPT: &str = "window.__HELICON_FRAME__ = 'custom';";
+
 /// Shown the instant the window opens, while the local server starts. System colors follow the OS theme.
 const SPLASH_PAGE: &str = "data:text/html,<!doctype html><meta charset=utf-8><title>Helicon</title><style>html{color-scheme:light dark;background:Canvas;color:GrayText;font:13px system-ui,sans-serif}body{margin:0;height:100vh;display:grid;place-items:center}</style><body>Starting Helicon</body>";
 
@@ -140,14 +146,26 @@ fn main() {
         .manage(ServerChild(Mutex::new(None)))
         .setup(|app| {
             // Open the window at once on a splash page; the server can take a few seconds to probe WSL.
-            let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(SPLASH_PAGE.parse()?))
+            let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(SPLASH_PAGE.parse()?))
                 .title("Helicon")
                 .inner_size(1280.0, 820.0)
-                .min_inner_size(880.0, 560.0)
-                .build()?;
+                .min_inner_size(880.0, 560.0);
+            if CUSTOM_FRAME {
+                builder = builder.decorations(false).initialization_script(FRAME_SCRIPT);
+            }
+            let window = builder.build()?;
             let handle = app.handle().clone();
             std::thread::spawn(move || {
-                let target = boot_server(&handle).unwrap_or_else(|error| error.page().to_string());
+                let target = match boot_server(&handle) {
+                    Ok(url) => url,
+                    Err(error) => {
+                        // Error pages draw no window controls, so they get the native frame back.
+                        if CUSTOM_FRAME {
+                            let _ = window.set_decorations(true);
+                        }
+                        error.page().to_string()
+                    }
+                };
                 if let Ok(url) = target.parse::<Url>() {
                     let _ = window.navigate(url);
                 }
