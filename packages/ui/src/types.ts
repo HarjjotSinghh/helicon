@@ -227,6 +227,25 @@ export interface ModelOption {
   contributor: boolean;
 }
 
+/** A skill Muse can load in a workspace, from `muse skills list`. Skills switched off are left out. */
+export interface SkillEntry {
+  id: string;
+  name: string;
+  displayName: string;
+  /** Written for the model, so often long; menus show `shortDescription` or its first sentence. */
+  description: string;
+  shortDescription: string | null;
+  scope: string;
+  /** `on`, or `user-invocable-only` for skills the model never loads by itself. */
+  activation: string;
+}
+
+/** The skills for one workspace; `error` says why the list is empty when loading failed. */
+export interface SkillCatalog {
+  skills: SkillEntry[];
+  error: string | null;
+}
+
 /** The subfolders of one folder, for the add-project picker. */
 export interface DirectoryListing {
   /** The folder listed, as an absolute path in the user's style (`~` expanded). */

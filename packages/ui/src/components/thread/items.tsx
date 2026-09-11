@@ -69,8 +69,10 @@ function Row(props: {
   body?: ReactNode;
   preview?: ReactNode;
   tone?: "default" | "warn" | "danger";
+  /** Starts expanded, for output the user asked to see. */
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(props.defaultOpen ?? false);
   const expandable = Boolean(props.body);
   return (
     <div className="enter-up">
@@ -447,18 +449,23 @@ export const ShellRow = memo(function ShellRow(props: { item: MspItem }) {
   const { item } = props;
   const running = item.status === "inProgress";
   const code = item.exitCode;
+  // A command Muse could not start (no sandbox, say) fails without an exit code; its output says why.
+  const failed = (code !== undefined && code !== 0) || TERMINAL_FAILURES.has(item.status);
   return (
     <Row
       icon={<SquareTerminal size={14} />}
       label="You ran"
       chip={item.commandText ?? "a command"}
       mono
-      tone={code !== undefined && code !== 0 ? "danger" : "default"}
+      defaultOpen
+      tone={failed ? "danger" : "default"}
       trailing={
         running ? (
           <Spinner size={12} className="text-accent-text" label="Running" />
         ) : code !== undefined && code !== 0 ? (
           <span className="text-xs text-danger-text">Exit {code}</span>
+        ) : failed ? (
+          <span className="text-xs text-danger-text">Not run</span>
         ) : item.durationMs ? (
           <span className="text-2xs text-subtle tabular-nums">{formatDuration(item.durationMs)}</span>
         ) : null

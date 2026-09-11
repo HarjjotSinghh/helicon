@@ -11,6 +11,7 @@ import {
   type ModelOption,
   type ProjectView,
   type SessionSummary,
+  type SkillCatalog,
   type TranscriptLoad,
   type TurnOptions,
   type UserInputAnswer,
@@ -129,6 +130,7 @@ export class WebHeliconClient implements HeliconClient {
       text,
       ifBusy: options?.ifBusy,
       reasoningEffort: options?.reasoningEffort,
+      displayText: options?.displayText,
     });
     return { turnId: result.turnId ?? null, disposition: typeof result.disposition === "string" ? result.disposition : null };
   }
@@ -170,8 +172,29 @@ export class WebHeliconClient implements HeliconClient {
     await call("POST", `/api/sessions/${enc(sessionId)}/approval-mode`, { mode });
   }
 
-  async compact(sessionId: string): Promise<void> {
-    await call("POST", `/api/sessions/${enc(sessionId)}/compact`, {});
+  async compact(sessionId: string): Promise<{ noop: boolean; reason: string | null }> {
+    const { result } = await call<{ result: { status?: unknown; reason?: unknown } | null }>(
+      "POST",
+      `/api/sessions/${enc(sessionId)}/compact`,
+      {},
+    );
+    return { noop: result?.status === "noop", reason: typeof result?.reason === "string" ? result.reason : null };
+  }
+
+  async runShell(sessionId: string, command: string): Promise<void> {
+    await call("POST", `/api/sessions/${enc(sessionId)}/shell`, { command });
+  }
+
+  async forkSession(sessionId: string): Promise<SessionSummary> {
+    return (await call<{ session: SessionSummary }>("POST", `/api/sessions/${enc(sessionId)}/fork`, {})).session;
+  }
+
+  listSkills(cwd: string): Promise<SkillCatalog> {
+    return call<SkillCatalog>("GET", `/api/slash?cwd=${enc(cwd)}`);
+  }
+
+  async skillBody(cwd: string, skillId: string): Promise<string> {
+    return (await call<{ body: string }>("GET", `/api/slash/skill?cwd=${enc(cwd)}&id=${enc(skillId)}`)).body;
   }
 
   async openFolder(cwd: string, target: "files" | "editor"): Promise<void> {

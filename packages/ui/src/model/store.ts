@@ -5,6 +5,7 @@ import type {
   ProjectView,
   ReasoningEffort,
   SessionSummary,
+  SkillEntry,
 } from "../types.js";
 import type { ThreadFold } from "./fold.js";
 import type { UpdateState } from "./updates.js";
@@ -134,6 +135,21 @@ export interface AppState {
   draftHandoff: { key: string; text: string } | null;
   /** App updates; null when the shell cannot update itself, as in a browser. */
   updates: UpdateState | null;
+  /** Each workspace's skills for the composer's slash menu, loaded when first needed. */
+  skills: Record<string, SkillsState>;
+  /** A composer picker a slash command opened, like `/model`. */
+  picker: ComposerPicker | null;
+}
+
+/** `confirmFullAccess` is the full-access confirmation, which `/permissions full` must still pass through. */
+export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAccess";
+
+export interface SkillsState {
+  status: "loading" | "ready" | "error";
+  skills: SkillEntry[];
+  error: string | null;
+  /** When the last load finished, in platform time. */
+  loadedAt: number;
 }
 
 export function initialState(prefs: Prefs): AppState {
@@ -157,6 +173,8 @@ export function initialState(prefs: Prefs): AppState {
     hostError: null,
     draftHandoff: null,
     updates: null,
+    skills: {},
+    picker: null,
   };
 }
 

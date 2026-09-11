@@ -33,6 +33,17 @@ function lastCall(conn: FakeConnection) {
 }
 
 describe("SessionManager", () => {
+  it("runs a user shell command and forks a session", async () => {
+    const conn = new FakeConnection();
+    const manager = new SessionManager(conn);
+    await manager.userShell("s1", "git status");
+    assert.deepEqual(lastCall(conn), { method: "session/userShell", params: { sessionId: "s1", commandText: "git status" } });
+    conn.reply("session/fork", { session: { sessionId: "s2", forkedFrom: { sessionId: "s1" } } });
+    const forked = await manager.forkSession("s1");
+    assert.equal(forked.sessionId, "s2");
+    assert.deepEqual(lastCall(conn), { method: "session/fork", params: { sessionId: "s1", excludeItems: true } });
+  });
+
   it("lists sessions scoped to a workspace", async () => {
     const conn = new FakeConnection();
     conn.reply("session/list", { sessions: [{ session: { sessionId: "s1" } }] });

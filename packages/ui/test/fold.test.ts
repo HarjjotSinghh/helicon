@@ -170,6 +170,33 @@ describe("thread fold against a real muse transcript", () => {
     assert.equal(raced.echoes.length, 0, "an echo whose prompt already landed is dropped on ack");
   });
 
+  it("clears a slash turn's echo once a revision carries the shown text, or once its turn finishes", () => {
+    let fold = addEcho(emptyFold(), { localId: "l1", text: "/plan tidy", turnId: null, disposition: "sending", createdAt: 1 });
+    // The live start carries only the instructions the model got.
+    fold = applyEvent(fold, {
+      method: "item/started",
+      params: { item: { itemId: "u1", kind: "userMessage", status: "inProgress", revision: 1, turnId: "t1", text: "Use skill bundled:plan first" } },
+    });
+    fold = updateEcho(fold, "l1", { turnId: "t1", disposition: "started" });
+    assert.equal(fold.echoes.length, 1, "nothing matched the shown text yet");
+    fold = applyEvent(fold, {
+      method: "item/completed",
+      params: {
+        item: { itemId: "u1", kind: "userMessage", status: "completed", revision: 2, turnId: "t1", text: "Use skill bundled:plan first", displayText: "/plan tidy" },
+      },
+    });
+    assert.equal(fold.echoes.length, 0, "the revision with the shown text clears it");
+
+    let stray = addEcho(emptyFold(), { localId: "l2", text: "typed", turnId: "t2", disposition: "started", createdAt: 1 });
+    stray = applyEvent(stray, {
+      method: "item/completed",
+      params: { item: { itemId: "u2", kind: "userMessage", status: "completed", revision: 1, turnId: "t2", text: "sent" } },
+    });
+    assert.equal(stray.echoes.length, 1);
+    stray = applyEvent(stray, { method: "turn/completed", params: { turnId: "t2", terminal: "completed" } });
+    assert.equal(stray.echoes.length, 0, "a finished turn whose prompt landed needs no local copy");
+  });
+
   it("keeps queued prompts until their turn launches or is reclaimed", () => {
     let fold = addEcho(emptyFold(), { localId: "q1", text: "next", turnId: "t5", disposition: "queued", createdAt: 1 });
     fold = applyEvent(fold, { method: "turn/started", params: { turnId: "t5" } });

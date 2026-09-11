@@ -234,6 +234,15 @@ function upsertItem(draft: Draft, incoming: MspItem): void {
     next.turnId = current.turnId;
   }
   d.items[incoming.itemId] = next;
+  // A later revision can bring the shown text (`displayText`) the first one lacked, so match again.
+  if (next.kind === "userMessage") {
+    matchEcho(draft, next);
+  }
+}
+
+/** Both forms of a prompt: what the transcript shows and what the model got; a local echo holds one of them. */
+function promptTexts(item: MspItem): Set<string> {
+  return new Set([item.displayText, item.text].filter((t): t is string => Boolean(t)).map((t) => normalizeText(t)));
 }
 
 function matchEcho(draft: Draft, item: MspItem): void {
@@ -241,12 +250,12 @@ function matchEcho(draft: Draft, item: MspItem): void {
   if (echoes.length === 0) {
     return;
   }
-  const text = normalizeText(item.displayText ?? item.text ?? "");
+  const texts = promptTexts(item);
   let index = echoes.findIndex(
-    (e) => e.turnId !== null && (e.turnId === item.turnId || e.turnId === item.commandId) && normalizeText(e.text) === text,
+    (e) => e.turnId !== null && (e.turnId === item.turnId || e.turnId === item.commandId) && texts.has(normalizeText(e.text)),
   );
   if (index < 0) {
-    index = echoes.findIndex((e) => normalizeText(e.text) === text);
+    index = echoes.findIndex((e) => texts.has(normalizeText(e.text)));
   }
   if (index >= 0) {
     draft.removeEcho(index);
@@ -377,7 +386,12 @@ function applyOne(draft: Draft, event: ViewEvent): void {
         d.activeTurnId = null;
       }
       const echo = d.echoes.findIndex((e) => e.turnId === turnId);
-      if (echo >= 0 && d.turns[turnId]?.terminal !== "completed") {
+      // A finished turn whose prompt is in the transcript needs no local copy, even one no text matched.
+      const landed = d.order.some((id) => {
+        const item = d.items[id];
+        return item?.kind === "userMessage" && item.turnId === turnId && !item.steered;
+      });
+      if (echo >= 0 && (d.turns[turnId]?.terminal !== "completed" || landed)) {
         draft.removeEcho(echo);
       }
       break;
@@ -591,7 +605,7 @@ export function updateEcho(fold: ThreadFold, localId: string, patch: Partial<Loc
       return (
         item?.kind === "userMessage" &&
         (item.turnId === patch.turnId || item.commandId === patch.turnId) &&
-        normalizeText(item.displayText ?? item.text ?? "") === normalizeText(echo.text)
+        promptTexts(item).has(normalizeText(echo.text))
       );
     });
     if (landed) {

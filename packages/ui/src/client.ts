@@ -7,6 +7,7 @@ import type {
   ProjectView,
   ReasoningEffort,
   SessionSummary,
+  SkillCatalog,
   TranscriptLoad,
   UserInputAnswer,
 } from "./types.js";
@@ -39,6 +40,8 @@ export type EventHandler = (event: HeliconEvent) => void;
 export interface TurnOptions {
   ifBusy?: IfBusy;
   reasoningEffort?: ReasoningEffort;
+  /** What the transcript shows in place of the text the model gets, like `/plan tidy the API`. */
+  displayText?: string;
 }
 
 export interface ApprovalDecisionInput {
@@ -76,7 +79,15 @@ export interface HeliconClient {
   listModels(sessionId?: string): Promise<ModelOption[]>;
   setSessionModel(sessionId: string, modelId: string): Promise<void>;
   setApprovalMode(sessionId: string, mode: ApprovalMode): Promise<void>;
-  compact(sessionId: string): Promise<void>;
+  /** `noop` when Muse had nothing to summarize; `reason` is its snake_case explanation. */
+  compact(sessionId: string): Promise<{ noop: boolean; reason: string | null }>;
+  /** Runs a shell command in the session's workspace; its output arrives as a `userShell` item. */
+  runShell(sessionId: string, command: string): Promise<void>;
+  /** Branches a thread into a new one carrying every completed turn. */
+  forkSession(sessionId: string): Promise<SessionSummary>;
+  listSkills(cwd: string): Promise<SkillCatalog>;
+  /** The full instructions of a skill, without its frontmatter. */
+  skillBody(cwd: string, skillId: string): Promise<string>;
   openFolder(cwd: string, target: "files" | "editor"): Promise<void>;
   /** Subscribe to server events; returns an unsubscribe function. */
   subscribe(handler: EventHandler): () => void;

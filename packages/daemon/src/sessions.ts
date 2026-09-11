@@ -308,6 +308,17 @@ export class SessionManager {
     return this.connection.command("session/compact", { sessionId });
   }
 
+  /** Runs a shell command the user typed (the terminal UI's `!`) in the session's workspace. Needs the `userShell` capability. */
+  async userShell(sessionId: string, commandText: string): Promise<unknown> {
+    return this.connection.command("session/userShell", { sessionId, commandText });
+  }
+
+  /** Branches a session into a new one that carries every completed turn. */
+  async forkSession(sessionId: string): Promise<StartedSession> {
+    const result = await this.connection.command("session/fork", { sessionId, excludeItems: true });
+    return { sessionId: sessionIdOf(result), raw: result };
+  }
+
   async decideApproval(decision: ApprovalDecision): Promise<unknown> {
     return this.connection.command("approval/decide", {
       sessionId: decision.sessionId,

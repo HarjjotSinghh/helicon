@@ -5,10 +5,23 @@ import type {
   HeliconEvent,
   ReasoningEffort,
   SessionSummary,
+  SkillEntry,
   UserInputAnswer,
   UserInputRequest,
   ViewEvent,
 } from "../types.js";
+import { modelDisplayName } from "./format.js";
+import {
+  INIT_PROMPT,
+  findModel,
+  parseEffort,
+  parseMode,
+  parseSlash,
+  resolveSlash,
+  skillTurn,
+  slashCommands,
+  type ParsedSlash,
+} from "./slash.js";
 import {
   addEcho,
   applyEvents,
@@ -25,9 +38,11 @@ import {
   initialState,
   revivePrefs,
   type AppState,
+  type ComposerPicker,
   type GroupBy,
   type Prefs,
   type Route,
+  type SkillsState,
   type ThemePref,
   type ThreadState,
   type Toast,
@@ -123,6 +138,8 @@ function nextLocalId(): string {
 
 const FLUSH_MS = 24;
 const TOAST_MS = { info: 5000, success: 4000, error: 9000 } as const;
+const SKILLS_FRESH_MS = 60_000;
+const SKILLS_RETRY_MS = 10_000;
 
 /**
  * Owns app state and every side effect: server calls, the event stream, routing and prefs.
@@ -497,24 +514,51 @@ export class HeliconController {
 
   // ---------------------------------------------------------------- turns
 
-  /** Send from the composer. Returns false when the sending composer should put the text back. */
-  async send(text: string, options: { steer?: boolean } = {}): Promise<boolean> {
+  /**
+   * Send from the composer. `/commands` and `!shell` lines run as themselves; `raw` sends the text as a plain prompt.
+   * Returns false when the sending composer should put the text back.
+   */
+  async send(text: string, options: { steer?: boolean; raw?: boolean } = {}): Promise<boolean> {
     const trimmed = text.trim();
     if (!trimmed) {
       return false;
     }
-    const route = this.state.route;
-    if (route.kind === "thread") {
-      return this.sendToThread(route.sessionId, trimmed, options, false);
+    if (!options.raw) {
+      const shell = /^!\s*([\s\S]+)$/.exec(trimmed);
+      if (shell) {
+        return this.runShell((shell[1] as string).trim());
+      }
+      const parsed = parseSlash(trimmed);
+      if (parsed) {
+        return this.runSlash(trimmed, parsed, { steer: options.steer });
+      }
     }
+    return this.deliver(trimmed, { steer: options.steer });
+  }
+
+  /** The project a new thread starts in: the new-thread screen's, else the last one used. */
+  private newThreadTarget(): string | null {
+    const route = this.state.route;
     const target =
       (route.kind === "new" ? route.cwd : null) ?? this.state.prefs.lastProject ?? this.state.projects[0]?.cwd ?? null;
     if (!target) {
       this.toast("info", "Add a project first", "Pick the folder Muse should work in.");
       this.setAddProjectOpen(true);
-      return false;
     }
-    return this.startThread(target, trimmed);
+    return target;
+  }
+
+  /** Sends a prompt to the open thread, or starts a thread with it. */
+  private deliver(text: string, options: { steer?: boolean; displayText?: string }): Promise<boolean> {
+    const route = this.state.route;
+    if (route.kind === "thread") {
+      return this.sendToThread(route.sessionId, text, options, false);
+    }
+    const target = this.newThreadTarget();
+    if (!target) {
+      return Promise.resolve(false);
+    }
+    return this.startThread(target, options.displayText ?? text, (sessionId) => this.sendToThread(sessionId, text, options, false));
   }
 
   /** Called by the composer showing `key`: takes back a prompt that failed to send from elsewhere. */
@@ -527,7 +571,8 @@ export class HeliconController {
     return handoff.text;
   }
 
-  private async startThread(cwd: string, text: string): Promise<boolean> {
+  /** Starts a thread in `cwd` and runs its first action there; what the user typed goes to its composer if that fails. */
+  private async startThread(cwd: string, typed: string, first: (sessionId: string) => Promise<boolean>): Promise<boolean> {
     if (this.state.busy["start"]) {
       return false;
     }
@@ -553,10 +598,10 @@ export class HeliconController {
       }));
       this.setPrefs({ lastProject: cwd });
       this.navigate({ kind: "thread", sessionId: session.sessionId });
-      const sent = await this.sendToThread(session.sessionId, text, {}, false);
+      const sent = await first(session.sessionId);
       if (!sent) {
         // The new-thread composer that sent this is gone, so the prompt goes to the new thread's composer.
-        this.update((s) => ({ ...s, draftHandoff: { key: session.sessionId, text } }));
+        this.update((s) => ({ ...s, draftHandoff: { key: session.sessionId, text: typed } }));
       }
       return true;
     } catch (error) {
@@ -570,7 +615,7 @@ export class HeliconController {
   private async sendToThread(
     sessionId: string,
     text: string,
-    options: { steer?: boolean },
+    options: { steer?: boolean; displayText?: string },
     retried: boolean,
   ): Promise<boolean> {
     const thread = this.state.threads[sessionId];
@@ -584,7 +629,8 @@ export class HeliconController {
     const running = thread.fold.activeTurnId !== null;
     const echo: LocalEcho = {
       localId: nextLocalId(),
-      text,
+      // The echo shows what the transcript will, so it matches the prompt item when that arrives.
+      text: options.displayText ?? text,
       turnId: null,
       disposition: running ? (options.steer ? "steered" : "queued") : "sending",
       createdAt: this.platform.now(),
@@ -594,6 +640,7 @@ export class HeliconController {
       const ack = await this.client.sendTurn(sessionId, text, {
         ifBusy: running ? (options.steer ? "steer" : "queue") : undefined,
         reasoningEffort: this.state.prefs.effort ?? undefined,
+        displayText: options.displayText,
       });
       const disposition: LocalEcho["disposition"] =
         ack.disposition === "queued" ? "queued" : ack.disposition === "steered" ? "steered" : "started";
@@ -652,6 +699,18 @@ export class HeliconController {
   }
 
   async retryTurn(sessionId: string, prompt: string): Promise<void> {
+    // A turn started by `/plan …` or `/init` shows the command, so retrying runs the command again.
+    const parsed = parseSlash(prompt);
+    const cwd = this.state.sessions[sessionId]?.cwd ?? null;
+    const route = this.state.route;
+    if (parsed && cwd && route.kind === "thread" && route.sessionId === sessionId) {
+      await this.loadSkills(cwd);
+      const skills = this.state.skills[cwd]?.skills ?? [];
+      if (resolveSlash(parsed, slashCommands(skills, { inThread: true }), skills).kind !== "unknown") {
+        await this.send(prompt);
+        return;
+      }
+    }
     await this.sendToThread(sessionId, prompt, {}, false);
   }
 
@@ -973,9 +1032,232 @@ export class HeliconController {
     }
   }
 
+  // ---------------------------------------------------------------- slash commands, skills and shell
+
+  /** The workspace the composer's commands act on: the open thread's, or where a new thread would start. */
+  composerCwd(): string | null {
+    const route = this.state.route;
+    if (route.kind === "thread") {
+      return this.state.sessions[route.sessionId]?.cwd ?? null;
+    }
+    return (route.kind === "new" ? route.cwd : null) ?? this.state.prefs.lastProject ?? this.state.projects[0]?.cwd ?? null;
+  }
+
+  private readonly skillLoads = new Map<string, Promise<void>>();
+
+  /**
+   * Loads a workspace's skills for the slash menu. A loaded list is reused for a minute and a failed load
+   * retries after ten seconds; a load already running is shared, so a command sent mid-load waits for it.
+   */
+  loadSkills(cwd: string): Promise<void> {
+    const running = this.skillLoads.get(cwd);
+    if (running) {
+      return running;
+    }
+    const current = this.state.skills[cwd];
+    const age = this.platform.now() - (current?.loadedAt ?? 0);
+    if (current && age < (current.status === "ready" ? SKILLS_FRESH_MS : SKILLS_RETRY_MS)) {
+      return Promise.resolve();
+    }
+    const load = this.fetchSkills(cwd, current).finally(() => this.skillLoads.delete(cwd));
+    this.skillLoads.set(cwd, load);
+    return load;
+  }
+
+  private async fetchSkills(cwd: string, current: SkillsState | undefined): Promise<void> {
+    this.setSkills(cwd, { status: "loading", skills: current?.skills ?? [], error: null, loadedAt: current?.loadedAt ?? 0 });
+    try {
+      const catalog = await this.client.listSkills(cwd);
+      this.setSkills(cwd, {
+        status: catalog.error ? "error" : "ready",
+        skills: catalog.skills,
+        error: catalog.error,
+        loadedAt: this.platform.now(),
+      });
+    } catch (error) {
+      this.setSkills(cwd, { status: "error", skills: current?.skills ?? [], error: errorMessage(error), loadedAt: this.platform.now() });
+    }
+  }
+
+  private setSkills(cwd: string, next: SkillsState): void {
+    this.update((s) => ({ ...s, skills: { ...s.skills, [cwd]: next } }));
+  }
+
+  setPicker(picker: ComposerPicker | null): void {
+    this.update((s) => (s.picker === picker ? s : { ...s, picker }));
+  }
+
+  /** Closes `picker` only if it is still the open one, so a menu closing after it hands off to a dialog leaves the dialog open. */
+  closePicker(picker: ComposerPicker): void {
+    this.update((s) => (s.picker === picker ? { ...s, picker: null } : s));
+  }
+
+  /** `!command` runs in the thread's workspace shell; on the new-thread screen it starts the thread first. */
+  private async runShell(command: string): Promise<boolean> {
+    const run = async (sessionId: string): Promise<boolean> => {
+      const thread = this.state.threads[sessionId];
+      if (thread?.readOnly) {
+        this.toast("info", "This thread is read-only here", thread.readOnlyReason ?? "Another Muse session has it open.");
+        return false;
+      }
+      try {
+        await this.client.runShell(sessionId, command);
+        return true;
+      } catch (error) {
+        this.toast("error", "Command not run", errorMessage(error));
+        return false;
+      }
+    };
+    const route = this.state.route;
+    if (route.kind === "thread") {
+      return run(route.sessionId);
+    }
+    const target = this.newThreadTarget();
+    return target ? this.startThread(target, `!${command}`, run) : false;
+  }
+
+  private async runSlash(typed: string, parsed: ParsedSlash, options: { steer?: boolean }): Promise<boolean> {
+    const route = this.state.route;
+    const cwd = this.composerCwd();
+    // A skill typed before the workspace's skills arrived waits for them instead of reading as unknown;
+    // built-ins other than `/skill` never wait on a slow skills list.
+    const builtin = slashCommands([], { inThread: true }).find((c) => c.name === parsed.name || c.aliases.includes(parsed.name));
+    if (cwd && (!builtin || builtin.action === "skill")) {
+      await this.loadSkills(cwd);
+    }
+    const skills = cwd ? (this.state.skills[cwd]?.skills ?? []) : [];
+    // Resolve against every built-in, so a thread-only command typed outside a thread gets a useful answer.
+    const resolved = resolveSlash(parsed, slashCommands(skills, { inThread: true }), skills);
+    if (resolved.kind === "unknown") {
+      this.toast("info", `No command named /${resolved.name}`, "Pick one from the list, or send the text as a prompt from the menu.");
+      return false;
+    }
+    if (resolved.kind === "skill") {
+      return this.runSkill(resolved.skill, resolved.args, typed, cwd, options);
+    }
+    const { command, args } = resolved;
+    const sessionId = route.kind === "thread" ? route.sessionId : null;
+    if (command.needsThread && !sessionId) {
+      this.toast("info", `Open a thread to use /${command.name}`);
+      return false;
+    }
+    switch (command.action) {
+      case "compact":
+        await this.compact(sessionId as string);
+        return true;
+      case "fork":
+        return this.fork(sessionId as string);
+      case "new":
+        this.newThread(cwd);
+        return true;
+      case "resume":
+        this.setPaletteOpen(true);
+        return true;
+      case "init":
+        return this.deliver(INIT_PROMPT, { ...options, displayText: typed });
+      case "model": {
+        if (!args) {
+          this.setPicker("model");
+          return true;
+        }
+        const model = findModel(this.state.models, args, modelDisplayName);
+        if (!model) {
+          this.toast("info", `No model named ${args}`, "Type /model to pick from the list.");
+          return false;
+        }
+        await this.setModel(model.modelId);
+        return true;
+      }
+      case "effort": {
+        if (!args) {
+          this.setPicker("effort");
+          return true;
+        }
+        const effort = parseEffort(args);
+        if (effort === undefined) {
+          this.toast("info", `Unknown effort level: ${args}`, "Use off, minimal, low, medium, high, xhigh, ultra or auto.");
+          return false;
+        }
+        this.setEffort(effort);
+        return true;
+      }
+      case "permissions": {
+        if (!args) {
+          this.setPicker("permissions");
+          return true;
+        }
+        const mode = parseMode(args);
+        if (!mode) {
+          this.toast("info", `Unknown permission mode: ${args}`, "Use ask, unlisted, deny or full.");
+          return false;
+        }
+        if (mode === "allowAll") {
+          // Full access always goes through its confirmation.
+          this.setPicker("confirmFullAccess");
+          return true;
+        }
+        await this.setMode(mode);
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+
+  /** A skill turn: the model loads the skill itself, or gets the body inline when only users may invoke it. */
+  private async runSkill(
+    skill: SkillEntry,
+    args: string,
+    typed: string,
+    cwd: string | null,
+    options: { steer?: boolean },
+  ): Promise<boolean> {
+    let body: string | null = null;
+    if (skill.activation === "user-invocable-only") {
+      try {
+        body = await this.client.skillBody(cwd ?? "", skill.id);
+      } catch (error) {
+        this.toast("error", `Could not load /${skill.name}`, errorMessage(error));
+        return false;
+      }
+    }
+    const turn = skillTurn(skill, args, typed, body);
+    return this.deliver(turn.text, { ...options, displayText: turn.displayText });
+  }
+
+  /** Branches a thread into a new one and opens it. */
+  async fork(sessionId: string): Promise<boolean> {
+    const key = `fork:${sessionId}`;
+    if (this.state.busy[key]) {
+      return false;
+    }
+    this.setBusy(key, true);
+    try {
+      const session = await this.client.forkSession(sessionId);
+      this.upsertSession(session);
+      this.navigate({ kind: "thread", sessionId: session.sessionId });
+      this.toast("success", "Forked into a new thread", "The original thread stays as it was.");
+      return true;
+    } catch (error) {
+      this.toast(
+        "error",
+        "Could not fork the thread",
+        errorKind(error) === "forkBoundaryInvalid" ? "Muse could not find a point in this thread to fork it at." : errorMessage(error),
+      );
+      return false;
+    } finally {
+      this.setBusy(key, false);
+    }
+  }
+
   async compact(sessionId: string): Promise<void> {
     try {
-      await this.client.compact(sessionId);
+      const result = await this.client.compact(sessionId);
+      if (result.noop) {
+        const reason = result.reason === "no_compactable_history" ? "There is no earlier history to summarize." : result.reason;
+        this.toast("info", "Nothing to compact yet", reason ? `${reason.charAt(0).toUpperCase()}${reason.slice(1).replace(/_/g, " ")}` : undefined);
+        return;
+      }
       this.toast("info", "Compacting context", "Muse will summarize earlier turns to free up the context window.");
     } catch (error) {
       this.toast("error", "Could not compact the context", errorMessage(error));

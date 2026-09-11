@@ -141,15 +141,17 @@ const TurnBlock = memo(
     const failed = info?.terminal === "failed";
     const cancelled = info?.terminal === "cancelled";
     const hasWork = turn.entries.length > 0;
+    // Items outside any turn are the user's own `!` commands: shown as they are, never folded into a work log.
+    const standalone = !turn.turnId && !turn.prompt;
     return (
       <article className="flex flex-col gap-3" aria-label="Turn">
         {turn.prompt ? <PromptBubble item={turn.prompt} sentAt={sentTime(turn)} /> : null}
-        {turn.running ? (
+        {turn.running || standalone ? (
           <div className="flex flex-col gap-1.5">
             {turn.entries.map((item) => (
               <Entry key={item.itemId} item={item} gate={props.gates[item.itemId]} answers={props.answers[item.itemId] ?? null} live />
             ))}
-            <LiveStatus turn={turn} gates={props.gates} />
+            {turn.running ? <LiveStatus turn={turn} gates={props.gates} /> : null}
           </div>
         ) : hasWork ? (
           <WorkLog turn={turn} gates={props.gates} answers={props.answers} speed={turn.final ? null : props.speed} />
