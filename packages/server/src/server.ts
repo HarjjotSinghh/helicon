@@ -26,7 +26,7 @@ import {
 } from "@helicon/daemon";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
-export const HELICON_VERSION = "0.5.0";
+export const HELICON_VERSION = "0.6.0";
 
 export interface HostExit {
   code: number | null;
