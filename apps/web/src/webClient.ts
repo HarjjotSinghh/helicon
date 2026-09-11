@@ -1,208 +1,197 @@
-import type {
-  ApprovalMode,
-  EnvironmentStatus,
-  EventHandler,
-  HeliconClient,
-  HeliconEvent,
-  ProjectView,
-  SessionViewData,
-  TranscriptItem,
-  UserInputAnswerItem,
+import {
+  HeliconError,
+  parseModelList,
+  type ApprovalDecisionInput,
+  type ApprovalMode,
+  type EnvironmentStatus,
+  type EventHandler,
+  type HeliconClient,
+  type HeliconEvent,
+  type ModelOption,
+  type ProjectView,
+  type SessionSummary,
+  type TranscriptLoad,
+  type TurnOptions,
+  type UserInputAnswer,
 } from "@helicon/ui";
 
-async function getJson(path: string): Promise<unknown> {
-  const res = await fetch(path);
-  if (!res.ok) {
-    throw new Error(`GET ${path} failed with ${res.status}.`);
+const token = new URLSearchParams(window.location.search).get("token");
+
+function withToken(path: string): string {
+  if (!token) {
+    return path;
   }
-  return res.json() as Promise<unknown>;
+  return `${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
 }
 
-async function postJson(path: string, body: unknown): Promise<unknown> {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`POST ${path} failed with ${res.status}: ${text}`);
+async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(withToken(path), {
+      method,
+      headers: body === undefined ? undefined : { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new HeliconError("The local Helicon server is not reachable. Is it still running?", 0);
   }
-  return res.json() as Promise<unknown>;
+  const text = await response.text();
+  let data: unknown = null;
+  try {
+    data = text ? (JSON.parse(text) as unknown) : null;
+  } catch {
+    data = null;
+  }
+  if (!response.ok) {
+    const failure = (data ?? {}) as { error?: unknown; kind?: unknown };
+    throw new HeliconError(
+      typeof failure.error === "string" ? failure.error : `${method} ${path} failed with ${response.status}.`,
+      response.status,
+      typeof failure.kind === "string" ? failure.kind : null,
+    );
+  }
+  return data as T;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null) {
-    return value as Record<string, unknown>;
-  }
-  return {};
-}
+const enc = encodeURIComponent;
 
+/** The Helicon client over the local server's REST API and server-sent events. */
 export class WebHeliconClient implements HeliconClient {
-  private handlers = new Set<EventHandler>();
+  private readonly handlers = new Set<EventHandler>();
   private source: EventSource | null = null;
 
-  async probeEnvironment(): Promise<EnvironmentStatus> {
-    const env = asRecord(await getJson("/api/env"));
-    return {
-      platform: String(env["platform"] ?? ""),
-      wslAvailable: env["wslAvailable"] === true,
-      defaultDistro: typeof env["defaultDistro"] === "string" ? (env["defaultDistro"] as string) : null,
-      museFound: env["museFound"] === true,
-      musePath: typeof env["musePath"] === "string" ? (env["musePath"] as string) : null,
-    };
+  probeEnvironment(refresh = false): Promise<EnvironmentStatus> {
+    return call<EnvironmentStatus>("GET", `/api/env${refresh ? "?refresh=1" : ""}`);
   }
 
   async listProjects(): Promise<ProjectView[]> {
-    const body = asRecord(await getJson("/api/projects"));
-    const projects = Array.isArray(body["projects"]) ? body["projects"] : [];
-    return projects.map((p) => {
-      const r = asRecord(p);
-      return {
-        cwd: String(r["cwd"] ?? ""),
-        displayName: String(r["displayName"] ?? r["cwd"] ?? ""),
-        pinned: r["pinned"] === true,
-      };
-    });
+    return (await call<{ projects: ProjectView[] }>("GET", "/api/projects")).projects;
+  }
+
+  async addProject(cwd: string): Promise<{ cwd: string; warning: string | null }> {
+    const result = await call<{ project: { cwd: string }; warning: string | null }>("POST", "/api/projects", { cwd });
+    return { cwd: result.project.cwd, warning: result.warning };
+  }
+
+  async hideProject(cwd: string): Promise<void> {
+    await call("DELETE", `/api/projects?cwd=${enc(cwd)}`);
   }
 
   async setPinned(cwd: string, pinned: boolean): Promise<void> {
-    const res = await fetch("/api/projects/pin", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ cwd, pinned }),
-    });
-    if (!res.ok) {
-      throw new Error(`Pin failed with ${res.status}.`);
-    }
+    await call("PATCH", "/api/projects/pin", { cwd, pinned });
   }
 
-  async listSessions(cwd?: string): Promise<SessionViewData[]> {
-    const path = cwd ? `/api/sessions?cwd=${encodeURIComponent(cwd)}` : "/api/sessions";
-    const body = asRecord(await getJson(path));
-    const sessions = Array.isArray(body["sessions"]) ? body["sessions"] : [];
-    return sessions.map((s) => {
-      const r = asRecord(s);
-      return {
-        sessionId: String(r["sessionId"] ?? r["id"] ?? ""),
-        cwd: String(r["cwd"] ?? cwd ?? ""),
-        title: String(r["title"] ?? "Session"),
-        status: String(r["status"] ?? "active"),
-        turnCount: typeof r["turnCount"] === "number" ? r["turnCount"] : 0,
-        modelId: typeof r["modelId"] === "string" ? r["modelId"] : null,
-        origin: r["origin"] === "tui" ? "tui" : "helicon",
-      };
-    });
+  async listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]> {
+    return (await call<{ sessions: SessionSummary[] }>("GET", `/api/sessions${options?.archived ? "?archived=1" : ""}`)).sessions;
   }
 
-  async discover(cwd?: string): Promise<SessionViewData[]> {
-    const body = asRecord(await postJson("/api/discover", cwd ? { cwd } : {}));
-    const sessions = Array.isArray(body["sessions"]) ? body["sessions"] : [];
-    return sessions.map((s) => {
-      const r = asRecord(s);
-      return {
-        sessionId: String(r["sessionId"] ?? ""),
-        cwd: String(r["cwd"] ?? cwd ?? ""),
-        title: String(r["title"] ?? "Session"),
-        status: String(r["status"] ?? "active"),
-        turnCount: typeof r["turnCount"] === "number" ? r["turnCount"] : 0,
-        modelId: typeof r["modelId"] === "string" ? r["modelId"] : null,
-        origin: r["origin"] === "tui" ? "tui" : "helicon",
-      };
-    });
+  async discover(cwd?: string): Promise<void> {
+    await call("POST", "/api/discover", cwd ? { cwd } : {});
   }
 
-  async startSession(cwd: string, approvalMode?: ApprovalMode, modelId?: string): Promise<SessionViewData> {
-    const body = asRecord(await postJson("/api/sessions", { cwd, approvalMode, modelId }));
-    const r = asRecord(body["session"]);
-    return {
-      sessionId: String(r["sessionId"] ?? ""),
+  async startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string }): Promise<SessionSummary> {
+    const result = await call<{ session: SessionSummary }>("POST", "/api/sessions", {
       cwd,
-      title: String(r["title"] ?? "Session"),
-      status: String(r["status"] ?? "active"),
-      turnCount: 0,
-      modelId: typeof r["modelId"] === "string" ? r["modelId"] : null,
-      origin: "helicon",
-    };
+      approvalMode: options?.approvalMode,
+      modelId: options?.modelId,
+    });
+    return result.session;
   }
 
-  async resumeSession(sessionId: string): Promise<{ session: SessionViewData; items: TranscriptItem[] }> {
-    const body = asRecord(await postJson(`/api/sessions/${encodeURIComponent(sessionId)}/resume`, {}));
-    void body;
-    return {
-      session: {
-        sessionId,
-        cwd: "",
-        title: "Session",
-        status: "active",
-        turnCount: 0,
-        modelId: null,
-        origin: "helicon",
-      },
-      items: [],
-    };
+  loadTranscript(sessionId: string): Promise<TranscriptLoad> {
+    return call<TranscriptLoad>("POST", `/api/sessions/${enc(sessionId)}/resume`, {});
   }
 
-  async sendTurn(sessionId: string, text: string): Promise<{ turnId: string | null }> {
-    const body = asRecord(await postJson("/api/turns", { sessionId, text }));
-    return { turnId: typeof body["turnId"] === "string" ? body["turnId"] : null };
+  async updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<SessionSummary | null> {
+    return (await call<{ session: SessionSummary | null }>("PATCH", `/api/sessions/${enc(sessionId)}`, patch)).session;
   }
 
-  async steerTurn(sessionId: string, turnId: string, text: string): Promise<void> {
-    await postJson("/api/turns/steer", { sessionId, turnId, text });
+  async sendTurn(sessionId: string, text: string, options?: TurnOptions): Promise<{ turnId: string | null; disposition: string | null }> {
+    const result = await call<{ turnId: string | null; disposition: unknown }>("POST", "/api/turns", {
+      sessionId,
+      text,
+      ifBusy: options?.ifBusy,
+      reasoningEffort: options?.reasoningEffort,
+    });
+    return { turnId: result.turnId ?? null, disposition: typeof result.disposition === "string" ? result.disposition : null };
   }
 
   async interruptTurn(sessionId: string, turnId?: string): Promise<void> {
-    await postJson("/api/turns/interrupt", { sessionId, turnId });
+    await call("POST", "/api/turns/interrupt", { sessionId, turnId });
   }
 
-  async cancelTurn(sessionId: string, turnId: string): Promise<void> {
-    await postJson("/api/turns/cancel", { sessionId, turnId });
+  async unqueueTurn(sessionId: string, turnId: string): Promise<void> {
+    await call("POST", "/api/turns/unqueue", { sessionId, turnId });
   }
 
-  async decideApproval(
-    sessionId: string,
-    approvalId: string,
-    requirementId: unknown,
-    choiceId: string,
-    feedback?: string | null,
-  ): Promise<void> {
-    await postJson("/api/approvals/decide", { sessionId, approvalId, requirementId, choiceId, feedback });
+  async decideApproval(input: ApprovalDecisionInput): Promise<void> {
+    await call("POST", "/api/approvals/decide", input);
   }
 
-  async listModels(sessionId?: string): Promise<unknown> {
-    const path = sessionId ? `/api/models?sessionId=${encodeURIComponent(sessionId)}` : "/api/models";
-    const body = asRecord(await getJson(path));
-    return body["models"];
+  async answerUserInput(sessionId: string, userInputId: string, answers: UserInputAnswer[]): Promise<void> {
+    await call("POST", "/api/user-input/answer", { sessionId, userInputId, answers });
   }
 
-  async setSessionModel(sessionId: string, model: unknown): Promise<void> {
-    await postJson(`/api/sessions/${encodeURIComponent(sessionId)}/model`, { model });
+  async cancelUserInput(sessionId: string, userInputId: string): Promise<void> {
+    await call("POST", "/api/user-input/cancel", { sessionId, userInputId });
   }
 
-  async setSessionApprovalMode(sessionId: string, mode: ApprovalMode): Promise<void> {
-    await postJson(`/api/sessions/${encodeURIComponent(sessionId)}/approval-mode`, { mode });
+  async clarifyUserInput(sessionId: string, userInputId: string, content: string): Promise<void> {
+    await call("POST", "/api/user-input/clarify", { sessionId, userInputId, content });
   }
 
-  async answerUserInput(sessionId: string, userInputId: string, answers: UserInputAnswerItem[]): Promise<void> {
-    await postJson("/api/user-input/answer", { sessionId, userInputId, answers });
+  async listModels(sessionId?: string): Promise<ModelOption[]> {
+    const result = await call<{ models: unknown }>("GET", `/api/models${sessionId ? `?sessionId=${enc(sessionId)}` : ""}`);
+    return parseModelList(result.models);
   }
 
-  onEvent(handler: EventHandler): void {
+  async setSessionModel(sessionId: string, modelId: string): Promise<void> {
+    await call("POST", `/api/sessions/${enc(sessionId)}/model`, { model: { modelId } });
+  }
+
+  async setApprovalMode(sessionId: string, mode: ApprovalMode): Promise<void> {
+    await call("POST", `/api/sessions/${enc(sessionId)}/approval-mode`, { mode });
+  }
+
+  async compact(sessionId: string): Promise<void> {
+    await call("POST", `/api/sessions/${enc(sessionId)}/compact`, {});
+  }
+
+  async openFolder(cwd: string, target: "files" | "editor"): Promise<void> {
+    await call("POST", "/api/open", { cwd, target });
+  }
+
+  subscribe(handler: EventHandler): () => void {
     this.handlers.add(handler);
-    if (!this.source) {
-      const source = new EventSource("/api/events");
-      source.addEventListener("helicon", (message) => {
-        try {
-          const event = JSON.parse((message as MessageEvent).data) as HeliconEvent;
-          for (const handler of this.handlers) {
-            handler(event);
-          }
-        } catch {
-          /* ignore malformed frames */
-        }
-      });
-      this.source = source;
+    this.connect();
+    return () => {
+      this.handlers.delete(handler);
+      if (this.handlers.size === 0) {
+        this.source?.close();
+        this.source = null;
+      }
+    };
+  }
+
+  private connect(): void {
+    if (this.source) {
+      return;
+    }
+    const source = new EventSource(withToken("/api/events"));
+    source.addEventListener("helicon", (message) => {
+      try {
+        this.dispatch(JSON.parse((message as MessageEvent<string>).data) as HeliconEvent);
+      } catch {
+        /* ignore malformed frames */
+      }
+    });
+    source.addEventListener("error", () => this.dispatch({ type: "connection", state: "lost" }));
+    this.source = source;
+  }
+
+  private dispatch(event: HeliconEvent): void {
+    for (const handler of [...this.handlers]) {
+      handler(event);
     }
   }
 }

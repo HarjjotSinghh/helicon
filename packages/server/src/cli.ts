@@ -1,3 +1,7 @@
+import { mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 function usage(): string {
   return [
     "helicon-server: local bridge between the Helicon UI and Muse MSP hosts.",
@@ -5,7 +9,7 @@ function usage(): string {
     "Options:",
     "  --port <n>        HTTP port (default 3127, 0 picks a free port)",
     "  --host <addr>     bind address (default 127.0.0.1)",
-    "  --data-dir <dir>  sqlite directory, or :memory: (default)",
+    "  --data-dir <dir>  sqlite directory, or :memory: (default ~/.helicon)",
     "  --static <dir>    serve a built frontend from this directory",
     "  --token <value>   require a token for non-loopback access",
     "  --distro <name>   WSL distro for muse on Windows (default Ubuntu)",
@@ -29,10 +33,14 @@ async function main(): Promise<void> {
   }
   const { HeliconServer } = await import("./server.js");
   const portRaw = flagValue(argv, "--port");
+  const dataDir = flagValue(argv, "--data-dir") ?? join(homedir(), ".helicon");
+  if (dataDir !== ":memory:") {
+    mkdirSync(dataDir, { recursive: true });
+  }
   const server = new HeliconServer({
     port: portRaw ? Number.parseInt(portRaw, 10) : 3127,
     host: flagValue(argv, "--host") ?? "127.0.0.1",
-    dataDir: flagValue(argv, "--data-dir") ?? ":memory:",
+    dataDir,
     staticDir: flagValue(argv, "--static"),
     token: flagValue(argv, "--token"),
     distro: flagValue(argv, "--distro") ?? undefined,

@@ -1,0 +1,447 @@
+import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square } from "lucide-react";
+import { memo, useMemo, useState } from "react";
+import { useStickToBottom } from "use-stick-to-bottom";
+import { useController, useNow } from "../../app/context.js";
+import { buildTurns, type LocalEcho, type ThreadFold, type TurnView } from "../../model/fold.js";
+import { describeTool, formatDuration, parseArgs, toolKind } from "../../model/format.js";
+import type { ThreadState } from "../../model/store.js";
+import type { MspItem, UserInputAnswer } from "../../types.js";
+import { CopyButton } from "../ui/Markdown.js";
+import { Tip } from "../ui/overlays.js";
+import { Button, Shimmer, Spinner, cn } from "../ui/primitives.js";
+import { Collapse, PixelLoader } from "../ui/sourced.js";
+import {
+  AgentText,
+  CompactionRow,
+  DiffChips,
+  GenericRow,
+  ReasoningRow,
+  ShellRow,
+  SteerBubble,
+  SubagentRow,
+  ToolRow,
+  WorkflowRow,
+  type Gate,
+} from "./items.js";
+
+type GateMap = Record<string, Gate>;
+type AnswerMap = Record<string, UserInputAnswer[]>;
+
+function gateMap(fold: ThreadFold): GateMap {
+  const map: GateMap = {};
+  for (const approval of Object.values(fold.approvals)) {
+    if (approval.itemId) {
+      map[approval.itemId] = "approval";
+    }
+  }
+  for (const input of Object.values(fold.userInputs)) {
+    if (input.itemId) {
+      map[input.itemId] = "input";
+    }
+  }
+  return map;
+}
+
+function answerMap(fold: ThreadFold): AnswerMap {
+  const map: AnswerMap = {};
+  for (const [id, settled] of Object.entries(fold.settled)) {
+    map[id] = settled.answers;
+  }
+  return map;
+}
+
+export function Transcript(props: { sessionId: string; thread: ThreadState }) {
+  const { thread } = props;
+  const fold = thread.fold;
+  const turns = useMemo(() => buildTurns(fold), [fold]);
+  const gates = useMemo(() => gateMap(fold), [fold.approvals, fold.userInputs]);
+  const answers = useMemo(() => answerMap(fold), [fold.settled]);
+  const echoes = fold.echoes.filter((e) => e.disposition !== "queued");
+  const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom({ initial: "instant", resize: "smooth" });
+
+  const empty = turns.length === 0 && echoes.length === 0;
+  return (
+    <div className="relative min-h-0 flex-1">
+      <div ref={scrollRef} className="h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]">
+        <div ref={contentRef} className="mx-auto flex w-full max-w-[776px] flex-col gap-8 px-6 pt-8 pb-10">
+          {thread.truncated ? (
+            <p className="text-center text-xs text-subtle">Earlier turns are not shown. Open the session in Muse to see the full history.</p>
+          ) : null}
+          {thread.load === "loading" && empty ? <TranscriptSkeleton /> : null}
+          {turns.map((turn, index) => (
+            <TurnBlock
+              key={turn.key}
+              turn={turn}
+              gates={gates}
+              answers={answers}
+              sessionId={props.sessionId}
+              isLast={index === turns.length - 1}
+              readOnly={thread.readOnly}
+            />
+          ))}
+          {echoes.map((echo) => (
+            <PendingPrompt key={echo.localId} echo={echo} />
+          ))}
+          {thread.load === "error" ? <LoadError sessionId={props.sessionId} message={thread.error} /> : null}
+          {empty && thread.load === "ready" ? <EmptyThread /> : null}
+        </div>
+      </div>
+      {!isAtBottom && !empty ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
+          <button
+            type="button"
+            onClick={() => void scrollToBottom()}
+            className="enter-up pointer-events-auto inline-flex h-8 items-center gap-1.5 rounded-full bg-raised px-3 text-xs font-medium text-muted shadow-pop hover:text-fg"
+          >
+            <ArrowDown size={13} /> Latest
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function sameEntries(a: MspItem[], b: MspItem[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+const TurnBlock = memo(
+  function TurnBlock(props: {
+    turn: TurnView;
+    gates: GateMap;
+    answers: AnswerMap;
+    sessionId: string;
+    isLast: boolean;
+    readOnly: boolean;
+  }) {
+    const { turn } = props;
+    const info = turn.info;
+    const failed = info?.terminal === "failed";
+    const cancelled = info?.terminal === "cancelled";
+    const hasWork = turn.entries.length > 0;
+    return (
+      <article className="flex flex-col gap-3" aria-label="Turn">
+        {turn.prompt ? <PromptBubble item={turn.prompt} /> : null}
+        {turn.running ? (
+          <div className="flex flex-col gap-1.5">
+            {turn.entries.map((item) => (
+              <Entry key={item.itemId} item={item} gate={props.gates[item.itemId]} answers={props.answers[item.itemId] ?? null} live />
+            ))}
+            <LiveStatus turn={turn} gates={props.gates} />
+          </div>
+        ) : hasWork ? (
+          <WorkLog turn={turn} gates={props.gates} answers={props.answers} />
+        ) : null}
+        {turn.final ? (
+          <div className="group/final flex flex-col gap-2">
+            <AgentText item={turn.final} />
+            <TurnFooter turn={turn} />
+          </div>
+        ) : null}
+        {failed ? (
+          <TurnError
+            message={info?.error?.message ?? "The turn failed."}
+            retryable={info?.error?.retryable ?? true}
+            prompt={props.isLast && !props.readOnly ? (turn.prompt?.displayText ?? turn.prompt?.text ?? null) : null}
+            sessionId={props.sessionId}
+          />
+        ) : null}
+        {cancelled ? (
+          <p className="flex items-center gap-1.5 text-xs text-subtle">
+            <Square size={11} className="fill-current" /> Stopped
+            {info?.durationMs ? <span className="tabular-nums">after {formatDuration(info.durationMs)}</span> : null}
+          </p>
+        ) : null}
+      </article>
+    );
+  },
+  (a, b) =>
+    a.turn.prompt === b.turn.prompt &&
+    a.turn.final === b.turn.final &&
+    a.turn.info === b.turn.info &&
+    a.turn.running === b.turn.running &&
+    sameEntries(a.turn.entries, b.turn.entries) &&
+    a.gates === b.gates &&
+    a.answers === b.answers &&
+    a.isLast === b.isLast &&
+    a.readOnly === b.readOnly,
+);
+
+function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] | null; live?: boolean }) {
+  const { item } = props;
+  switch (item.kind) {
+    case "agentMessage":
+      return (item.text ?? "").trim() ? (
+        <div className="py-1">
+          <AgentText item={item} streaming={item.status === "inProgress"} />
+        </div>
+      ) : null;
+    case "reasoning":
+      return <ReasoningRow item={item} />;
+    case "toolCall":
+      return <ToolRow item={item} gate={props.gate} answers={props.answers} />;
+    case "userShell":
+      return <ShellRow item={item} />;
+    case "subagent":
+      return <SubagentRow item={item} />;
+    case "workflow":
+      return <WorkflowRow item={item} />;
+    case "compaction":
+      return <CompactionRow item={item} />;
+    case "userMessage":
+      return <SteerBubble item={item} />;
+    default:
+      return <GenericRow item={item} />;
+  }
+}
+
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+function summarize(entries: MspItem[]): string {
+  let commands = 0;
+  let edits = 0;
+  let reads = 0;
+  let searches = 0;
+  let other = 0;
+  for (const item of entries) {
+    if (item.kind === "userShell") {
+      commands += 1;
+    } else if (item.kind === "toolCall") {
+      const kind = toolKind(item.tool, parseArgs(item.args));
+      if (kind === "shell") {
+        commands += 1;
+      } else if (kind === "edit" || kind === "write") {
+        edits += 1;
+      } else if (kind === "read" || kind === "list") {
+        reads += 1;
+      } else if (kind === "search" || kind === "web") {
+        searches += 1;
+      } else {
+        other += 1;
+      }
+    }
+  }
+  const parts: string[] = [];
+  if (edits) parts.push(plural(edits, "edit", "edits"));
+  if (commands) parts.push(plural(commands, "command", "commands"));
+  if (reads) parts.push(plural(reads, "file read", "files read"));
+  if (searches) parts.push(plural(searches, "search", "searches"));
+  if (other) parts.push(plural(other, "tool call", "tool calls"));
+  return parts.join(", ");
+}
+
+function turnDuration(turn: TurnView): number | null {
+  const info = turn.info;
+  if (!info) {
+    return null;
+  }
+  if (info.durationMs !== undefined) {
+    return info.durationMs;
+  }
+  if (info.startedAt !== undefined && info.completedAt !== undefined) {
+    return info.completedAt - info.startedAt;
+  }
+  return null;
+}
+
+/**
+ * A finished turn's work, collapsed to one line; the files it changed stay visible as chips.
+ * Header grammar via Beautiful UI ToolChips (beautifului.dev), MIT (c) 2026 Shane Levine.
+ */
+function WorkLog(props: { turn: TurnView; gates: GateMap; answers: AnswerMap }) {
+  const { turn } = props;
+  const failed = turn.info?.terminal === "failed";
+  const [open, setOpen] = useState(failed);
+  const duration = turnDuration(turn);
+  const summary = summarize(turn.entries);
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="group/log -mx-1.5 flex h-8 max-w-full items-center gap-2 rounded-lg px-1.5 text-sm text-subtle transition-colors duration-100 hover:bg-hover hover:text-muted"
+      >
+        <ChevronRight size={13} strokeWidth={2.2} className={cn("shrink-0 transition-transform duration-200 ease-out", open && "rotate-90")} />
+        <span className="shrink-0">{duration !== null ? `Worked for ${formatDuration(duration)}` : "Work log"}</span>
+        {summary ? (
+          <>
+            <span className="h-3 w-px shrink-0 bg-line-strong" aria-hidden="true" />
+            <span className="truncate">{summary}</span>
+          </>
+        ) : null}
+      </button>
+      <Collapse open={open}>
+        <div className="mt-1 ml-[7px] flex flex-col gap-1 border-l border-line pl-4">
+          {turn.entries.map((item) => (
+            <Entry key={item.itemId} item={item} gate={props.gates[item.itemId]} answers={props.answers[item.itemId] ?? null} />
+          ))}
+        </div>
+      </Collapse>
+      <DiffChips entries={turn.entries} className="mt-2" />
+    </div>
+  );
+}
+
+function LiveStatus(props: { turn: TurnView; gates: GateMap }) {
+  const now = useNow(1000);
+  const { turn } = props;
+  const startedAt = turn.info?.startedAt;
+  const elapsed = startedAt ? formatDuration(now - startedAt) : null;
+  const waiting = turn.entries.some((e) => props.gates[e.itemId]);
+  const last = turn.entries[turn.entries.length - 1];
+  const retry = turn.info?.retry;
+  let label = "Working";
+  if (retry) {
+    label = `Retrying (attempt ${retry.nextAttempt} of ${retry.maxAttempts})`;
+  } else if (last?.status === "inProgress" && last.kind === "toolCall") {
+    const d = describeTool(last);
+    label = d.subject && d.mono ? `${d.verb} ${d.subject.split("\n")[0]}` : d.verb;
+  } else if (last?.status === "inProgress" && last.kind === "reasoning") {
+    label = "Thinking";
+  } else if (last?.kind === "agentMessage" && last.status === "inProgress") {
+    label = "Writing";
+  }
+  return (
+    <div className="flex h-8 items-center gap-2.5 text-sm" role="status">
+      {waiting ? (
+        <>
+          <span className="attention-pulse size-2 rounded-full bg-warn" />
+          <span className="font-medium text-warn-text">Waiting for you below</span>
+        </>
+      ) : (
+        <>
+          <PixelLoader className="text-accent-text" />
+          <Shimmer className="max-w-[60ch] truncate font-medium">{label}</Shimmer>
+        </>
+      )}
+      {elapsed ? <span className="font-mono text-xs text-subtle tabular-nums">{elapsed}</span> : null}
+      {retry?.reason ? <span className="truncate text-xs text-subtle">{retry.reason}</span> : null}
+    </div>
+  );
+}
+
+function TurnFooter(props: { turn: TurnView }) {
+  const duration = turnDuration(props.turn);
+  const hasWork = props.turn.entries.length > 0;
+  return (
+    <div className="flex h-6 items-center gap-1 text-xs text-subtle opacity-0 transition-opacity duration-150 group-hover/final:opacity-100 focus-within:opacity-100">
+      <CopyButton text={props.turn.final?.text ?? ""} label="Copy reply" />
+      {duration !== null && !hasWork ? <span className="tabular-nums">{formatDuration(duration)}</span> : null}
+    </div>
+  );
+}
+
+function PromptBubble(props: { item: MspItem }) {
+  const text = props.item.displayText ?? props.item.text ?? "";
+  const long = text.split("\n").length > 12 || text.length > 900;
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="flex justify-end">
+      <div className="group/prompt flex max-w-[85%] flex-col items-end gap-1">
+        <div
+          className={cn(
+            "relative rounded-2xl rounded-tr-md bg-active px-4 py-2.5 text-md leading-relaxed whitespace-pre-wrap text-fg [overflow-wrap:anywhere]",
+            long && !expanded && "max-h-[16.5rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent)]",
+          )}
+        >
+          {text}
+        </div>
+        <div className="flex h-6 items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/prompt:opacity-100 focus-within:opacity-100">
+          {long ? (
+            <button type="button" onClick={() => setExpanded((v) => !v)} className="rounded-md px-1.5 py-0.5 text-xs text-subtle hover:bg-hover hover:text-fg">
+              {expanded ? "Show less" : "Show all"}
+            </button>
+          ) : null}
+          <CopyButton text={text} label="Copy prompt" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PendingPrompt(props: { echo: LocalEcho }) {
+  return (
+    <div className="enter-up flex flex-col items-end gap-1.5">
+      <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-active px-4 py-2.5 text-md leading-relaxed whitespace-pre-wrap text-fg opacity-75">
+        {props.echo.text}
+      </div>
+      <span className="flex items-center gap-1.5 text-2xs text-subtle">
+        <Spinner size={9} />
+        {props.echo.disposition === "steered" ? "Adding to the current turn" : "Sending"}
+      </span>
+    </div>
+  );
+}
+
+function TurnError(props: { message: string; retryable: boolean; prompt: string | null; sessionId: string }) {
+  const controller = useController();
+  return (
+    <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-3.5 py-3" role="alert">
+      <CircleAlert size={16} className="mt-0.5 shrink-0 text-danger" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-fg">This turn failed</p>
+        <p className="mt-0.5 text-sm break-words text-muted">{props.message}</p>
+      </div>
+      {props.prompt && props.retryable ? (
+        <Tip label="Send the same prompt again">
+          <Button size="sm" variant="secondary" onClick={() => void controller.retryTurn(props.sessionId, props.prompt as string)}>
+            <RotateCcw size={13} /> Retry
+          </Button>
+        </Tip>
+      ) : null}
+    </div>
+  );
+}
+
+function LoadError(props: { sessionId: string; message: string | null }) {
+  const controller = useController();
+  return (
+    <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-3.5 py-3" role="alert">
+      <CircleAlert size={16} className="mt-0.5 shrink-0 text-danger" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-fg">Could not open this thread</p>
+        <p className="mt-0.5 text-sm break-words text-muted">{props.message ?? "Muse did not answer."}</p>
+      </div>
+      <Button size="sm" onClick={() => void controller.loadThread(props.sessionId)}>
+        Try again
+      </Button>
+    </div>
+  );
+}
+
+function EmptyThread() {
+  return (
+    <div className="flex flex-col items-center pt-[14vh] text-center">
+      <p className="font-display text-2xl text-fg">A clean slate</p>
+      <p className="mt-2 max-w-[44ch] text-sm text-muted">
+        Describe the change you want. Muse reads the project, runs what it needs, and asks before anything risky.
+      </p>
+    </div>
+  );
+}
+
+function TranscriptSkeleton() {
+  return (
+    <div className="flex flex-col gap-8" aria-busy="true" aria-label="Loading thread">
+      {[0, 1].map((i) => (
+        <div key={i} className="flex flex-col gap-3">
+          <div className="ml-auto h-10 w-[46%] rounded-2xl bg-hover" />
+          <div className="h-3 w-[30%] rounded bg-hover" />
+          <div className="h-3 w-[88%] rounded bg-hover" />
+          <div className="h-3 w-[72%] rounded bg-hover" />
+        </div>
+      ))}
+    </div>
+  );
+}

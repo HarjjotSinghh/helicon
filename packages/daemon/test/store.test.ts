@@ -22,6 +22,54 @@ describe("HeliconStore", () => {
     assert.equal(sessions[0]?.id, "s1");
   });
 
+  it("never lets a weaker title source overwrite a stronger one", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/p");
+    const created = store.recordSession({ id: "s1", projectId: project.id });
+    assert.equal(created.titleSource, "placeholder");
+    store.recordSession({ id: "s1", projectId: project.id, title: "Fix the build", titleSource: "auto" });
+    assert.equal(store.getSession("s1")?.title, "Fix the build");
+    store.updateSession("s1", { title: "Renamed", titleSource: "user" });
+    store.recordSession({ id: "s1", projectId: project.id, title: "Auto again", titleSource: "auto" });
+    assert.equal(store.getSession("s1")?.title, "Renamed");
+    assert.equal(store.findSession("s1")?.cwd, "/work/p");
+  });
+
+  it("archives sessions and hides projects without deleting them", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/p");
+    store.recordSession({ id: "s1", projectId: project.id });
+    store.recordSession({ id: "s2", projectId: project.id });
+    store.updateSession("s1", { archived: true });
+    assert.deepEqual(
+      store.listSessionsByProject(project.id).map((s) => s.id),
+      ["s2"],
+    );
+    assert.equal(store.listSessionsByProject(project.id, { includeArchived: true }).length, 2);
+    store.setHidden("/work/p", true);
+    assert.equal(store.listProjects().length, 0);
+    assert.equal(store.listProjects({ includeHidden: true }).length, 1);
+    store.upsertProject("/work/p");
+    assert.equal(store.listProjects().length, 0, "discovery alone must not unhide a project");
+  });
+
+  it("orders projects by their latest session activity", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const a = store.upsertProject("/work/a");
+    const b = store.upsertProject("/work/b");
+    store.recordSession({ id: "a1", projectId: a.id, activityAt: "2026-01-01T00:00:00.000Z" });
+    store.recordSession({ id: "b1", projectId: b.id, activityAt: "2026-02-01T00:00:00.000Z" });
+    assert.deepEqual(
+      store.listProjects().map((p) => p.cwd),
+      ["/work/b", "/work/a"],
+    );
+    store.recordSession({ id: "a1", projectId: a.id, activityAt: "2026-03-01T00:00:00.000Z" });
+    assert.equal(store.listProjects()[0]?.cwd, "/work/a");
+  });
+
   it("pins projects to the top of the sidebar order", () => {
     const store = new HeliconStore();
     after(() => store.close());

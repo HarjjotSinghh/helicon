@@ -14,6 +14,28 @@ export function isApprovalMode(value: unknown): value is ApprovalMode {
   );
 }
 
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "ultra";
+
+export const REASONING_EFFORTS: readonly ReasoningEffort[] = [
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "ultra",
+];
+
+export function isReasoningEffort(value: unknown): value is ReasoningEffort {
+  return typeof value === "string" && (REASONING_EFFORTS as readonly string[]).includes(value);
+}
+
+export type IfBusy = "queue" | "steer" | "replace";
+
+export function isIfBusy(value: unknown): value is IfBusy {
+  return value === "queue" || value === "steer" || value === "replace";
+}
+
 export interface TextPart {
   type: "text";
   text: string;
@@ -26,12 +48,18 @@ export function textInput(text: string): TextPart[] {
 export interface MspNotification {
   method: string;
   params?: unknown;
+  emittedAtMs?: number;
 }
 
 export type NotificationHandler = (notification: MspNotification) => void;
 
+/**
+ * The slice of the SDK connection Helicon uses. `command` mints a `commandId` for
+ * state-changing verbs; `request` sends read-only queries (lists, reads, pages) as-is.
+ */
 export interface CommandConnection {
   command(method: string, params?: Record<string, unknown>): Promise<unknown>;
+  request?(method: string, params?: Record<string, unknown>): Promise<unknown>;
   onNotification(handler: NotificationHandler): void;
 }
 
@@ -112,6 +140,21 @@ export interface UserInputAnswerItem {
   note?: string;
 }
 
+export interface SessionPage {
+  sessions: unknown[];
+  nextCursor: string | null;
+}
+
+export interface ViewPage {
+  events: unknown[];
+  nextCursor: string | null;
+}
+
+export interface PendingRequests {
+  approvals: unknown[];
+  userInputs: unknown[];
+}
+
 export class SessionManager {
   constructor(private readonly connection: CommandConnection) {}
 
@@ -119,20 +162,43 @@ export class SessionManager {
     this.connection.onNotification(handler);
   }
 
-  async listSessions(workspaceRoot?: string, limit = 50): Promise<unknown[]> {
-    const params: Record<string, unknown> = { limit };
-    if (workspaceRoot !== undefined) {
-      params["workspaceRoot"] = workspaceRoot;
+  /** Read-only queries go out without a minted `commandId` when the connection allows it. */
+  private query(method: string, params: Record<string, unknown>): Promise<unknown> {
+    if (this.connection.request) {
+      return this.connection.request(method, params);
     }
-    const result = await this.connection.command("session/list", params);
+    return this.connection.command(method, params);
+  }
+
+  async listSessions(workspaceRoot?: string, limit = 50): Promise<unknown[]> {
+    const page = await this.listSessionsPage({ workspaceRoot, limit });
+    return page.sessions;
+  }
+
+  async listSessionsPage(options: {
+    workspaceRoot?: string;
+    limit?: number;
+    cursor?: string | null;
+  } = {}): Promise<SessionPage> {
+    const params: Record<string, unknown> = { limit: options.limit ?? 50 };
+    if (options.workspaceRoot !== undefined) {
+      params["workspaceRoot"] = options.workspaceRoot;
+    }
+    if (options.cursor) {
+      params["cursor"] = options.cursor;
+    }
+    const result = await this.query("session/list", params);
     const record = asRecord(result);
     if (record && Array.isArray(record["sessions"])) {
-      return record["sessions"];
+      return {
+        sessions: record["sessions"],
+        nextCursor: typeof record["nextCursor"] === "string" ? record["nextCursor"] : null,
+      };
     }
     if (Array.isArray(result)) {
-      return result;
+      return { sessions: result, nextCursor: null };
     }
-    return [];
+    return { sessions: [], nextCursor: null };
   }
 
   async startSession(options: StartSessionOptions = {}): Promise<StartedSession> {
@@ -154,8 +220,35 @@ export class SessionManager {
     return this.connection.command("session/resume", { sessionId, excludeItems });
   }
 
-  async readSession(sessionId: string): Promise<unknown> {
-    return this.connection.command("session/read", { sessionId, excludeItems: true });
+  async readSession(sessionId: string, excludeItems = true): Promise<unknown> {
+    return this.query("session/read", { sessionId, excludeItems });
+  }
+
+  /** One page of the durable view log. Backward pages walk from the head toward the start. */
+  async pageView(
+    sessionId: string,
+    options: { cursor?: string; direction?: "forward" | "backward"; limit?: number } = {},
+  ): Promise<ViewPage> {
+    const params: Record<string, unknown> = { sessionId, limit: options.limit ?? 200 };
+    if (options.cursor) {
+      params["cursor"] = options.cursor;
+    }
+    if (options.direction) {
+      params["direction"] = options.direction;
+    }
+    const record = asRecord(await this.query("view/page", params)) ?? {};
+    return {
+      events: Array.isArray(record["events"]) ? record["events"] : [],
+      nextCursor: typeof record["nextCursor"] === "string" ? record["nextCursor"] : null,
+    };
+  }
+
+  async listPending(sessionId: string): Promise<PendingRequests> {
+    const record = asRecord(await this.query("approval/listPending", { sessionId })) ?? {};
+    return {
+      approvals: Array.isArray(record["approvals"]) ? record["approvals"] : [],
+      userInputs: Array.isArray(record["userInputs"]) ? record["userInputs"] : [],
+    };
   }
 
   async sendTurn(
@@ -211,6 +304,10 @@ export class SessionManager {
     return this.connection.command("turn/unqueue", { sessionId, turnId });
   }
 
+  async compactSession(sessionId: string): Promise<unknown> {
+    return this.connection.command("session/compact", { sessionId });
+  }
+
   async decideApproval(decision: ApprovalDecision): Promise<unknown> {
     return this.connection.command("approval/decide", {
       sessionId: decision.sessionId,
@@ -226,7 +323,7 @@ export class SessionManager {
     if (sessionId !== undefined) {
       params["sessionId"] = sessionId;
     }
-    return this.connection.command("model/list", params);
+    return this.query("model/list", params);
   }
 
   async setSessionModel(sessionId: string, model: unknown): Promise<unknown> {
@@ -249,6 +346,22 @@ export class SessionManager {
       sessionId,
       userInputId,
       answers,
+    });
+  }
+
+  async cancelUserInput(sessionId: string, userInputId: string, reason?: string): Promise<unknown> {
+    const params: Record<string, unknown> = { sessionId, userInputId };
+    if (reason) {
+      params["reason"] = reason;
+    }
+    return this.connection.command("userInput/cancel", params);
+  }
+
+  async clarifyUserInput(sessionId: string, userInputId: string, content: string): Promise<unknown> {
+    return this.connection.command("userInput/clarify", {
+      sessionId,
+      userInputId,
+      clarification: { format: "text", content },
     });
   }
 }

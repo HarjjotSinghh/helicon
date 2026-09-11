@@ -145,6 +145,54 @@ describe("SessionManager", () => {
     });
   });
 
+  it("sends read-only queries without a minted commandId when the connection supports it", async () => {
+    const conn = new FakeConnection();
+    const requests: { method: string; params?: Record<string, unknown> }[] = [];
+    const queryable: CommandConnection = {
+      command: (method, params) => conn.command(method, params),
+      request: async (method, params) => {
+        requests.push({ method, params });
+        if (method === "view/page") {
+          return { events: [{ method: "turn/started", params: {} }], nextCursor: "c2" };
+        }
+        if (method === "approval/listPending") {
+          return { approvals: [{ approvalId: "a1" }], userInputs: [] };
+        }
+        return { sessions: [], nextCursor: null };
+      },
+      onNotification: () => {},
+    };
+    const manager = new SessionManager(queryable);
+    await manager.listSessions();
+    const page = await manager.pageView("s1", { direction: "backward", limit: 10 });
+    assert.equal(page.nextCursor, "c2");
+    assert.equal(page.events.length, 1);
+    const pending = await manager.listPending("s1");
+    assert.equal(pending.approvals.length, 1);
+    assert.deepEqual(
+      requests.map((r) => r.method),
+      ["session/list", "view/page", "approval/listPending"],
+    );
+    assert.deepEqual(requests[1]?.params, { sessionId: "s1", limit: 10, direction: "backward" });
+    assert.equal(conn.calls.length, 0);
+  });
+
+  it("cancels and clarifies user input prompts", async () => {
+    const conn = new FakeConnection();
+    const manager = new SessionManager(conn);
+    await manager.cancelUserInput("s1", "u1", "not now");
+    assert.deepEqual(lastCall(conn), {
+      method: "userInput/cancel",
+      params: { sessionId: "s1", userInputId: "u1", reason: "not now" },
+    });
+    await manager.clarifyUserInput("s1", "u1", "Use blue for links only");
+    assert.deepEqual(lastCall(conn).params, {
+      sessionId: "s1",
+      userInputId: "u1",
+      clarification: { format: "text", content: "Use blue for links only" },
+    });
+  });
+
   it("validates the closed approval mode set", () => {
     assert.equal(isApprovalMode("onRequest"), true);
     assert.equal(isApprovalMode("allowAll"), true);

@@ -1,14 +1,17 @@
-import React from "react";
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App.js";
+import { HeliconApp } from "@helicon/ui";
+import { desktopFrame } from "./frame.js";
+import { WebHeliconClient } from "./webClient.js";
 import "./theme.css";
 
 const root = document.getElementById("root");
 if (!root) {
   throw new Error("Helicon: missing #root element.");
 }
+
 createRoot(root).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+  <StrictMode>
+    <HeliconApp client={new WebHeliconClient()} frame={desktopFrame()} />
+  </StrictMode>,
 );

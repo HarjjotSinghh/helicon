@@ -1,0 +1,246 @@
+import { Archive, Code, Copy, Ellipsis, Folder, FolderOpen, GitBranch, Lock, Minimize2, Pencil, Square, SquarePen } from "lucide-react";
+import { useRef, useState, type KeyboardEvent } from "react";
+import { useApp, useController, useNow } from "../../app/context.js";
+import { CaptionSpacer } from "../../app/frame.js";
+import { basename, formatDuration } from "../../model/format.js";
+import type { ThreadState } from "../../model/store.js";
+import type { SessionSummary } from "../../types.js";
+import { SidebarToggle } from "../chrome.js";
+import { Composer, ComposerFooter } from "../composer/Composer.js";
+import { ApprovalPanel, PlanPanel, QuestionPanel, QueuedList, ReadOnlyNotice } from "../requests/Requests.js";
+import { revealLabel } from "../sidebar/Sidebar.js";
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tip } from "../ui/overlays.js";
+import { IconButton, Spinner } from "../ui/primitives.js";
+import { Transcript } from "./Transcript.js";
+
+export function ThreadView(props: { sessionId: string }) {
+  const session = useApp((s) => s.sessions[props.sessionId] ?? null);
+  const thread = useApp((s) => s.threads[props.sessionId] ?? null);
+  if (!session) {
+    return <MissingThread />;
+  }
+  const running = thread ? thread.fold.activeTurnId !== null : Boolean(session.live?.activeTurnId);
+  return (
+    <div className="flex h-full min-w-0 flex-1 flex-col">
+      <ThreadHeader session={session} thread={thread} running={running} />
+      {thread ? <Transcript sessionId={props.sessionId} thread={thread} /> : <div className="min-h-0 flex-1" />}
+      <Dock session={session} thread={thread} running={running} />
+    </div>
+  );
+}
+
+function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | null; running: boolean }) {
+  const controller = useController();
+  const { session, thread } = props;
+  const [renaming, setRenaming] = useState(false);
+  const fold = thread?.fold ?? null;
+  const waiting = fold ? Object.keys(fold.approvals).length + Object.keys(fold.userInputs).length > 0 : false;
+  const startedAt = fold?.activeTurnId ? fold.turns[fold.activeTurnId]?.startedAt : undefined;
+  const now = useNow(1000, props.running && startedAt !== undefined);
+  return (
+    <header data-drag-region className="flex h-12 shrink-0 items-center gap-1.5 border-b border-line px-3">
+      <SidebarToggle />
+      <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
+        {renaming ? (
+          <TitleField
+            initial={session.title}
+            onDone={(title) => {
+              setRenaming(false);
+              if (title !== null) {
+                void controller.rename(session.sessionId, title);
+              }
+            }}
+          />
+        ) : (
+          <h1
+            data-no-drag
+            className="min-w-0 cursor-text truncate text-sm font-semibold text-fg"
+            title={`${session.title} (double-click to rename)`}
+            onDoubleClick={() => setRenaming(true)}
+          >
+            {session.title}
+          </h1>
+        )}
+        <ProjectChip cwd={session.cwd} />
+        {fold?.meta.branch ? (
+          <span className="hidden min-w-0 items-center gap-1 text-xs text-subtle lg:flex">
+            <GitBranch size={12} className="shrink-0" />
+            <span className="truncate font-mono text-2xs">{fold.meta.branch}</span>
+          </span>
+        ) : null}
+      </div>
+      {waiting ? (
+        <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium text-warn-text">
+          <span className="attention-pulse size-1.5 rounded-full bg-warn" aria-hidden="true" />
+          Waiting for you
+        </span>
+      ) : props.running ? (
+        <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs text-muted" role="status">
+          <Spinner size={11} className="text-accent-text" />
+          Working
+          {startedAt ? <span className="text-subtle tabular-nums">{formatDuration(now - startedAt)}</span> : null}
+        </span>
+      ) : thread?.readOnly ? (
+        <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs text-subtle">
+          <Lock size={12} /> Read-only
+        </span>
+      ) : null}
+      {props.running ? (
+        <Tip label="Stop the turn" shortcut={["Esc"]}>
+          <IconButton label="Stop the turn" onClick={() => void controller.stop(session.sessionId)}>
+            <Square size={11} className="fill-current" />
+          </IconButton>
+        </Tip>
+      ) : null}
+      <Tip label="Open in VS Code">
+        <IconButton label="Open in VS Code" onClick={() => void controller.openFolder(session.cwd, "editor")}>
+          <Code size={15} />
+        </IconButton>
+      </Tip>
+      <Menu>
+        <Tip label="More">
+          <MenuTrigger asChild>
+            <IconButton label="Thread actions">
+              <Ellipsis size={16} />
+            </IconButton>
+          </MenuTrigger>
+        </Tip>
+        <MenuContent align="end">
+          <MenuItem icon={<Pencil size={14} />} onSelect={() => setRenaming(true)}>
+            Rename
+          </MenuItem>
+          <MenuItem icon={<Minimize2 size={14} />} onSelect={() => void controller.compact(session.sessionId)} disabled={thread?.readOnly}>
+            Compact context
+          </MenuItem>
+          <MenuItem icon={<FolderOpen size={14} />} onSelect={() => void controller.openFolder(session.cwd, "files")}>
+            {revealLabel()}
+          </MenuItem>
+          <MenuItem icon={<Copy size={14} />} onSelect={() => void navigator.clipboard?.writeText(session.sessionId)}>
+            Copy session ID
+          </MenuItem>
+          <MenuSeparator />
+          <MenuItem icon={<Archive size={14} />} onSelect={() => void controller.archive(session.sessionId)}>
+            Archive thread
+          </MenuItem>
+        </MenuContent>
+      </Menu>
+      <CaptionSpacer />
+    </header>
+  );
+}
+
+function ProjectChip(props: { cwd: string }) {
+  const controller = useController();
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <button
+          type="button"
+          className="flex min-w-0 shrink items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-subtle transition-colors hover:bg-hover hover:text-fg data-[state=open]:bg-hover"
+          title={props.cwd}
+        >
+          <Folder size={12} className="shrink-0" />
+          <span className="truncate">{basename(props.cwd)}</span>
+        </button>
+      </MenuTrigger>
+      <MenuContent>
+        <MenuItem icon={<SquarePen size={14} />} onSelect={() => controller.newThread(props.cwd)}>
+          New thread in {basename(props.cwd)}
+        </MenuItem>
+        <MenuItem icon={<FolderOpen size={14} />} onSelect={() => void controller.openFolder(props.cwd, "files")}>
+          {revealLabel()}
+        </MenuItem>
+        <MenuItem icon={<Code size={14} />} onSelect={() => void controller.openFolder(props.cwd, "editor")}>
+          Open in VS Code
+        </MenuItem>
+      </MenuContent>
+    </Menu>
+  );
+}
+
+function TitleField(props: { initial: string; onDone: (title: string | null) => void }) {
+  const done = useRef(false);
+  const finish = (value: string | null) => {
+    if (!done.current) {
+      done.current = true;
+      props.onDone(value);
+    }
+  };
+  return (
+    <input
+      autoFocus
+      aria-label="Thread title"
+      defaultValue={props.initial}
+      onFocus={(e) => e.currentTarget.select()}
+      onBlur={(e) => finish(e.currentTarget.value)}
+      onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+          finish(e.currentTarget.value);
+        } else if (e.key === "Escape") {
+          finish(null);
+        }
+      }}
+      className="h-7 w-[min(420px,50%)] rounded-md bg-raised px-2 text-sm font-semibold text-fg outline-none shadow-[0_0_0_1.5px_var(--accent)]"
+    />
+  );
+}
+
+function Dock(props: { session: SessionSummary; thread: ThreadState | null; running: boolean }) {
+  const controller = useController();
+  const { session, thread } = props;
+  const fold = thread?.fold ?? null;
+  const approvals = fold ? Object.values(fold.approvals) : [];
+  const inputs = fold ? Object.values(fold.userInputs) : [];
+  const queued = fold ? fold.echoes.filter((e) => e.disposition === "queued") : [];
+  const todo = fold?.meta.todoList ?? null;
+  const showPlan = todo !== null && todo.length > 0 && (props.running || todo.some((t) => t.status !== "completed"));
+  return (
+    <div className="shrink-0">
+      <div className="mx-auto flex w-full max-w-[776px] flex-col gap-2 px-6 pb-2">
+        {thread?.readOnly ? (
+          <ReadOnlyNotice
+            reason={thread.readOnlyReason}
+            busy={thread.load === "loading"}
+            onRetry={() => void controller.loadThread(session.sessionId)}
+          />
+        ) : null}
+        {approvals.map((request, index) => (
+          <ApprovalPanel key={request.approvalId} request={request} primary={index === 0} />
+        ))}
+        {inputs.map((request, index) => (
+          <QuestionPanel key={request.userInputId} request={request} keyboard={approvals.length === 0 && index === 0} />
+        ))}
+        {showPlan && todo ? <PlanPanel items={todo} /> : null}
+        {queued.length > 0 ? <QueuedList sessionId={session.sessionId} items={queued} /> : null}
+        <Composer
+          sessionId={session.sessionId}
+          cwd={session.cwd}
+          running={props.running}
+          readOnly={Boolean(thread?.readOnly)}
+          variant="thread"
+          autoFocus
+        />
+        <ComposerFooter cwd={session.cwd} branch={fold?.meta.branch ?? null} running={props.running} />
+      </div>
+    </div>
+  );
+}
+
+function MissingThread() {
+  const controller = useController();
+  return (
+    <div className="flex h-full flex-1 flex-col">
+      <header data-drag-region className="flex h-12 items-center px-3">
+        <SidebarToggle />
+        <CaptionSpacer />
+      </header>
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 pb-[12vh] text-center">
+        <p className="font-display text-2xl text-fg">This thread is not here anymore</p>
+        <p className="max-w-[40ch] text-sm text-muted">It may have been archived or removed with its project.</p>
+        <button type="button" className="mt-2 text-sm font-medium text-accent-text hover:underline" onClick={() => controller.newThread()}>
+          Start a new thread
+        </button>
+      </div>
+    </div>
+  );
+}

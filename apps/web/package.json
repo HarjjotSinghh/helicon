@@ -1,7 +1,7 @@
 {
   "name": "@helicon/web",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Helicon web app: shared UI wired to the local server over REST and SSE",
   "type": "module",
   "scripts": {
@@ -11,14 +11,18 @@
     "serve": "node ../../packages/server/dist/src/cli.js --port 3127 --static ./dist"
   },
   "dependencies": {
-    "@helicon/ui": "^0.1.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "@helicon/ui": "^0.2.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/api": "^2.11.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
-    "@helicon/server": "^0.1.0",
+    "@helicon/server": "^0.2.0",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
