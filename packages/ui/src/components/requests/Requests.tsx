@@ -5,7 +5,7 @@ import type { LocalEcho } from "../../model/fold.js";
 import { describeApproval } from "../../model/format.js";
 import type { ApprovalChoice, ApprovalRequest, TodoItem, UserInputAnswer, UserInputQuestion, UserInputRequest } from "../../types.js";
 import { Tip } from "../ui/overlays.js";
-import { Button, IconButton, Spinner, cn } from "../ui/primitives.js";
+import { Button, IconButton, Shortcut, Spinner, cn } from "../ui/primitives.js";
 import { RollingDigits } from "../ui/sourced.js";
 
 function isTyping(target: EventTarget | null): boolean {
@@ -18,6 +18,19 @@ function lowerFirst(text: string): string {
 }
 
 const PANEL = "enter-up overflow-hidden rounded-2xl bg-raised shadow-[0_0_0_1px_var(--warn-line),0_2px_8px_-4px_oklch(0_0_0/0.18)]";
+
+/** Refusals carry a cross, a plain yes a tick, and a yes that writes a rule the heavier badge. */
+function choiceIcon(choice: ApprovalChoice) {
+  if (choice.decision !== "approved") {
+    return <X size={13} />;
+  }
+  return choice.rulePreview ? <CircleCheck size={13} /> : <Check size={13} />;
+}
+
+/** The refusal among the offered choices, whatever the host calls it. */
+function refusalOf(choices: readonly ApprovalChoice[]): ApprovalChoice | undefined {
+  return choices.find((choice) => choice.decision !== "approved");
+}
 
 export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolean }) {
   const controller = useController();
@@ -45,6 +58,16 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
     }
     const onKey = (event: KeyboardEvent) => {
       if (isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      // A and R are the ones worth reaching for; the digits still pick any choice, including the rule ones.
+      const key = event.key.toLowerCase();
+      if (key === "a" || key === "r") {
+        const wanted = key === "a" ? primaryChoice : refusalOf(choices);
+        if (wanted) {
+          event.preventDefault();
+          pick(wanted);
+        }
         return;
       }
       const index = Number(event.key) - 1;
@@ -121,6 +144,7 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
                 disabled={busy}
                 onClick={() => pick(choice)}
               >
+                {choiceIcon(choice)}
                 {choice.label}
               </Button>
             );
@@ -134,7 +158,13 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
           })}
           {choices.length === 0 ? <p className="text-xs text-muted">No choices were offered. Decide in the Muse terminal.</p> : null}
           {props.primary && choices.length > 1 ? (
-            <span className="ml-auto hidden text-2xs text-subtle sm:inline">Press 1 to {Math.min(choices.length, 9)}</span>
+            <span className="ml-auto hidden items-center gap-1.5 text-2xs text-subtle sm:inline-flex">
+              <Shortcut keys={["A"]} />
+              allow
+              <Shortcut keys={["R"]} />
+              reject
+              {choices.length > 2 ? <span className="text-subtle">· 1 to {Math.min(choices.length, 9)}</span> : null}
+            </span>
           ) : null}
         </div>
       )}
