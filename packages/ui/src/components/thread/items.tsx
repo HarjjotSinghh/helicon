@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Popover } from "radix-ui";
 import { memo, useMemo, useRef, useState, type ReactNode } from "react";
+import { useController } from "../../app/context.js";
 import {
   basename,
   describeTool,
@@ -32,7 +33,7 @@ import {
 } from "../../model/format.js";
 import type { MspItem, UserInputAnswer } from "../../types.js";
 import { CodeBlock, Markdown } from "../ui/Markdown.js";
-import { Shimmer, Spinner, cn } from "../ui/primitives.js";
+import { Button, Shimmer, Spinner, cn } from "../ui/primitives.js";
 import { Collapse } from "../ui/sourced.js";
 
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, "g");
@@ -447,12 +448,14 @@ export const ReasoningRow = memo(function ReasoningRow(props: { item: MspItem })
   );
 });
 
-export const ShellRow = memo(function ShellRow(props: { item: MspItem }) {
+export const ShellRow = memo(function ShellRow(props: { item: MspItem; sessionId?: string }) {
   const { item } = props;
   const running = item.status === "inProgress";
   const code = item.exitCode;
   // A command Muse could not start (no sandbox, say) fails without an exit code; its output says why.
   const failed = (code !== undefined && code !== 0) || TERMINAL_FAILURES.has(item.status);
+  // Muse 1.1.1 has no sandbox for `!` commands under `muse serve` on WSL, though the agent's own shell tool works there.
+  const noSandbox = failed && /shell sandbox is unavailable/i.test(item.visibleOutput ?? "");
   return (
     <Row
       icon={<SquareTerminal size={14} />}
@@ -472,10 +475,34 @@ export const ShellRow = memo(function ShellRow(props: { item: MspItem }) {
           <span className="text-2xs text-subtle tabular-nums">{formatDuration(item.durationMs)}</span>
         ) : null
       }
-      body={item.visibleOutput ? <OutputBlock text={item.visibleOutput} truncated={item.truncated} /> : undefined}
+      body={
+        item.visibleOutput ? (
+          <>
+            <OutputBlock text={item.visibleOutput} truncated={item.truncated} />
+            {noSandbox ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <p className="text-xs text-pretty text-muted">
+                  Muse can't sandbox <code className="font-mono">!</code> commands when Helicon hosts it, so this one never started. The
+                  agent's own shell works.
+                </p>
+                {props.sessionId && item.commandText ? <AskToRun sessionId={props.sessionId} command={item.commandText} /> : null}
+              </div>
+            ) : null}
+          </>
+        ) : undefined
+      }
     />
   );
 });
+
+function AskToRun(props: { sessionId: string; command: string }) {
+  const controller = useController();
+  return (
+    <Button size="sm" variant="secondary" onClick={() => void controller.askToRun(props.sessionId, props.command)}>
+      Ask Muse to run it
+    </Button>
+  );
+}
 
 export const SubagentRow = memo(function SubagentRow(props: { item: MspItem }) {
   const { item } = props;

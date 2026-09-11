@@ -42,13 +42,15 @@ apps/web         same UI against a remote daemon
 ## Roadmap
 
 - [x] Name locked: **Helicon** · stack locked: **Tauri + shared React UI**
-- [ ] PRD + UX spec (sidebar, session view, diffs, approvals)
-- [ ] `packages/daemon` - MSP connect, list/resume sessions, send/steer, approvals
-- [ ] `packages/ui` - projects sidebar, session chat, inline diffs
-- [ ] `apps/desktop` - Tauri shell + WSL2 routing + path translation
+- [x] PRD + UX spec (sidebar, session view, diffs, approvals) - [docs/PRD.md](docs/PRD.md), [docs/PRODUCT.md](docs/PRODUCT.md)
+- [x] `packages/daemon` - MSP connect, list/resume sessions, send/steer, approvals
+- [x] `packages/ui` - projects sidebar, session chat, inline diffs, slash commands and skills, goals
+- [x] `apps/desktop` - Tauri shell + WSL2 routing + path translation, signed auto-update
+- [x] `apps/web` - the same UI in a browser against the local server
 - [ ] `apps/web` - remote daemon mode
-- [ ] Windows E2E (WSL2 Ubuntu 20.04+), macOS + Linux parity
-- [ ] GitHub Releases with downloadable binaries (Windows primary, macOS + Linux day one)
+- [x] Windows end to end (WSL2 Ubuntu)
+- [x] GitHub Releases with a signed Windows installer
+- [ ] macOS + Linux builds and releases
 - [ ] Post-v1: mobile relay to steer running sessions from a phone
 
 ## Quickstart

@@ -26,12 +26,14 @@ import {
   Search,
   SquarePen,
   Sun,
+  Target,
   Undo2,
   X,
 } from "lucide-react";
 import { memo, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { shallowEqual, useApp, useController, useNow } from "../../app/context.js";
 import { basename, formatElapsed, relativeTime } from "../../model/format.js";
+import { statusLabel } from "../../model/goal.js";
 import {
   STATUS_LABEL,
   groupByProject,
@@ -408,15 +410,35 @@ function RowStatus(props: { entry: SidebarEntry; now: number; settled?: boolean 
   }
 }
 
-/** The second line of an active card: the project in the status view, and the branch once known. */
+/** The second line of an active card: the project in the status view, an open goal, and the branch once known. */
 function RowMeta(props: { session: SessionSummary; showProject?: boolean }) {
   const branch = useApp((s) => s.threads[props.session.sessionId]?.fold.meta.branch ?? null);
-  if (!props.showProject && !branch) {
+  // An opened thread's own goal is the freshest; otherwise, what the server last saw.
+  const goal = useApp((s) => {
+    const fold = s.threads[props.session.sessionId]?.fold;
+    return fold?.meta.goalSeen ? fold.meta.goal : (props.session.live?.goal ?? null);
+  });
+  const tone = goal ? statusLabel(goal.status).tone : null;
+  const open = goal !== null && (tone === "active" || tone === "paused" || tone === "attention");
+  if (!props.showProject && !branch && !open) {
     return null;
   }
   return (
     <span className="flex min-w-0 items-center gap-2 text-xs text-subtle">
       {props.showProject ? <span className="truncate">{basename(props.session.cwd)}</span> : null}
+      {open && goal ? (
+        <span
+          className={cn(
+            "flex shrink-0 items-center gap-1 tabular-nums",
+            tone === "active" ? "text-accent-text" : tone === "attention" ? "text-warn-text" : "text-subtle",
+          )}
+          title={`Goal: ${goal.objective}`}
+        >
+          <Target size={11} className="shrink-0" aria-hidden="true" />
+          <span className="sr-only">Goal </span>
+          {Math.round(Math.max(0, Math.min(100, goal.percentComplete)))}%
+        </span>
+      ) : null}
       {branch ? (
         <span className="flex min-w-0 items-center gap-1">
           <GitBranch size={11} className="shrink-0" aria-hidden="true" />

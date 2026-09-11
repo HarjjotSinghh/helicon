@@ -314,6 +314,17 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("hands a `!` command the host could not run to the agent", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.askToRun("s1", "ls -la"), true);
+    assert.match(client.sent.at(-1)?.text ?? "", /```sh\nls -la\n```/);
+    assert.match(client.sent.at(-1)?.text ?? "", /your own shell works/, "the agent is told its own shell is fine");
+    assert.equal(await controller.askToRun("s1", "echo '```'"), true);
+    assert.match(client.sent.at(-1)?.text ?? "", /~~~sh\necho '```'\n~~~/, "a command with a fence in it gets the other fence");
+    stop();
+  });
+
   it("forks a thread and opens the fork", async () => {
     const client = new FakeClient();
     const { controller, stop } = await started(client);

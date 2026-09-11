@@ -535,6 +535,26 @@ describe("slash commands, skills and shell", () => {
     assert.equal(await titleOf(), "/plan tidy the API");
   });
 
+  it("keeps each session's goal in its live view for the sidebar", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const liveGoal = async () =>
+      (await get(base, "/api/sessions")).sessions.find((s: { sessionId: string }) => s.sessionId === "s1")?.live?.goal;
+    const settle = () => new Promise((r) => setTimeout(r, 20));
+    assert.equal(await liveGoal(), null);
+    connection.notify("session/goalChanged", { sessionId: "s1", goal: { objective: "Ship it", status: "active", percentComplete: 40, currentWork: "Notes" } });
+    await settle();
+    assert.deepEqual(await liveGoal(), { objective: "Ship it", status: "active", percentComplete: 40, currentWork: "Notes" });
+    connection.notify("session/goalChanged", { sessionId: "s1", goal: { status: "paused" } });
+    await settle();
+    assert.equal((await liveGoal())?.objective, "Ship it", "a block with no objective is not a goal");
+    connection.notify("session/goalChanged", { sessionId: "s1", goal: null });
+    await settle();
+    assert.equal(await liveGoal(), null);
+  });
+
   it("parses skill lists and strips frontmatter", () => {
     assert.equal(parseSkillList("not json"), null);
     assert.equal(parseSkillList(JSON.stringify({ skills: [{ name: "no id" }] }))?.skills.length, 0);

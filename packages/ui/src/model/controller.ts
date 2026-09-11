@@ -1244,6 +1244,16 @@ export class HeliconController {
     return this.sendToThread(sessionId, `Keep working toward the goal: ${objective}`, { displayText: "Keep working on the goal" }, false);
   }
 
+  /** Hands a `!` command the host could not run to the agent, whose own shell tool can. */
+  askToRun(sessionId: string, command: string): Promise<boolean> {
+    const fence = command.includes("```") ? "~~~" : "```";
+    // The failed `!` item says the environment is broken, which makes the agent refuse; tell it that its own shell is fine.
+    const text =
+      `Run this with your shell tool and show me the output:\n\n${fence}sh\n${command}\n${fence}\n\n` +
+      "That failure came from Helicon's `!` path, not from your tools: your own shell works here.";
+    return this.sendToThread(sessionId, text, {}, false);
+  }
+
   /** Branches a thread into a new one and opens it. */
   async fork(sessionId: string): Promise<boolean> {
     const key = `fork:${sessionId}`;

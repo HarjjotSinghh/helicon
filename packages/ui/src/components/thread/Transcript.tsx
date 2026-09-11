@@ -149,12 +149,19 @@ const TurnBlock = memo(
         {turn.running || standalone ? (
           <div className="flex flex-col gap-1.5">
             {turn.entries.map((item) => (
-              <Entry key={item.itemId} item={item} gate={props.gates[item.itemId]} answers={props.answers[item.itemId] ?? null} live />
+              <Entry
+                key={item.itemId}
+                item={item}
+                gate={props.gates[item.itemId]}
+                answers={props.answers[item.itemId] ?? null}
+                sessionId={props.sessionId}
+                live
+              />
             ))}
             {turn.running ? <LiveStatus turn={turn} gates={props.gates} /> : null}
           </div>
         ) : hasWork ? (
-          <WorkLog turn={turn} gates={props.gates} answers={props.answers} speed={turn.final ? null : props.speed} />
+          <WorkLog turn={turn} gates={props.gates} answers={props.answers} sessionId={props.sessionId} speed={turn.final ? null : props.speed} />
         ) : null}
         {turn.final ? (
           <div className="group/final flex flex-col gap-2">
@@ -210,7 +217,7 @@ function completedTime(turn: TurnView): number | null {
   return turn.info?.completedAt ?? parseTime(turn.final?.recordedAt) ?? parseTime(turn.entries[turn.entries.length - 1]?.recordedAt);
 }
 
-function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] | null; live?: boolean }) {
+function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] | null; sessionId?: string; live?: boolean }) {
   const { item } = props;
   switch (item.kind) {
     case "agentMessage":
@@ -224,7 +231,7 @@ function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] |
     case "toolCall":
       return <ToolRow item={item} gate={props.gate} answers={props.answers} />;
     case "userShell":
-      return <ShellRow item={item} />;
+      return <ShellRow item={item} sessionId={props.sessionId} />;
     case "subagent":
       return <SubagentRow item={item} />;
     case "workflow":
@@ -297,7 +304,7 @@ function turnDuration(turn: TurnView): number | null {
  * A finished turn's work, collapsed to one line; the files it changed stay visible as chips.
  * Header grammar via Beautiful UI ToolChips (beautifului.dev), MIT (c) 2026 Shane Levine.
  */
-function WorkLog(props: { turn: TurnView; gates: GateMap; answers: AnswerMap; speed?: TurnSpeed | null }) {
+function WorkLog(props: { turn: TurnView; gates: GateMap; answers: AnswerMap; sessionId: string; speed?: TurnSpeed | null }) {
   const { turn } = props;
   const failed = turn.info?.terminal === "failed";
   const [open, setOpen] = useState(failed);
@@ -329,7 +336,13 @@ function WorkLog(props: { turn: TurnView; gates: GateMap; answers: AnswerMap; sp
       <Collapse open={open}>
         <div className="mt-1 ml-[7px] flex flex-col gap-1 border-l border-line pl-4">
           {turn.entries.map((item) => (
-            <Entry key={item.itemId} item={item} gate={props.gates[item.itemId]} answers={props.answers[item.itemId] ?? null} />
+            <Entry
+              key={item.itemId}
+              item={item}
+              gate={props.gates[item.itemId]}
+              answers={props.answers[item.itemId] ?? null}
+              sessionId={props.sessionId}
+            />
           ))}
         </div>
       </Collapse>

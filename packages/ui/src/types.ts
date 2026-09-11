@@ -29,6 +29,8 @@ export interface LiveView {
   pendingInputs: number;
   lastTerminal: string | null;
   lastError: string | null;
+  /** The session's goal as the server last saw it, for threads the UI has not opened. */
+  goal?: Goal | null;
 }
 
 export interface SessionSummary {
