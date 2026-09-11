@@ -51,22 +51,26 @@ apps/web         same UI against a remote daemon
 - [ ] GitHub Releases with downloadable binaries (Windows primary, macOS + Linux day one)
 - [ ] Post-v1: mobile relay to steer running sessions from a phone
 
-## Quickstart (placeholder)
+## Quickstart
 
-> App code lands after the PRD. For now, the two ways to use Muse on desktop:
+Prereqs: Node 22+, the `muse` CLI with `muse login` done once (WSL2 Ubuntu on Windows), and the repo checked out.
 
 ```bash
-# Option A - real `muse` CLI (macOS/Linux, or WSL2 on Windows)
-wsl --install            # Windows only, then use Ubuntu
-curl -fsSL <see official Muse Code docs> | bash
-muse login
-muse
+npm install
+npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
+npm run build --workspace @helicon/web
+
+# Web app (serves the built UI plus the API on :3127)
+npm run serve --workspace @helicon/web
+# open http://127.0.0.1:3127, add a folder, start a session
 ```
 
 ```bash
-# Option B - Muse Spark model in OpenCode Desktop (native Windows)
-# Install from opencode.ai → /connect → provider `meta`, base https://api.meta.ai/v1, model muse-spark-1.3
+# Desktop app (dev shell; needs the Tauri prereqs on your OS)
+npm run dev --workspace helicon-desktop
 ```
+
+Releases ride on tags: push `v0.1.0` and the Release workflow builds the Windows installer and attaches it to a GitHub Release. Every release gets a tag; notable merged PRs bump at least the patch version.
 
 ## Legal
 
