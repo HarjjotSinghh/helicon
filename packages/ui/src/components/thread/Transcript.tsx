@@ -16,6 +16,7 @@ import {
 } from "../../model/format.js";
 import { streamingSpeed, turnCosts, turnSpeeds, type TurnCost, type TurnSpeed } from "../../model/usage.js";
 import { formatCost } from "../../model/pricing.js";
+import { stuckThread } from "../../model/errors.js";
 import type { ThreadState } from "../../model/store.js";
 import type { AttachmentView, MspItem, ShellRun, UserInputAnswer } from "../../types.js";
 import { CodeBlock } from "../ui/Markdown.js";
@@ -609,14 +610,29 @@ function PendingPrompt(props: { echo: LocalEcho }) {
 
 function TurnError(props: { message: string; retryable: boolean; prompt: string | null; sessionId: string; turnId: string | null }) {
   const controller = useController();
+  // Some failures are about the thread, not the turn: retrying sends the same history and fails the same way.
+  const stuck = stuckThread(props.message);
   return (
     <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-3.5 py-3" role="alert">
       <CircleAlert size={16} className="mt-0.5 shrink-0 text-danger" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-fg">This turn failed</p>
-        <p className="mt-0.5 text-sm break-words text-muted">{props.message}</p>
+        <p className="text-sm font-medium text-fg">{stuck ? "This thread cannot go on as it is" : "This turn failed"}</p>
+        <p className="mt-0.5 text-sm break-words text-muted">{stuck ? stuck.message : props.message}</p>
+        {stuck ? <p className="mt-1 text-2xs break-words text-subtle">{props.message}</p> : null}
       </div>
-      {props.prompt && props.retryable ? (
+      {stuck ? (
+        <Tip label="Summarize the history, leave behind what cannot be sent, and carry on">
+          <Button
+            size="sm"
+            onClick={() => {
+              controller.dismissTurnError(props.sessionId, props.turnId);
+              void controller.compactAndRetry(props.sessionId, props.retryable ? props.prompt : null);
+            }}
+          >
+            <RotateCcw size={13} /> {props.prompt && props.retryable ? "Compact and retry" : "Compact this thread"}
+          </Button>
+        </Tip>
+      ) : props.prompt && props.retryable ? (
         <Tip label="Send the same prompt again">
           <Button
             size="sm"

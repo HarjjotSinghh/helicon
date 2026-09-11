@@ -366,6 +366,19 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("compacts a thread the provider will not take, then sends the prompt again", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    await controller.compactAndRetry("s1", "try that again");
+    assert.ok(client.actions.includes("compact"), "the history is summarized first");
+    assert.equal(client.sent.at(-1)?.text, "try that again");
+
+    const before = client.sent.length;
+    await controller.compactAndRetry("s1", null);
+    assert.equal(client.sent.length, before, "with no prompt to resend, it only compacts");
+    stop();
+  });
+
   it("clears a failed turn's notice when the user retries it", async () => {
     const client = new FakeClient();
     const { controller, stop } = await started(client);

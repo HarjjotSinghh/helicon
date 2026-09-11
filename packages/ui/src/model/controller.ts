@@ -1449,6 +1449,17 @@ export class HeliconController {
     }
   }
 
+  /**
+   * For a thread whose history the provider will not take: summarize it, which leaves the unusable part
+   * behind, then send the prompt again. The retry queues behind the compaction Muse runs as its own turn.
+   */
+  async compactAndRetry(sessionId: string, prompt: string | null): Promise<void> {
+    await this.compact(sessionId);
+    if (prompt) {
+      await this.retryTurn(sessionId, prompt);
+    }
+  }
+
   async openFolder(cwd: string, target: "files" | "editor"): Promise<void> {
     try {
       await this.client.openFolder(cwd, target);
