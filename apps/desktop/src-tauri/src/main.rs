@@ -6,11 +6,27 @@ use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{mpsc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
 
-struct ServerChild(Mutex<Option<Child>>);
+struct ServerChild(Arc<Mutex<Option<Child>>>);
+
+/// Stops the local server when Tauri clears its resources, which the updater does right before it
+/// quits the app to run the installer; a normal close stops it in the window's Destroyed handler.
+struct ServerGuard(Arc<Mutex<Option<Child>>>);
+
+impl tauri::Resource for ServerGuard {}
+
+impl Drop for ServerGuard {
+    fn drop(&mut self) {
+        if let Ok(mut guard) = self.0.lock() {
+            if let Some(mut child) = guard.take() {
+                let _ = child.kill();
+            }
+        }
+    }
+}
 
 /// Windows gets Helicon's own title bar, drawn by the UI; other platforms keep the native frame.
 const CUSTOM_FRAME: bool = cfg!(windows);
@@ -137,13 +153,16 @@ fn boot_server(app: &tauri::AppHandle) -> Result<String, BootError> {
         if let Ok(mut guard) = state.0.lock() {
             *guard = Some(child);
         }
+        app.resources_table().add(ServerGuard(state.0.clone()));
     }
     url.ok_or(BootError::ServerFailed)
 }
 
 fn main() {
     tauri::Builder::default()
-        .manage(ServerChild(Mutex::new(None)))
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .manage(ServerChild(Arc::new(Mutex::new(None))))
         .setup(|app| {
             // Open the window at once on a splash page; the server can take a few seconds to probe WSL.
             let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(SPLASH_PAGE.parse()?))

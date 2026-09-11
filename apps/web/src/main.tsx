@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { HeliconApp } from "@helicon/ui";
 import { desktopFrame } from "./frame.js";
+import { desktopUpdater } from "./updater.js";
 import { WebHeliconClient } from "./webClient.js";
 import "./theme.css";
 
@@ -12,6 +13,6 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <HeliconApp client={new WebHeliconClient()} frame={desktopFrame()} />
+    <HeliconApp client={new WebHeliconClient()} frame={desktopFrame()} updater={desktopUpdater()} />
   </StrictMode>,
 );

@@ -7,6 +7,7 @@ import type {
   SessionSummary,
 } from "../types.js";
 import type { ThreadFold } from "./fold.js";
+import type { UpdateState } from "./updates.js";
 
 /** A tiny external store: immutable snapshots plus change listeners, read through useSyncExternalStore-style hooks. */
 export class Store<T> {
@@ -60,6 +61,10 @@ export interface Prefs {
   lastProject: string | null;
   /** Contributor-tier data use was acknowledged. */
   contributorAck: boolean;
+  /** Desktop app: download new versions as they appear and install them on close. */
+  autoUpdate: boolean;
+  /** Desktop app: no checking, downloading or installing updates until resumed. */
+  updatesPaused: boolean;
 }
 
 export const DEFAULT_SIDEBAR_WIDTH = 284;
@@ -79,6 +84,8 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     effort: null,
     lastProject: null,
     contributorAck: false,
+    autoUpdate: true,
+    updatesPaused: false,
   };
 }
 
@@ -125,6 +132,8 @@ export interface AppState {
   hostError: string | null;
   /** A prompt that could not be sent, waiting for the composer showing `key` to take it back. */
   draftHandoff: { key: string; text: string } | null;
+  /** App updates; null when the shell cannot update itself, as in a browser. */
+  updates: UpdateState | null;
 }
 
 export function initialState(prefs: Prefs): AppState {
@@ -147,6 +156,7 @@ export function initialState(prefs: Prefs): AppState {
     busy: {},
     hostError: null,
     draftHandoff: null,
+    updates: null,
   };
 }
 
@@ -172,5 +182,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     effort: pick("effort", (v) => v === null || ["none", "minimal", "low", "medium", "high", "xhigh", "ultra"].includes(v as string)),
     lastProject: pick("lastProject", (v) => v === null || typeof v === "string"),
     contributorAck: pick("contributorAck", (v) => typeof v === "boolean"),
+    autoUpdate: pick("autoUpdate", (v) => typeof v === "boolean"),
+    updatesPaused: pick("updatesPaused", (v) => typeof v === "boolean"),
   };
 }
