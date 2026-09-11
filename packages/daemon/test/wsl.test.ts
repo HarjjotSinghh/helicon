@@ -112,24 +112,5 @@ describe("environment probe", () => {
     const probe = await probeEnvironment(exec, "win32");
     assert.equal(probe.wslAvailable, false);
     assert.equal(probe.musePath, null);
-    assert.equal(probe.shellSandbox, null);
-  });
-
-  it("checks for Bubblewrap, which Muse runs shell commands in", async () => {
-    const withBwrap: ExecFn = async (command, args) => {
-      if (command === "wsl" && args[0] === "-l") {
-        return { stdout: SAMPLE_WSL_LIST, exitCode: 0 };
-      }
-      if (args.at(-1) === "command -v bwrap") {
-        return { stdout: "/usr/bin/bwrap\n", exitCode: 0 };
-      }
-      return { stdout: "/home/harjot/.local/bin/muse\n", exitCode: 0 };
-    };
-    const without: ExecFn = async (command, args) =>
-      args.at(-1) === "command -v bwrap" ? { stdout: "", exitCode: 1 } : withBwrap(command, args);
-    assert.equal((await probeEnvironment(withBwrap, "win32")).shellSandbox, "ready");
-    assert.equal((await probeEnvironment(without, "win32")).shellSandbox, "missing");
-    assert.equal((await probeEnvironment(without, "linux")).shellSandbox, "missing");
-    assert.equal((await probeEnvironment(withBwrap, "darwin")).shellSandbox, null, "macOS does not use Bubblewrap");
   });
 });

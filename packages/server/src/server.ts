@@ -26,7 +26,7 @@ import {
 } from "@helicon/daemon";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
-export const HELICON_VERSION = "0.6.0";
+export const HELICON_VERSION = "0.6.1";
 
 export interface HostExit {
   code: number | null;
@@ -375,7 +375,6 @@ interface EnvView {
   musePath: string | null;
   version: string;
   persistent: boolean;
-  shellSandbox: "ready" | "missing" | null;
 }
 
 export interface SkillView {
@@ -1000,7 +999,6 @@ export class HeliconServer {
       musePath: probe.musePath,
       version: HELICON_VERSION,
       persistent: this.options.dataDir !== ":memory:",
-      shellSandbox: probe.shellSandbox,
     };
     this.envCache = { at: Date.now(), value };
     return value;

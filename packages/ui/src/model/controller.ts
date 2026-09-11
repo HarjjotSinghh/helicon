@@ -141,7 +141,6 @@ const FLUSH_MS = 24;
 const TOAST_MS = { info: 5000, success: 4000, error: 9000 } as const;
 const SKILLS_FRESH_MS = 60_000;
 const SKILLS_RETRY_MS = 10_000;
-const ENV_RECHECK_MS = 30_000;
 
 /**
  * Owns app state and every side effect: server calls, the event stream, routing and prefs.
@@ -276,23 +275,6 @@ export class HeliconController {
 
   retryBoot(): void {
     void this.boot(true);
-  }
-
-  private envCheckedAt = 0;
-
-  /** Re-checks the environment, at most every half minute, so a fix such as installing Bubblewrap shows without a reload. */
-  async refreshEnvironment(): Promise<void> {
-    const now = this.platform.now();
-    if (now - this.envCheckedAt < ENV_RECHECK_MS) {
-      return;
-    }
-    this.envCheckedAt = now;
-    try {
-      const env = await this.client.probeEnvironment(true);
-      this.update((s) => ({ ...s, env }));
-    } catch {
-      /* the next check or boot tries again */
-    }
   }
 
   // ---------------------------------------------------------------- data
@@ -1260,6 +1242,16 @@ export class HeliconController {
   /** Asks Muse to pick a paused or blocked goal back up; the transcript shows the short form. */
   continueGoal(sessionId: string, objective: string): Promise<boolean> {
     return this.sendToThread(sessionId, `Keep working toward the goal: ${objective}`, { displayText: "Keep working on the goal" }, false);
+  }
+
+  /** Hands a `!` command the host could not run to the agent, whose own shell tool can. */
+  askToRun(sessionId: string, command: string): Promise<boolean> {
+    const fence = command.includes("```") ? "~~~" : "```";
+    // The failed `!` item says the environment is broken, which makes the agent refuse; tell it that its own shell is fine.
+    const text =
+      `Run this with your shell tool and show me the output:\n\n${fence}sh\n${command}\n${fence}\n\n` +
+      "That failure came from Helicon's `!` path, not from your tools: your own shell works here.";
+    return this.sendToThread(sessionId, text, {}, false);
   }
 
   /** Branches a thread into a new one and opens it. */

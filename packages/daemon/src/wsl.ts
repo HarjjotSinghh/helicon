@@ -197,19 +197,6 @@ export interface EnvironmentProbe {
   distros: WslDistro[];
   defaultDistro: string | null;
   musePath: string | null;
-  /** Whether Bubblewrap, which Muse's Linux shell sandbox runs on, is installed; null where Muse does not use it. */
-  shellSandbox: "ready" | "missing" | null;
-}
-
-/** Muse runs shell commands inside Bubblewrap on Linux, WSL included; macOS sandboxes another way. */
-async function bubblewrapState(exec: ExecFn, platform: string, distro: string | null): Promise<"ready" | "missing" | null> {
-  if (platform === "darwin") {
-    return null;
-  }
-  const found = distro
-    ? await exec("wsl", ["-d", distro, "--", "sh", "-lc", "command -v bwrap"])
-    : await exec("sh", ["-lc", "command -v bwrap"]);
-  return found.exitCode === 0 && found.stdout.trim() ? "ready" : "missing";
 }
 
 export async function probeEnvironment(
@@ -222,18 +209,11 @@ export async function probeEnvironment(
       found.exitCode === 0
         ? (found.stdout.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? null)
         : null;
-    return {
-      platform,
-      wslAvailable: false,
-      distros: [],
-      defaultDistro: null,
-      musePath,
-      shellSandbox: await bubblewrapState(exec, platform, null),
-    };
+    return { platform, wslAvailable: false, distros: [], defaultDistro: null, musePath };
   }
   const listed = await exec("wsl", ["-l", "-v"]);
   if (listed.exitCode !== 0) {
-    return { platform, wslAvailable: false, distros: [], defaultDistro: null, musePath: null, shellSandbox: null };
+    return { platform, wslAvailable: false, distros: [], defaultDistro: null, musePath: null };
   }
   const distros = parseWslList(listed.stdout);
   const def = defaultDistro(distros);
@@ -244,6 +224,5 @@ export async function probeEnvironment(
     distros,
     defaultDistro: def ? def.name : null,
     musePath,
-    shellSandbox: def ? await bubblewrapState(exec, platform, def.name) : null,
   };
 }

@@ -12,8 +12,6 @@ export interface EnvironmentStatus {
   musePath: string | null;
   version: string;
   persistent: boolean;
-  /** Whether Bubblewrap, which Muse runs shell commands in on Linux and WSL, is installed; null where it does not apply. */
-  shellSandbox?: "ready" | "missing" | null;
 }
 
 export interface ProjectView {

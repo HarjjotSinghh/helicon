@@ -314,20 +314,14 @@ describe("HeliconController", () => {
     stop();
   });
 
-  it("re-checks the environment on request, at most every half minute", async () => {
+  it("hands a `!` command the host could not run to the agent", async () => {
     const client = new FakeClient();
-    const base = await client.probeEnvironment();
-    let probes = 0;
-    client.probeEnvironment = async () => {
-      probes += 1;
-      return { ...base, shellSandbox: probes > 1 ? ("ready" as const) : ("missing" as const) };
-    };
     const { controller, stop } = await started(client);
-    assert.equal(controller.store.get().env?.shellSandbox, "missing");
-    await controller.refreshEnvironment();
-    assert.equal(controller.store.get().env?.shellSandbox, "ready", "installing Bubblewrap shows without a reload");
-    await controller.refreshEnvironment();
-    assert.equal(probes, 2, "a second check right away is skipped");
+    assert.equal(await controller.askToRun("s1", "ls -la"), true);
+    assert.match(client.sent.at(-1)?.text ?? "", /```sh\nls -la\n```/);
+    assert.match(client.sent.at(-1)?.text ?? "", /your own shell works/, "the agent is told its own shell is fine");
+    assert.equal(await controller.askToRun("s1", "echo '```'"), true);
+    assert.match(client.sent.at(-1)?.text ?? "", /~~~sh\necho '```'\n~~~/, "a command with a fence in it gets the other fence");
     stop();
   });
 
