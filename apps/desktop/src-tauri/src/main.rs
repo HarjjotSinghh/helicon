@@ -4,6 +4,7 @@
 
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{mpsc, Arc, Mutex};
@@ -33,6 +34,9 @@ const CUSTOM_FRAME: bool = cfg!(windows);
 
 /// Tells the UI, before it loads, to draw the window controls and drag regions.
 const FRAME_SCRIPT: &str = "window.__HELICON_FRAME__ = 'custom';";
+
+/// Where the server's port is remembered between launches, inside the app's data folder.
+const PORT_FILE: &str = "server-port";
 
 /// Shown the instant the window opens, while the local server starts. System colors follow the OS theme.
 const SPLASH_PAGE: &str = "data:text/html,<!doctype html><meta charset=utf-8><title>Helicon</title><style>html{color-scheme:light dark;background:Canvas;color:GrayText;font:13px system-ui,sans-serif}body{margin:0;height:100vh;display:grid;place-items:center}</style><body>Starting Helicon</body>";
@@ -77,6 +81,37 @@ fn find_resource(resource_dir: &Path, name: &str) -> Option<PathBuf> {
         .into_iter()
         .find(|candidate| candidate.exists())
         .map(|found| plain_path(&found))
+}
+
+fn port_free(port: u16) -> bool {
+    TcpListener::bind(("127.0.0.1", port)).is_ok()
+}
+
+/// The port the local server had last time, while it is still free. The window's origin includes the
+/// port and the UI keeps its settings in that origin's storage, so a new port each launch would forget
+/// them, automatic updates switched off included. Returns 0, any free port, only when none can be found.
+fn stable_port(data_dir: Option<&Path>) -> u16 {
+    let file = data_dir.map(|dir| dir.join(PORT_FILE));
+    let saved = file
+        .as_ref()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|text| text.trim().parse::<u16>().ok())
+        .filter(|port| *port != 0);
+    if let Some(port) = saved {
+        if port_free(port) {
+            return port;
+        }
+    }
+    let fresh = TcpListener::bind(("127.0.0.1", 0))
+        .and_then(|listener| listener.local_addr())
+        .map(|address| address.port())
+        .unwrap_or(0);
+    if fresh != 0 {
+        if let Some(path) = &file {
+            let _ = std::fs::write(path, fresh.to_string());
+        }
+    }
+    fresh
 }
 
 /// A child process that never flashes a console window on Windows.
@@ -127,16 +162,20 @@ fn boot_server(app: &tauri::AppHandle) -> Result<String, BootError> {
     }
     let resource_dir = app.path().resource_dir().map_err(|_| BootError::ServerMissing)?;
     let server = find_resource(&resource_dir, "server.cjs").ok_or(BootError::ServerMissing)?;
+    // Projects, pins and thread titles persist per user, next to the app's other data.
+    let data = app
+        .path()
+        .app_data_dir()
+        .ok()
+        .filter(|dir| std::fs::create_dir_all(dir).is_ok())
+        .map(|dir| plain_path(&dir));
     let mut cmd = command("node");
-    cmd.arg(&server).arg("--port").arg("0");
+    cmd.arg(&server).arg("--port").arg(stable_port(data.as_deref()).to_string());
     if let Some(frontend) = find_resource(&resource_dir, "frontend") {
         cmd.arg("--static").arg(&frontend);
     }
-    // Projects, pins and thread titles persist per user, next to the app's other data.
-    if let Ok(data) = app.path().app_data_dir() {
-        if std::fs::create_dir_all(&data).is_ok() {
-            cmd.arg("--data-dir").arg(plain_path(&data));
-        }
+    if let Some(data) = &data {
+        cmd.arg("--data-dir").arg(data);
     }
     let log = app
         .path()
@@ -210,7 +249,8 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{find_resource, parse_listening_url, plain_path, BootError, SPLASH_PAGE};
+    use super::{find_resource, parse_listening_url, plain_path, stable_port, BootError, SPLASH_PAGE};
+    use std::net::TcpListener;
     use std::path::{Path, PathBuf};
 
     #[test]
@@ -245,5 +285,21 @@ mod tests {
         assert_eq!(find_resource(&root, "server.cjs"), Some(root.join("resources").join("server.cjs")));
         assert_eq!(find_resource(&root, "missing.cjs"), None);
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn keeps_the_server_port_between_launches_while_it_is_free() {
+        let dir = std::env::temp_dir().join(format!("helicon-port-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let first = stable_port(Some(&dir));
+        assert_ne!(first, 0);
+        assert_eq!(stable_port(Some(&dir)), first);
+        let held = TcpListener::bind(("127.0.0.1", first)).unwrap();
+        let moved = stable_port(Some(&dir));
+        assert_ne!(moved, first, "a taken port is replaced");
+        drop(held);
+        assert_eq!(stable_port(Some(&dir)), moved, "and the replacement is remembered");
+        assert_ne!(stable_port(None), 0);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

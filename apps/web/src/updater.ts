@@ -4,6 +4,10 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import type { AppUpdater } from "@helicon/ui";
 
+// The plugin waits forever by default, and a stalled download would hold every later update action behind it.
+const CHECK_TIMEOUT_MS = 30_000;
+const DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
+
 /** The desktop shell's updater, through Tauri's updater plugin; undefined in a browser. */
 export function desktopUpdater(): AppUpdater | undefined {
   if (!("__TAURI_INTERNALS__" in window)) {
@@ -13,7 +17,7 @@ export function desktopUpdater(): AppUpdater | undefined {
   return {
     currentVersion: () => getVersion(),
     async check() {
-      const update = await check();
+      const update = await check({ timeout: CHECK_TIMEOUT_MS });
       if (pending && pending !== update) {
         pending.close().catch(() => undefined);
       }
@@ -26,17 +30,20 @@ export function desktopUpdater(): AppUpdater | undefined {
       }
       let total: number | null = null;
       let received = 0;
-      await pending.download((event) => {
-        if (event.event === "Started") {
-          total = event.data.contentLength ?? null;
-          onProgress(total ? 0 : null);
-        } else if (event.event === "Progress") {
-          received += event.data.chunkLength;
-          onProgress(total ? Math.min(1, received / total) : null);
-        } else {
-          onProgress(1);
-        }
-      });
+      await pending.download(
+        (event) => {
+          if (event.event === "Started") {
+            total = event.data.contentLength ?? null;
+            onProgress(total ? 0 : null);
+          } else if (event.event === "Progress") {
+            received += event.data.chunkLength;
+            onProgress(total ? Math.min(1, received / total) : null);
+          } else {
+            onProgress(1);
+          }
+        },
+        { timeout: DOWNLOAD_TIMEOUT_MS },
+      );
     },
     async install({ restart }) {
       if (!pending) {

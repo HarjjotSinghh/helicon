@@ -15,6 +15,7 @@
     "core:window:allow-close",
     "core:window:allow-destroy",
     "core:app:default",
+    "core:resources:allow-close",
     "updater:default",
     "process:allow-restart"
   ]
