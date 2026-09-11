@@ -51,6 +51,12 @@ export type Opener = (path: string, target: OpenTarget) => Promise<void>;
 
 const realHostFactory: HostFactory = (target) => new HeliconMspHost(target);
 
+/** Runs a `!` command where the workspace is, and hands back what it printed. */
+export type ShellRunner = (
+  command: string,
+  args: string[],
+) => Promise<{ output: string; exitCode: number | null; truncated: boolean }>;
+
 export interface ServerOptions {
   port?: number;
   host?: string;
@@ -68,6 +74,8 @@ export interface ServerOptions {
   autoSettleDays?: number | null;
   /** Runs `muse` CLI calls, like listing skills; the real process runner by default. */
   exec?: ExecFn;
+  /** Runs the user's own `!` commands; spawns a real process by default. */
+  shellRunner?: ShellRunner;
 }
 
 interface ManagedHost {
@@ -553,6 +561,7 @@ export class HeliconServer {
       home: options.home ?? homedir(),
       autoSettleDays: options.autoSettleDays === undefined ? 3 : options.autoSettleDays,
       exec: options.exec ?? defaultExec,
+      shellRunner: options.shellRunner ?? ((command, args) => runCapture(command, args, undefined, SHELL_TIMEOUT_MS)),
     };
     this.opener = options.opener ?? defaultOpener(this.options.platform);
     this.store = new HeliconStore(
@@ -1717,7 +1726,7 @@ export class HeliconServer {
       // $1 is the workspace, then the command; a login shell so the user's PATH is the one they expect.
       args: ["-c", 'cd "$1" || exit 1; shift; exec "${SHELL:-/bin/sh}" -lc "$1"', "sh", this.hostPathFor(cwd), command],
     });
-    const result = await runCapture(plan.command, plan.args, undefined, SHELL_TIMEOUT_MS);
+    const result = await this.options.shellRunner(plan.command, plan.args);
     return { ...result, durationMs: Date.now() - started };
   }
 

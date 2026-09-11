@@ -530,6 +530,35 @@ describe("slash commands, skills and shell", () => {
     assert.deepEqual(ids, ["s1", "s2"]);
   });
 
+  it("runs a `!` command itself and keeps it with the thread", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const ran: { command: string; args: string[] }[] = [];
+    const { base } = await start(connection, {
+      shellRunner: async (command: string, args: string[]) => {
+        ran.push({ command, args });
+        return { output: "total 0\n", exitCode: 0, truncated: false };
+      },
+    });
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+
+    const result = await send(base, "/api/sessions/s1/shell-proxy", { command: " ls -la " });
+    assert.equal(result.status, 200);
+    assert.equal(result.json.run.command, "ls -la");
+    assert.equal(result.json.run.exitCode, 0);
+    assert.equal(result.json.run.output, "total 0\n");
+    assert.ok(ran[0]?.args.includes("/work/proj"), "the command runs where the workspace is");
+    assert.ok(ran[0]?.args.includes("ls -la"), "the command itself is an argument, never spliced into a script");
+
+    const loaded = await send(base, "/api/sessions/s1/resume", {});
+    assert.deepEqual(
+      loaded.json.shellRuns.map((run: { command: string }) => run.command),
+      ["ls -la"],
+    );
+    assert.equal((await send(base, "/api/sessions/s1/shell-proxy", { command: "   " })).status, 400);
+    assert.equal((await send(base, "/api/sessions/missing/shell-proxy", { command: "ls" })).status, 404);
+  });
+
   it("sends an attached image to the model and serves it back", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });

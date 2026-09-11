@@ -22,6 +22,40 @@ describe("HeliconStore", () => {
     assert.equal(sessions[0]?.id, "s1");
   });
 
+  it("keeps the commands Helicon ran for a thread", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/p");
+    store.recordSession({ id: "s1", projectId: project.id });
+    store.addShellRun({
+      id: "r1",
+      sessionId: "s1",
+      command: "ls -la",
+      exitCode: 0,
+      output: "total 0",
+      truncated: false,
+      durationMs: 12,
+      at: "2026-09-11T22:00:00.000Z",
+    });
+    store.addShellRun({
+      id: "r2",
+      sessionId: "s1",
+      command: "false",
+      exitCode: 1,
+      output: "",
+      truncated: true,
+      durationMs: null,
+      at: "2026-09-11T22:00:01.000Z",
+    });
+    const runs = store.listShellRuns("s1");
+    assert.deepEqual(runs.map((r) => r.id), ["r1", "r2"]);
+    assert.equal(runs[0]?.output, "total 0");
+    assert.equal(runs[1]?.exitCode, 1);
+    assert.equal(runs[1]?.truncated, true);
+    assert.equal(runs[1]?.durationMs, null);
+    assert.deepEqual(store.listShellRuns("other"), []);
+  });
+
   it("keeps the bytes of files sent with a prompt", () => {
     const store = new HeliconStore();
     after(() => store.close());
