@@ -6,6 +6,7 @@ import type {
   ProjectView,
   ReasoningEffort,
   SessionSummary,
+  ShellRun,
   SkillEntry,
 } from "../types.js";
 import type { ThreadFold } from "./fold.js";
@@ -111,6 +112,8 @@ export interface ThreadState {
   fold: ThreadFold;
   /** Files sent with this thread's prompts; Muse's own view keeps metadata only. */
   attachments: AttachmentView[];
+  /** `!` commands Helicon ran itself, which Muse's transcript never sees. */
+  shellRuns: ShellRun[];
 }
 
 export interface Toast {

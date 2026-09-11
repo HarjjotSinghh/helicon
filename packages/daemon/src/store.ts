@@ -127,6 +127,16 @@ CREATE TABLE IF NOT EXISTS attachments (
   bytes BLOB NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS shell_runs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  command TEXT NOT NULL,
+  exit_code INTEGER,
+  output TEXT NOT NULL,
+  truncated INTEGER NOT NULL DEFAULT 0,
+  duration_ms INTEGER,
+  at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS usage (
   key TEXT PRIMARY KEY,
   session_id TEXT NOT NULL,
@@ -143,6 +153,7 @@ CREATE TABLE IF NOT EXISTS usage (
   at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
+CREATE INDEX IF NOT EXISTS idx_shell_runs_session ON shell_runs(session_id, at);
 CREATE INDEX IF NOT EXISTS idx_usage_at ON usage(at);
 CREATE INDEX IF NOT EXISTS idx_usage_session ON usage(session_id);
 CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id);
@@ -192,6 +203,18 @@ export interface AddAttachmentInput {
   width?: number | null;
   height?: number | null;
   bytes: Uint8Array;
+}
+
+/** A `!` command Helicon ran itself, with what it printed. */
+export interface ShellRunRecord {
+  id: string;
+  sessionId: string;
+  command: string;
+  exitCode: number | null;
+  output: string;
+  truncated: boolean;
+  durationMs: number | null;
+  at: string;
 }
 
 /** One model call's tokens, as the store keeps them for the usage page. */
@@ -278,6 +301,40 @@ export class HeliconStore {
       )
       .all() as Row[];
     return rows.map((row) => this.toProject(row));
+  }
+
+  /** A `!` command Helicon ran itself in the workspace, kept so a reopened thread still shows it. */
+  addShellRun(input: ShellRunRecord): ShellRunRecord {
+    this.db
+      .prepare(
+        `INSERT INTO shell_runs (id, session_id, command, exit_code, output, truncated, duration_ms, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.id,
+        input.sessionId,
+        input.command,
+        input.exitCode ?? null,
+        input.output,
+        input.truncated ? 1 : 0,
+        input.durationMs ?? null,
+        input.at,
+      );
+    return input;
+  }
+
+  listShellRuns(sessionId: string): ShellRunRecord[] {
+    const rows = this.db.prepare(`SELECT * FROM shell_runs WHERE session_id = ? ORDER BY at`).all(sessionId) as Row[];
+    return rows.map((row) => ({
+      id: String(row["id"]),
+      sessionId: String(row["session_id"]),
+      command: String(row["command"]),
+      exitCode: row["exit_code"] === null ? null : Number(row["exit_code"]),
+      output: String(row["output"] ?? ""),
+      truncated: Number(row["truncated"] ?? 0) === 1,
+      durationMs: row["duration_ms"] === null ? null : Number(row["duration_ms"]),
+      at: String(row["at"]),
+    }));
   }
 
   /**

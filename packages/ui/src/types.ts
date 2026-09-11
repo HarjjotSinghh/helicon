@@ -258,6 +258,18 @@ export interface DirectoryListing {
   entries: { name: string }[];
 }
 
+/** A `!` command Helicon ran itself in the workspace, with what it printed. */
+export interface ShellRun {
+  id: string;
+  sessionId: string;
+  command: string;
+  exitCode: number | null;
+  output: string;
+  truncated: boolean;
+  durationMs: number | null;
+  at: string;
+}
+
 /** One day's tokens for one model, as the server aggregates them for the usage page. */
 export interface UsageBucket {
   day: string;
@@ -338,6 +350,8 @@ export interface TranscriptLoad {
   truncated: boolean;
   /** Every file attached to this thread's prompts, in send order. */
   attachments?: AttachmentView[];
+  /** Every `!` command Helicon ran itself for this thread. */
+  shellRuns?: ShellRun[];
   pending: { approvals: ApprovalRequest[]; userInputs: UserInputRequest[] };
   readOnly: boolean;
   readOnlyReason: string | null;
@@ -348,5 +362,6 @@ export type HeliconEvent =
   | { type: "msp"; sessionId: string; method: string; params: Record<string, unknown>; at: number }
   | { type: "session-status"; sessionId: string; live: LiveView | null }
   | { type: "sessions-changed" }
+  | { type: "shell-run"; sessionId: string; run: ShellRun }
   | { type: "host"; key: string; state: string; message: string }
   | { type: "connection"; state: "open" | "lost" };

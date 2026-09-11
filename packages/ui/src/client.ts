@@ -91,6 +91,8 @@ export interface HeliconClient {
   compact(sessionId: string): Promise<{ noop: boolean; reason: string | null }>;
   /** Runs a shell command in the session's workspace; its output arrives as a `userShell` item. */
   runShell(sessionId: string, command: string): Promise<void>;
+  /** Runs a `!` command in the workspace from Helicon itself, for hosts that cannot run one. */
+  runShellProxy(sessionId: string, command: string): Promise<import("./types.js").ShellRun>;
   /** Branches a thread into a new one carrying every completed turn. */
   forkSession(sessionId: string): Promise<SessionSummary>;
   listSkills(cwd: string): Promise<SkillCatalog>;

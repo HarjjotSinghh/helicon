@@ -137,7 +137,16 @@ export function hashToRoute(hash: string): Route {
 }
 
 function blankThread(): ThreadState {
-  return { load: "idle", error: null, readOnly: false, readOnlyReason: null, truncated: false, fold: emptyFold(), attachments: [] };
+  return {
+    load: "idle",
+    error: null,
+    readOnly: false,
+    readOnlyReason: null,
+    truncated: false,
+    fold: emptyFold(),
+    attachments: [],
+    shellRuns: [],
+  };
 }
 
 let localSeq = 0;
@@ -434,6 +443,7 @@ export class HeliconController {
             truncated: load.truncated,
             fold,
             attachments: load.attachments ?? [],
+            shellRuns: load.shellRuns ?? [],
           },
         },
         sessions: load.session ? { ...s.sessions, [sessionId]: load.session } : s.sessions,
@@ -484,6 +494,9 @@ export class HeliconController {
           const current = s.sessions[event.sessionId];
           return current ? { ...s, sessions: { ...s.sessions, [event.sessionId]: { ...current, live: event.live } } } : s;
         });
+        break;
+      case "shell-run":
+        this.addShellRun(event.sessionId, event.run);
         break;
       case "sessions-changed":
         this.scheduleRefresh();
@@ -636,6 +649,7 @@ export class HeliconController {
             truncated: false,
             fold,
             attachments: [],
+            shellRuns: [],
           },
         },
       }));
@@ -1198,12 +1212,20 @@ export class HeliconController {
         this.toast("info", "This thread is read-only here", thread.readOnlyReason ?? "Another Muse session has it open.");
         return false;
       }
+      const key = `shell:${sessionId}`;
+      if (this.state.busy[key]) {
+        return false;
+      }
+      this.setBusy(key, true);
       try {
-        await this.client.runShell(sessionId, command);
+        // Helicon runs `!` itself: Muse's own host has no sandbox for these, so it never runs them at all.
+        this.addShellRun(sessionId, await this.client.runShellProxy(sessionId, command));
         return true;
       } catch (error) {
         this.toast("error", "Command not run", errorMessage(error));
         return false;
+      } finally {
+        this.setBusy(key, false);
       }
     };
     const route = this.state.route;
@@ -1212,6 +1234,25 @@ export class HeliconController {
     }
     const target = this.newThreadTarget();
     return target ? this.startThread(target, `!${command}`, run) : false;
+  }
+
+  /** Keeps a command Helicon ran in the thread it belongs to, whoever started it. */
+  private addShellRun(sessionId: string, run: import("../types.js").ShellRun): void {
+    this.update((s) => {
+      const thread = s.threads[sessionId];
+      if (!thread || thread.shellRuns.some((existing) => existing.id === run.id)) {
+        return s;
+      }
+      return { ...s, threads: { ...s.threads, [sessionId]: { ...thread, shellRuns: [...thread.shellRuns, run] } } };
+    });
+  }
+
+  /** Hands a command's output to Muse as the next prompt, since Muse never saw it run. */
+  sendShellOutput(sessionId: string, run: import("../types.js").ShellRun): Promise<boolean> {
+    const fence = "`".repeat(Math.max(3, ...(run.output.match(/`+/g) ?? []).map((mark) => mark.length + 1)));
+    const status = run.exitCode === 0 ? "" : ` (exit ${run.exitCode ?? "unknown"})`;
+    const text = `I ran this in the workspace${status}:\n\n${fence}sh\n${run.command}\n${fence}\n\nIts output:\n\n${fence}\n${run.output.trim() || "(no output)"}\n${fence}`;
+    return this.sendToThread(sessionId, text, { displayText: `Shared the output of \`${run.command}\`` }, false);
   }
 
   private async runSlash(typed: string, parsed: ParsedSlash, options: { steer?: boolean }): Promise<boolean> {

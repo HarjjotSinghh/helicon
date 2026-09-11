@@ -199,6 +199,46 @@ function lastLines(text: string): string {
 }
 
 /** Runs a command to completion; rejects with the tail of its stderr. */
+/** Output kept from a `!` command Helicon runs itself, and how long it may run. */
+const MAX_SHELL_OUTPUT = 64 * 1024;
+const SHELL_TIMEOUT_MS = 2 * 60_000;
+
+/** Runs a program and keeps what it printed, both streams together, as a terminal would show it. */
+function runCapture(
+  command: string,
+  args: string[],
+  cwd: string | undefined,
+  timeoutMs: number,
+): Promise<{ output: string; exitCode: number | null; truncated: boolean }> {
+  return new Promise((done) => {
+    const child = spawn(command, args, { cwd, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let output = "";
+    let truncated = false;
+    const take = (chunk: Buffer) => {
+      output += chunk.toString();
+      if (output.length > MAX_SHELL_OUTPUT) {
+        output = output.slice(-MAX_SHELL_OUTPUT);
+        truncated = true;
+      }
+    };
+    child.stdout?.on("data", take);
+    child.stderr?.on("data", take);
+    const timer = setTimeout(() => {
+      truncated = true;
+      output += "\n[stopped: the command ran longer than two minutes]";
+      child.kill();
+    }, timeoutMs);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      done({ output: `${output}\n${error.message}`.trim(), exitCode: null, truncated });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      done({ output, exitCode: code, truncated });
+    });
+  });
+}
+
 function runProcess(command: string, args: string[], timeoutMs: number): Promise<void> {
   return new Promise((done, fail) => {
     const child = spawn(command, args, {
@@ -826,6 +866,35 @@ export class HeliconServer {
         str(body["modelId"]) ?? undefined,
       );
       this.json(res, 200, { session });
+      return true;
+    }
+
+    const proxyMatch = path.match(/^\/api\/sessions\/([^/]+)\/shell-proxy$/);
+    if (method === "POST" && proxyMatch) {
+      const sessionId = decodeURIComponent(proxyMatch[1] as string);
+      const body = await this.readBody(req);
+      const command = str(body["command"])?.trim();
+      if (!command) {
+        throw new HttpError(400, "command is required.");
+      }
+      const found = this.store.findSession(sessionId);
+      if (!found) {
+        throw new HttpError(404, "Unknown session.");
+      }
+      const result = await this.runInWorkspace(found.cwd, command);
+      const run = this.store.addShellRun({
+        id: randomUUID(),
+        sessionId,
+        command,
+        exitCode: result.exitCode,
+        output: result.output,
+        truncated: result.truncated,
+        durationMs: result.durationMs,
+        at: nowIso(),
+      });
+      this.store.updateSession(sessionId, { activityAt: nowIso() });
+      this.emit("helicon", { type: "shell-run", sessionId, run });
+      this.json(res, 200, { run });
       return true;
     }
 
@@ -1632,6 +1701,26 @@ export class HeliconServer {
     };
   }
 
+  /**
+   * Runs a `!` command where the workspace lives: through WSL on Windows, in the folder itself elsewhere.
+   * This is the user's own shell, not Muse's sandbox, which is the point: Muse cannot run these at all.
+   */
+  private async runInWorkspace(
+    cwd: string,
+    command: string,
+  ): Promise<{ output: string; exitCode: number | null; truncated: boolean; durationMs: number }> {
+    const started = Date.now();
+    const plan = planHostCommand({
+      platform: this.options.platform,
+      distro: this.options.distro,
+      program: "sh",
+      // $1 is the workspace, then the command; a login shell so the user's PATH is the one they expect.
+      args: ["-c", 'cd "$1" || exit 1; shift; exec "${SHELL:-/bin/sh}" -lc "$1"', "sh", this.hostPathFor(cwd), command],
+    });
+    const result = await runCapture(plan.command, plan.args, undefined, SHELL_TIMEOUT_MS);
+    return { ...result, durationMs: Date.now() - started };
+  }
+
   private attachmentView(record: AttachmentRecord): Record<string, unknown> {
     return {
       id: record.id,
@@ -1752,6 +1841,7 @@ export class HeliconServer {
       events,
       truncated,
       attachments: this.store.listAttachments(sessionId).map((record) => this.attachmentView(record)),
+      shellRuns: this.store.listShellRuns(sessionId),
       pending: { approvals, userInputs },
       readOnly,
       readOnlyReason,

@@ -113,6 +113,19 @@ class FakeClient implements HeliconClient {
   async usage() {
     return { since: "2026-09-01T00:00:00.000Z", days: 30, buckets: [], threads: [] };
   }
+  async runShellProxy(sessionId: string, command: string) {
+    this.actions.push(`shell-proxy:${command}`);
+    return {
+      id: `run-${this.actions.length}`,
+      sessionId,
+      command,
+      exitCode: 0,
+      output: `ran ${command}`,
+      truncated: false,
+      durationMs: 12,
+      at: "2026-09-11T22:00:00.000Z",
+    };
+  }
   compactNoop = false;
   async compact() {
     this.actions.push("compact");
@@ -283,7 +296,7 @@ describe("HeliconController", () => {
 
     assert.equal(await controller.send("/compact"), true);
     assert.equal(await controller.send("! git status"), true);
-    assert.deepEqual(client.actions, ["compact", "shell:s1:git status"]);
+    assert.deepEqual(client.actions, ["compact", "shell-proxy:git status"], "Helicon runs `!` itself now");
     client.compactNoop = true;
     assert.equal(await controller.send("/compact"), true);
     assert.equal(controller.store.get().toasts.at(-1)?.title, "Nothing to compact yet");
@@ -334,6 +347,22 @@ describe("HeliconController", () => {
     assert.equal(controller.store.get().toasts.at(-1)?.title, "Add the goal after /goal");
     assert.equal(await controller.continueGoal("s1", "Ship the release"), true);
     assert.equal(client.sent.at(-1)?.displayText, "Keep working on the goal");
+    stop();
+  });
+
+  it("runs a `!` command itself and hands its output to Muse on request", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.send("!ls -la"), true);
+    const run = controller.store.get().threads["s1"]?.shellRuns[0];
+    assert.equal(run?.command, "ls -la");
+    assert.ok(client.actions.includes("shell-proxy:ls -la"));
+
+    assert.equal(await controller.sendShellOutput("s1", run!), true);
+    const sent = client.sent.at(-1);
+    assert.match(sent?.text ?? "", /I ran this in the workspace/);
+    assert.match(sent?.text ?? "", /ran ls -la/);
+    assert.equal(sent?.displayText, "Shared the output of `ls -la`");
     stop();
   });
 

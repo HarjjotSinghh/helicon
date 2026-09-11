@@ -11,6 +11,7 @@ import {
   type ModelOption,
   type ProjectView,
   type SessionSummary,
+  type ShellRun,
   type SkillCatalog,
   type TranscriptLoad,
   type TurnOptions,
@@ -119,6 +120,10 @@ export class WebHeliconClient implements HeliconClient {
 
   usage(days?: number): Promise<UsageReport> {
     return call<UsageReport>("GET", `/api/usage${days ? `?days=${days}` : ""}`);
+  }
+
+  async runShellProxy(sessionId: string, command: string): Promise<ShellRun> {
+    return (await call<{ run: ShellRun }>("POST", `/api/sessions/${enc(sessionId)}/shell-proxy`, { command })).run;
   }
 
   async listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]> {

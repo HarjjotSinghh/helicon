@@ -1,4 +1,4 @@
-import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square } from "lucide-react";
+import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square, SquareTerminal } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { useApp, useController, useNow } from "../../app/context.js";
@@ -17,7 +17,8 @@ import {
 import { streamingSpeed, turnCosts, turnSpeeds, type TurnCost, type TurnSpeed } from "../../model/usage.js";
 import { formatCost } from "../../model/pricing.js";
 import type { ThreadState } from "../../model/store.js";
-import type { AttachmentView, MspItem, UserInputAnswer } from "../../types.js";
+import type { AttachmentView, MspItem, ShellRun, UserInputAnswer } from "../../types.js";
+import { CodeBlock } from "../ui/Markdown.js";
 import { SentAttachments } from "../composer/attachments.js";
 import { CopyButton } from "../ui/Markdown.js";
 import { Tip } from "../ui/overlays.js";
@@ -133,6 +134,9 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
               speed={turn.turnId ? (speeds[turn.turnId] ?? null) : null}
               cost={turn.turnId ? (costs[turn.turnId] ?? null) : null}
             />
+          ))}
+          {(thread.shellRuns ?? []).map((run) => (
+            <ShellRunRow key={run.id} run={run} sessionId={props.sessionId} />
           ))}
           {echoes.map((echo) => (
             <PendingPrompt key={echo.localId} echo={echo} />
@@ -537,6 +541,35 @@ function PromptBubble(props: { item: MspItem; sentAt: number | null; files?: Att
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * A `!` command Helicon ran itself. Muse never saw it, so its output stays here until the user hands it over.
+ */
+function ShellRunRow(props: { run: ShellRun; sessionId: string }) {
+  const controller = useController();
+  const { run } = props;
+  const failed = run.exitCode !== 0;
+  const output = run.output.trim();
+  return (
+    <section className="enter-up flex flex-col gap-1.5" aria-label={`Command ${run.command}`}>
+      <div className="flex items-center gap-2">
+        <SquareTerminal size={14} className="shrink-0 text-subtle" />
+        <span className="shrink-0 text-xs text-muted">You ran</span>
+        <code className="min-w-0 flex-1 truncate rounded-md bg-sunken px-1.5 py-0.5 font-mono text-xs text-fg">{run.command}</code>
+        {failed ? <span className="shrink-0 text-xs text-danger-text">Exit {run.exitCode ?? "?"}</span> : null}
+        {run.durationMs !== null ? (
+          <span className="shrink-0 text-2xs text-subtle tabular-nums">{formatDuration(run.durationMs)}</span>
+        ) : null}
+        <Tip label="Muse did not see this run; this sends it the command and its output">
+          <Button size="sm" variant="ghost" onClick={() => void controller.sendShellOutput(props.sessionId, run)}>
+            Send to Muse
+          </Button>
+        </Tip>
+      </div>
+      {output ? <CodeBlock code={run.truncated ? `[earlier output dropped]\n${output}` : output} language="text" className="my-0" /> : null}
+    </section>
   );
 }
 

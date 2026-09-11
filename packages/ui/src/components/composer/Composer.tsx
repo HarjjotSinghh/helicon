@@ -376,7 +376,7 @@ export function Composer(props: ComposerProps) {
         <div className="flex items-center gap-1.5 px-4 pt-2.5 text-xs text-muted">
           <SquareTerminal size={13} className="shrink-0" />
           <span className="truncate">
-            Runs in the shell{props.cwd ? ` in ${basename(props.cwd)}` : ""}; the output appears in the thread
+            Helicon runs this{props.cwd ? ` in ${basename(props.cwd)}` : ""}; the output stays here until you send it to Muse
           </span>
         </div>
       ) : null}
