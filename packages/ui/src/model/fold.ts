@@ -23,6 +23,10 @@ export interface TurnInfo {
   completedAt?: number;
   terminal?: string;
   durationMs?: number;
+  /** Time to the first streamed token, when the host measured it. */
+  firstTokenMs?: number;
+  /** The model text streaming in right now, for a live speed estimate. A pause starts a new burst. */
+  stream?: { chars: number; startAt: number; lastAt: number };
   error?: { kind: string; message: string; retryable: boolean };
   retry?: { attempt: number; maxAttempts: number; nextAttempt: number; reason: string; retryDelayMs: number };
   retracted?: boolean;
@@ -37,11 +41,28 @@ export interface LocalEcho {
   createdAt: number;
 }
 
+/** One model call's usage, from its `session/tokenUsage` event. */
+export interface CallUsage {
+  turnId: string | null;
+  modelId: string | null;
+  /** Prompt tokens counted once under the provider's cache convention. */
+  promptTokens: number;
+  outputTokens: number;
+  inputTokens: number;
+  cachedTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  reasoningTokens: number;
+  durationMs: number | null;
+}
+
 export interface ThreadMeta {
   todoList: TodoItem[] | null;
   branch: string | null;
   contextUsage: ContextUsage | null;
   tokenTotals: TokenTotals | null;
+  /** Every model call's usage, keyed by view cursor so a reloaded history never counts one twice. */
+  calls: Record<string, CallUsage>;
   modelId: string | null;
   approvalMode: ApprovalMode | null;
   goal: Goal | null;
@@ -82,6 +103,7 @@ export function emptyFold(): ThreadFold {
       branch: null,
       contextUsage: null,
       tokenTotals: null,
+      calls: {},
       modelId: null,
       approvalMode: null,
       goal: null,
@@ -129,6 +151,7 @@ class Draft {
   fold: ThreadFold;
   private orderCopied = false;
   private echoesCopied = false;
+  private callsCopied = false;
 
   constructor(base: ThreadFold) {
     this.fold = {
@@ -165,6 +188,14 @@ class Draft {
       this.echoesCopied = true;
     }
     this.fold.echoes[index] = { ...(this.fold.echoes[index] as LocalEcho), ...patch };
+  }
+
+  putCall(key: string, call: CallUsage): void {
+    if (!this.callsCopied) {
+      this.fold.meta.calls = { ...this.fold.meta.calls };
+      this.callsCopied = true;
+    }
+    this.fold.meta.calls[key] = call;
   }
 }
 
@@ -265,6 +296,27 @@ function appendDelta(draft: Draft, params: Record<string, unknown>): void {
   d.items[id] = next;
 }
 
+/** A pause longer than this between text chunks means a new model call, so its speed is measured afresh. */
+const STREAM_GAP_MS = 2000;
+
+/** Counts streamed model text (replies and reasoning, not tool output) per turn, in bursts. */
+function trackStream(draft: Draft, params: Record<string, unknown>, at: number | undefined): void {
+  const field = str(params["field"]) ?? "text";
+  const delta = typeof params["delta"] === "string" ? params["delta"] : "";
+  if (at === undefined || !delta || field === "output") {
+    return;
+  }
+  const d = draft.fold;
+  const itemId = str(params["itemId"]);
+  const turnId = str(params["turnId"]) ?? (itemId ? (d.items[itemId]?.turnId ?? null) : null);
+  if (!turnId) {
+    return;
+  }
+  const turn = d.turns[turnId] ?? { turnId };
+  const previous = turn.stream && at - turn.stream.lastAt <= STREAM_GAP_MS ? turn.stream : { chars: 0, startAt: at, lastAt: at };
+  d.turns[turnId] = { ...turn, stream: { chars: previous.chars + delta.length, startAt: previous.startAt, lastAt: at } };
+}
+
 function applyOne(draft: Draft, event: ViewEvent): void {
   const d = draft.fold;
   const params = event.params;
@@ -280,6 +332,7 @@ function applyOne(draft: Draft, event: ViewEvent): void {
     }
     case "item/delta":
       appendDelta(draft, params);
+      trackStream(draft, params, event.at);
       break;
     case "turn/started": {
       const turnId = str(params["turnId"]);
@@ -309,6 +362,7 @@ function applyOne(draft: Draft, event: ViewEvent): void {
         turnId,
         terminal: str(params["terminal"]) ?? "completed",
         durationMs: numberOr(params["durationMs"]) ?? d.turns[turnId]?.durationMs,
+        firstTokenMs: numberOr(params["timeToFirstTokenMs"]) ?? d.turns[turnId]?.firstTokenMs,
         completedAt: event.at ?? d.turns[turnId]?.completedAt,
         error: error
           ? {
@@ -422,6 +476,21 @@ function applyOne(draft: Draft, event: ViewEvent): void {
           totalTokens: numberOr(cumulative["totalTokens"]) ?? 0,
         };
       }
+      const usage = asRecord(params["usage"]) ?? {};
+      const promptTokens = numberOr(params["promptTokens"]) ?? numberOr(usage["inputTokens"]) ?? 0;
+      const key = str(params["viewCursor"]) ?? `${str(params["turnId"]) ?? "turn"}:${Object.keys(d.meta.calls).length}`;
+      draft.putCall(key, {
+        turnId: str(params["turnId"]),
+        modelId: str(params["modelId"]),
+        promptTokens,
+        outputTokens: numberOr(usage["outputTokens"]) ?? Math.max(0, (numberOr(params["totalTokens"]) ?? 0) - promptTokens),
+        inputTokens: numberOr(usage["inputTokens"]) ?? 0,
+        cachedTokens: numberOr(usage["cachedTokens"]) ?? 0,
+        cacheReadTokens: numberOr(usage["cacheReadTokens"]) ?? 0,
+        cacheWriteTokens: numberOr(usage["cacheWriteTokens"]) ?? 0,
+        reasoningTokens: numberOr(usage["reasoningTokens"]) ?? 0,
+        durationMs: numberOr(params["durationMs"]) ?? null,
+      });
       break;
     }
     case "session/modelChanged":
@@ -493,6 +562,10 @@ export function foldFromLoad(load: TranscriptLoad, previous?: ThreadFold | null)
     echoes: previous?.echoes ?? [],
     meta: {
       ...fold.meta,
+      // History pages carry no context readings; the session's own fill in until the next live one.
+      contextUsage:
+        fold.meta.contextUsage ?? (typeof load.msp?.contextUsage?.usedTokens === "number" ? load.msp.contextUsage : null),
+      tokenTotals: fold.meta.tokenTotals ?? (typeof load.msp?.tokenUsage?.totalTokens === "number" ? load.msp.tokenUsage : null),
       modelId: fold.meta.modelId ?? load.msp?.modelId ?? load.session?.modelId ?? null,
       approvalMode: fold.meta.approvalMode ?? (isApprovalMode(load.msp?.approvalMode) ? load.msp.approvalMode : null),
     },

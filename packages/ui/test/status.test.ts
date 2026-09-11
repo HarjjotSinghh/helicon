@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { applyEvent, emptyFold } from "../src/model/fold.js";
-import { groupByProject, groupByStatus, threadStatus, type SidebarEntry } from "../src/model/status.js";
+import { groupByProject, groupByStatus, settledEntries, threadStatus, type SidebarEntry } from "../src/model/status.js";
 import type { LiveView, ProjectView, SessionSummary } from "../src/types.js";
 
 const BASE = "2026-09-01T00:00:00.000Z";
@@ -18,6 +18,9 @@ function session(id: string, patch: Partial<SessionSummary> = {}, live: Partial<
     archived: false,
     createdAt: BASE,
     activityAt: "2026-09-02T00:00:00.000Z",
+    settled: false,
+    settledAt: null,
+    unsettledAt: null,
     live: live
       ? { activeTurnId: null, turnStartedAt: null, pendingApprovals: 0, pendingInputs: 0, lastTerminal: null, lastError: null, ...live }
       : null,
@@ -56,26 +59,33 @@ describe("sidebar grouping", () => {
     { cwd: "/work/b", displayName: "b", pinned: false, activityAt: BASE },
   ];
   const entries: SidebarEntry[] = [
-    { session: session("old", { activityAt: "2026-09-01T01:00:00.000Z" }), status: "idle" },
-    { session: session("new", { activityAt: "2026-09-04T00:00:00.000Z" }), status: "unread" },
-    { session: session("busy", { activityAt: "2026-09-01T00:30:00.000Z" }), status: "running" },
-    { session: session("ask", { activityAt: "2026-09-01T00:10:00.000Z" }), status: "approval" },
+    { session: session("old", { createdAt: "2026-09-01T01:00:00.000Z", activityAt: "2026-09-09T00:00:00.000Z" }), status: "idle" },
+    { session: session("new", { createdAt: "2026-09-04T00:00:00.000Z" }), status: "unread" },
+    { session: session("busy", { createdAt: "2026-09-01T00:30:00.000Z" }), status: "running" },
+    { session: session("back", { createdAt: "2026-08-01T00:00:00.000Z", unsettledAt: "2026-09-05T00:00:00.000Z" }), status: "idle" },
+    { session: session("shelved", { settled: true, settledAt: "2026-09-03T00:00:00.000Z" }), status: "idle" },
+    { session: session("shelved-earlier", { settled: true, settledAt: "2026-09-02T00:00:00.000Z" }), status: "idle" },
+    { session: session("woken", { settled: true, settledAt: "2026-09-02T00:00:00.000Z" }, { pendingApprovals: 1 }), status: "approval" },
     { session: session("other", { cwd: "/work/b" }), status: "idle" },
     { session: session("hidden-project", { cwd: "/work/hidden" }), status: "idle" },
   ];
 
-  it("groups by project with live threads first, then recency", () => {
+  it("keeps active threads in a stable order and shelves settled ones", () => {
     const groups = groupByProject(projects, entries);
     assert.deepEqual(groups.map((g) => g.project.cwd), ["/work/a", "/work/b"]);
-    assert.deepEqual(groups[0]?.entries.map((e) => e.session.sessionId), ["ask", "busy", "new", "old"]);
+    // Newest by start or return, never by activity: "old" keeps its place though it was busy last.
+    assert.deepEqual(groups[0]?.entries.map((e) => e.session.sessionId), ["back", "new", "old", "busy", "woken"]);
+    assert.deepEqual(groups[0]?.settled.map((e) => e.session.sessionId), ["shelved", "shelved-earlier"]);
     assert.equal(groups[0]?.attention, 1);
     assert.equal(groups[0]?.running, 1);
     assert.deepEqual(groups[1]?.entries.map((e) => e.session.sessionId), ["other"]);
   });
 
-  it("groups by status and drops empty groups", () => {
+  it("groups active threads by status and lists settled ones apart", () => {
     const groups = groupByStatus(entries.filter((e) => e.status !== "running"));
     assert.deepEqual(groups.map((g) => g.id), ["attention", "review", "idle"]);
-    assert.deepEqual(groups[2]?.entries.map((e) => e.session.sessionId), ["other", "hidden-project", "old"]);
+    assert.deepEqual(groups[0]?.entries.map((e) => e.session.sessionId), ["woken"]);
+    assert.deepEqual(groups[2]?.entries.map((e) => e.session.sessionId), ["back", "old", "other", "hidden-project"]);
+    assert.deepEqual(settledEntries(entries).map((e) => e.session.sessionId), ["shelved", "shelved-earlier"]);
   });
 });

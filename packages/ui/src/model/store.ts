@@ -47,6 +47,8 @@ export interface Prefs {
   sidebarWidth: number;
   sidebarCollapsed: boolean;
   collapsedProjects: string[];
+  /** Settled shelves the user opened: `project:<cwd>`, or `status` for the by-status view. */
+  openShelves: string[];
   /** When the user last viewed each thread (ISO). */
   lastSeen: Record<string, string>;
   /** Activity before the first launch is treated as already seen. */
@@ -69,6 +71,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     sidebarCollapsed: false,
     collapsedProjects: [],
+    openShelves: [],
     lastSeen: {},
     baseline: now,
     defaultMode: "onRequest",
@@ -161,6 +164,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     sidebarWidth: pick("sidebarWidth", (v) => typeof v === "number" && v >= 220 && v <= 480),
     sidebarCollapsed: pick("sidebarCollapsed", (v) => typeof v === "boolean"),
     collapsedProjects: pick("collapsedProjects", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
+    openShelves: pick("openShelves", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
     lastSeen: pick("lastSeen", (v) => typeof v === "object" && v !== null && !Array.isArray(v)),
     baseline: pick("baseline", (v) => typeof v === "string" && !Number.isNaN(Date.parse(v))),
     defaultMode: pick("defaultMode", (v) => v === "onRequest" || v === "promptUnmatched" || v === "denyUnmatched" || v === "allowAll"),

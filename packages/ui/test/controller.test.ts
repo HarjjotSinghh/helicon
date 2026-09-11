@@ -17,6 +17,9 @@ const SESSION: SessionSummary = {
   archived: false,
   createdAt: "2026-09-11T00:00:00.000Z",
   activityAt: "2026-09-11T00:00:00.000Z",
+  settled: false,
+  settledAt: null,
+  unsettledAt: null,
   live: null,
 };
 
@@ -48,6 +51,13 @@ class FakeClient implements HeliconClient {
   async addProject(cwd: string) {
     return { cwd, warning: null };
   }
+  async cloneProject(_url: string, path: string) {
+    return { cwd: path, warning: null };
+  }
+  async listDirectory(path: string) {
+    return { directory: path, parent: null, separator: "/" as const, exists: true, entries: [] };
+  }
+  async revealPath() {}
   async hideProject() {}
   async setPinned() {}
   async listSessions() {
