@@ -7,10 +7,9 @@ out/
 *.tsbuildinfo
 
 # Rust / Tauri
-target/
-src-tauri/target/
+**/target/
 src-tauri/gen/
-src-tauri/resources/
+**/src-tauri/resources/
 
 # Env / secrets — never commit real keys
 .env
