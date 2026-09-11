@@ -265,6 +265,29 @@ export interface ViewEvent {
   at?: number;
 }
 
+/** A file the user attached to a prompt, as the server kept it: Muse's own view carries metadata only. */
+export interface AttachmentView {
+  id: string;
+  turnId: string | null;
+  name: string;
+  mediaType: string;
+  kind: "image" | "file";
+  width: number | null;
+  height: number | null;
+  /** Where the bytes are served from, relative to the server. */
+  url: string;
+}
+
+/** A file on its way out with a prompt. */
+export interface OutgoingAttachment {
+  name: string;
+  mediaType: string;
+  /** The file's bytes, base64 without a `data:` prefix. */
+  base64: string;
+  width?: number;
+  height?: number;
+}
+
 export interface TranscriptLoad {
   session: SessionSummary | null;
   msp: {
@@ -279,6 +302,8 @@ export interface TranscriptLoad {
   } | null;
   events: ViewEvent[];
   truncated: boolean;
+  /** Every file attached to this thread's prompts, in send order. */
+  attachments?: AttachmentView[];
   pending: { approvals: ApprovalRequest[]; userInputs: UserInputRequest[] };
   readOnly: boolean;
   readOnlyReason: string | null;

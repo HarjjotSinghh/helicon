@@ -16,7 +16,8 @@ import {
 } from "../../model/format.js";
 import { streamingSpeed, turnSpeeds, type TurnSpeed } from "../../model/usage.js";
 import type { ThreadState } from "../../model/store.js";
-import type { MspItem, UserInputAnswer } from "../../types.js";
+import type { AttachmentView, MspItem, UserInputAnswer } from "../../types.js";
+import { SentAttachments } from "../composer/attachments.js";
 import { CopyButton } from "../ui/Markdown.js";
 import { Tip } from "../ui/overlays.js";
 import { Button, Shimmer, Spinner, cn } from "../ui/primitives.js";
@@ -69,6 +70,15 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
   const answers = useMemo(() => answerMap(fold), [fold.settled]);
   const speeds = useMemo(() => turnSpeeds(fold), [fold.meta.calls, fold.turns, fold.activeTurnId]);
   const echoes = fold.echoes.filter((e) => e.disposition !== "queued");
+  // Files the server kept for this thread, grouped by the turn they were sent with.
+  const attachmentsByTurn = useMemo(() => {
+    const map: Record<string, AttachmentView[]> = {};
+    for (const file of thread.attachments ?? []) {
+      const key = file.turnId ?? "";
+      (map[key] ??= []).push(file);
+    }
+    return map;
+  }, [thread.attachments]);
   const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom({ initial: "instant", resize: "smooth" });
 
   // The dock below grows when a request or panel appears, which shrinks this viewport. Follow it down so the
@@ -113,6 +123,7 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
               turn={turn}
               gates={gates}
               answers={answers}
+              attachments={attachmentsByTurn}
               sessionId={props.sessionId}
               isLast={index === turns.length - 1}
               readOnly={thread.readOnly}
@@ -158,6 +169,7 @@ const TurnBlock = memo(
     turn: TurnView;
     gates: GateMap;
     answers: AnswerMap;
+    attachments: Record<string, AttachmentView[]>;
     sessionId: string;
     isLast: boolean;
     readOnly: boolean;
@@ -172,7 +184,9 @@ const TurnBlock = memo(
     const standalone = !turn.turnId && !turn.prompt;
     return (
       <article className="flex flex-col gap-3" aria-label="Turn">
-        {turn.prompt ? <PromptBubble item={turn.prompt} sentAt={sentTime(turn)} /> : null}
+        {turn.prompt ? (
+          <PromptBubble item={turn.prompt} sentAt={sentTime(turn)} files={props.attachments[turn.turnId ?? ""] ?? []} />
+        ) : null}
         {turn.running || standalone ? (
           <div className="flex flex-col gap-1.5">
             {turn.entries.map((item) => (
@@ -468,13 +482,15 @@ function TurnFooter(props: { turn: TurnView; speed: TurnSpeed | null }) {
   );
 }
 
-function PromptBubble(props: { item: MspItem; sentAt: number | null }) {
+function PromptBubble(props: { item: MspItem; sentAt: number | null; files?: AttachmentView[] }) {
   const text = props.item.displayText ?? props.item.text ?? "";
   const long = text.split("\n").length > 12 || text.length > 900;
   const [expanded, setExpanded] = useState(false);
+  const files = props.files ?? [];
   return (
     <div className="flex justify-end">
       <div className="group/prompt flex max-w-[85%] flex-col items-end gap-1">
+        {files.length > 0 ? <SentAttachments files={files} className="pb-0.5" /> : null}
         <div
           className={cn(
             "relative rounded-2xl rounded-tr-md bg-active px-4 py-2.5 text-md leading-relaxed whitespace-pre-wrap text-fg [overflow-wrap:anywhere]",
@@ -506,11 +522,15 @@ function PromptBubble(props: { item: MspItem; sentAt: number | null }) {
 }
 
 function PendingPrompt(props: { echo: LocalEcho }) {
+  const files = props.echo.attachments ?? [];
   return (
     <div className="enter-up flex flex-col items-end gap-1.5">
-      <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-active px-4 py-2.5 text-md leading-relaxed whitespace-pre-wrap text-fg opacity-75">
-        {props.echo.text}
-      </div>
+      {files.length > 0 ? <SentAttachments files={files} className="max-w-[85%] opacity-75" /> : null}
+      {props.echo.text ? (
+        <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-active px-4 py-2.5 text-md leading-relaxed whitespace-pre-wrap text-fg opacity-75">
+          {props.echo.text}
+        </div>
+      ) : null}
       <span className="flex items-center gap-1.5 text-2xs text-subtle">
         <Spinner size={9} />
         {props.echo.disposition === "steered" ? "Adding to the current turn" : "Sending"}

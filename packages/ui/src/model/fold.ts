@@ -33,12 +33,21 @@ export interface TurnInfo {
 }
 
 /** A prompt the user sent that the stream has not echoed back yet. */
+/** A file going out with a prompt that has not landed yet; `url` is a local object URL while it is in flight. */
+export interface EchoAttachment {
+  name: string;
+  mediaType: string;
+  kind: "image" | "file";
+  url: string | null;
+}
+
 export interface LocalEcho {
   localId: string;
   text: string;
   turnId: string | null;
   disposition: "sending" | "started" | "queued" | "steered";
   createdAt: number;
+  attachments?: EchoAttachment[];
 }
 
 /** One model call's usage, from its `session/tokenUsage` event. */

@@ -1,5 +1,6 @@
 import type {
   ApprovalMode,
+  AttachmentView,
   EnvironmentStatus,
   ModelOption,
   ProjectView,
@@ -102,6 +103,8 @@ export interface ThreadState {
   readOnlyReason: string | null;
   truncated: boolean;
   fold: ThreadFold;
+  /** Files sent with this thread's prompts; Muse's own view keeps metadata only. */
+  attachments: AttachmentView[];
 }
 
 export interface Toast {

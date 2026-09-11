@@ -38,7 +38,13 @@ function load(overrides: Partial<TranscriptLoad> = {}): TranscriptLoad {
 
 class FakeClient implements HeliconClient {
   handler: EventHandler | null = null;
-  sent: { sessionId: string; text: string; ifBusy?: string; displayText?: string }[] = [];
+  sent: {
+    sessionId: string;
+    text: string;
+    ifBusy?: string;
+    displayText?: string;
+    attachments?: { name: string; mediaType: string; base64: string }[];
+  }[] = [];
   actions: string[] = [];
   skills: SkillEntry[] = [];
   transcript: () => Promise<TranscriptLoad> = async () => load();
@@ -75,8 +81,18 @@ class FakeClient implements HeliconClient {
   async updateSession() {
     return SESSION;
   }
-  async sendTurn(sessionId: string, text: string, options?: { ifBusy?: string; displayText?: string }) {
-    this.sent.push({ sessionId, text, ifBusy: options?.ifBusy, displayText: options?.displayText });
+  async sendTurn(
+    sessionId: string,
+    text: string,
+    options?: { ifBusy?: string; displayText?: string; attachments?: { name: string; mediaType: string; base64: string }[] },
+  ) {
+    this.sent.push({
+      sessionId,
+      text,
+      ifBusy: options?.ifBusy,
+      displayText: options?.displayText,
+      attachments: options?.attachments,
+    });
     return this.sendResult();
   }
   async interruptTurn() {}
@@ -311,6 +327,26 @@ describe("HeliconController", () => {
     assert.equal(controller.store.get().toasts.at(-1)?.title, "Add the goal after /goal");
     assert.equal(await controller.continueGoal("s1", "Ship the release"), true);
     assert.equal(client.sent.at(-1)?.displayText, "Keep working on the goal");
+    stop();
+  });
+
+  it("sends attached files with a prompt, and shows them while it is in flight", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    const sent = await controller.send("look at this", {
+      attachments: [{ name: "shot.png", mediaType: "image/png", base64: "AAAB" }],
+      previews: [{ name: "shot.png", mediaType: "image/png", kind: "image", url: "blob:preview" }],
+    });
+    assert.equal(sent, true);
+    assert.deepEqual(client.sent.at(-1)?.attachments, [{ name: "shot.png", mediaType: "image/png", base64: "AAAB" }]);
+    assert.equal(controller.store.get().threads["s1"]?.fold.echoes.at(-1)?.attachments?.[0]?.url, "blob:preview");
+
+    assert.equal(
+      await controller.send("", { attachments: [{ name: "notes.pdf", mediaType: "application/pdf", base64: "AAAC" }] }),
+      true,
+      "a file with no text still sends",
+    );
+    assert.equal(await controller.send(""), false, "nothing to send is still nothing");
     stop();
   });
 

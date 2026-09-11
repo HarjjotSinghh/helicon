@@ -131,6 +131,7 @@ export class WebHeliconClient implements HeliconClient {
       ifBusy: options?.ifBusy,
       reasoningEffort: options?.reasoningEffort,
       displayText: options?.displayText,
+      attachments: options?.attachments,
     });
     return { turnId: result.turnId ?? null, disposition: typeof result.disposition === "string" ? result.disposition : null };
   }

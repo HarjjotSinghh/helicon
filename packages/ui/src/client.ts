@@ -4,6 +4,7 @@ import type {
   HeliconEvent,
   IfBusy,
   ModelOption,
+  OutgoingAttachment,
   ProjectView,
   ReasoningEffort,
   SessionSummary,
@@ -42,6 +43,8 @@ export interface TurnOptions {
   reasoningEffort?: ReasoningEffort;
   /** What the transcript shows in place of the text the model gets, like `/plan tidy the API`. */
   displayText?: string;
+  /** Files the user attached: images reach the model, anything else lands in the workspace as a mention. */
+  attachments?: OutgoingAttachment[];
 }
 
 export interface ApprovalDecisionInput {

@@ -22,6 +22,32 @@ describe("HeliconStore", () => {
     assert.equal(sessions[0]?.id, "s1");
   });
 
+  it("keeps the bytes of files sent with a prompt", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/p");
+    store.recordSession({ id: "s1", projectId: project.id });
+    const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const saved = store.addAttachment({
+      id: "a1",
+      sessionId: "s1",
+      turnId: "t1",
+      ord: 0,
+      name: "shot.png",
+      mediaType: "image/png",
+      kind: "image",
+      width: 10,
+      height: 20,
+      bytes,
+    });
+    assert.equal(saved.name, "shot.png");
+    assert.equal(saved.kind, "image");
+    assert.equal(saved.turnId, "t1");
+    assert.deepEqual(store.listAttachments("s1").map((a) => a.id), ["a1"]);
+    assert.deepEqual(store.readAttachment("a1")?.bytes, bytes);
+    assert.equal(store.readAttachment("missing"), null);
+  });
+
   it("never lets a weaker title source overwrite a stronger one", () => {
     const store = new HeliconStore();
     after(() => store.close());

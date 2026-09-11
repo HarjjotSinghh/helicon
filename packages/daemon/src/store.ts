@@ -114,8 +114,22 @@ CREATE TABLE IF NOT EXISTS turns (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS attachments (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  turn_id TEXT,
+  ord INTEGER NOT NULL DEFAULT 0,
+  name TEXT NOT NULL,
+  media_type TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'image',
+  width INTEGER,
+  height INTEGER,
+  bytes BLOB NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
 CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_session ON attachments(session_id, turn_id);
 `;
 
 /** Columns added after the first release; applied in place so existing databases keep their data. */
@@ -134,6 +148,48 @@ const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
 ];
 
 type Row = Record<string, string | number | null>;
+
+/** A file the user attached to a prompt. `kind` is "image" when Muse saw it, "file" when it went to the workspace. */
+export interface AttachmentRecord {
+  id: string;
+  sessionId: string;
+  turnId: string | null;
+  ord: number;
+  name: string;
+  mediaType: string;
+  kind: "image" | "file";
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+}
+
+export interface AddAttachmentInput {
+  id: string;
+  sessionId: string;
+  turnId: string | null;
+  ord: number;
+  name: string;
+  mediaType: string;
+  kind: "image" | "file";
+  width?: number | null;
+  height?: number | null;
+  bytes: Uint8Array;
+}
+
+function toAttachment(row: Row): AttachmentRecord {
+  return {
+    id: String(row["id"]),
+    sessionId: String(row["session_id"]),
+    turnId: row["turn_id"] === null ? null : String(row["turn_id"]),
+    ord: Number(row["ord"] ?? 0),
+    name: String(row["name"]),
+    mediaType: String(row["media_type"]),
+    kind: row["kind"] === "file" ? "file" : "image",
+    width: row["width"] === null ? null : Number(row["width"]),
+    height: row["height"] === null ? null : Number(row["height"]),
+    createdAt: String(row["created_at"]),
+  };
+}
 
 export class HeliconStore {
   private readonly db: DatabaseSync;
@@ -195,6 +251,61 @@ export class HeliconStore {
     this.db
       .prepare(`UPDATE projects SET hidden = ?, updated_at = ? WHERE cwd = ?`)
       .run(hidden ? 1 : 0, nowIso(), cwd);
+  }
+
+  /**
+   * Files the user attached to a prompt. Muse keeps only their metadata on the view, so the bytes live here
+   * and a reopened thread can still show what was sent.
+   */
+  addAttachment(input: AddAttachmentInput): AttachmentRecord {
+    this.db
+      .prepare(
+        `INSERT INTO attachments (id, session_id, turn_id, ord, name, media_type, kind, width, height, bytes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.id,
+        input.sessionId,
+        input.turnId ?? null,
+        input.ord,
+        input.name,
+        input.mediaType,
+        input.kind,
+        input.width ?? null,
+        input.height ?? null,
+        input.bytes,
+        nowIso(),
+      );
+    return this.getAttachment(input.id) as AttachmentRecord;
+  }
+
+  listAttachments(sessionId: string): AttachmentRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, session_id, turn_id, ord, name, media_type, kind, width, height, created_at
+         FROM attachments WHERE session_id = ? ORDER BY created_at, ord`,
+      )
+      .all(sessionId) as Row[];
+    return rows.map((row) => toAttachment(row));
+  }
+
+  getAttachment(id: string): AttachmentRecord | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, session_id, turn_id, ord, name, media_type, kind, width, height, created_at
+         FROM attachments WHERE id = ?`,
+      )
+      .get(id) as Row | undefined;
+    return row ? toAttachment(row) : null;
+  }
+
+  /** The stored bytes, for serving one attachment back to the UI. */
+  readAttachment(id: string): { record: AttachmentRecord; bytes: Uint8Array } | null {
+    const row = this.db.prepare(`SELECT * FROM attachments WHERE id = ?`).get(id) as (Row & { bytes?: unknown }) | undefined;
+    if (!row || !(row.bytes instanceof Uint8Array)) {
+      return null;
+    }
+    return { record: toAttachment(row), bytes: row.bytes };
   }
 
   recordSession(input: RecordSessionInput): SessionRecord {

@@ -530,6 +530,40 @@ describe("slash commands, skills and shell", () => {
     assert.deepEqual(ids, ["s1", "s2"]);
   });
 
+  it("sends an attached image to the model and serves it back", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    connection.replies.set("turn/start", { turnId: "t1", status: "accepted", disposition: "started" });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const png = Buffer.from("89504e470d0a1a0a", "hex").toString("base64");
+
+    const sent = await send(base, "/api/turns", {
+      sessionId: "s1",
+      text: "what is this?",
+      attachments: [{ name: "shot.png", mediaType: "image/png", base64: png, width: 10, height: 20 }],
+    });
+    assert.equal(sent.status, 200);
+    const turn = connection.calls.find((c) => c.method === "turn/start");
+    assert.deepEqual(turn?.params?.["input"], [
+      { type: "text", text: "what is this?" },
+      { type: "image", base64Data: png, mediaType: "image/png", width: 10, height: 20 },
+    ]);
+
+    const loaded = await send(base, "/api/sessions/s1/resume", {});
+    const file = loaded.json.attachments[0];
+    assert.equal(file.name, "shot.png");
+    assert.equal(file.kind, "image");
+    assert.equal(file.turnId, "t1");
+    const served = await fetch(`${base}${file.url}`);
+    assert.equal(served.status, 200);
+    assert.equal(served.headers.get("content-type"), "image/png");
+    assert.equal(Buffer.from(await served.arrayBuffer()).toString("base64"), png);
+
+    const empty = await send(base, "/api/turns", { sessionId: "s1" });
+    assert.equal(empty.status, 400, "a message with neither text nor a file is refused");
+  });
+
   it("lets Muse's own name replace a title derived from a /skill prompt", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });

@@ -2,7 +2,9 @@ import { errorKind, errorMessage, type HeliconClient } from "../client.js";
 import type {
   ApprovalMode,
   ApprovalRequest,
+  AttachmentView,
   HeliconEvent,
+  OutgoingAttachment,
   ReasoningEffort,
   SessionSummary,
   SkillEntry,
@@ -30,6 +32,7 @@ import {
   foldFromLoad,
   removeEcho,
   updateEcho,
+  type EchoAttachment,
   type LocalEcho,
   type ThreadFold,
 } from "./fold.js";
@@ -128,13 +131,26 @@ export function hashToRoute(hash: string): Route {
 }
 
 function blankThread(): ThreadState {
-  return { load: "idle", error: null, readOnly: false, readOnlyReason: null, truncated: false, fold: emptyFold() };
+  return { load: "idle", error: null, readOnly: false, readOnlyReason: null, truncated: false, fold: emptyFold(), attachments: [] };
 }
 
 let localSeq = 0;
 function nextLocalId(): string {
   localSeq += 1;
   return `local-${Date.now().toString(36)}-${localSeq}`;
+}
+
+/** What a prompt carries beyond its text: files for the model, and their local previews for the echo. */
+interface TurnDelivery {
+  steer?: boolean;
+  displayText?: string;
+  attachments?: OutgoingAttachment[];
+  previews?: EchoAttachment[];
+}
+
+export interface SendOptions extends TurnDelivery {
+  /** Send the text as a prompt even when it looks like a slash command. */
+  raw?: boolean;
 }
 
 const FLUSH_MS = 24;
@@ -411,6 +427,7 @@ export class HeliconController {
             readOnlyReason: load.readOnlyReason,
             truncated: load.truncated,
             fold,
+            attachments: load.attachments ?? [],
           },
         },
         sessions: load.session ? { ...s.sessions, [sessionId]: load.session } : s.sessions,
@@ -524,12 +541,13 @@ export class HeliconController {
    * Send from the composer. `/commands` and `!shell` lines run as themselves; `raw` sends the text as a plain prompt.
    * Returns false when the sending composer should put the text back.
    */
-  async send(text: string, options: { steer?: boolean; raw?: boolean } = {}): Promise<boolean> {
+  async send(text: string, options: SendOptions = {}): Promise<boolean> {
     const trimmed = text.trim();
-    if (!trimmed) {
+    const files = options.attachments ?? [];
+    if (!trimmed && files.length === 0) {
       return false;
     }
-    if (!options.raw) {
+    if (!options.raw && trimmed) {
       const shell = /^!\s*([\s\S]+)$/.exec(trimmed);
       if (shell) {
         return this.runShell((shell[1] as string).trim());
@@ -539,7 +557,7 @@ export class HeliconController {
         return this.runSlash(trimmed, parsed, { steer: options.steer });
       }
     }
-    return this.deliver(trimmed, { steer: options.steer });
+    return this.deliver(trimmed, { steer: options.steer, attachments: files, previews: options.previews });
   }
 
   /** The project a new thread starts in: the new-thread screen's, else the last one used. */
@@ -555,7 +573,7 @@ export class HeliconController {
   }
 
   /** Sends a prompt to the open thread, or starts a thread with it. */
-  private deliver(text: string, options: { steer?: boolean; displayText?: string }): Promise<boolean> {
+  private deliver(text: string, options: TurnDelivery): Promise<boolean> {
     const route = this.state.route;
     if (route.kind === "thread") {
       return this.sendToThread(route.sessionId, text, options, false);
@@ -604,7 +622,15 @@ export class HeliconController {
         sessions: { ...s.sessions, [session.sessionId]: session },
         threads: {
           ...s.threads,
-          [session.sessionId]: { load: "ready", error: null, readOnly: false, readOnlyReason: null, truncated: false, fold },
+          [session.sessionId]: {
+            load: "ready",
+            error: null,
+            readOnly: false,
+            readOnlyReason: null,
+            truncated: false,
+            fold,
+            attachments: [],
+          },
         },
       }));
       this.setPrefs({ lastProject: cwd });
@@ -626,7 +652,7 @@ export class HeliconController {
   private async sendToThread(
     sessionId: string,
     text: string,
-    options: { steer?: boolean; displayText?: string },
+    options: TurnDelivery,
     retried: boolean,
   ): Promise<boolean> {
     const thread = this.state.threads[sessionId];
@@ -645,6 +671,7 @@ export class HeliconController {
       turnId: null,
       disposition: running ? (options.steer ? "steered" : "queued") : "sending",
       createdAt: this.platform.now(),
+      ...(options.previews?.length ? { attachments: options.previews } : {}),
     };
     this.patchFold(sessionId, (f) => addEcho(f, echo));
     try {
@@ -652,6 +679,7 @@ export class HeliconController {
         ifBusy: running ? (options.steer ? "steer" : "queue") : undefined,
         reasoningEffort: this.state.prefs.effort ?? undefined,
         displayText: options.displayText,
+        attachments: options.attachments,
       });
       const disposition: LocalEcho["disposition"] =
         ack.disposition === "queued" ? "queued" : ack.disposition === "steered" ? "steered" : "started";

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdir, readFile, readdir, stat } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { extname, join, normalize, posix, resolve, sep, win32 } from "node:path";
 import {
@@ -19,10 +20,12 @@ import {
   toWslPath,
   toWindowsPath,
   type ApprovalMode,
+  type AttachmentRecord,
   type CommandConnection,
   type ExecFn,
   type ServeTarget,
   type SessionRecord,
+  type TurnImage,
 } from "@helicon/daemon";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
@@ -248,6 +251,16 @@ function normalizeCwd(value: string): string {
   return trimmed.replace(/[\\/]+$/, "");
 }
 
+/** A name safe to write into a workspace: the base name only, and nothing that needs quoting. */
+export function safeFileName(raw: string | null): string {
+  const base = (raw ?? "").split(/[\\/]/).pop() ?? "";
+  const clean = base
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^[-.]+|-+$/g, "")
+    .slice(0, 80);
+  return clean.length > 0 ? clean : "file";
+}
+
 /** First meaningful line of the opening prompt, capped for the sidebar. */
 export function deriveTitle(text: string): string | null {
   const line = text
@@ -441,6 +454,22 @@ export function stripFrontmatter(text: string): string {
 
 const SKILL_CACHE_MS = 60_000;
 
+/** Attachment limits: enough for a screenshot or a PDF, not enough to wedge the host. */
+const MAX_ATTACHMENTS = 10;
+const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;
+const MAX_BODY_BYTES = 96 * 1024 * 1024;
+/** Where a non-image attachment lands inside the workspace, so Muse's own tools can open it. */
+const ATTACHMENT_DIR = [".helicon", "attachments"];
+
+interface PreparedAttachment {
+  name: string;
+  mediaType: string;
+  kind: "image" | "file";
+  width: number | null;
+  height: number | null;
+  bytes: Buffer;
+}
+
 export class HeliconServer {
   private readonly server: Server;
   private readonly store: HeliconStore;
@@ -586,7 +615,12 @@ export class HeliconServer {
 
   private async readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
     const chunks: Buffer[] = [];
+    let size = 0;
     for await (const chunk of req) {
+      size += (chunk as Buffer).length;
+      if (size > MAX_BODY_BYTES) {
+        throw new HttpError(413, "That request is too large.");
+      }
       chunks.push(chunk as Buffer);
     }
     const text = Buffer.concat(chunks).toString("utf8").trim();
@@ -858,12 +892,27 @@ export class HeliconServer {
       }
     }
 
+    const attachmentMatch = path.match(/^\/api\/attachments\/([A-Za-z0-9-]{1,64})$/);
+    if (method === "GET" && attachmentMatch) {
+      const found = this.store.readAttachment(attachmentMatch[1] as string);
+      if (!found) {
+        throw new HttpError(404, "No such attachment.");
+      }
+      res.writeHead(200, {
+        "content-type": found.record.mediaType,
+        "content-length": String(found.bytes.length),
+        "cache-control": "private, max-age=86400",
+      });
+      res.end(Buffer.from(found.bytes));
+      return true;
+    }
     if (method === "POST" && path === "/api/turns") {
       const body = await this.readBody(req);
       const sessionId = str(body["sessionId"]);
-      const text = str(body["text"]);
-      if (!sessionId || !text) {
-        throw new HttpError(400, "sessionId and text are required.");
+      const text = str(body["text"]) ?? "";
+      const files = Array.isArray(body["attachments"]) ? body["attachments"] : [];
+      if (!sessionId || (!text && files.length === 0)) {
+        throw new HttpError(400, "sessionId and either text or an attachment are required.");
       }
       const ifBusy = body["ifBusy"];
       if (ifBusy !== undefined && ifBusy !== null && !isIfBusy(ifBusy)) {
@@ -874,11 +923,27 @@ export class HeliconServer {
         throw new HttpError(400, "Unknown reasoningEffort.");
       }
       const manager = await this.managerForSession(sessionId);
+      const prepared = await this.prepareAttachments(this.store.findSession(sessionId)?.cwd ?? "", files);
       this.wake(sessionId);
-      const ack = await manager.sendTurn(sessionId, text, {
+      const ack = await manager.sendTurn(sessionId, prepared.prompt(text), {
         displayText: str(body["displayText"]) ?? undefined,
         ifBusy: typeof ifBusy === "string" ? ifBusy : undefined,
         reasoningEffort: typeof effort === "string" ? effort : undefined,
+        images: prepared.images,
+      });
+      prepared.files.forEach((file, index) => {
+        this.store.addAttachment({
+          id: randomUUID(),
+          sessionId,
+          turnId: ack.turnId,
+          ord: index,
+          name: file.name,
+          mediaType: file.mediaType,
+          kind: file.kind,
+          width: file.width,
+          height: file.height,
+          bytes: file.bytes,
+        });
       });
       this.store.updateSession(sessionId, { activityAt: nowIso() });
       this.json(res, 200, { turnId: ack.turnId, status: ack.status, disposition: ack.disposition });
@@ -1382,6 +1447,96 @@ export class HeliconServer {
     return this.summary(record, cwd);
   }
 
+  /**
+   * Files posted with a prompt. Images are the one non-text part MSP takes, so they go straight to the model;
+   * anything else is written into the workspace under `.helicon/attachments` and mentioned in the prompt,
+   * which is how Muse reaches a file. Every one is kept here too, so a reopened thread can show it.
+   */
+  private async prepareAttachments(
+    cwd: string,
+    raw: unknown[],
+  ): Promise<{ images: TurnImage[]; files: PreparedAttachment[]; prompt: (text: string) => string }> {
+    const mentions: string[] = [];
+    const images: TurnImage[] = [];
+    const files: PreparedAttachment[] = [];
+    if (raw.length > MAX_ATTACHMENTS) {
+      throw new HttpError(400, `A message takes at most ${MAX_ATTACHMENTS} files.`);
+    }
+    for (const entry of raw) {
+      const record = asRecord(entry);
+      const base64 = record ? str(record["base64"]) : null;
+      const mediaType = record ? str(record["mediaType"]) : null;
+      if (!record || !base64 || !mediaType) {
+        throw new HttpError(400, "Each attachment needs a name, a mediaType and base64 bytes.");
+      }
+      const name = safeFileName(str(record["name"]));
+      const bytes = Buffer.from(base64, "base64");
+      if (bytes.length === 0) {
+        throw new HttpError(400, `${name} has no content.`);
+      }
+      if (bytes.length > MAX_ATTACHMENT_BYTES) {
+        throw new HttpError(413, `${name} is over ${Math.round(MAX_ATTACHMENT_BYTES / 1024 / 1024)} MB.`);
+      }
+      const width = num(record["width"]) ?? null;
+      const height = num(record["height"]) ?? null;
+      if (mediaType.startsWith("image/")) {
+        images.push({
+          base64Data: base64,
+          mediaType,
+          ...(width !== null && height !== null ? { width, height } : {}),
+        });
+        files.push({ name, mediaType, kind: "image", width, height, bytes });
+        continue;
+      }
+      if (!cwd) {
+        throw new HttpError(400, `${name} needs a workspace to land in.`);
+      }
+      const written = await this.writeIntoWorkspace(cwd, name, bytes);
+      mentions.push(`@${[...ATTACHMENT_DIR, written].join("/")}`);
+      files.push({ name: written, mediaType, kind: "file", width, height, bytes });
+    }
+    return {
+      images,
+      files,
+      prompt: (text: string) => [text, ...mentions].filter((part) => part.length > 0).join("\n\n"),
+    };
+  }
+
+  /** Writes an attached file into the workspace, keeping its name unless one is already taken. */
+  private async writeIntoWorkspace(cwd: string, name: string, bytes: Buffer): Promise<string> {
+    const directory = join(cwd, ...ATTACHMENT_DIR);
+    await mkdir(directory, { recursive: true });
+    const dot = name.lastIndexOf(".");
+    const stem = dot > 0 ? name.slice(0, dot) : name;
+    const suffix = dot > 0 ? name.slice(dot) : "";
+    let candidate = name;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const taken = await stat(join(directory, candidate)).then(
+        () => true,
+        () => false,
+      );
+      if (!taken) {
+        break;
+      }
+      candidate = `${stem}-${attempt + 2}${suffix}`;
+    }
+    await writeFile(join(directory, candidate), bytes);
+    return candidate;
+  }
+
+  private attachmentView(record: AttachmentRecord): Record<string, unknown> {
+    return {
+      id: record.id,
+      turnId: record.turnId,
+      name: record.name,
+      mediaType: record.mediaType,
+      kind: record.kind,
+      width: record.width,
+      height: record.height,
+      url: `/api/attachments/${record.id}`,
+    };
+  }
+
   private async loadTranscript(sessionId: string): Promise<Record<string, unknown>> {
     // A goal change can land while this load is in flight; history must not then write the older goal back.
     const goalSeqAtStart = this.liveFor(sessionId).goalSeq;
@@ -1482,6 +1637,7 @@ export class HeliconServer {
         : null,
       events,
       truncated,
+      attachments: this.store.listAttachments(sessionId).map((record) => this.attachmentView(record)),
       pending: { approvals, userInputs },
       readOnly,
       readOnlyReason,
