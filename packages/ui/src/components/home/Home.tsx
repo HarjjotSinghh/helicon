@@ -81,7 +81,7 @@ function ProjectSwitcher(props: { project: ProjectView; projects: ProjectView[] 
           <ChevronDown size={22} strokeWidth={1.75} className="translate-y-[3px] self-center" aria-hidden="true" />
         </button>
       </MenuTrigger>
-      <MenuContent className="max-h-[50vh] w-[320px] overflow-y-auto">
+      <MenuContent className="w-[320px]">
         <MenuRadioGroup value={props.project.cwd} onValueChange={(cwd) => controller.newThread(cwd)}>
           {props.projects.map((p) => (
             <MenuOption

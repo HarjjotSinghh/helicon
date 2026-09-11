@@ -223,8 +223,10 @@ const ToolbarTrigger = forwardRef<
   );
 });
 
-function ContributorBadge() {
-  return <span className="shrink-0 rounded-[5px] bg-warn-soft px-1 py-px text-2xs font-medium text-warn-text">Contributor</span>;
+/** Marks contributor-tier models. In menus the option's description explains it; elsewhere a tooltip does. */
+function ContributorBadge(props: { tip?: boolean }) {
+  const badge = <span className="shrink-0 rounded-[5px] bg-warn-soft px-1 py-px text-2xs font-medium text-warn-text">Contributor</span>;
+  return props.tip ? <Tip label="Your chats may be used to improve Meta's products">{badge}</Tip> : badge;
 }
 
 function ModelPicker(props: { sessionId: string | null }) {
@@ -246,7 +248,11 @@ function ModelPicker(props: { sessionId: string | null }) {
           label={
             <>
               <span className="truncate">{modelDisplayName(current)}</span>
-              {contributor ? <span className="ml-1.5"><ContributorBadge /></span> : null}
+              {contributor ? (
+                <span className="ml-1.5">
+                  <ContributorBadge tip />
+                </span>
+              ) : null}
             </>
           }
         />

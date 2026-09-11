@@ -28,7 +28,7 @@ export function Tip(props: {
           align={props.align ?? "center"}
           sideOffset={6}
           collisionPadding={8}
-          className="pop z-[var(--z-tooltip)] flex max-w-[320px] items-center gap-2 rounded-md bg-inverse px-2 py-1 text-xs font-medium text-inverse-fg"
+          className="pop z-[var(--z-tooltip)] flex max-w-[360px] items-center gap-2 rounded-md bg-inverse px-2 py-1 text-xs font-medium text-inverse-fg"
         >
           {props.label}
           {props.shortcut ? <Shortcut keys={props.shortcut} className="opacity-80 [&_kbd]:border-transparent [&_kbd]:bg-white/15 [&_kbd]:text-inverse-fg" /> : null}
@@ -57,7 +57,8 @@ export function MenuContent(props: {
         sideOffset={props.sideOffset ?? 6}
         collisionPadding={8}
         className={cn(
-          "pop z-[var(--z-dropdown)] max-w-[min(360px,calc(100vw-16px))] min-w-[208px] rounded-xl bg-raised p-1 text-sm text-fg shadow-pop outline-none",
+          // Never taller than the room Radix measured on the side it opened, so long menus scroll instead of clipping.
+          "pop z-[var(--z-dropdown)] max-h-[var(--radix-dropdown-menu-content-available-height)] max-w-[min(360px,calc(100vw-16px))] min-w-[208px] overflow-y-auto rounded-xl bg-raised p-1 text-sm text-fg shadow-pop outline-none",
           props.className,
         )}
       >
