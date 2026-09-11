@@ -10,7 +10,7 @@ Developers who run Meta's Muse Code CLI and want a Codex, Claude desktop or T3 C
 
 ## Product Purpose
 
-Helicon is an unofficial desktop and web client for `muse serve`. It groups every thread by the project it ran in, shows which threads are working, waiting on the user, finished or failed, and lets the user resume any session, including ones started from the terminal TUI. Success means the user never has to open the TUI to find, read, approve, or continue agent work, and never loses track of a thread that is waiting on them.
+Helicon is a desktop and web client for `muse serve`. It groups every thread by the project it ran in, shows which threads are working, waiting on the user, finished or failed, and lets the user resume any session, including ones started from the terminal TUI. Success means the user never has to open the TUI to find, read, approve, or continue agent work, and never loses track of a thread that is waiting on them.
 
 ## Brand Personality
 
