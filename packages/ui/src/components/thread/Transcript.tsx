@@ -1,4 +1,4 @@
-import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square, SquareTerminal } from "lucide-react";
+import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square, SquarePen, SquareTerminal } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { useApp, useController, useNow } from "../../app/context.js";
@@ -241,6 +241,7 @@ const TurnBlock = memo(
             sessionId={props.sessionId}
             turnId={turn.turnId}
             readOnly={props.readOnly}
+            hadAttachments={(props.attachments[turn.turnId ?? ""] ?? []).length > 0}
           />
         ) : null}
         {cancelled ? (
@@ -616,10 +617,12 @@ function TurnError(props: {
   sessionId: string;
   turnId: string | null;
   readOnly: boolean;
+  /** Whether the failed turn carried files of its own, which the provider rejects in the same words. */
+  hadAttachments: boolean;
 }) {
   const controller = useController();
   // Some failures are about the thread, not the turn: retrying sends the same history and fails the same way.
-  const stuck = stuckThread(props.message);
+  const stuck = stuckThread(props.message, { ownAttachments: props.hadAttachments });
   return (
     <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-3.5 py-3" role="alert">
       <CircleAlert size={16} className="mt-0.5 shrink-0 text-danger" />
@@ -628,16 +631,35 @@ function TurnError(props: {
         <p className="mt-0.5 text-sm break-words text-muted">{stuck ? stuck.message : props.message}</p>
         {stuck ? <p className="mt-1 text-2xs break-words text-subtle">{props.message}</p> : null}
       </div>
-      {stuck && !props.readOnly ? (
-        <Tip label="Summarize the history, leave behind what cannot be sent, and carry on">
+      {stuck && stuck.remedy !== "none" && !props.readOnly ? (
+        <Tip
+          label={
+            stuck.remedy === "compact"
+              ? "Summarize the history, leave behind what cannot be sent, and carry on"
+              : "Start a thread beside this one, without the history that cannot be sent"
+          }
+        >
           <Button
             size="sm"
             onClick={() => {
+              const prompt = props.retryable ? props.prompt : null;
               controller.dismissTurnError(props.sessionId, props.turnId);
-              void controller.compactAndRetry(props.sessionId, props.retryable ? props.prompt : null);
+              if (stuck.remedy === "compact") {
+                void controller.compactAndRetry(props.sessionId, prompt);
+              } else {
+                void controller.freshThread(props.sessionId, prompt);
+              }
             }}
           >
-            <RotateCcw size={13} /> {props.prompt && props.retryable ? "Compact and retry" : "Compact this thread"}
+            {stuck.remedy === "compact" ? (
+              <>
+                <RotateCcw size={13} /> {props.prompt && props.retryable ? "Compact and retry" : "Compact this thread"}
+              </>
+            ) : (
+              <>
+                <SquarePen size={13} /> Start a fresh thread
+              </>
+            )}
           </Button>
         </Tip>
       ) : props.prompt && props.retryable ? (

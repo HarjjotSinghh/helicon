@@ -8,6 +8,7 @@ describe("stuck threads", () => {
       "API error 400 [request_id=f5e4]: invalid image data at input[59].content[1]: the `image/png` payload could not be decoded (it may be corrupt or truncated). (invalid_request_error)",
     );
     assert.equal(found?.kind, "image");
+    assert.equal(found?.remedy, "compact");
     assert.match(found?.message ?? "", /Compacting/);
   });
 
@@ -16,6 +17,18 @@ describe("stuck threads", () => {
       "provider-private history is incompatible with the active route: reasoning replay `rs_6aa475:rs_01a0926c` has no provider attribution after a provider switch; start a fresh turn without opaque reasoning history",
     );
     assert.equal(found?.kind, "reasoning");
+    // Compacting keeps the recent turns as they are, so the unusable reasoning survives it: seen live.
+    assert.equal(found?.remedy, "fresh");
+    assert.match(found?.message ?? "", /new thread/i);
+  });
+
+  it("does not blame the history for the image just sent", () => {
+    const message = "API error 400: invalid image data at input[3].content[1]: the `image/png` payload could not be decoded.";
+    const own = stuckThread(message, { ownAttachments: true });
+    assert.equal(own?.kind, "image");
+    assert.equal(own?.remedy, "none", "compacting would drop the file and retry the prompt without it");
+    assert.match(own?.message ?? "", /sent with this message/);
+    assert.equal(stuckThread(message, { ownAttachments: false })?.remedy, "compact");
   });
 
   it("leaves an ordinary failure alone", () => {

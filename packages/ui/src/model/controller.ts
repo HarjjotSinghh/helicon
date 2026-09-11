@@ -575,10 +575,11 @@ export class HeliconController {
       }
       const parsed = parseSlash(trimmed);
       if (parsed) {
-        return this.runSlash(trimmed, parsed, { steer: options.steer });
+        // `queue` rides along: a retry after compaction has to wait for it, slash command or not.
+        return this.runSlash(trimmed, parsed, { steer: options.steer, queue: options.queue });
       }
     }
-    return this.deliver(trimmed, { steer: options.steer, attachments: files, previews: options.previews });
+    return this.deliver(trimmed, { steer: options.steer, queue: options.queue, attachments: files, previews: options.previews });
   }
 
   /** The project a new thread starts in: the new-thread screen's, else the last one used. */
@@ -1279,7 +1280,7 @@ export class HeliconController {
     return this.sendToThread(sessionId, text, { displayText: `Shared the output of \`${run.command}\`` }, false);
   }
 
-  private async runSlash(typed: string, parsed: ParsedSlash, options: { steer?: boolean }): Promise<boolean> {
+  private async runSlash(typed: string, parsed: ParsedSlash, options: { steer?: boolean; queue?: boolean }): Promise<boolean> {
     const route = this.state.route;
     const cwd = this.composerCwd();
     // A skill typed before the workspace's skills arrived waits for them instead of reading as unknown;
@@ -1381,7 +1382,7 @@ export class HeliconController {
     args: string,
     typed: string,
     cwd: string | null,
-    options: { steer?: boolean },
+    options: { steer?: boolean; queue?: boolean },
   ): Promise<boolean> {
     let body: string | null = null;
     if (skill.activation === "user-invocable-only") {
@@ -1459,6 +1460,23 @@ export class HeliconController {
    * For a thread whose history the provider will not take: summarize it, which leaves the unusable part
    * behind, then send the prompt again. The retry queues behind the compaction Muse runs as its own turn.
    */
+  /**
+   * For a thread whose stored reasoning cannot be replayed at all: start one beside it in the same project
+   * and send the prompt there. Compacting keeps the recent turns as they are, so it cannot clear that.
+   */
+  async freshThread(sessionId: string, prompt: string | null): Promise<boolean> {
+    const cwd = this.state.sessions[sessionId]?.cwd ?? null;
+    if (!cwd) {
+      this.toast("error", "Could not start a new thread", "That thread's project is not known here.");
+      return false;
+    }
+    if (!prompt) {
+      this.newThread(cwd);
+      return true;
+    }
+    return this.startThread(cwd, prompt, (fresh) => this.sendToThread(fresh, prompt, {}, false));
+  }
+
   async compactAndRetry(sessionId: string, prompt: string | null): Promise<void> {
     // Only a compaction Muse took on changes the history: after a refusal or a noop, the prompt would fail
     // exactly as before. The retry queues behind the compaction turn, which may not have reached us yet.

@@ -366,6 +366,15 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("starts a thread beside one whose reasoning cannot be replayed", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.freshThread("s1", "pick this up again"), true);
+    assert.equal(client.sent.at(-1)?.text, "pick this up again");
+    assert.equal(controller.store.get().route.kind, "thread");
+    stop();
+  });
+
   it("compacts a thread the provider will not take, then sends the prompt again", async () => {
     const client = new FakeClient();
     const { controller, stop } = await started(client);
