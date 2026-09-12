@@ -31,8 +31,10 @@ jobs:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
-      # tauri-build reads frontendDist out of tauri.conf.json, and that directory is built, not committed.
       - run: npm ci
-      - run: npm run build --workspace @helicon/ui
+      - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
       - run: npm run build --workspace @helicon/web
+      # tauri-build checks every path in bundle.resources before it compiles anything, and those are
+      # built rather than committed. This is what the release does through beforeBuildCommand.
+      - run: npm run bundle:server --workspace helicon-desktop
       - run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
