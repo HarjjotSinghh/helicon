@@ -1,6 +1,6 @@
 {
   "name": "@helicon/server",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Helicon local server: REST + SSE bridge between the shared UI and Muse MSP hosts",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
@@ -13,7 +13,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@helicon/daemon": "^0.7.0"
+    "@helicon/daemon": "^0.7.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

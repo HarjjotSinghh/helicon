@@ -62,7 +62,8 @@ function Section(props: { title: string; children: ReactNode }) {
 function Row(props: { label: string; description?: string; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-t border-line px-4 py-3 first:border-t-0">
-      <div className="min-w-0 flex-1">
+      {/* A floor on the label, or a wide row of choices squeezes it to one word per line instead of wrapping. */}
+      <div className="min-w-[13rem] flex-1 basis-64">
         <p className="text-sm text-fg">{props.label}</p>
         {props.description ? <p className="mt-0.5 text-xs text-pretty text-muted">{props.description}</p> : null}
       </div>
@@ -140,7 +141,9 @@ export function SettingsPage() {
                 value={prefs.defaultModelId}
                 options={models.map((model) => ({
                   value: model.modelId,
-                  label: modelDisplayName(model.modelId),
+                  // The contributor variants share a display name, so without this the list offers the same
+                  // word twice and there is no way to tell which button is which.
+                  label: model.contributor ? `${modelDisplayName(model.modelId)} · Contributor` : modelDisplayName(model.modelId),
                   hint: model.contributor ? "Contributor tier: prompts and outputs may be used for product improvement." : undefined,
                 }))}
                 onChange={(value) => void controller.setModel(value as string)}
