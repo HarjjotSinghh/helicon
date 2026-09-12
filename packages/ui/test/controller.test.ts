@@ -339,6 +339,30 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("remembers which dock cards a thread had folded away", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    const collapsed = () => controller.store.get().prefs.collapsedCards;
+    // Open by default, so a thread nobody has touched costs nothing to remember.
+    assert.deepEqual(collapsed(), []);
+
+    controller.setCardOpen("goal:s1", false);
+    assert.deepEqual(collapsed(), ["goal:s1"]);
+
+    // Another thread's card is its own business.
+    controller.setCardOpen("goal:s2", false);
+    assert.deepEqual(collapsed(), ["goal:s1", "goal:s2"]);
+
+    // Opening one again drops it rather than recording a second state for it.
+    controller.setCardOpen("goal:s1", true);
+    assert.deepEqual(collapsed(), ["goal:s2"]);
+
+    // Closing one that is already closed leaves the list alone.
+    controller.setCardOpen("goal:s2", false);
+    assert.deepEqual(collapsed(), ["goal:s2"]);
+    stop();
+  });
+
   it("marks a read-only thread and refuses to send into it", async () => {
     const client = new FakeClient();
     client.transcript = async () => load({ readOnly: true, readOnlyReason: "session is loaded by another host" });

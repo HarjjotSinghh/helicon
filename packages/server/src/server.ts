@@ -29,7 +29,7 @@ import {
 } from "@helicon/daemon";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
-export const HELICON_VERSION = "0.8.0";
+export const HELICON_VERSION = "0.8.1";
 
 export interface HostExit {
   code: number | null;
