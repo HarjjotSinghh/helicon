@@ -27,7 +27,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { AttachButton, AttachmentTray, readFiles, toOutgoing, toPreview, type PendingFile } from "./attachments.js";
+import { AttachButton, AttachmentTray, readFiles, restoreFiles, toOutgoing, toPreview, type PendingFile } from "./attachments.js";
 import { CostMeter } from "./CostPanel.js";
 import { Popover, Slider, Switch } from "radix-ui";
 import { shallowEqual, useApp, useController } from "../../app/context.js";
@@ -140,8 +140,11 @@ export function Composer(props: ComposerProps) {
   useEffect(() => {
     if (handoff) {
       const handed = controller.takeDraftHandoff(draftKey);
-      if (handed !== null) {
-        setText(handed);
+      if (handed) {
+        setText(handed.text);
+        if (handed.attachments?.length) {
+          setFiles(restoreFiles(handed.attachments, handed.previews ?? []));
+        }
       }
     }
   }, [handoff, draftKey, controller, setText]);

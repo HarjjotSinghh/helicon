@@ -613,17 +613,23 @@ export class HeliconController {
     if (!target) {
       return Promise.resolve(false);
     }
-    return this.startThread(target, options.displayText ?? text, (sessionId) => this.sendToThread(sessionId, text, options, false));
+    return this.startThread(
+      target,
+      options.displayText ?? text,
+      (sessionId) => this.sendToThread(sessionId, text, options, false),
+      { attachments: options.attachments, previews: options.previews },
+    );
   }
 
   /** Called by the composer showing `key`: takes back a prompt that failed to send from elsewhere. */
-  takeDraftHandoff(key: string): string | null {
+  takeDraftHandoff(key: string): { text: string; attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } | null {
     const handoff = this.state.draftHandoff;
     if (!handoff || handoff.key !== key) {
       return null;
     }
     this.update((s) => ({ ...s, draftHandoff: null }));
-    return handoff.text;
+    const { key: _key, ...draft } = handoff;
+    return draft;
   }
 
   /** Puts text in a thread's composer as if the user typed it, like `/goal ` for a new objective. */
@@ -632,7 +638,12 @@ export class HeliconController {
   }
 
   /** Starts a thread in `cwd` and runs its first action there; what the user typed goes to its composer if that fails. */
-  private async startThread(cwd: string, typed: string, first: (sessionId: string) => Promise<boolean>): Promise<boolean> {
+  private async startThread(
+    cwd: string,
+    typed: string,
+    first: (sessionId: string) => Promise<boolean>,
+    files: { attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } = {},
+  ): Promise<boolean> {
     if (this.state.busy["start"]) {
       return false;
     }
@@ -669,8 +680,13 @@ export class HeliconController {
       this.navigate({ kind: "thread", sessionId: session.sessionId });
       const sent = await first(session.sessionId);
       if (!sent) {
-        // The new-thread composer that sent this is gone, so the prompt goes to the new thread's composer.
-        this.update((s) => ({ ...s, draftHandoff: { key: session.sessionId, text: typed } }));
+        // The new-thread composer that sent this is gone, so the prompt goes to the new thread's composer,
+        // carrying its files: without them a prompt sent for an image would come back as an empty draft.
+        const carried = {
+          ...(files.attachments?.length ? { attachments: files.attachments } : {}),
+          ...(files.previews?.length ? { previews: files.previews } : {}),
+        };
+        this.update((s) => ({ ...s, draftHandoff: { key: session.sessionId, text: typed, ...carried } }));
       }
       return true;
     } catch (error) {
@@ -1515,16 +1531,20 @@ export class HeliconController {
     // Through the retry path, so a prompt entered as `/goal …` or a skill is expanded again rather than
     // reaching the model as the literal command the transcript showed.
     // The real result, so a prompt that did not go comes back to the composer instead of being lost.
-    return this.startThread(cwd, text, (fresh) => this.retryTurn(fresh, text, files));
+    return this.startThread(cwd, text, (fresh) => this.retryTurn(fresh, text, files), files);
   }
 
-  async compactAndRetry(sessionId: string, prompt: string | null): Promise<void> {
+  async compactAndRetry(
+    sessionId: string,
+    prompt: string | null,
+    files: { attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } = {},
+  ): Promise<void> {
     // Only a compaction Muse took on changes the history: after a refusal or a noop, the prompt would fail
     // exactly as before. The retry queues behind the compaction turn, which may not have reached us yet.
     if (!(await this.compact(sessionId)) || !prompt) {
       return;
     }
-    await this.retryTurn(sessionId, prompt, { queue: true });
+    await this.retryTurn(sessionId, prompt, { ...files, queue: true });
   }
 
   async openFolder(cwd: string, target: "files" | "editor"): Promise<void> {

@@ -682,14 +682,14 @@ function TurnError(props: {
             onClick={() => {
               // These failures come back non-retryable, but repairing the history is what changes that:
               // the prompt goes again once the thread can carry it.
+              // Either way the files go too: an older unreadable image is what makes this thread stuck, and
+              // the turn being retried may carry perfectly good files of its own.
               const prompt = props.prompt;
-              if (stuck.remedy === "compact") {
-                // Compaction keeps this thread, so its files are already where the retry needs them.
-                controller.dismissTurnError(props.sessionId, props.turnId);
-                void controller.compactAndRetry(props.sessionId, prompt);
-                return;
-              }
-              again((files) => controller.freshThread(props.sessionId, prompt, files));
+              again((files) =>
+                stuck.remedy === "compact"
+                  ? controller.compactAndRetry(props.sessionId, prompt, files)
+                  : controller.freshThread(props.sessionId, prompt, files),
+              );
             }}
           >
             {stuck.remedy === "compact" ? (

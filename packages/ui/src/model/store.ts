@@ -3,13 +3,14 @@ import type {
   AttachmentView,
   EnvironmentStatus,
   ModelOption,
+  OutgoingAttachment,
   ProjectView,
   ReasoningEffort,
   SessionSummary,
   ShellRun,
   SkillEntry,
 } from "../types.js";
-import type { ThreadFold } from "./fold.js";
+import type { EchoAttachment, ThreadFold } from "./fold.js";
 import type { UpdateState } from "./updates.js";
 
 /** A tiny external store: immutable snapshots plus change listeners, read through useSyncExternalStore-style hooks. */
@@ -143,8 +144,8 @@ export interface AppState {
   /** Keys of in-flight user actions, for disabling buttons: `send:<id>`, `approval:<id>`... */
   busy: Record<string, true>;
   hostError: string | null;
-  /** A prompt that could not be sent, waiting for the composer showing `key` to take it back. */
-  draftHandoff: { key: string; text: string } | null;
+  /** A prompt that could not be sent, waiting for the composer showing `key` to take it back, files and all. */
+  draftHandoff: { key: string; text: string; attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } | null;
   /** App updates; null when the shell cannot update itself, as in a browser. */
   updates: UpdateState | null;
   /** Each workspace's skills for the composer's slash menu, loaded when first needed. */

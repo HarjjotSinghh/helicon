@@ -266,8 +266,22 @@ describe("HeliconController", () => {
     assert.deepEqual(state.route, { kind: "thread", sessionId: "s1" });
     assert.equal(state.toasts.at(-1)?.title, "Message not sent");
     assert.equal(controller.takeDraftHandoff("other"), null);
-    assert.equal(controller.takeDraftHandoff("s1"), "Write the tests");
+    assert.deepEqual(controller.takeDraftHandoff("s1"), { text: "Write the tests" });
     assert.equal(controller.store.get().draftHandoff, null);
+    stop();
+  });
+
+  it("hands the files back with the prompt when a first send fails", async () => {
+    const client = new FakeClient();
+    client.sendResult = async () => {
+      throw new HeliconError("turn rejected", 409, "turnRejected");
+    };
+    const { controller, stop } = await started(client, "");
+    const attachments = [{ name: "shot.png", mediaType: "image/png", base64: "AAAA" }];
+    const previews = [{ name: "shot.png", mediaType: "image/png", kind: "image" as const, url: "blob:shot" }];
+    assert.equal(await controller.send("Look at this", { attachments, previews }), true);
+    // Text alone would hand back a draft asking about an image that is no longer attached to it.
+    assert.deepEqual(controller.takeDraftHandoff("s1"), { text: "Look at this", attachments, previews });
     stop();
   });
 
