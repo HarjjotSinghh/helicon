@@ -452,6 +452,8 @@ export class HeliconController {
         },
         sessions: load.session ? { ...s.sessions, [sessionId]: load.session } : s.sessions,
       }));
+      // Whatever was already waiting when the thread opened counts too, not only what arrives next.
+      this.autoAllow([sessionId]);
     } catch (error) {
       this.loading.delete(sessionId);
       this.setThread(sessionId, {
@@ -552,6 +554,7 @@ export class HeliconController {
       }
       return { ...s, threads };
     });
+    this.autoAllow(batches.map(([id]) => id));
     const route = this.state.route;
     if (route.kind === "thread" && batches.some(([id]) => id === route.sessionId)) {
       this.markSeen(route.sessionId);
@@ -831,7 +834,60 @@ export class HeliconController {
 
   // ---------------------------------------------------------------- approvals and questions
 
-  async decide(request: ApprovalRequest, choiceId: string, feedback: string | null): Promise<void> {
+  /** True when this thread answers its own approvals, by its own arming or the session-wide switch. */
+  bypassArmed(sessionId: string): boolean {
+    return this.state.bypassAll || this.state.bypassThreads.includes(sessionId);
+  }
+
+  setBypassAll(on: boolean): void {
+    this.update((s) => ({ ...s, bypassAll: on }));
+    if (on) {
+      this.autoAllow(Object.keys(this.state.threads));
+    }
+  }
+
+  setThreadBypass(sessionId: string, on: boolean): void {
+    this.update((s) => ({
+      ...s,
+      bypassThreads: on ? [...new Set([...s.bypassThreads, sessionId])] : s.bypassThreads.filter((id) => id !== sessionId),
+    }));
+    if (on) {
+      this.autoAllow([sessionId]);
+    }
+  }
+
+  /**
+   * What a bypass answers with: allow this once. A choice carrying a rule preview would write a standing
+   * rule into Muse's own config, which is not a thing to do on someone's behalf while they are not looking.
+   */
+  private allowOnce(request: ApprovalRequest): string | null {
+    const choices = request.availableChoices ?? [];
+    const approved = choices.filter((choice) => choice.decision === "approved");
+    return (approved.find((choice) => !choice.rulePreview) ?? approved[0])?.choiceId ?? null;
+  }
+
+  /** Answers what is pending in every armed thread; a request offering no approval is left to the user. */
+  private autoAllow(sessionIds: Iterable<string>): void {
+    for (const sessionId of new Set(sessionIds)) {
+      const thread = this.state.threads[sessionId];
+      if (!this.bypassArmed(sessionId) || !thread || thread.readOnly) {
+        continue;
+      }
+      for (const request of Object.values(thread.fold.approvals)) {
+        const choiceId = this.allowOnce(request);
+        if (choiceId && !this.state.busy[`approval:${request.approvalId}`]) {
+          void this.decide(request, choiceId, null, "bypass");
+        }
+      }
+    }
+  }
+
+  async decide(
+    request: ApprovalRequest,
+    choiceId: string,
+    feedback: string | null,
+    by: "user" | "bypass" = "user",
+  ): Promise<void> {
     const key = `approval:${request.approvalId}`;
     if (this.state.busy[key]) {
       return;
@@ -842,7 +898,7 @@ export class HeliconController {
     this.patchFold(request.sessionId, (f) => {
       const approvals = { ...f.approvals };
       delete approvals[request.approvalId];
-      return { ...f, approvals, resolved: { ...f.resolved, [request.approvalId]: { decision, resolvedBy: "user" } } };
+      return { ...f, approvals, resolved: { ...f.resolved, [request.approvalId]: { decision, resolvedBy: by } } };
     });
     try {
       await this.client.decideApproval({

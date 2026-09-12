@@ -101,7 +101,10 @@ class FakeClient implements HeliconClient {
   }
   async interruptTurn() {}
   async unqueueTurn() {}
-  async decideApproval() {}
+  decided: { approvalId: string; choiceId: string }[] = [];
+  async decideApproval(input: { approvalId: string; choiceId: string }) {
+    this.decided.push({ approvalId: input.approvalId, choiceId: input.choiceId });
+  }
   async answerUserInput() {}
   async cancelUserInput() {}
   async clarifyUserInput() {}
@@ -282,6 +285,35 @@ describe("HeliconController", () => {
     assert.equal(await controller.send("Look at this", { attachments, previews }), true);
     // Text alone would hand back a draft asking about an image that is no longer attached to it.
     assert.deepEqual(controller.takeDraftHandoff("s1"), { text: "Look at this", attachments, previews });
+    stop();
+  });
+
+  it("answers approvals itself once a thread is armed, taking allow-once over a rule", async () => {
+    const client = new FakeClient();
+    const request = {
+      approvalId: "ap1",
+      sessionId: "s1",
+      currentRequirementId: null,
+      subject: { kind: "command", command: "git rebase --continue" },
+      availableChoices: [
+        { choiceId: "remember", label: "Allow and remember", decision: "approved", scope: "session", rulePreview: "git rebase *" },
+        { choiceId: "once", label: "Allow once", decision: "approved", scope: "once" },
+        { choiceId: "no", label: "Reject", decision: "denied", scope: "once" },
+      ],
+    };
+    client.transcript = async () => load({ pending: { approvals: [request], userInputs: [] } });
+    const { controller, stop } = await started(client);
+    // Nothing is armed yet, so the request waits for the user.
+    assert.equal(Object.keys(controller.store.get().threads["s1"]!.fold.approvals).length, 1);
+    assert.equal(client.decided.length, 0);
+
+    controller.setThreadBypass("s1", true);
+    await settle();
+    // The remembered choice would write a standing rule into Muse's own config, so it takes the plain one.
+    assert.deepEqual(client.decided, [{ approvalId: "ap1", choiceId: "once" }]);
+    const fold = controller.store.get().threads["s1"]!.fold;
+    assert.equal(fold.approvals["ap1"], undefined);
+    assert.equal(fold.resolved["ap1"]?.resolvedBy, "bypass");
     stop();
   });
 

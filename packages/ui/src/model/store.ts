@@ -143,6 +143,14 @@ export interface AppState {
   addProjectOpen: boolean;
   /** Keys of in-flight user actions, for disabling buttons: `send:<id>`, `approval:<id>`... */
   busy: Record<string, true>;
+  /**
+   * Approvals Helicon answers for you rather than showing. Muse asks whenever it cannot resolve a
+   * command's argv, whatever its own mode says, so this is the only way to stop being asked. It is
+   * deliberately not a preference: a bypass lasts as long as the app is open and no longer.
+   */
+  bypassAll: boolean;
+  /** Threads armed one at a time, for letting a single unattended run through. */
+  bypassThreads: string[];
   hostError: string | null;
   /** A prompt that could not be sent, waiting for the composer showing `key` to take it back, files and all. */
   draftHandoff: { key: string; text: string; attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } | null;
@@ -155,7 +163,7 @@ export interface AppState {
 }
 
 /** `confirmFullAccess` is the full-access confirmation, which `/permissions full` must still pass through. */
-export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAccess";
+export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAccess" | "confirmBypass";
 
 export interface SkillsState {
   status: "loading" | "ready" | "error";
@@ -183,6 +191,8 @@ export function initialState(prefs: Prefs): AppState {
     paletteOpen: false,
     addProjectOpen: false,
     busy: {},
+    bypassAll: false,
+    bypassThreads: [],
     hostError: null,
     draftHandoff: null,
     updates: null,

@@ -36,6 +36,7 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
   const controller = useController();
   const { request } = props;
   const busy = useApp((s) => Boolean(s.busy[`approval:${request.approvalId}`]));
+  const armed = useApp((s) => s.bypassAll || s.bypassThreads.includes(request.sessionId));
   const description = describeApproval(request);
   const choices = request.availableChoices ?? [];
   const primaryChoice = choices.find((c) => c.decision === "approved") ?? choices[0];
@@ -157,6 +158,17 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
             );
           })}
           {choices.length === 0 ? <p className="text-xs text-muted">No choices were offered. Decide in the Muse terminal.</p> : null}
+          {!armed && primaryChoice ? (
+            <Tip label="Allow this and everything else this thread asks, until you close Helicon">
+              <button
+                type="button"
+                onClick={() => controller.setThreadBypass(request.sessionId, true)}
+                className="rounded-lg px-2 py-1 text-2xs text-subtle transition-colors duration-100 hover:bg-hover hover:text-fg"
+              >
+                Stop asking in this thread
+              </button>
+            </Tip>
+          ) : null}
           {props.primary && choices.length > 1 ? (
             <span className="ml-auto hidden items-center gap-1.5 text-2xs text-subtle sm:inline-flex">
               <Shortcut keys={["A"]} />
