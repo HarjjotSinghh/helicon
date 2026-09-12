@@ -172,6 +172,8 @@ function platform(hash = ""): Platform & { hash: string } {
     now: () => Date.now(),
     schedule: (fn: () => void) => setTimeout(fn, 0),
     cancel: (handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+    // Nothing is watching a test, which is also what lets one exercise what gets announced.
+    focused: () => false,
   };
   return state;
 }
@@ -360,6 +362,53 @@ describe("HeliconController", () => {
     // Closing one that is already closed leaves the list alone.
     controller.setCardOpen("goal:s2", false);
     assert.deepEqual(collapsed(), ["goal:s2"]);
+    stop();
+  });
+
+  it("announces the edges of what a thread is doing, not the state it is sitting in", async () => {
+    const client = new FakeClient();
+    const shown: string[] = [];
+    const { controller, stop } = await started(client);
+    controller.attachNotifier({
+      permission: async () => "granted",
+      request: async () => "granted",
+      show: async (note) => {
+        shown.push(note.tag);
+      },
+    });
+    controller.setPrefs({ notifications: true });
+    const live = (patch: Record<string, unknown>) => ({
+      activeTurnId: null,
+      turnStartedAt: null,
+      pendingApprovals: 0,
+      pendingInputs: 0,
+      lastTerminal: null,
+      lastError: null,
+      ...patch,
+    });
+    const status = async (patch: Record<string, unknown>) => {
+      client.handler?.({ type: "session-status", sessionId: "s1", live: live(patch) as never });
+      await settle();
+    };
+
+    // A request that has just appeared is worth saying.
+    await status({ pendingApprovals: 1 });
+    assert.deepEqual(shown, ["approval:s1"]);
+
+    // The same request still sitting there is not: it was already announced once.
+    await status({ pendingApprovals: 1 });
+    assert.deepEqual(shown, ["approval:s1"]);
+
+    // A turn that has just ended is an edge too, and carries whether it failed.
+    await status({ activeTurnId: "t1" });
+    await status({ lastTerminal: "failed", lastError: "boom" });
+    assert.deepEqual(shown, ["approval:s1", "finished:s1"]);
+
+    // A goal going quiet says so; a goal still active says nothing.
+    await status({ goal: { objective: "ship", status: "active", percentComplete: 10 } });
+    assert.deepEqual(shown, ["approval:s1", "finished:s1"]);
+    await status({ goal: { objective: "ship", status: "complete", percentComplete: 100 } });
+    assert.deepEqual(shown, ["approval:s1", "finished:s1", "goal:s1"]);
     stop();
   });
 
