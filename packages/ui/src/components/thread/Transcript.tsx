@@ -1,9 +1,9 @@
-import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square, SquareTerminal } from "lucide-react";
+import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, Square, SquarePen, SquareTerminal } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { useSampled } from "../../app/sampled.js";
-import { buildTurns, type LocalEcho, type ThreadFold, type TurnView } from "../../model/fold.js";
+import { buildTurns, type EchoAttachment, type LocalEcho, type ThreadFold, type TurnView } from "../../model/fold.js";
 import {
   describeTool,
   formatClock,
@@ -16,10 +16,11 @@ import {
 } from "../../model/format.js";
 import { streamingSpeed, turnCosts, turnSpeeds, type TurnCost, type TurnSpeed } from "../../model/usage.js";
 import { formatCost } from "../../model/pricing.js";
+import { stuckThread } from "../../model/errors.js";
 import type { ThreadState } from "../../model/store.js";
-import type { AttachmentView, MspItem, ShellRun, UserInputAnswer } from "../../types.js";
+import type { AttachmentView, MspItem, OutgoingAttachment, ShellRun, UserInputAnswer } from "../../types.js";
 import { CodeBlock } from "../ui/Markdown.js";
-import { SentAttachments } from "../composer/attachments.js";
+import { SentAttachments, refetchAttachments, toOutgoing, toPreview } from "../composer/attachments.js";
 import { CopyButton } from "../ui/Markdown.js";
 import { Tip } from "../ui/overlays.js";
 import { Button, Shimmer, Spinner, cn } from "../ui/primitives.js";
@@ -239,6 +240,8 @@ const TurnBlock = memo(
             prompt={props.isLast && !props.readOnly ? (turn.prompt?.displayText ?? turn.prompt?.text ?? null) : null}
             sessionId={props.sessionId}
             turnId={turn.turnId}
+            readOnly={props.readOnly}
+            files={props.attachments[turn.turnId ?? ""] ?? []}
           />
         ) : null}
         {cancelled ? (
@@ -589,6 +592,18 @@ function ShellRunRow(props: { run: ShellRun; sessionId: string }) {
   );
 }
 
+/**
+ * What a prompt says while it waits for the stream to echo it back. Only the first of these is still
+ * on its way out: once the host has acknowledged the turn the message is sent, and saying otherwise
+ * reads as a message that never left.
+ */
+const ECHO_LABEL: Record<LocalEcho["disposition"], string> = {
+  sending: "Sending",
+  started: "Sent",
+  queued: "Queued",
+  steered: "Adding to the current turn",
+};
+
 function PendingPrompt(props: { echo: LocalEcho }) {
   const files = props.echo.attachments ?? [];
   return (
@@ -601,31 +616,113 @@ function PendingPrompt(props: { echo: LocalEcho }) {
       ) : null}
       <span className="flex items-center gap-1.5 text-2xs text-subtle">
         <Spinner size={9} />
-        {props.echo.disposition === "steered" ? "Adding to the current turn" : "Sending"}
+        {ECHO_LABEL[props.echo.disposition]}
       </span>
     </div>
   );
 }
 
-function TurnError(props: { message: string; retryable: boolean; prompt: string | null; sessionId: string; turnId: string | null }) {
+function TurnError(props: {
+  message: string;
+  retryable: boolean;
+  prompt: string | null;
+  sessionId: string;
+  turnId: string | null;
+  readOnly: boolean;
+  /** The failed turn's own files: what the provider rejects in the same words, and what a retry has to carry. */
+  files: AttachmentView[];
+}) {
   const controller = useController();
+  const hadImages = props.files.some((file) => file.kind === "image");
+  // Some failures are about the thread, not the turn: retrying sends the same history and fails the same way.
+  const stuck = stuckThread(props.message, { ownImages: hadImages });
+  /**
+   * Sends the prompt again with the same files: their bytes live on the server, so they are read back
+   * rather than left out, which would quietly ask the model a different question. Nothing goes at all
+   * when they cannot be read, so the notice stays up and the choice is still the user's.
+   */
+  const again = (send: (files: { attachments: OutgoingAttachment[]; previews: EchoAttachment[] }) => Promise<unknown>) => {
+    void (async () => {
+      let carried: { attachments: OutgoingAttachment[]; previews: EchoAttachment[] } = { attachments: [], previews: [] };
+      if (props.files.length > 0) {
+        try {
+          const read = await refetchAttachments(props.files);
+          carried = { attachments: read.map(toOutgoing), previews: read.map(toPreview) };
+        } catch (error) {
+          controller.toast(
+            "error",
+            "Could not read the attached files again",
+            error instanceof Error ? error.message : String(error),
+          );
+          return;
+        }
+      }
+      controller.dismissTurnError(props.sessionId, props.turnId);
+      await send(carried);
+    })();
+  };
   return (
     <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-3.5 py-3" role="alert">
       <CircleAlert size={16} className="mt-0.5 shrink-0 text-danger" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-fg">This turn failed</p>
-        <p className="mt-0.5 text-sm break-words text-muted">{props.message}</p>
+        <p className="text-sm font-medium text-fg">{stuck ? "This thread cannot go on as it is" : "This turn failed"}</p>
+        <p className="mt-0.5 text-sm break-words text-muted">{stuck ? stuck.message : props.message}</p>
+        {stuck ? <p className="mt-1 text-2xs break-words text-subtle">{props.message}</p> : null}
       </div>
-      {props.prompt && props.retryable ? (
-        <Tip label="Send the same prompt again">
+      {stuck && stuck.remedy !== "none" && !props.readOnly ? (
+        <Tip
+          label={
+            stuck.remedy === "compact"
+              ? "Summarize the history, leave behind what cannot be sent, and carry on"
+              : "Start a thread beside this one, without the history that cannot be sent"
+          }
+        >
+          <Button
+            size="sm"
+            onClick={() => {
+              // These failures come back non-retryable, but repairing the history is what changes that:
+              // the prompt goes again once the thread can carry it.
+              // Either way the files go too: an older unreadable image is what makes this thread stuck, and
+              // the turn being retried may carry perfectly good files of its own.
+              const prompt = props.prompt;
+              again((files) =>
+                stuck.remedy === "compact"
+                  ? controller.compactAndRetry(props.sessionId, prompt, files)
+                  : controller.freshThread(props.sessionId, prompt, files),
+              );
+            }}
+          >
+            {stuck.remedy === "compact" ? (
+              <>
+                <RotateCcw size={13} /> {props.prompt ? "Compact and retry" : "Compact this thread"}
+              </>
+            ) : (
+              <>
+                <SquarePen size={13} /> Start a fresh thread
+              </>
+            )}
+          </Button>
+        </Tip>
+      ) : stuck && stuck.remedy === "none" && !props.readOnly ? (
+        <Tip label="If the image you sent opens fine elsewhere, an older one in this thread is the unreadable one">
           <Button
             size="sm"
             variant="secondary"
             onClick={() => {
-              // The notice has been acted on; leaving it up only takes room from the answer.
+              // No retry here: the prompt would go back without its image, quietly asking something else.
               controller.dismissTurnError(props.sessionId, props.turnId);
-              void controller.retryTurn(props.sessionId, props.prompt as string);
+              void controller.compactAndRetry(props.sessionId, null);
             }}
+          >
+            <RotateCcw size={13} /> Compact the thread
+          </Button>
+        </Tip>
+      ) : props.prompt && props.retryable ? (
+        <Tip label="Send the same prompt again">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => again((files) => controller.retryTurn(props.sessionId, props.prompt as string, files))}
           >
             <RotateCcw size={13} /> Retry
           </Button>

@@ -66,6 +66,9 @@ class FakeClient implements HeliconClient {
   async listDirectory(path: string) {
     return { directory: path, parent: null, separator: "/" as const, exists: true, entries: [] };
   }
+  assetUrl(path: string) {
+    return path;
+  }
   async revealPath() {}
   async hideProject() {}
   async setPinned() {}
@@ -98,7 +101,10 @@ class FakeClient implements HeliconClient {
   }
   async interruptTurn() {}
   async unqueueTurn() {}
-  async decideApproval() {}
+  decided: { approvalId: string; choiceId: string }[] = [];
+  async decideApproval(input: { approvalId: string; choiceId: string }) {
+    this.decided.push({ approvalId: input.approvalId, choiceId: input.choiceId });
+  }
   async answerUserInput() {}
   async cancelUserInput() {}
   async clarifyUserInput() {}
@@ -263,8 +269,73 @@ describe("HeliconController", () => {
     assert.deepEqual(state.route, { kind: "thread", sessionId: "s1" });
     assert.equal(state.toasts.at(-1)?.title, "Message not sent");
     assert.equal(controller.takeDraftHandoff("other"), null);
-    assert.equal(controller.takeDraftHandoff("s1"), "Write the tests");
+    assert.deepEqual(controller.takeDraftHandoff("s1"), { text: "Write the tests" });
     assert.equal(controller.store.get().draftHandoff, null);
+    stop();
+  });
+
+  it("hands the files back with the prompt when a first send fails", async () => {
+    const client = new FakeClient();
+    client.sendResult = async () => {
+      throw new HeliconError("turn rejected", 409, "turnRejected");
+    };
+    const { controller, stop } = await started(client, "");
+    const attachments = [{ name: "shot.png", mediaType: "image/png", base64: "AAAA" }];
+    const previews = [{ name: "shot.png", mediaType: "image/png", kind: "image" as const, url: "blob:shot" }];
+    assert.equal(await controller.send("Look at this", { attachments, previews }), true);
+    // Text alone would hand back a draft asking about an image that is no longer attached to it.
+    assert.deepEqual(controller.takeDraftHandoff("s1"), { text: "Look at this", attachments, previews });
+    stop();
+  });
+
+  it("answers approvals itself once a thread is armed, taking allow-once over a rule", async () => {
+    const client = new FakeClient();
+    const request = {
+      approvalId: "ap1",
+      sessionId: "s1",
+      currentRequirementId: null,
+      subject: { kind: "command", command: "git rebase --continue" },
+      availableChoices: [
+        { choiceId: "remember", label: "Allow and remember", decision: "approved", scope: "session", rulePreview: "git rebase *" },
+        { choiceId: "once", label: "Allow once", decision: "approved", scope: "once" },
+        { choiceId: "no", label: "Reject", decision: "denied", scope: "once" },
+      ],
+    };
+    client.transcript = async () => load({ pending: { approvals: [request], userInputs: [] } });
+    const { controller, stop } = await started(client);
+    // Nothing is armed yet, so the request waits for the user.
+    assert.equal(Object.keys(controller.store.get().threads["s1"]!.fold.approvals).length, 1);
+    assert.equal(client.decided.length, 0);
+
+    controller.setThreadBypass("s1", true);
+    await settle();
+    // The remembered choice would write a standing rule into Muse's own config, so it takes the plain one.
+    assert.deepEqual(client.decided, [{ approvalId: "ap1", choiceId: "once" }]);
+    const fold = controller.store.get().threads["s1"]!.fold;
+    assert.equal(fold.approvals["ap1"], undefined);
+    assert.equal(fold.resolved["ap1"]?.resolvedBy, "bypass");
+    stop();
+  });
+
+  it("leaves an approval alone when the only way to allow it writes a rule", async () => {
+    const client = new FakeClient();
+    const request = {
+      approvalId: "ap2",
+      sessionId: "s1",
+      currentRequirementId: null,
+      subject: { kind: "command", command: "rm -rf /tmp/scratch" },
+      availableChoices: [
+        { choiceId: "remember", label: "Allow and remember", decision: "approved", scope: "session", rulePreview: "rm *" },
+        { choiceId: "no", label: "Reject", decision: "denied", scope: "once" },
+      ],
+    };
+    client.transcript = async () => load({ pending: { approvals: [request], userInputs: [] } });
+    const { controller, stop } = await started(client);
+    controller.setThreadBypass("s1", true);
+    await settle();
+    // That rule would outlive the bypass that wrote it, which is the one thing it promises not to do.
+    assert.deepEqual(client.decided, []);
+    assert.equal(Object.keys(controller.store.get().threads["s1"]!.fold.approvals).length, 1);
     stop();
   });
 
@@ -363,6 +434,46 @@ describe("HeliconController", () => {
     assert.match(sent?.text ?? "", /I ran this in the workspace/);
     assert.match(sent?.text ?? "", /ran ls -la/);
     assert.equal(sent?.displayText, "Shared the output of `ls -la`");
+    stop();
+  });
+
+  it("starts a thread beside one whose reasoning cannot be replayed", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.freshThread("s1", "pick this up again"), true);
+    assert.equal(client.sent.at(-1)?.text, "pick this up again");
+    assert.equal(controller.store.get().route.kind, "thread");
+
+    // A prompt the transcript showed as `/goal …` is expanded again, not sent as the literal command.
+    assert.equal(await controller.freshThread("s1", "/goal ship the release"), true);
+    assert.equal(client.sent.at(-1)?.displayText, "/goal ship the release");
+    assert.match(client.sent.at(-1)?.text ?? "", /create_goal tool\. Objective: ship the release/);
+    stop();
+  });
+
+  it("compacts a thread the provider will not take, then sends the prompt again", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    await controller.compactAndRetry("s1", "try that again");
+    assert.ok(client.actions.includes("compact"), "the history is summarized first");
+    assert.equal(client.sent.at(-1)?.text, "try that again");
+    assert.equal(client.sent.at(-1)?.ifBusy, "queue", "the retry waits behind the compaction turn");
+
+    let before = client.sent.length;
+    await controller.compactAndRetry("s1", null);
+    assert.equal(client.sent.length, before, "with no prompt to resend, it only compacts");
+
+    // A compaction Muse refused leaves the history exactly as it was, so resending would fail the same way.
+    before = client.sent.length;
+    client.compactNoop = true;
+    await controller.compactAndRetry("s1", "try that again");
+    assert.equal(client.sent.length, before, "nothing is resent after a noop compaction");
+    client.compactNoop = false;
+    client.compact = async () => {
+      throw new Error("no");
+    };
+    await controller.compactAndRetry("s1", "try that again");
+    assert.equal(client.sent.length, before, "nor after one that failed");
     stop();
   });
 

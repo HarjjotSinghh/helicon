@@ -14,7 +14,7 @@ export function isApprovalMode(value: unknown): value is ApprovalMode {
   );
 }
 
-export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "ultra";
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
 
 export const REASONING_EFFORTS: readonly ReasoningEffort[] = [
   "none",
@@ -23,6 +23,7 @@ export const REASONING_EFFORTS: readonly ReasoningEffort[] = [
   "medium",
   "high",
   "xhigh",
+  "max",
   "ultra",
 ];
 

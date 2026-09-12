@@ -1,7 +1,7 @@
 /** Domain types shared by the UI, the client contract and the pure fold logic. */
 
 export type ApprovalMode = "allowAll" | "denyUnmatched" | "onRequest" | "promptUnmatched";
-export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "ultra";
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
 export type IfBusy = "queue" | "steer";
 
 export interface EnvironmentStatus {

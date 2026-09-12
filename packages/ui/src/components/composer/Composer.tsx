@@ -27,7 +27,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { AttachButton, AttachmentTray, readFiles, toOutgoing, toPreview, type PendingFile } from "./attachments.js";
+import { AttachButton, AttachmentTray, readFiles, restoreFiles, toOutgoing, toPreview, type PendingFile } from "./attachments.js";
 import { CostMeter } from "./CostPanel.js";
 import { Popover, Slider, Switch } from "radix-ui";
 import { shallowEqual, useApp, useController } from "../../app/context.js";
@@ -140,8 +140,11 @@ export function Composer(props: ComposerProps) {
   useEffect(() => {
     if (handoff) {
       const handed = controller.takeDraftHandoff(draftKey);
-      if (handed !== null) {
-        setText(handed);
+      if (handed) {
+        setText(handed.text);
+        if (handed.attachments?.length) {
+          setFiles(restoreFiles(handed.attachments, handed.previews ?? []));
+        }
       }
     }
   }, [handoff, draftKey, controller, setText]);
@@ -543,13 +546,14 @@ function ModelPicker(props: { sessionId: string | null; side: PickerSide }) {
 }
 
 /** Effort levels on the faster-to-smarter scale. Auto sits outside it: Muse picks per turn. */
-const LEVELS: { value: ReasoningEffort; label: string; description: string }[] = [
+export const LEVELS: { value: ReasoningEffort; label: string; description: string }[] = [
   { value: "none", label: "Off", description: "Answers right away, without reasoning" },
   { value: "minimal", label: "Minimal", description: "A quick think before answering" },
   { value: "low", label: "Low", description: "Light reasoning for simple changes" },
   { value: "medium", label: "Medium", description: "Balanced speed and depth" },
   { value: "high", label: "High", description: "Thinks harder problems through" },
   { value: "xhigh", label: "Extra high", description: "Deep reasoning for tricky work" },
+  { value: "max", label: "Max", description: "Longer still, for work that needs it" },
   { value: "ultra", label: "Ultra", description: "The slowest and most thorough" },
 ];
 const TOP = LEVELS.length - 1;
@@ -669,7 +673,7 @@ function EffortPicker(props: { side: PickerSide }) {
   );
 }
 
-const MODES: { value: ApprovalMode; label: string; description: string; icon: ReactNode }[] = [
+export const MODES: { value: ApprovalMode; label: string; description: string; icon: ReactNode }[] = [
   { value: "onRequest", label: "Ask first", description: "Muse asks before anything that needs approval.", icon: <Shield size={14} /> },
   {
     value: "promptUnmatched",
@@ -696,6 +700,9 @@ function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
   const open = useApp((s) => s.picker === "permissions");
   // `/permissions full` opens the confirmation directly, so it lives in app state rather than here.
   const confirming = useApp((s) => s.picker === "confirmFullAccess");
+  const bypass = useApp((s) => s.bypassAll);
+  const confirmingBypass = useApp((s) => s.picker === "confirmBypass");
+  const bypassId = useId();
   const preferred = useApp((s) => s.prefs.defaultMode);
   const threadMode = useApp((s) => (props.sessionId ? (s.threads[props.sessionId]?.fold.meta.approvalMode ?? null) : null));
   const current = (props.sessionId ? threadMode : null) ?? preferred;
@@ -709,7 +716,7 @@ function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
             aria-label={`Permissions: ${mode?.label}`}
             icon={mode?.icon}
             label={mode?.label}
-            tone={current === "allowAll" ? "warn" : undefined}
+            tone={current === "allowAll" || bypass ? "warn" : undefined}
           />
         </MenuTrigger>
         <MenuContent side={props.side} className="w-[300px]">
@@ -728,6 +735,21 @@ function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
               <MenuOption key={m.value} value={m.value} icon={m.icon} label={m.label} description={m.description} />
             ))}
           </MenuRadioGroup>
+          {/* Muse asks whenever it cannot resolve a command's argv, whatever mode it is in. This answers those. */}
+          <div className="mt-1 flex items-start gap-3 border-t border-line px-2 pt-2.5 pb-1">
+            <label htmlFor={bypassId} className="min-w-0 flex-1 cursor-default">
+              <span className="block text-sm text-fg">Answer approvals for me</span>
+              <span className="block text-xs text-muted">Allowed once each, in every thread, until you close Helicon.</span>
+            </label>
+            <Switch.Root
+              id={bypassId}
+              checked={bypass}
+              onCheckedChange={(on) => (on ? controller.setPicker("confirmBypass") : controller.setBypassAll(false))}
+              className="relative mt-0.5 inline-flex h-[18px] w-8 shrink-0 items-center rounded-full bg-line-strong outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-accent data-[state=checked]:bg-accent"
+            >
+              <Switch.Thumb className="block size-3.5 translate-x-0.5 rounded-full bg-white shadow-[0_1px_2px_oklch(0_0_0/0.3)] transition-transform duration-150 ease-out data-[state=checked]:translate-x-4" />
+            </Switch.Root>
+          </div>
         </MenuContent>
       </Menu>
       <Modal
@@ -748,6 +770,27 @@ function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
             }}
           >
             Allow full access
+          </Button>
+        </div>
+      </Modal>
+      <Modal
+        open={confirmingBypass}
+        onOpenChange={(next) => (next ? controller.setPicker("confirmBypass") : controller.closePicker("confirmBypass"))}
+        title="Answer approvals for you?"
+        description="Every approval Muse raises, in any thread, is allowed once without showing you the command first. Muse asks about the commands it could not resolve, so these are the ones nothing else has checked. This lasts until you close Helicon."
+      >
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => controller.closePicker("confirmBypass")}>
+            Keep asking
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              controller.closePicker("confirmBypass");
+              controller.setBypassAll(true);
+            }}
+          >
+            Answer them for me
           </Button>
         </div>
       </Modal>

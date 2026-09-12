@@ -212,7 +212,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
           <QuestionPanel key={request.userInputId} request={request} keyboard={approvals.length === 0 && index === 0} />
         ))}
         <GoalPanel sessionId={session.sessionId} running={props.running} readOnly={Boolean(thread?.readOnly)} />
-        {showPlan && todo ? <PlanPanel items={todo} /> : null}
+        {showPlan && todo ? <PlanPanel sessionId={session.sessionId} items={todo} /> : null}
         {queued.length > 0 ? <QueuedList sessionId={session.sessionId} items={queued} /> : null}
         <Composer
           sessionId={session.sessionId}

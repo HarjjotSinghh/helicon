@@ -3,13 +3,14 @@ import type {
   AttachmentView,
   EnvironmentStatus,
   ModelOption,
+  OutgoingAttachment,
   ProjectView,
   ReasoningEffort,
   SessionSummary,
   ShellRun,
   SkillEntry,
 } from "../types.js";
-import type { ThreadFold } from "./fold.js";
+import type { EchoAttachment, ThreadFold } from "./fold.js";
 import type { UpdateState } from "./updates.js";
 
 /** A tiny external store: immutable snapshots plus change listeners, read through useSyncExternalStore-style hooks. */
@@ -57,6 +58,11 @@ export interface Prefs {
   collapsedProjects: string[];
   /** Settled shelves the user opened: `project:<cwd>`, or `status` for the by-status view. */
   openShelves: string[];
+  /**
+   * Dock cards the user collapsed, as `goal:<sessionId>` or `plan:<sessionId>`. Only the closed ones are
+   * kept, so a card opens by default and a thread the user has never touched costs nothing to remember.
+   */
+  collapsedCards: string[];
   /** When the user last viewed each thread (ISO). */
   lastSeen: Record<string, string>;
   /** Activity before the first launch is treated as already seen. */
@@ -85,6 +91,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     sidebarCollapsed: false,
     collapsedProjects: [],
     openShelves: [],
+    collapsedCards: [],
     lastSeen: {},
     baseline: now,
     defaultMode: "onRequest",
@@ -101,7 +108,8 @@ export type Route =
   | { kind: "home" }
   | { kind: "new"; cwd: string | null }
   | { kind: "thread"; sessionId: string }
-  | { kind: "usage" };
+  | { kind: "usage" }
+  | { kind: "settings" };
 
 export interface ThreadState {
   load: "idle" | "loading" | "ready" | "error";
@@ -142,9 +150,17 @@ export interface AppState {
   addProjectOpen: boolean;
   /** Keys of in-flight user actions, for disabling buttons: `send:<id>`, `approval:<id>`... */
   busy: Record<string, true>;
+  /**
+   * Approvals Helicon answers for you rather than showing. Muse asks whenever it cannot resolve a
+   * command's argv, whatever its own mode says, so this is the only way to stop being asked. It is
+   * deliberately not a preference: a bypass lasts as long as the app is open and no longer.
+   */
+  bypassAll: boolean;
+  /** Threads armed one at a time, for letting a single unattended run through. */
+  bypassThreads: string[];
   hostError: string | null;
-  /** A prompt that could not be sent, waiting for the composer showing `key` to take it back. */
-  draftHandoff: { key: string; text: string } | null;
+  /** A prompt that could not be sent, waiting for the composer showing `key` to take it back, files and all. */
+  draftHandoff: { key: string; text: string; attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } | null;
   /** App updates; null when the shell cannot update itself, as in a browser. */
   updates: UpdateState | null;
   /** Each workspace's skills for the composer's slash menu, loaded when first needed. */
@@ -154,7 +170,7 @@ export interface AppState {
 }
 
 /** `confirmFullAccess` is the full-access confirmation, which `/permissions full` must still pass through. */
-export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAccess";
+export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAccess" | "confirmBypass";
 
 export interface SkillsState {
   status: "loading" | "ready" | "error";
@@ -182,6 +198,8 @@ export function initialState(prefs: Prefs): AppState {
     paletteOpen: false,
     addProjectOpen: false,
     busy: {},
+    bypassAll: false,
+    bypassThreads: [],
     hostError: null,
     draftHandoff: null,
     updates: null,
@@ -205,12 +223,13 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     sidebarCollapsed: pick("sidebarCollapsed", (v) => typeof v === "boolean"),
     collapsedProjects: pick("collapsedProjects", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
     openShelves: pick("openShelves", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
+    collapsedCards: pick("collapsedCards", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
     lastSeen: pick("lastSeen", (v) => typeof v === "object" && v !== null && !Array.isArray(v)),
     baseline: pick("baseline", (v) => typeof v === "string" && !Number.isNaN(Date.parse(v))),
     codeTheme: pick("codeTheme", (v) => CODE_THEMES.includes(v as CodeTheme)),
     defaultMode: pick("defaultMode", (v) => v === "onRequest" || v === "promptUnmatched" || v === "denyUnmatched" || v === "allowAll"),
     defaultModelId: pick("defaultModelId", (v) => v === null || typeof v === "string"),
-    effort: pick("effort", (v) => v === null || ["none", "minimal", "low", "medium", "high", "xhigh", "ultra"].includes(v as string)),
+    effort: pick("effort", (v) => v === null || ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"].includes(v as string)),
     lastProject: pick("lastProject", (v) => v === null || typeof v === "string"),
     contributorAck: pick("contributorAck", (v) => typeof v === "boolean"),
     autoUpdate: pick("autoUpdate", (v) => typeof v === "boolean"),

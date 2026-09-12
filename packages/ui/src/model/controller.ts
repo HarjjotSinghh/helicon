@@ -117,6 +117,8 @@ export function routeToHash(route: Route): string {
       return `#/t/${encodeURIComponent(route.sessionId)}`;
     case "usage":
       return "#/usage";
+    case "settings":
+      return "#/settings";
   }
 }
 
@@ -124,6 +126,9 @@ export function hashToRoute(hash: string): Route {
   const h = hash.replace(/^#/, "");
   if (h === "/usage") {
     return { kind: "usage" };
+  }
+  if (h === "/settings") {
+    return { kind: "settings" };
   }
   const thread = h.match(/^\/t\/(.+)$/);
   if (thread) {
@@ -158,9 +163,13 @@ function nextLocalId(): string {
 /** What a prompt carries beyond its text: files for the model, and their local previews for the echo. */
 interface TurnDelivery {
   steer?: boolean;
+  /** Queue behind whatever is running even if this client has not seen the turn start yet. */
+  queue?: boolean;
   displayText?: string;
   attachments?: OutgoingAttachment[];
   previews?: EchoAttachment[];
+  /** Deliver to this thread rather than wherever the user is standing now: a retry belongs to the turn that failed. */
+  sessionId?: string;
 }
 
 export interface SendOptions extends TurnDelivery {
@@ -442,12 +451,14 @@ export class HeliconController {
             readOnlyReason: load.readOnlyReason,
             truncated: load.truncated,
             fold,
-            attachments: load.attachments ?? [],
+            attachments: (load.attachments ?? []).map((file) => this.stamp(file)),
             shellRuns: load.shellRuns ?? [],
           },
         },
         sessions: load.session ? { ...s.sessions, [sessionId]: load.session } : s.sessions,
       }));
+      // Whatever was already waiting when the thread opened counts too, not only what arrives next.
+      this.autoAllow([sessionId]);
     } catch (error) {
       this.loading.delete(sessionId);
       this.setThread(sessionId, {
@@ -494,6 +505,10 @@ export class HeliconController {
           const current = s.sessions[event.sessionId];
           return current ? { ...s, sessions: { ...s.sessions, [event.sessionId]: { ...current, live: event.live } } } : s;
         });
+        // The only word we get about a thread this app has never opened: it is waiting on someone.
+        if (this.state.bypassAll && (event.live?.pendingApprovals ?? 0) > 0) {
+          this.loadForBypass(event.sessionId);
+        }
         break;
       case "shell-run":
         this.addShellRun(event.sessionId, event.run);
@@ -548,6 +563,7 @@ export class HeliconController {
       }
       return { ...s, threads };
     });
+    this.autoAllow(batches.map(([id]) => id));
     const route = this.state.route;
     if (route.kind === "thread" && batches.some(([id]) => id === route.sessionId)) {
       this.markSeen(route.sessionId);
@@ -573,10 +589,17 @@ export class HeliconController {
       }
       const parsed = parseSlash(trimmed);
       if (parsed) {
-        return this.runSlash(trimmed, parsed, { steer: options.steer });
+        // `queue` rides along: a retry after compaction has to wait for it, slash command or not.
+        return this.runSlash(trimmed, parsed, {
+          steer: options.steer,
+          queue: options.queue,
+          // A command that sends a prompt takes the files along; one that opens a picker has none to take.
+          attachments: files,
+          previews: options.previews,
+        });
       }
     }
-    return this.deliver(trimmed, { steer: options.steer, attachments: files, previews: options.previews });
+    return this.deliver(trimmed, { steer: options.steer, queue: options.queue, attachments: files, previews: options.previews });
   }
 
   /** The project a new thread starts in: the new-thread screen's, else the last one used. */
@@ -594,24 +617,31 @@ export class HeliconController {
   /** Sends a prompt to the open thread, or starts a thread with it. */
   private deliver(text: string, options: TurnDelivery): Promise<boolean> {
     const route = this.state.route;
-    if (route.kind === "thread") {
-      return this.sendToThread(route.sessionId, text, options, false);
+    const bound = options.sessionId ?? (route.kind === "thread" ? route.sessionId : null);
+    if (bound) {
+      return this.sendToThread(bound, text, options, false);
     }
     const target = this.newThreadTarget();
     if (!target) {
       return Promise.resolve(false);
     }
-    return this.startThread(target, options.displayText ?? text, (sessionId) => this.sendToThread(sessionId, text, options, false));
+    return this.startThread(
+      target,
+      options.displayText ?? text,
+      (sessionId) => this.sendToThread(sessionId, text, options, false),
+      { attachments: options.attachments, previews: options.previews },
+    );
   }
 
   /** Called by the composer showing `key`: takes back a prompt that failed to send from elsewhere. */
-  takeDraftHandoff(key: string): string | null {
+  takeDraftHandoff(key: string): { text: string; attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } | null {
     const handoff = this.state.draftHandoff;
     if (!handoff || handoff.key !== key) {
       return null;
     }
     this.update((s) => ({ ...s, draftHandoff: null }));
-    return handoff.text;
+    const { key: _key, ...draft } = handoff;
+    return draft;
   }
 
   /** Puts text in a thread's composer as if the user typed it, like `/goal ` for a new objective. */
@@ -620,7 +650,12 @@ export class HeliconController {
   }
 
   /** Starts a thread in `cwd` and runs its first action there; what the user typed goes to its composer if that fails. */
-  private async startThread(cwd: string, typed: string, first: (sessionId: string) => Promise<boolean>): Promise<boolean> {
+  private async startThread(
+    cwd: string,
+    typed: string,
+    first: (sessionId: string) => Promise<boolean>,
+    files: { attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } = {},
+  ): Promise<boolean> {
     if (this.state.busy["start"]) {
       return false;
     }
@@ -657,8 +692,13 @@ export class HeliconController {
       this.navigate({ kind: "thread", sessionId: session.sessionId });
       const sent = await first(session.sessionId);
       if (!sent) {
-        // The new-thread composer that sent this is gone, so the prompt goes to the new thread's composer.
-        this.update((s) => ({ ...s, draftHandoff: { key: session.sessionId, text: typed } }));
+        // The new-thread composer that sent this is gone, so the prompt goes to the new thread's composer,
+        // carrying its files: without them a prompt sent for an image would come back as an empty draft.
+        const carried = {
+          ...(files.attachments?.length ? { attachments: files.attachments } : {}),
+          ...(files.previews?.length ? { previews: files.previews } : {}),
+        };
+        this.update((s) => ({ ...s, draftHandoff: { key: session.sessionId, text: typed, ...carried } }));
       }
       return true;
     } catch (error) {
@@ -683,7 +723,8 @@ export class HeliconController {
       this.toast("info", "This thread is read-only here", thread.readOnlyReason ?? "Another Muse session has it open.");
       return false;
     }
-    const running = thread.fold.activeTurnId !== null;
+    // A caller that knows a turn is starting elsewhere can say so, before its `turn/started` reaches us.
+    const running = thread.fold.activeTurnId !== null || options.queue === true;
     const echo: LocalEcho = {
       localId: nextLocalId(),
       // The echo shows what the transcript will, so it matches the prompt item when that arrives.
@@ -774,25 +815,113 @@ export class HeliconController {
     });
   }
 
-  async retryTurn(sessionId: string, prompt: string): Promise<void> {
+  /** True when the prompt actually went; a caller can then tell whether to hand the text back to the user. */
+  async retryTurn(
+    sessionId: string,
+    prompt: string,
+    options: { queue?: boolean; attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } = {},
+  ): Promise<boolean> {
+    const delivery: TurnDelivery = {
+      queue: options.queue,
+      attachments: options.attachments,
+      previews: options.previews,
+      // Named, not read off the route: the user may have walked to another thread while the skills loaded.
+      sessionId,
+    };
     // A turn started by `/plan …` or `/init` shows the command, so retrying runs the command again.
     const parsed = parseSlash(prompt);
     const cwd = this.state.sessions[sessionId]?.cwd ?? null;
-    const route = this.state.route;
-    if (parsed && cwd && route.kind === "thread" && route.sessionId === sessionId) {
+    if (parsed && cwd) {
       await this.loadSkills(cwd);
       const skills = this.state.skills[cwd]?.skills ?? [];
       if (resolveSlash(parsed, slashCommands(skills, { inThread: true }), skills).kind !== "unknown") {
-        await this.send(prompt);
-        return;
+        return this.runSlash(prompt, parsed, delivery);
       }
     }
-    await this.sendToThread(sessionId, prompt, {}, false);
+    return this.sendToThread(sessionId, prompt, delivery, false);
   }
 
   // ---------------------------------------------------------------- approvals and questions
 
-  async decide(request: ApprovalRequest, choiceId: string, feedback: string | null): Promise<void> {
+  /** True when this thread answers its own approvals, by its own arming or the session-wide switch. */
+  bypassArmed(sessionId: string): boolean {
+    return this.state.bypassAll || this.state.bypassThreads.includes(sessionId);
+  }
+
+  setBypassAll(on: boolean): void {
+    this.update((s) => ({ ...s, bypassAll: on }));
+    if (on) {
+      this.autoAllow(Object.keys(this.state.threads));
+      // A thread nobody has opened here has no local state at all, so its events are dropped on arrival and
+      // its approvals are invisible. The server's live view is what says which sessions are waiting.
+      for (const session of Object.values(this.state.sessions)) {
+        if ((session.live?.pendingApprovals ?? 0) > 0) {
+          this.loadForBypass(session.sessionId);
+        }
+      }
+    }
+  }
+
+  /** Opens a thread only so the bypass can reach its approvals, and answers them once it is there. */
+  private loadForBypass(sessionId: string): void {
+    const thread = this.state.threads[sessionId];
+    if (!thread) {
+      void this.loadThread(sessionId);
+    } else if (thread.load === "ready") {
+      this.autoAllow([sessionId]);
+    }
+  }
+
+  setThreadBypass(sessionId: string, on: boolean): void {
+    this.update((s) => ({
+      ...s,
+      bypassThreads: on ? [...new Set([...s.bypassThreads, sessionId])] : s.bypassThreads.filter((id) => id !== sessionId),
+    }));
+    if (on) {
+      this.autoAllow([sessionId]);
+    }
+  }
+
+  /** Puts every thread that was answering for itself back to asking, without touching the session-wide switch. */
+  clearThreadBypass(): void {
+    if (this.state.bypassThreads.length > 0) {
+      this.update((s) => ({ ...s, bypassThreads: [] }));
+    }
+  }
+
+  /**
+   * What a bypass answers with: allow this once. A choice carrying a rule preview would write a standing
+   * rule into Muse's own config, which is not a thing to do on someone's behalf while they are not looking.
+   */
+  private allowOnce(request: ApprovalRequest): string | null {
+    const choices = request.availableChoices ?? [];
+    // Only a choice that leaves nothing behind. Where the sole way to allow is to remember a rule, the
+    // request stays for the user: a rule in Muse's own config would outlive the bypass that wrote it.
+    return choices.find((choice) => choice.decision === "approved" && !choice.rulePreview)?.choiceId ?? null;
+  }
+
+  /** Answers what is pending in every armed thread; a request offering no approval is left to the user. */
+  private autoAllow(sessionIds: Iterable<string>): void {
+    for (const sessionId of new Set(sessionIds)) {
+      const thread = this.state.threads[sessionId];
+      if (!this.bypassArmed(sessionId) || !thread || thread.readOnly) {
+        continue;
+      }
+      for (const request of Object.values(thread.fold.approvals)) {
+        const choiceId = this.allowOnce(request);
+        if (choiceId && !this.state.busy[`approval:${request.approvalId}`]) {
+          void this.decide(request, choiceId, null, "bypass");
+        }
+      }
+    }
+  }
+
+  async decide(
+    request: ApprovalRequest,
+    choiceId: string,
+    feedback: string | null,
+    by: "user" | "bypass" = "user",
+  ): Promise<void> {
     const key = `approval:${request.approvalId}`;
     if (this.state.busy[key]) {
       return;
@@ -803,7 +932,7 @@ export class HeliconController {
     this.patchFold(request.sessionId, (f) => {
       const approvals = { ...f.approvals };
       delete approvals[request.approvalId];
-      return { ...f, approvals, resolved: { ...f.resolved, [request.approvalId]: { decision, resolvedBy: "user" } } };
+      return { ...f, approvals, resolved: { ...f.resolved, [request.approvalId]: { decision, resolvedBy: by } } };
     });
     try {
       await this.client.decideApproval({
@@ -1238,6 +1367,15 @@ export class HeliconController {
     return target ? this.startThread(target, `!${command}`, run) : false;
   }
 
+  /**
+   * The server returns a relative URL for each saved file. The browser loads these on its own, outside the
+   * client's calls, so a token-protected server would refuse every one of them: the image in the transcript
+   * and the bytes a retry reads back alike. They carry the same credentials as everything else from here on.
+   */
+  private stamp(file: AttachmentView): AttachmentView {
+    return { ...file, url: this.client.assetUrl(file.url) };
+  }
+
   /** Adds files the server has just saved to the open thread, skipping any it already has. */
   private keepAttachments(sessionId: string, saved: AttachmentView[]): void {
     if (saved.length === 0) {
@@ -1249,7 +1387,7 @@ export class HeliconController {
         return s;
       }
       const known = new Set(thread.attachments.map((file) => file.id));
-      const added = saved.filter((file) => !known.has(file.id));
+      const added = saved.filter((file) => !known.has(file.id)).map((file) => this.stamp(file));
       if (added.length === 0) {
         return s;
       }
@@ -1276,9 +1414,11 @@ export class HeliconController {
     return this.sendToThread(sessionId, text, { displayText: `Shared the output of \`${run.command}\`` }, false);
   }
 
-  private async runSlash(typed: string, parsed: ParsedSlash, options: { steer?: boolean }): Promise<boolean> {
+  private async runSlash(typed: string, parsed: ParsedSlash, options: TurnDelivery): Promise<boolean> {
     const route = this.state.route;
-    const cwd = this.composerCwd();
+    // A retry names the thread the command belongs to; a typed command acts wherever the user is.
+    const bound = options.sessionId ?? null;
+    const cwd = bound ? (this.state.sessions[bound]?.cwd ?? null) : this.composerCwd();
     // A skill typed before the workspace's skills arrived waits for them instead of reading as unknown;
     // built-ins other than `/skill` never wait on a slow skills list.
     const builtin = slashCommands([], { inThread: true }).find((c) => c.name === parsed.name || c.aliases.includes(parsed.name));
@@ -1296,7 +1436,7 @@ export class HeliconController {
       return this.runSkill(resolved.skill, resolved.args, typed, cwd, options);
     }
     const { command, args } = resolved;
-    const sessionId = route.kind === "thread" ? route.sessionId : null;
+    const sessionId = bound ?? (route.kind === "thread" ? route.sessionId : null);
     if (command.needsThread && !sessionId) {
       this.toast("info", `Open a thread to use /${command.name}`);
       return false;
@@ -1343,7 +1483,7 @@ export class HeliconController {
         }
         const effort = parseEffort(args);
         if (effort === undefined) {
-          this.toast("info", `Unknown effort level: ${args}`, "Use off, minimal, low, medium, high, xhigh, ultra or auto.");
+          this.toast("info", `Unknown effort level: ${args}`, "Use off, minimal, low, medium, high, xhigh, max, ultra or auto.");
           return false;
         }
         this.setEffort(effort);
@@ -1378,7 +1518,7 @@ export class HeliconController {
     args: string,
     typed: string,
     cwd: string | null,
-    options: { steer?: boolean },
+    options: TurnDelivery,
   ): Promise<boolean> {
     let body: string | null = null;
     if (skill.activation === "user-invocable-only") {
@@ -1435,18 +1575,66 @@ export class HeliconController {
     }
   }
 
-  async compact(sessionId: string): Promise<void> {
+  /** True only when Muse took the compaction on: a refusal or a noop leaves the history exactly as it was. */
+  async compact(sessionId: string): Promise<boolean> {
     try {
       const result = await this.client.compact(sessionId);
       if (result.noop) {
         const reason = result.reason === "no_compactable_history" ? "There is no earlier history to summarize." : result.reason;
         this.toast("info", "Nothing to compact yet", reason ? `${reason.charAt(0).toUpperCase()}${reason.slice(1).replace(/_/g, " ")}` : undefined);
-        return;
+        return false;
       }
       this.toast("info", "Compacting context", "Muse will summarize earlier turns to free up the context window.");
+      return true;
     } catch (error) {
       this.toast("error", "Could not compact the context", errorMessage(error));
+      return false;
     }
+  }
+
+  /**
+   * For a thread whose history the provider will not take: summarize it, which leaves the unusable part
+   * behind, then send the prompt again. The retry queues behind the compaction Muse runs as its own turn.
+   */
+  /**
+   * For a thread whose stored reasoning cannot be replayed at all: start one beside it in the same project
+   * and send the prompt there. Compacting keeps the recent turns as they are, so it cannot clear that.
+   */
+  async freshThread(
+    sessionId: string,
+    prompt: string | null,
+    files: { attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } = {},
+  ): Promise<boolean> {
+    const cwd = this.state.sessions[sessionId]?.cwd ?? null;
+    if (!cwd) {
+      this.toast("error", "Could not start a new thread", "That thread's project is not known here.");
+      return false;
+    }
+    // An image with no words of its own is still a question, so it goes too; with neither, there is
+    // nothing to ask again and the new thread simply opens.
+    const carrying = files.attachments?.length ?? 0;
+    if (!prompt && carrying === 0) {
+      this.newThread(cwd);
+      return true;
+    }
+    const text = prompt ?? "";
+    // Through the retry path, so a prompt entered as `/goal …` or a skill is expanded again rather than
+    // reaching the model as the literal command the transcript showed.
+    // The real result, so a prompt that did not go comes back to the composer instead of being lost.
+    return this.startThread(cwd, text, (fresh) => this.retryTurn(fresh, text, files), files);
+  }
+
+  async compactAndRetry(
+    sessionId: string,
+    prompt: string | null,
+    files: { attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } = {},
+  ): Promise<void> {
+    // Only a compaction Muse took on changes the history: after a refusal or a noop, the prompt would fail
+    // exactly as before. The retry queues behind the compaction turn, which may not have reached us yet.
+    if (!(await this.compact(sessionId)) || !prompt) {
+      return;
+    }
+    await this.retryTurn(sessionId, prompt, { ...files, queue: true });
   }
 
   async openFolder(cwd: string, target: "files" | "editor"): Promise<void> {
@@ -1476,6 +1664,18 @@ export class HeliconController {
       return;
     }
     this.setPrefs({ lastSeen: { ...this.state.prefs.lastSeen, [sessionId]: now } });
+  }
+
+  /**
+   * Remembers whether a dock card is open, per thread. Without this the card is local state that dies with
+   * the view, so leaving a thread and coming back reopens what the user had folded away.
+   */
+  setCardOpen(key: string, open: boolean): void {
+    const collapsed = this.state.prefs.collapsedCards;
+    if (open === !collapsed.includes(key)) {
+      return;
+    }
+    this.setPrefs({ collapsedCards: open ? collapsed.filter((k) => k !== key) : [...collapsed, key] });
   }
 
   setGroupBy(groupBy: GroupBy): void {

@@ -145,6 +145,11 @@ describe("HeliconServer", () => {
       reasoningEffort: "high",
     });
 
+    // max is a real level on the contributor tier, so it has to pass validation like the rest of the scale.
+    const top = await send(base, "/api/turns", { sessionId: "s1", text: "hello", reasoningEffort: "max" });
+    assert.equal(top.status, 200);
+    assert.equal((connection.calls.at(-1)?.params as { reasoningEffort?: string }).reasoningEffort, "max");
+
     const projects = await get(base, "/api/projects");
     assert.deepEqual(projects.projects.map((p: { cwd: string }) => p.cwd), ["/work/proj"]);
 
@@ -158,7 +163,7 @@ describe("HeliconServer", () => {
     assert.equal((await send(base, "/api/sessions", { cwd: "/w", approvalMode: "yolo" })).status, 400);
     assert.equal((await send(base, "/api/sessions", {})).status, 400);
     assert.equal((await send(base, "/api/turns", { sessionId: "s", text: "x", ifBusy: "later" })).status, 400);
-    assert.equal((await send(base, "/api/turns", { sessionId: "s", text: "x", reasoningEffort: "max" })).status, 400);
+    assert.equal((await send(base, "/api/turns", { sessionId: "s", text: "x", reasoningEffort: "louder" })).status, 400);
     assert.equal((await send(base, "/api/approvals/decide", { sessionId: "s" })).status, 400);
     assert.equal((await send(base, "/api/user-input/clarify", { sessionId: "s", userInputId: "u" })).status, 400);
     const bad = await fetch(`${base}/api/turns`, { method: "POST", body: "{nope" });

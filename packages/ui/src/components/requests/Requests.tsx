@@ -5,7 +5,7 @@ import type { LocalEcho } from "../../model/fold.js";
 import { describeApproval } from "../../model/format.js";
 import type { ApprovalChoice, ApprovalRequest, TodoItem, UserInputAnswer, UserInputQuestion, UserInputRequest } from "../../types.js";
 import { Tip } from "../ui/overlays.js";
-import { Button, IconButton, Spinner, cn } from "../ui/primitives.js";
+import { Button, IconButton, Shortcut, Spinner, cn } from "../ui/primitives.js";
 import { RollingDigits } from "../ui/sourced.js";
 
 function isTyping(target: EventTarget | null): boolean {
@@ -19,10 +19,24 @@ function lowerFirst(text: string): string {
 
 const PANEL = "enter-up overflow-hidden rounded-2xl bg-raised shadow-[0_0_0_1px_var(--warn-line),0_2px_8px_-4px_oklch(0_0_0/0.18)]";
 
+/** Refusals carry a cross, a plain yes a tick, and a yes that writes a rule the heavier badge. */
+function choiceIcon(choice: ApprovalChoice) {
+  if (choice.decision !== "approved") {
+    return <X size={13} />;
+  }
+  return choice.rulePreview ? <CircleCheck size={13} /> : <Check size={13} />;
+}
+
+/** The refusal among the offered choices, whatever the host calls it. */
+function refusalOf(choices: readonly ApprovalChoice[]): ApprovalChoice | undefined {
+  return choices.find((choice) => choice.decision !== "approved");
+}
+
 export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolean }) {
   const controller = useController();
   const { request } = props;
   const busy = useApp((s) => Boolean(s.busy[`approval:${request.approvalId}`]));
+  const armed = useApp((s) => s.bypassAll || s.bypassThreads.includes(request.sessionId));
   const description = describeApproval(request);
   const choices = request.availableChoices ?? [];
   const primaryChoice = choices.find((c) => c.decision === "approved") ?? choices[0];
@@ -45,6 +59,16 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
     }
     const onKey = (event: KeyboardEvent) => {
       if (isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      // A and R are the ones worth reaching for; the digits still pick any choice, including the rule ones.
+      const key = event.key.toLowerCase();
+      if (key === "a" || key === "r") {
+        const wanted = key === "a" ? primaryChoice : refusalOf(choices);
+        if (wanted) {
+          event.preventDefault();
+          pick(wanted);
+        }
         return;
       }
       const index = Number(event.key) - 1;
@@ -121,6 +145,7 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
                 disabled={busy}
                 onClick={() => pick(choice)}
               >
+                {choiceIcon(choice)}
                 {choice.label}
               </Button>
             );
@@ -133,8 +158,25 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
             );
           })}
           {choices.length === 0 ? <p className="text-xs text-muted">No choices were offered. Decide in the Muse terminal.</p> : null}
+          {!armed && primaryChoice ? (
+            <Tip label="Allow this and everything else this thread asks, until you close Helicon">
+              <button
+                type="button"
+                onClick={() => controller.setThreadBypass(request.sessionId, true)}
+                className="rounded-lg px-2 py-1 text-2xs text-subtle transition-colors duration-100 hover:bg-hover hover:text-fg"
+              >
+                Stop asking in this thread
+              </button>
+            </Tip>
+          ) : null}
           {props.primary && choices.length > 1 ? (
-            <span className="ml-auto hidden text-2xs text-subtle sm:inline">Press 1 to {Math.min(choices.length, 9)}</span>
+            <span className="ml-auto hidden items-center gap-1.5 text-2xs text-subtle sm:inline-flex">
+              <Shortcut keys={["A"]} />
+              allow
+              <Shortcut keys={["R"]} />
+              reject
+              {choices.length > 2 ? <span className="text-subtle">· 1 to {Math.min(choices.length, 9)}</span> : null}
+            </span>
           ) : null}
         </div>
       )}
@@ -385,8 +427,11 @@ function TodoMark(props: { status: string }) {
   }
 }
 
-export function PlanPanel(props: { items: TodoItem[] }) {
-  const [open, setOpen] = useState(true);
+export function PlanPanel(props: { sessionId: string; items: TodoItem[] }) {
+  const controller = useController();
+  // Kept in prefs, not here: this panel unmounts whenever the user looks at another thread.
+  const cardKey = `plan:${props.sessionId}`;
+  const open = useApp((s) => !s.prefs.collapsedCards.includes(cardKey));
   const done = props.items.filter((i) => i.status === "completed").length;
   const active = props.items.find((i) => i.status === "inProgress");
   return (
@@ -394,7 +439,7 @@ export function PlanPanel(props: { items: TodoItem[] }) {
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => controller.setCardOpen(cardKey, !open)}
         className="flex h-10 w-full items-center gap-2.5 px-3.5 text-left transition-colors hover:bg-hover"
       >
         <ListTodo size={15} className="shrink-0 text-subtle" />

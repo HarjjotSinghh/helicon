@@ -68,6 +68,34 @@ export async function readFiles(files: Iterable<File>): Promise<PendingFile[]> {
   return out;
 }
 
+/**
+ * Reads a sent turn's files back from the server, so a retry carries the same bytes rather than
+ * quietly asking the model a different question. Throws when a file cannot be read.
+ */
+export async function refetchAttachments(files: readonly AttachmentView[]): Promise<PendingFile[]> {
+  const out: PendingFile[] = [];
+  for (const file of files) {
+    const response = await fetch(file.url);
+    if (!response.ok) {
+      throw new Error(`${file.name} could not be read back (${response.status}).`);
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    fileSeq += 1;
+    out.push({
+      id: `file-${Date.now().toString(36)}-${fileSeq}`,
+      name: file.name,
+      mediaType: file.mediaType,
+      kind: file.kind,
+      // The server keeps serving these, so the preview needs no object URL of its own.
+      url: file.kind === "image" ? file.url : null,
+      base64: toBase64(bytes),
+      ...(file.width !== null && file.height !== null ? { width: file.width, height: file.height } : {}),
+      size: bytes.length,
+    });
+  }
+  return out;
+}
+
 export function toOutgoing(file: PendingFile): OutgoingAttachment {
   return {
     name: file.name,
@@ -75,6 +103,29 @@ export function toOutgoing(file: PendingFile): OutgoingAttachment {
     base64: file.base64,
     ...(file.width !== undefined && file.height !== undefined ? { width: file.width, height: file.height } : {}),
   };
+}
+
+/**
+ * Rebuilds the tray from a prompt handed back after a failed send. The bytes are already in hand, so
+ * nothing is read a second time, and the previews the message went out with still resolve.
+ */
+export function restoreFiles(attachments: readonly OutgoingAttachment[], previews: readonly EchoAttachment[]): PendingFile[] {
+  return attachments.map((file, index) => {
+    const preview = previews[index];
+    const padding = file.base64.endsWith("==") ? 2 : file.base64.endsWith("=") ? 1 : 0;
+    fileSeq += 1;
+    return {
+      id: `file-${Date.now().toString(36)}-${fileSeq}`,
+      name: file.name,
+      mediaType: file.mediaType,
+      kind: preview?.kind ?? kindOf(file.mediaType),
+      url: preview?.url ?? null,
+      base64: file.base64,
+      ...(file.width !== undefined && file.height !== undefined ? { width: file.width, height: file.height } : {}),
+      // Four base64 characters carry three bytes, less whatever the padding stands in for.
+      size: Math.max(0, Math.floor((file.base64.length * 3) / 4) - padding),
+    };
+  });
 }
 
 export function toPreview(file: PendingFile): EchoAttachment {

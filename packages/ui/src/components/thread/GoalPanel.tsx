@@ -1,8 +1,10 @@
 import { ChevronDown, Pause, Play, Target } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { shallowEqual, useApp, useController, useNow } from "../../app/context.js";
 import { formatDuration, formatTokens, relativeTime } from "../../model/format.js";
 import { goalView, type GoalTone, type GoalView } from "../../model/goal.js";
+import { formatCost } from "../../model/pricing.js";
+import { turnCost } from "../../model/usage.js";
 import { Tip } from "../ui/overlays.js";
 import { Button, cn } from "../ui/primitives.js";
 
@@ -36,7 +38,9 @@ export function GoalPanel(props: { sessionId: string; running: boolean; readOnly
     const fold = controller.store.get().threads[props.sessionId]?.fold;
     return inputs && fold ? goalView(fold) : null;
   }, [inputs, controller, props.sessionId]);
-  const [open, setOpen] = useState(true);
+  // Kept in prefs, not here: this panel unmounts whenever the user looks at another thread.
+  const cardKey = `goal:${props.sessionId}`;
+  const open = useApp((s) => !s.prefs.collapsedCards.includes(cardKey));
   const ticking = view?.tone === "active" && view.startedAt !== null;
   const now = useNow(1000, ticking);
   if (!view) {
@@ -48,7 +52,7 @@ export function GoalPanel(props: { sessionId: string; running: boolean; readOnly
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => controller.setCardOpen(cardKey, !open)}
         className="flex h-10 w-full items-center gap-2.5 px-3.5 text-left transition-colors hover:bg-hover"
       >
         <Target size={15} className="shrink-0 text-subtle" />
@@ -68,6 +72,29 @@ export function GoalPanel(props: { sessionId: string; running: boolean; readOnly
 function GoalBody(props: { view: GoalView; elapsed: number | null; now: number; sessionId: string; running: boolean; readOnly: boolean }) {
   const controller = useController();
   const { view } = props;
+  const models = useApp((s) => s.models);
+  // The same turns the token count covers, priced at each call's own model rate.
+  const spend = useMemo(() => {
+    const fold = controller.store.get().threads[props.sessionId]?.fold;
+    if (!fold) {
+      return null;
+    }
+    let cost = 0;
+    let currency: string | null = null;
+    let complete = true;
+    let priced = false;
+    for (const turnId of view.turnIds) {
+      const turn = turnCost(fold, turnId, models);
+      if (!turn) {
+        continue;
+      }
+      priced = true;
+      cost += turn.cost;
+      currency = currency ?? turn.currency;
+      complete = complete && turn.complete;
+    }
+    return priced ? { cost, currency, complete } : null;
+  }, [view, models, controller, props.sessionId]);
   const muse = view.tokensUsed !== null && view.tokensUsed > 0 ? ` Muse's own count at its last goal update: ${formatTokens(view.tokensUsed)}.` : "";
   const lastUpdate = view.lastProgressAt ?? view.endedAt;
   const newGoal = () => {
@@ -96,12 +123,24 @@ function GoalBody(props: { view: GoalView; elapsed: number | null; now: number; 
       >
         <div className={cn("h-full rounded-full transition-[width] duration-300 ease-out", FILL[view.tone])} style={{ width: `${view.percent}%` }} />
       </div>
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-4">
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-5">
         <Metric label={view.tone === "active" ? "Running for" : "Ran for"} value={props.elapsed === null ? "Not known" : formatDuration(props.elapsed) || "0s"} />
         <Metric label="Turns" value={String(view.turns)} />
         <Tip label={`Input and output tokens of this goal's model calls.${muse}`}>
           <div tabIndex={0} className="min-w-0 cursor-default">
             <Metric label="Tokens" value={view.tokenBudget ? `${formatTokens(view.tokens)} of ${formatTokens(view.tokenBudget)}` : formatTokens(view.tokens)} />
+          </div>
+        </Tip>
+        <Tip
+          label={`What this goal's work would have cost at published API rates.${
+            spend && !spend.complete ? " One of its models has no listed price, so the real figure is higher." : ""
+          }`}
+        >
+          <div tabIndex={0} className="min-w-0 cursor-default">
+            <Metric
+              label="Cost"
+              value={spend ? `${spend.complete ? "" : "≥ "}${formatCost(spend.cost, spend.currency ?? undefined)}` : "Not known"}
+            />
           </div>
         </Tip>
         <Metric label="Last update" value={lastUpdate ? relativeTime(new Date(lastUpdate).toISOString(), props.now) : "None yet"} />
