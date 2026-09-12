@@ -59,7 +59,7 @@ apps/web         same UI against a remote daemon
 - [x] `packages/ui` - projects sidebar, session chat, inline diffs, slash commands and skills, goals
 - [x] `apps/desktop` - Tauri shell + WSL2 routing + path translation, signed auto-update
 - [x] `apps/web` - the same UI in a browser against the local server
-- [ ] `apps/web` - remote daemon mode
+- [x] `apps/web` - remote daemon mode
 - [x] Windows end to end (WSL2 Ubuntu)
 - [x] GitHub Releases with a signed Windows installer
 - [ ] macOS + Linux builds and releases
@@ -109,6 +109,24 @@ npm run dev --workspace helicon-desktop
 Releases ride on tags: push `v0.1.0` and the Release workflow builds the Windows installer and attaches it to a GitHub Release. Every release gets a tag; notable merged PRs bump at least the patch version.
 
 The desktop app updates itself from the newest release's `latest.json`, so releases must not be marked prerelease. The installer is signed with the updater key: the workflow reads `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` from repo secrets, and a local `tauri build` needs the same two variables set.
+
+## Remote daemon
+
+The web app can run against a daemon on another machine. Start it there with a token and the origin that will be loading the page:
+
+```bash
+node packages/server/dist/src/cli.js --host 0.0.0.0 --port 3127 \
+  --token "$(openssl rand -hex 24)" --allow-origin https://helicon.example
+```
+
+Then load the page, go to `#/connect`, and give it the address and the token. Both are kept in local storage rather than in the URL: the token is exchanged once for an `HttpOnly` cookie, which is what the event stream authenticates with, since `EventSource` cannot carry a header.
+
+Two things fail closed deliberately:
+
+- An origin that was never passed to `--allow-origin` gets no CORS headers and no answer at all.
+- A token in the query string counts only for requests carrying no other site's origin, so a copied link hands over nothing.
+
+Browsers only accept cross-site cookies over HTTPS, so a daemon reached from another origin needs TLS or a tunnel in front of it. On the same machine none of this applies: `#/connect` with an empty address uses the server that served the page, and no token is needed unless one was set.
 
 ## Legal
 

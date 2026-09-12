@@ -29,7 +29,7 @@ import {
 } from "@helicon/daemon";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
-export const HELICON_VERSION = "0.7.1";
+export const HELICON_VERSION = "0.8.0";
 
 export interface HostExit {
   code: number | null;
@@ -63,6 +63,8 @@ export interface ServerOptions {
   dataDir?: string;
   staticDir?: string | null;
   token?: string | null;
+  /** Browser origins allowed to reach this daemon from another site. Empty means same-origin only. */
+  allowOrigins?: string[];
   platform?: string;
   distro?: string;
   musePath?: string | null;
@@ -554,6 +556,7 @@ export class HeliconServer {
       dataDir: options.dataDir ?? ":memory:",
       staticDir: options.staticDir ? resolve(options.staticDir) : null,
       token: options.token ?? null,
+      allowOrigins: options.allowOrigins ?? [],
       platform: options.platform ?? process.platform,
       distro: options.distro,
       musePath: options.musePath,
@@ -636,16 +639,76 @@ export class HeliconServer {
     }, 120);
   }
 
+  /** What the event stream authenticates with, since EventSource cannot be given a header. */
+  private static readonly AUTH_COOKIE = "helicon_token";
+
+  /**
+   * The origin of a request that came from a different site. A browser sends `Origin` on its own
+   * writes too, so comparing against `Host` is what separates "another site" from "this one".
+   */
+  private foreignOrigin(req: IncomingMessage): string | null {
+    const origin = req.headers["origin"];
+    if (typeof origin !== "string" || !origin) {
+      return null;
+    }
+    const host = typeof req.headers["host"] === "string" ? req.headers["host"] : "";
+    if (host && (origin === `http://${host}` || origin === `https://${host}`)) {
+      return null;
+    }
+    return origin;
+  }
+
+  private cookie(req: IncomingMessage, name: string): string | null {
+    const raw = req.headers["cookie"];
+    if (typeof raw !== "string") {
+      return null;
+    }
+    for (const part of raw.split(";")) {
+      const [key, ...rest] = part.trim().split("=");
+      if (key === name) {
+        return decodeURIComponent(rest.join("="));
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Cross-origin access is opt-in and fails closed: an origin nobody listed gets no CORS headers and
+   * no answer at all. Same-origin requests carry no foreign origin and are left exactly as they were.
+   */
+  private cors(req: IncomingMessage, res: ServerResponse): boolean {
+    const origin = this.foreignOrigin(req);
+    if (!origin) {
+      return true;
+    }
+    if (!this.options.allowOrigins.includes(origin)) {
+      return false;
+    }
+    res.setHeader("access-control-allow-origin", origin);
+    res.setHeader("vary", "Origin");
+    res.setHeader("access-control-allow-credentials", "true");
+    res.setHeader("access-control-allow-headers", "authorization, content-type");
+    res.setHeader("access-control-allow-methods", "GET, POST, PATCH, DELETE, OPTIONS");
+    return true;
+  }
+
   private authorized(req: IncomingMessage): boolean {
     if (!this.options.token) {
       return true;
     }
-    const url = new URL(req.url ?? "/", "http://localhost");
-    if (url.searchParams.get("token") === this.options.token) {
+    if (this.cookie(req, HeliconServer.AUTH_COOKIE) === this.options.token) {
       return true;
     }
-    const header = req.headers["authorization"];
-    return header === `Bearer ${this.options.token}`;
+    if (req.headers["authorization"] === `Bearer ${this.options.token}`) {
+      return true;
+    }
+    // A token in the URL leaks through history, server logs and any shared link, so it counts only
+    // for requests carrying no foreign origin: curl, the desktop shell, the page served from here.
+    if (this.foreignOrigin(req)) {
+      return false;
+    }
+    const url = new URL(req.url ?? "/", "http://localhost");
+    return url.searchParams.get("token") === this.options.token;
   }
 
   private json(res: ServerResponse, status: number, body: unknown): void {
@@ -682,11 +745,21 @@ export class HeliconServer {
   private async route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
-    if (!this.authorized(req)) {
+    const method = (req.method ?? "GET").toUpperCase();
+    if (!this.cors(req, res)) {
+      this.fail(res, 403, "This daemon does not answer that origin.");
+      return;
+    }
+    if (method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    // The handshake is how a browser earns its cookie, so it cannot itself demand one.
+    if (!(method === "POST" && path === "/api/auth") && !this.authorized(req)) {
       this.fail(res, 401, "Missing or invalid token.");
       return;
     }
-    const method = (req.method ?? "GET").toUpperCase();
     if (path.startsWith("/api/")) {
       try {
         const handled = await this.api(method, path, url, req, res);
@@ -715,6 +788,33 @@ export class HeliconServer {
     req: IncomingMessage,
     res: ServerResponse,
   ): Promise<boolean> {
+    if (method === "POST" && path === "/api/auth") {
+      const body = await this.readBody(req);
+      if (!this.options.token) {
+        // Nothing to prove: a daemon started without a token answers whoever can reach it.
+        this.json(res, 200, { ok: true, required: false });
+        return true;
+      }
+      if (str(body["token"]) !== this.options.token) {
+        throw new HttpError(401, "That token does not match this daemon.");
+      }
+      // The stream cannot carry a header, so the cookie is what it authenticates with. Cross-site
+      // cookies are only accepted over HTTPS, which is why a remote daemon needs TLS or a tunnel.
+      const cross = this.foreignOrigin(req) !== null;
+      const cookie = [
+        `${HeliconServer.AUTH_COOKIE}=${encodeURIComponent(this.options.token)}`,
+        "Path=/",
+        "HttpOnly",
+        "Max-Age=604800",
+        cross ? "SameSite=None" : "SameSite=Lax",
+      ];
+      if (cross) {
+        cookie.push("Secure");
+      }
+      res.setHeader("set-cookie", cookie.join("; "));
+      this.json(res, 200, { ok: true, required: true });
+      return true;
+    }
     if (method === "GET" && path === "/api/health") {
       this.json(res, 200, {
         ok: true,
