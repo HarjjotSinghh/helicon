@@ -550,6 +550,7 @@ const LEVELS: { value: ReasoningEffort; label: string; description: string }[] =
   { value: "medium", label: "Medium", description: "Balanced speed and depth" },
   { value: "high", label: "High", description: "Thinks harder problems through" },
   { value: "xhigh", label: "Extra high", description: "Deep reasoning for tricky work" },
+  { value: "max", label: "Max", description: "Longer still, for work that needs it" },
   { value: "ultra", label: "Ultra", description: "The slowest and most thorough" },
 ];
 const TOP = LEVELS.length - 1;

@@ -42,7 +42,7 @@ function builtin(
 export const BUILTIN_COMMANDS: readonly SlashCommand[] = [
   builtin("compact", "compact", "Summarize the conversation to free up context", { needsThread: true }),
   builtin("model", "model", "Choose the model", { aliases: ["models"], hint: "[model]" }),
-  builtin("effort", "effort", "Set how long the model thinks: off, low, medium, high, xhigh, ultra or auto", { hint: "[level]" }),
+  builtin("effort", "effort", "Set how long the model thinks: off, low, medium, high, xhigh, max, ultra or auto", { hint: "[level]" }),
   builtin("permissions", "permissions", "Choose what Muse can do without asking: ask, unlisted, deny or full", { hint: "[mode]" }),
   builtin("fork", "fork", "Branch this thread into a new one", { needsThread: true }),
   builtin("new", "new", "Start a new thread in this project", { aliases: ["clear"] }),
@@ -228,6 +228,7 @@ const EFFORT_WORDS: Record<string, ReasoningEffort | null> = {
   xhigh: "xhigh",
   "extra high": "xhigh",
   "extra-high": "xhigh",
+  max: "max",
   ultra: "ultra",
 };
 

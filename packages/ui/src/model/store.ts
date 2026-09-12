@@ -210,7 +210,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     codeTheme: pick("codeTheme", (v) => CODE_THEMES.includes(v as CodeTheme)),
     defaultMode: pick("defaultMode", (v) => v === "onRequest" || v === "promptUnmatched" || v === "denyUnmatched" || v === "allowAll"),
     defaultModelId: pick("defaultModelId", (v) => v === null || typeof v === "string"),
-    effort: pick("effort", (v) => v === null || ["none", "minimal", "low", "medium", "high", "xhigh", "ultra"].includes(v as string)),
+    effort: pick("effort", (v) => v === null || ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"].includes(v as string)),
     lastProject: pick("lastProject", (v) => v === null || typeof v === "string"),
     contributorAck: pick("contributorAck", (v) => typeof v === "boolean"),
     autoUpdate: pick("autoUpdate", (v) => typeof v === "boolean"),
