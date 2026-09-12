@@ -68,6 +68,34 @@ export async function readFiles(files: Iterable<File>): Promise<PendingFile[]> {
   return out;
 }
 
+/**
+ * Reads a sent turn's files back from the server, so a retry carries the same bytes rather than
+ * quietly asking the model a different question. Throws when a file cannot be read.
+ */
+export async function refetchAttachments(files: readonly AttachmentView[]): Promise<PendingFile[]> {
+  const out: PendingFile[] = [];
+  for (const file of files) {
+    const response = await fetch(file.url);
+    if (!response.ok) {
+      throw new Error(`${file.name} could not be read back (${response.status}).`);
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    fileSeq += 1;
+    out.push({
+      id: `file-${Date.now().toString(36)}-${fileSeq}`,
+      name: file.name,
+      mediaType: file.mediaType,
+      kind: file.kind,
+      // The server keeps serving these, so the preview needs no object URL of its own.
+      url: file.kind === "image" ? file.url : null,
+      base64: toBase64(bytes),
+      ...(file.width !== null && file.height !== null ? { width: file.width, height: file.height } : {}),
+      size: bytes.length,
+    });
+  }
+  return out;
+}
+
 export function toOutgoing(file: PendingFile): OutgoingAttachment {
   return {
     name: file.name,

@@ -163,6 +163,8 @@ interface TurnDelivery {
   displayText?: string;
   attachments?: OutgoingAttachment[];
   previews?: EchoAttachment[];
+  /** Deliver to this thread rather than wherever the user is standing now: a retry belongs to the turn that failed. */
+  sessionId?: string;
 }
 
 export interface SendOptions extends TurnDelivery {
@@ -576,7 +578,13 @@ export class HeliconController {
       const parsed = parseSlash(trimmed);
       if (parsed) {
         // `queue` rides along: a retry after compaction has to wait for it, slash command or not.
-        return this.runSlash(trimmed, parsed, { steer: options.steer, queue: options.queue });
+        return this.runSlash(trimmed, parsed, {
+          steer: options.steer,
+          queue: options.queue,
+          // A command that sends a prompt takes the files along; one that opens a picker has none to take.
+          attachments: files,
+          previews: options.previews,
+        });
       }
     }
     return this.deliver(trimmed, { steer: options.steer, queue: options.queue, attachments: files, previews: options.previews });
@@ -597,8 +605,9 @@ export class HeliconController {
   /** Sends a prompt to the open thread, or starts a thread with it. */
   private deliver(text: string, options: TurnDelivery): Promise<boolean> {
     const route = this.state.route;
-    if (route.kind === "thread") {
-      return this.sendToThread(route.sessionId, text, options, false);
+    const bound = options.sessionId ?? (route.kind === "thread" ? route.sessionId : null);
+    if (bound) {
+      return this.sendToThread(bound, text, options, false);
     }
     const target = this.newThreadTarget();
     if (!target) {
@@ -779,19 +788,29 @@ export class HeliconController {
   }
 
   /** True when the prompt actually went; a caller can then tell whether to hand the text back to the user. */
-  async retryTurn(sessionId: string, prompt: string, options: { queue?: boolean } = {}): Promise<boolean> {
+  async retryTurn(
+    sessionId: string,
+    prompt: string,
+    options: { queue?: boolean; attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } = {},
+  ): Promise<boolean> {
+    const delivery: TurnDelivery = {
+      queue: options.queue,
+      attachments: options.attachments,
+      previews: options.previews,
+      // Named, not read off the route: the user may have walked to another thread while the skills loaded.
+      sessionId,
+    };
     // A turn started by `/plan …` or `/init` shows the command, so retrying runs the command again.
     const parsed = parseSlash(prompt);
     const cwd = this.state.sessions[sessionId]?.cwd ?? null;
-    const route = this.state.route;
-    if (parsed && cwd && route.kind === "thread" && route.sessionId === sessionId) {
+    if (parsed && cwd) {
       await this.loadSkills(cwd);
       const skills = this.state.skills[cwd]?.skills ?? [];
       if (resolveSlash(parsed, slashCommands(skills, { inThread: true }), skills).kind !== "unknown") {
-        return this.send(prompt, { queue: options.queue });
+        return this.runSlash(prompt, parsed, delivery);
       }
     }
-    return this.sendToThread(sessionId, prompt, { queue: options.queue }, false);
+    return this.sendToThread(sessionId, prompt, delivery, false);
   }
 
   // ---------------------------------------------------------------- approvals and questions
@@ -1280,9 +1299,11 @@ export class HeliconController {
     return this.sendToThread(sessionId, text, { displayText: `Shared the output of \`${run.command}\`` }, false);
   }
 
-  private async runSlash(typed: string, parsed: ParsedSlash, options: { steer?: boolean; queue?: boolean }): Promise<boolean> {
+  private async runSlash(typed: string, parsed: ParsedSlash, options: TurnDelivery): Promise<boolean> {
     const route = this.state.route;
-    const cwd = this.composerCwd();
+    // A retry names the thread the command belongs to; a typed command acts wherever the user is.
+    const bound = options.sessionId ?? null;
+    const cwd = bound ? (this.state.sessions[bound]?.cwd ?? null) : this.composerCwd();
     // A skill typed before the workspace's skills arrived waits for them instead of reading as unknown;
     // built-ins other than `/skill` never wait on a slow skills list.
     const builtin = slashCommands([], { inThread: true }).find((c) => c.name === parsed.name || c.aliases.includes(parsed.name));
@@ -1300,7 +1321,7 @@ export class HeliconController {
       return this.runSkill(resolved.skill, resolved.args, typed, cwd, options);
     }
     const { command, args } = resolved;
-    const sessionId = route.kind === "thread" ? route.sessionId : null;
+    const sessionId = bound ?? (route.kind === "thread" ? route.sessionId : null);
     if (command.needsThread && !sessionId) {
       this.toast("info", `Open a thread to use /${command.name}`);
       return false;
@@ -1347,7 +1368,7 @@ export class HeliconController {
         }
         const effort = parseEffort(args);
         if (effort === undefined) {
-          this.toast("info", `Unknown effort level: ${args}`, "Use off, minimal, low, medium, high, xhigh, ultra or auto.");
+          this.toast("info", `Unknown effort level: ${args}`, "Use off, minimal, low, medium, high, xhigh, max, ultra or auto.");
           return false;
         }
         this.setEffort(effort);
@@ -1382,7 +1403,7 @@ export class HeliconController {
     args: string,
     typed: string,
     cwd: string | null,
-    options: { steer?: boolean; queue?: boolean },
+    options: TurnDelivery,
   ): Promise<boolean> {
     let body: string | null = null;
     if (skill.activation === "user-invocable-only") {
@@ -1464,20 +1485,28 @@ export class HeliconController {
    * For a thread whose stored reasoning cannot be replayed at all: start one beside it in the same project
    * and send the prompt there. Compacting keeps the recent turns as they are, so it cannot clear that.
    */
-  async freshThread(sessionId: string, prompt: string | null): Promise<boolean> {
+  async freshThread(
+    sessionId: string,
+    prompt: string | null,
+    files: { attachments?: OutgoingAttachment[]; previews?: EchoAttachment[] } = {},
+  ): Promise<boolean> {
     const cwd = this.state.sessions[sessionId]?.cwd ?? null;
     if (!cwd) {
       this.toast("error", "Could not start a new thread", "That thread's project is not known here.");
       return false;
     }
-    if (!prompt) {
+    // An image with no words of its own is still a question, so it goes too; with neither, there is
+    // nothing to ask again and the new thread simply opens.
+    const carrying = files.attachments?.length ?? 0;
+    if (!prompt && carrying === 0) {
       this.newThread(cwd);
       return true;
     }
+    const text = prompt ?? "";
     // Through the retry path, so a prompt entered as `/goal …` or a skill is expanded again rather than
     // reaching the model as the literal command the transcript showed.
     // The real result, so a prompt that did not go comes back to the composer instead of being lost.
-    return this.startThread(cwd, prompt, (fresh) => this.retryTurn(fresh, prompt));
+    return this.startThread(cwd, text, (fresh) => this.retryTurn(fresh, text, files));
   }
 
   async compactAndRetry(sessionId: string, prompt: string | null): Promise<void> {
