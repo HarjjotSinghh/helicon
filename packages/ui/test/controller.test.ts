@@ -317,6 +317,28 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("leaves an approval alone when the only way to allow it writes a rule", async () => {
+    const client = new FakeClient();
+    const request = {
+      approvalId: "ap2",
+      sessionId: "s1",
+      currentRequirementId: null,
+      subject: { kind: "command", command: "rm -rf /tmp/scratch" },
+      availableChoices: [
+        { choiceId: "remember", label: "Allow and remember", decision: "approved", scope: "session", rulePreview: "rm *" },
+        { choiceId: "no", label: "Reject", decision: "denied", scope: "once" },
+      ],
+    };
+    client.transcript = async () => load({ pending: { approvals: [request], userInputs: [] } });
+    const { controller, stop } = await started(client);
+    controller.setThreadBypass("s1", true);
+    await settle();
+    // That rule would outlive the bypass that wrote it, which is the one thing it promises not to do.
+    assert.deepEqual(client.decided, []);
+    assert.equal(Object.keys(controller.store.get().threads["s1"]!.fold.approvals).length, 1);
+    stop();
+  });
+
   it("marks a read-only thread and refuses to send into it", async () => {
     const client = new FakeClient();
     client.transcript = async () => load({ readOnly: true, readOnlyReason: "session is loaded by another host" });

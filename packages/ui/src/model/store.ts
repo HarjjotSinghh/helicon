@@ -58,6 +58,11 @@ export interface Prefs {
   collapsedProjects: string[];
   /** Settled shelves the user opened: `project:<cwd>`, or `status` for the by-status view. */
   openShelves: string[];
+  /**
+   * Dock cards the user collapsed, as `goal:<sessionId>` or `plan:<sessionId>`. Only the closed ones are
+   * kept, so a card opens by default and a thread the user has never touched costs nothing to remember.
+   */
+  collapsedCards: string[];
   /** When the user last viewed each thread (ISO). */
   lastSeen: Record<string, string>;
   /** Activity before the first launch is treated as already seen. */
@@ -86,6 +91,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     sidebarCollapsed: false,
     collapsedProjects: [],
     openShelves: [],
+    collapsedCards: [],
     lastSeen: {},
     baseline: now,
     defaultMode: "onRequest",
@@ -216,6 +222,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     sidebarCollapsed: pick("sidebarCollapsed", (v) => typeof v === "boolean"),
     collapsedProjects: pick("collapsedProjects", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
     openShelves: pick("openShelves", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
+    collapsedCards: pick("collapsedCards", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
     lastSeen: pick("lastSeen", (v) => typeof v === "object" && v !== null && !Array.isArray(v)),
     baseline: pick("baseline", (v) => typeof v === "string" && !Number.isNaN(Date.parse(v))),
     codeTheme: pick("codeTheme", (v) => CODE_THEMES.includes(v as CodeTheme)),

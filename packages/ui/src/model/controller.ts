@@ -500,6 +500,10 @@ export class HeliconController {
           const current = s.sessions[event.sessionId];
           return current ? { ...s, sessions: { ...s.sessions, [event.sessionId]: { ...current, live: event.live } } } : s;
         });
+        // The only word we get about a thread this app has never opened: it is waiting on someone.
+        if (this.state.bypassAll && (event.live?.pendingApprovals ?? 0) > 0) {
+          this.loadForBypass(event.sessionId);
+        }
         break;
       case "shell-run":
         this.addShellRun(event.sessionId, event.run);
@@ -843,6 +847,23 @@ export class HeliconController {
     this.update((s) => ({ ...s, bypassAll: on }));
     if (on) {
       this.autoAllow(Object.keys(this.state.threads));
+      // A thread nobody has opened here has no local state at all, so its events are dropped on arrival and
+      // its approvals are invisible. The server's live view is what says which sessions are waiting.
+      for (const session of Object.values(this.state.sessions)) {
+        if ((session.live?.pendingApprovals ?? 0) > 0) {
+          this.loadForBypass(session.sessionId);
+        }
+      }
+    }
+  }
+
+  /** Opens a thread only so the bypass can reach its approvals, and answers them once it is there. */
+  private loadForBypass(sessionId: string): void {
+    const thread = this.state.threads[sessionId];
+    if (!thread) {
+      void this.loadThread(sessionId);
+    } else if (thread.load === "ready") {
+      this.autoAllow([sessionId]);
     }
   }
 
@@ -862,8 +883,9 @@ export class HeliconController {
    */
   private allowOnce(request: ApprovalRequest): string | null {
     const choices = request.availableChoices ?? [];
-    const approved = choices.filter((choice) => choice.decision === "approved");
-    return (approved.find((choice) => !choice.rulePreview) ?? approved[0])?.choiceId ?? null;
+    // Only a choice that leaves nothing behind. Where the sole way to allow is to remember a rule, the
+    // request stays for the user: a rule in Muse's own config would outlive the bypass that wrote it.
+    return choices.find((choice) => choice.decision === "approved" && !choice.rulePreview)?.choiceId ?? null;
   }
 
   /** Answers what is pending in every armed thread; a request offering no approval is left to the user. */
@@ -1630,6 +1652,18 @@ export class HeliconController {
       return;
     }
     this.setPrefs({ lastSeen: { ...this.state.prefs.lastSeen, [sessionId]: now } });
+  }
+
+  /**
+   * Remembers whether a dock card is open, per thread. Without this the card is local state that dies with
+   * the view, so leaving a thread and coming back reopens what the user had folded away.
+   */
+  setCardOpen(key: string, open: boolean): void {
+    const collapsed = this.state.prefs.collapsedCards;
+    if (open === !collapsed.includes(key)) {
+      return;
+    }
+    this.setPrefs({ collapsedCards: open ? collapsed.filter((k) => k !== key) : [...collapsed, key] });
   }
 
   setGroupBy(groupBy: GroupBy): void {

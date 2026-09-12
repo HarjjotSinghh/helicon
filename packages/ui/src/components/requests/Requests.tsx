@@ -427,8 +427,11 @@ function TodoMark(props: { status: string }) {
   }
 }
 
-export function PlanPanel(props: { items: TodoItem[] }) {
-  const [open, setOpen] = useState(true);
+export function PlanPanel(props: { sessionId: string; items: TodoItem[] }) {
+  const controller = useController();
+  // Kept in prefs, not here: this panel unmounts whenever the user looks at another thread.
+  const cardKey = `plan:${props.sessionId}`;
+  const open = useApp((s) => !s.prefs.collapsedCards.includes(cardKey));
   const done = props.items.filter((i) => i.status === "completed").length;
   const active = props.items.find((i) => i.status === "inProgress");
   return (
@@ -436,7 +439,7 @@ export function PlanPanel(props: { items: TodoItem[] }) {
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => controller.setCardOpen(cardKey, !open)}
         className="flex h-10 w-full items-center gap-2.5 px-3.5 text-left transition-colors hover:bg-hover"
       >
         <ListTodo size={15} className="shrink-0 text-subtle" />

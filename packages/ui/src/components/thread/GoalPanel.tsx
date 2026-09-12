@@ -1,5 +1,5 @@
 import { ChevronDown, Pause, Play, Target } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { shallowEqual, useApp, useController, useNow } from "../../app/context.js";
 import { formatDuration, formatTokens, relativeTime } from "../../model/format.js";
 import { goalView, type GoalTone, type GoalView } from "../../model/goal.js";
@@ -36,7 +36,9 @@ export function GoalPanel(props: { sessionId: string; running: boolean; readOnly
     const fold = controller.store.get().threads[props.sessionId]?.fold;
     return inputs && fold ? goalView(fold) : null;
   }, [inputs, controller, props.sessionId]);
-  const [open, setOpen] = useState(true);
+  // Kept in prefs, not here: this panel unmounts whenever the user looks at another thread.
+  const cardKey = `goal:${props.sessionId}`;
+  const open = useApp((s) => !s.prefs.collapsedCards.includes(cardKey));
   const ticking = view?.tone === "active" && view.startedAt !== null;
   const now = useNow(1000, ticking);
   if (!view) {
@@ -48,7 +50,7 @@ export function GoalPanel(props: { sessionId: string; running: boolean; readOnly
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => controller.setCardOpen(cardKey, !open)}
         className="flex h-10 w-full items-center gap-2.5 px-3.5 text-left transition-colors hover:bg-hover"
       >
         <Target size={15} className="shrink-0 text-subtle" />
