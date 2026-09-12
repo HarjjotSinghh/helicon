@@ -1,7 +1,8 @@
 # Helicon
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](#roadmap)
+[![Platform](https://img.shields.io/badge/installer-Windows-blue.svg)](https://github.com/HarjjotSinghh/helicon/releases/latest)
+[![macOS and Linux](https://img.shields.io/badge/macOS%20%7C%20Linux-planned-lightgrey.svg)](#roadmap)
 [![Tauri](https://img.shields.io/badge/desktop-Tauri%202-FFC131.svg)](https://tauri.app)
 [![Web](https://img.shields.io/badge/web-shared%20React%20UI-61DAFB.svg)](#architecture)
 [![Muse Code](https://img.shields.io/badge/powered_by-Muse%20Code%20CLI%20(MSP)-0668E1.svg)](https://developer.meta.com/ai/products/muse-code)
@@ -11,6 +12,17 @@
 > **Helicon** - home of the Muses. An open-source desktop + web ADE for Meta's **Muse Code CLI** (`muse`), in the spirit of the Claude Code desktop app and the Codex / ChatGPT desktop app.
 
 **Sidebar-first:** all projects grouped by working directory, each with its tasks and sessions - resume anything, including sessions started from the `muse` terminal TUI.
+
+![A thread in Helicon: projects down the side, the agent's reply, and what the turn cost](docs/assets/thread.png)
+
+<details>
+<summary>Usage and settings</summary>
+
+![Usage: what these threads would have cost at API rates, by day, by model and by thread](docs/assets/usage.png)
+
+![Settings: theme and code colours, what a new thread starts on, approvals, updates](docs/assets/settings.png)
+
+</details>
 
 > ⚠️ **Unofficial community project.** Not made, endorsed, or supported by Meta. "Muse" and "Muse Code" are trademarks of Meta, used here only to describe what this client connects to. This is **not legal advice** - see [Legal](#legal).
 
@@ -53,7 +65,15 @@ apps/web         same UI against a remote daemon
 - [ ] macOS + Linux builds and releases
 - [ ] Post-v1: mobile relay to steer running sessions from a phone
 
-## Quickstart
+## Install
+
+Windows: download the setup file from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest). It is signed, and updates itself from then on.
+
+You need Node 22+ and the `muse` CLI with `muse login` done once, in WSL2 Ubuntu. Helicon uses the login you already have and never stores credentials of its own.
+
+macOS and Linux installers are not published yet - see the [roadmap](#roadmap). Run from source on those platforms in the meantime.
+
+## From source
 
 Prereqs: Node 22+, the `muse` CLI with `muse login` done once (WSL2 Ubuntu on Windows), and the repo checked out.
 

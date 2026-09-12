@@ -29,3 +29,6 @@ Thumbs.db
 # Browser automation output
 .playwright-mcp/
 *.png
+# Images the docs and the README deliberately show are the exception to the rule above.
+!docs/assets/*.png
+!docs/assets/**/*.png
