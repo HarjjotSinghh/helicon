@@ -1190,7 +1190,10 @@ export class HeliconServer {
         this.sinks.delete(sink);
         return;
       }
-      res.write(": ping\n\n");
+      // A named event rather than a comment: EventSource never surfaces comments to a listener, so a client
+      // holding a stream whose upstream died behind a proxy cannot tell it from a quiet one. This is what
+      // the client's watchdog listens for.
+      res.write(`event: ping\ndata: ${Date.now()}\n\n`);
     }, 25000);
     res.on("close", () => {
       clearInterval(heartbeat);

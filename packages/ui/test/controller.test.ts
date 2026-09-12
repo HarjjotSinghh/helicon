@@ -66,6 +66,9 @@ class FakeClient implements HeliconClient {
   async listDirectory(path: string) {
     return { directory: path, parent: null, separator: "/" as const, exists: true, entries: [] };
   }
+  assetUrl(path: string) {
+    return path;
+  }
   async revealPath() {}
   async hideProject() {}
   async setPinned() {}

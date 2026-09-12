@@ -592,6 +592,18 @@ function ShellRunRow(props: { run: ShellRun; sessionId: string }) {
   );
 }
 
+/**
+ * What a prompt says while it waits for the stream to echo it back. Only the first of these is still
+ * on its way out: once the host has acknowledged the turn the message is sent, and saying otherwise
+ * reads as a message that never left.
+ */
+const ECHO_LABEL: Record<LocalEcho["disposition"], string> = {
+  sending: "Sending",
+  started: "Sent",
+  queued: "Queued",
+  steered: "Adding to the current turn",
+};
+
 function PendingPrompt(props: { echo: LocalEcho }) {
   const files = props.echo.attachments ?? [];
   return (
@@ -604,7 +616,7 @@ function PendingPrompt(props: { echo: LocalEcho }) {
       ) : null}
       <span className="flex items-center gap-1.5 text-2xs text-subtle">
         <Spinner size={9} />
-        {props.echo.disposition === "steered" ? "Adding to the current turn" : "Sending"}
+        {ECHO_LABEL[props.echo.disposition]}
       </span>
     </div>
   );

@@ -446,7 +446,7 @@ export class HeliconController {
             readOnlyReason: load.readOnlyReason,
             truncated: load.truncated,
             fold,
-            attachments: load.attachments ?? [],
+            attachments: (load.attachments ?? []).map((file) => this.stamp(file)),
             shellRuns: load.shellRuns ?? [],
           },
         },
@@ -1261,6 +1261,15 @@ export class HeliconController {
     return target ? this.startThread(target, `!${command}`, run) : false;
   }
 
+  /**
+   * The server returns a relative URL for each saved file. The browser loads these on its own, outside the
+   * client's calls, so a token-protected server would refuse every one of them: the image in the transcript
+   * and the bytes a retry reads back alike. They carry the same credentials as everything else from here on.
+   */
+  private stamp(file: AttachmentView): AttachmentView {
+    return { ...file, url: this.client.assetUrl(file.url) };
+  }
+
   /** Adds files the server has just saved to the open thread, skipping any it already has. */
   private keepAttachments(sessionId: string, saved: AttachmentView[]): void {
     if (saved.length === 0) {
@@ -1272,7 +1281,7 @@ export class HeliconController {
         return s;
       }
       const known = new Set(thread.attachments.map((file) => file.id));
-      const added = saved.filter((file) => !known.has(file.id));
+      const added = saved.filter((file) => !known.has(file.id)).map((file) => this.stamp(file));
       if (added.length === 0) {
         return s;
       }

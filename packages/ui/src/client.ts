@@ -76,6 +76,11 @@ export interface HeliconClient {
   discover(cwd?: string): Promise<void>;
   startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string }): Promise<SessionSummary>;
   loadTranscript(sessionId: string): Promise<TranscriptLoad>;
+  /**
+   * A server path the browser loads by itself, like an attachment's bytes, returned with whatever the
+   * client's own calls carry: a token-protected server refuses a bare one.
+   */
+  assetUrl(path: string): string;
   updateSession(sessionId: string, patch: { title?: string; archived?: boolean; settled?: boolean }): Promise<SessionSummary | null>;
   /** `attachments` come back saved, so the open thread can show them without waiting for a reload. */
   sendTurn(

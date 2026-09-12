@@ -33,6 +33,8 @@ function withToken(path: string): string {
 const CALL_TIMEOUT_MS = 60_000;
 /** A `!` command may run for two minutes on the server; the wait here has to outlast that. */
 const SHELL_TIMEOUT_MS = 150_000;
+/** Two missed heartbeats. The server sends one every 25s, so silence this long means the stream is gone. */
+const STREAM_IDLE_MS = 70_000;
 
 async function call<T>(method: string, path: string, body?: unknown, timeoutMs = CALL_TIMEOUT_MS): Promise<T> {
   let response: Response;
@@ -79,6 +81,7 @@ const enc = encodeURIComponent;
 export class WebHeliconClient implements HeliconClient {
   private readonly handlers = new Set<EventHandler>();
   private source: EventSource | null = null;
+  private watchdog: ReturnType<typeof setTimeout> | null = null;
 
   probeEnvironment(refresh = false): Promise<EnvironmentStatus> {
     return call<EnvironmentStatus>("GET", `/api/env${refresh ? "?refresh=1" : ""}`);
@@ -242,12 +245,18 @@ export class WebHeliconClient implements HeliconClient {
     await call("POST", "/api/open", { cwd, target });
   }
 
+  /** A server path the browser fetches directly, like an attachment's bytes: it needs the token too. */
+  assetUrl(path: string): string {
+    return withToken(path);
+  }
+
   subscribe(handler: EventHandler): () => void {
     this.handlers.add(handler);
     this.connect();
     return () => {
       this.handlers.delete(handler);
       if (this.handlers.size === 0) {
+        this.stopWatchdog();
         this.source?.close();
         this.source = null;
       }
@@ -260,14 +269,47 @@ export class WebHeliconClient implements HeliconClient {
     }
     const source = new EventSource(withToken("/api/events"));
     source.addEventListener("helicon", (message) => {
+      this.touch();
       try {
         this.dispatch(JSON.parse((message as MessageEvent<string>).data) as HeliconEvent);
       } catch {
         /* ignore malformed frames */
       }
     });
+    // The server's heartbeat: proof the stream is still carrying, and nothing else.
+    source.addEventListener("ping", () => this.touch());
+    source.addEventListener("open", () => this.touch());
     source.addEventListener("error", () => this.dispatch({ type: "connection", state: "lost" }));
     this.source = source;
+    this.touch();
+  }
+
+  /** Restarts the idle timer. A stream that says nothing for two missed heartbeats is treated as dead. */
+  private touch(): void {
+    this.stopWatchdog();
+    this.watchdog = setTimeout(() => this.revive(), STREAM_IDLE_MS);
+  }
+
+  private stopWatchdog(): void {
+    if (this.watchdog !== null) {
+      clearTimeout(this.watchdog);
+      this.watchdog = null;
+    }
+  }
+
+  /**
+   * A dead stream the browser cannot see: a proxy can hold the connection open long after its upstream has
+   * gone, so no `error` ever fires and the app sits on a transcript that stopped moving. Tearing it down by
+   * hand and opening a new one brings back `hello`, which is what makes the app reload what it missed.
+   */
+  private revive(): void {
+    this.stopWatchdog();
+    this.source?.close();
+    this.source = null;
+    this.dispatch({ type: "connection", state: "lost" });
+    if (this.handlers.size > 0) {
+      this.connect();
+    }
   }
 
   private dispatch(event: HeliconEvent): void {
