@@ -20,13 +20,68 @@ import {
   type UserInputAnswer,
 } from "@helicon/ui";
 
-const token = new URLSearchParams(window.location.search).get("token");
+/** Which daemon this page talks to. An empty base is the origin that served the page. */
+export interface Daemon {
+  base: string;
+  token: string | null;
+}
 
-function withToken(path: string): string {
-  if (!token) {
-    return path;
+const DAEMON_KEY = "helicon:daemon";
+
+function stored(): Daemon | null {
+  try {
+    const raw = window.localStorage.getItem(DAEMON_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<Daemon>;
+    return { base: typeof parsed.base === "string" ? parsed.base : "", token: typeof parsed.token === "string" ? parsed.token : null };
+  } catch {
+    return null;
   }
-  return `${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
+}
+
+function remember(next: Daemon): void {
+  try {
+    window.localStorage.setItem(DAEMON_KEY, JSON.stringify(next));
+  } catch {
+    /* a browser with storage switched off still works for this session */
+  }
+}
+
+/**
+ * The token used to ride in the query string, which put it in history and in every shared link.
+ * One is still accepted there, because that is how local links were handed out, but it is taken
+ * out of the address bar immediately and kept here instead.
+ */
+function initial(): Daemon {
+  const params = new URLSearchParams(window.location.search);
+  const fromUrl = params.get("token");
+  if (fromUrl) {
+    const next: Daemon = { base: "", token: fromUrl };
+    remember(next);
+    params.delete("token");
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+    return next;
+  }
+  return stored() ?? { base: "", token: null };
+}
+
+let daemon: Daemon = initial();
+
+export function currentDaemon(): Daemon {
+  return daemon;
+}
+
+/** Points this page at another daemon; the caller reloads so every open stream starts again. */
+export function setDaemon(next: Daemon): void {
+  daemon = { base: next.base.replace(/\/$/, ""), token: next.token };
+  remember(daemon);
+}
+
+function url(path: string): string {
+  return daemon.base ? `${daemon.base}${path}` : path;
 }
 
 /** Long enough for a slow local call, short enough that a wedged one never leaves the UI waiting forever. */
@@ -41,10 +96,15 @@ async function call<T>(method: string, path: string, body?: unknown, timeoutMs =
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
-    response = await fetch(withToken(path), {
+    response = await fetch(url(path), {
       method,
-      headers: body === undefined ? undefined : { "content-type": "application/json" },
+      headers: {
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+        // In a header rather than the URL, so it stays out of history, logs and shared links.
+        ...(daemon.token ? { authorization: `Bearer ${daemon.token}` } : {}),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: daemon.base ? "include" : "same-origin",
       signal: abort.signal,
     });
   } catch {
@@ -82,6 +142,8 @@ export class WebHeliconClient implements HeliconClient {
   private readonly handlers = new Set<EventHandler>();
   private source: EventSource | null = null;
   private watchdog: ReturnType<typeof setTimeout> | null = null;
+  /** The handshake is awaited before the stream opens; this stops a second subscriber racing it. */
+  private connecting = false;
 
   probeEnvironment(refresh = false): Promise<EnvironmentStatus> {
     return call<EnvironmentStatus>("GET", `/api/env${refresh ? "?refresh=1" : ""}`);
@@ -245,14 +307,17 @@ export class WebHeliconClient implements HeliconClient {
     await call("POST", "/api/open", { cwd, target });
   }
 
-  /** A server path the browser fetches directly, like an attachment's bytes: it needs the token too. */
+  /**
+   * A server path the browser loads by itself, like an attachment's bytes. It carries no token: the
+   * cookie from the handshake is what lets these through, so nothing secret ends up in an `img` tag.
+   */
   assetUrl(path: string): string {
-    return withToken(path);
+    return url(path);
   }
 
   subscribe(handler: EventHandler): () => void {
     this.handlers.add(handler);
-    this.connect();
+    void this.connect();
     return () => {
       this.handlers.delete(handler);
       if (this.handlers.size === 0) {
@@ -263,11 +328,26 @@ export class WebHeliconClient implements HeliconClient {
     };
   }
 
-  private connect(): void {
-    if (this.source) {
+  private async connect(): Promise<void> {
+    if (this.source || this.connecting) {
       return;
     }
-    const source = new EventSource(withToken("/api/events"));
+    this.connecting = true;
+    try {
+      // EventSource cannot send a header, so the token buys a cookie first and the stream uses that.
+      if (daemon.token) {
+        await call("POST", "/api/auth", { token: daemon.token });
+      }
+    } catch {
+      // Let the stream try anyway: an unauthenticated daemon needs no handshake, and a real refusal
+      // surfaces as a lost connection rather than a silent nothing.
+    } finally {
+      this.connecting = false;
+    }
+    if (this.source || this.handlers.size === 0) {
+      return;
+    }
+    const source = new EventSource(url("/api/events"), { withCredentials: Boolean(daemon.base) });
     source.addEventListener("helicon", (message) => {
       this.touch();
       try {
@@ -308,7 +388,7 @@ export class WebHeliconClient implements HeliconClient {
     this.source = null;
     this.dispatch({ type: "connection", state: "lost" });
     if (this.handlers.size > 0) {
-      this.connect();
+      void this.connect();
     }
   }
 

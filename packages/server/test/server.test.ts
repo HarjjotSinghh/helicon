@@ -177,6 +177,56 @@ describe("HeliconServer", () => {
     assert.equal((await fetch(`${base}/api/health?token=secret`)).status, 200);
   });
 
+  it("answers an allowed origin and refuses one nobody listed", async () => {
+    const connection = new FakeConnection();
+    const { base } = await start(connection, { allowOrigins: ["https://helicon.example"] });
+    const blocked = await fetch(`${base}/api/health`, { headers: { origin: "https://evil.example" } });
+    assert.equal(blocked.status, 403);
+    // Nothing to read even by accident: a refused origin gets no CORS headers at all.
+    assert.equal(blocked.headers.get("access-control-allow-origin"), null);
+    const allowed = await fetch(`${base}/api/health`, { headers: { origin: "https://helicon.example" } });
+    assert.equal(allowed.status, 200);
+    assert.equal(allowed.headers.get("access-control-allow-origin"), "https://helicon.example");
+    assert.equal(allowed.headers.get("access-control-allow-credentials"), "true");
+  });
+
+  it("answers a preflight for an allowed origin", async () => {
+    const connection = new FakeConnection();
+    const { base } = await start(connection, { allowOrigins: ["https://helicon.example"] });
+    const res = await fetch(`${base}/api/turns`, { method: "OPTIONS", headers: { origin: "https://helicon.example" } });
+    assert.equal(res.status, 204);
+    assert.match(res.headers.get("access-control-allow-methods") ?? "", /POST/);
+  });
+
+  it("trades a token for a cookie, which is what the event stream can carry", async () => {
+    const connection = new FakeConnection();
+    const { base } = await start(connection, { token: "secret" });
+    assert.equal((await send(base, "/api/auth", { token: "wrong" })).status, 401);
+    const res = await fetch(`${base}/api/auth`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "secret" }),
+    });
+    assert.equal(res.status, 200);
+    const cookie = res.headers.get("set-cookie") ?? "";
+    assert.match(cookie, /helicon_token=secret/);
+    assert.match(cookie, /HttpOnly/);
+    // EventSource cannot send a header, so the cookie alone has to be enough.
+    assert.equal((await fetch(`${base}/api/health`, { headers: { cookie: "helicon_token=secret" } })).status, 200);
+  });
+
+  it("takes a token from the URL only when no other site is asking", async () => {
+    const connection = new FakeConnection();
+    const { base } = await start(connection, { token: "secret", allowOrigins: ["https://helicon.example"] });
+    // No origin at all: curl, the desktop shell, the page this daemon served itself.
+    assert.equal((await fetch(`${base}/api/health?token=secret`)).status, 200);
+    // Its own page writing back still counts as itself, origin header and all.
+    assert.equal((await fetch(`${base}/api/health?token=secret`, { headers: { origin: base } })).status, 200);
+    // Another site holding the same link gets nothing, so sharing the URL hands over no access.
+    const cross = await fetch(`${base}/api/health?token=secret`, { headers: { origin: "https://helicon.example" } });
+    assert.equal(cross.status, 401);
+  });
+
   it("translates Windows paths at the WSL boundary", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s9" } });

@@ -1,6 +1,7 @@
-import { StrictMode } from "react";
+import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { HeliconApp } from "@helicon/ui";
+import { Connect } from "./Connect.js";
 import { desktopFrame } from "./frame.js";
 import { desktopUpdater } from "./updater.js";
 import { WebHeliconClient } from "./webClient.js";
@@ -11,8 +12,28 @@ if (!root) {
   throw new Error("Helicon: missing #root element.");
 }
 
+/**
+ * `#/connect` picks the daemon this page talks to. It is read before the app mounts, because the
+ * client reads its address once at module load and every open stream belongs to that address.
+ */
+function Root() {
+  const [connecting, setConnecting] = useState(window.location.hash === "#/connect");
+  if (connecting) {
+    return (
+      <Connect
+        onDone={() => {
+          setConnecting(false);
+          // A reload, not a re-render: the client keeps its address and its stream from load time.
+          window.location.replace(window.location.pathname);
+        }}
+      />
+    );
+  }
+  return <HeliconApp client={new WebHeliconClient()} frame={desktopFrame()} updater={desktopUpdater()} />;
+}
+
 createRoot(root).render(
   <StrictMode>
-    <HeliconApp client={new WebHeliconClient()} frame={desktopFrame()} updater={desktopUpdater()} />
+    <Root />
   </StrictMode>,
 );

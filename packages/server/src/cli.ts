@@ -12,6 +12,7 @@ function usage(): string {
     "  --data-dir <dir>  sqlite directory, or :memory: (default ~/.helicon)",
     "  --static <dir>    serve a built frontend from this directory",
     "  --token <value>   require a token for non-loopback access",
+    "  --allow-origin <o>  browser origin allowed to connect from another site (repeatable)",
     "  --distro <name>   WSL distro for muse on Windows (default Ubuntu)",
     "  --muse <path>     explicit muse binary path",
   ].join("\n");
@@ -23,6 +24,17 @@ function flagValue(argv: string[], name: string): string | null {
     return null;
   }
   return argv[index + 1] as string;
+}
+
+/** Every occurrence of a repeatable flag, as in `--allow-origin a --allow-origin b`. */
+function flagValues(argv: string[], name: string): string[] {
+  const found: string[] = [];
+  for (let index = 0; index < argv.length - 1; index += 1) {
+    if (argv[index] === name) {
+      found.push(argv[index + 1] as string);
+    }
+  }
+  return found;
 }
 
 async function main(): Promise<void> {
@@ -43,6 +55,7 @@ async function main(): Promise<void> {
     dataDir,
     staticDir: flagValue(argv, "--static"),
     token: flagValue(argv, "--token"),
+    allowOrigins: flagValues(argv, "--allow-origin"),
     distro: flagValue(argv, "--distro") ?? undefined,
     musePath: flagValue(argv, "--muse") ?? undefined,
   });
