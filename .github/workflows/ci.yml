@@ -18,3 +18,23 @@ jobs:
       - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
       - run: npm run test --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
       - run: npm run build --workspace @helicon/web
+      - run: npm run test --workspace @helicon/web
+
+  # The desktop crate is only otherwise compiled while cutting a release, which is far too late to
+  # find out that it does not build.
+  rust:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
+      - run: npm run build --workspace @helicon/web
+      # tauri-build checks every path in bundle.resources before it compiles anything, and those are
+      # built rather than committed. This is what the release does through beforeBuildCommand.
+      - run: npm run bundle:server --workspace helicon-desktop
+      - run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml

@@ -11,6 +11,7 @@ import { TooltipProvider } from "../components/ui/overlays.js";
 import { isMac } from "../components/ui/primitives.js";
 import { Toasts } from "../components/ui/Toasts.js";
 import { HeliconController, type Platform } from "../model/controller.js";
+import type { Notifier } from "../model/notify.js";
 import type { AppUpdater } from "../model/updates.js";
 import { ControllerProvider, useApp, useController } from "./context.js";
 import { FrameProvider, FrameStrip, WindowControls, type WindowFrame } from "./frame.js";
@@ -22,6 +23,8 @@ export interface HeliconAppProps {
   frame?: WindowFrame;
   /** Present when the shell can update itself. */
   updater?: AppUpdater;
+  /** How this shell raises a system notification; absent where it cannot. */
+  notifier?: Notifier;
 }
 
 /** The whole Helicon interface. Web and desktop shells mount this with their transport. */
@@ -30,6 +33,9 @@ export function HeliconApp(props: HeliconAppProps) {
     const created = new HeliconController(props.client, props.platform);
     if (props.updater) {
       created.attachUpdater(props.updater);
+    }
+    if (props.notifier) {
+      created.attachNotifier(props.notifier);
     }
     return created;
   });

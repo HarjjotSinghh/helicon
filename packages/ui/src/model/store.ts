@@ -63,6 +63,8 @@ export interface Prefs {
    * kept, so a card opens by default and a thread the user has never touched costs nothing to remember.
    */
   collapsedCards: string[];
+  /** Raise a system notification when a thread needs attention while the window does not have it. */
+  notifications: boolean;
   /** When the user last viewed each thread (ISO). */
   lastSeen: Record<string, string>;
   /** Activity before the first launch is treated as already seen. */
@@ -92,6 +94,8 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     collapsedProjects: [],
     openShelves: [],
     collapsedCards: [],
+    // Off until asked for: nobody should be interrupted by something they never turned on.
+    notifications: false,
     lastSeen: {},
     baseline: now,
     defaultMode: "onRequest",
@@ -224,6 +228,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     collapsedProjects: pick("collapsedProjects", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
     openShelves: pick("openShelves", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
     collapsedCards: pick("collapsedCards", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
+    notifications: pick("notifications", (v) => typeof v === "boolean"),
     lastSeen: pick("lastSeen", (v) => typeof v === "object" && v !== null && !Array.isArray(v)),
     baseline: pick("baseline", (v) => typeof v === "string" && !Number.isNaN(Date.parse(v))),
     codeTheme: pick("codeTheme", (v) => CODE_THEMES.includes(v as CodeTheme)),

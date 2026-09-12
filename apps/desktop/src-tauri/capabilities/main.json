@@ -17,6 +17,7 @@
     "core:app:default",
     "core:resources:allow-close",
     "updater:default",
-    "process:allow-restart"
+    "process:allow-restart",
+    "notification:default"
   ]
 }

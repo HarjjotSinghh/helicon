@@ -253,6 +253,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(ServerChild(Arc::new(Mutex::new(None))))
         .setup(|app| {
             // Open the window at once on a splash page; the server can take a few seconds to probe WSL.

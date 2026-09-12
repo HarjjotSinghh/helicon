@@ -199,6 +199,20 @@ export function SettingsPage() {
           ) : null}
         </Section>
 
+        <Section title="Notifications">
+          <Row
+            label="Tell me when a thread needs me"
+            description="A system notification when a thread asks for approval, asks a question, finishes, fails, or its goal stops moving. Only while this window is in the background."
+          >
+            <Toggle
+              checked={prefs.notifications}
+              label="Notifications"
+              // Switching on has to ask, and a browser only grants permission from a real press.
+              onChange={(on) => (on ? void controller.askToNotify() : controller.setPrefs({ notifications: false }))}
+            />
+          </Row>
+        </Section>
+
         {updates ? (
           <Section title="Updates">
             <Row label={`Helicon ${updates.currentVersion ?? ""}`} description={updateSummary(updates, prefs.autoUpdate, prefs.updatesPaused, now)}>

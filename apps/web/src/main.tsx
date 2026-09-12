@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { HeliconApp } from "@helicon/ui";
 import { Connect } from "./Connect.js";
 import { desktopFrame } from "./frame.js";
+import { appNotifier } from "./notifier.js";
 import { desktopUpdater } from "./updater.js";
 import { WebHeliconClient } from "./webClient.js";
 import "./theme.css";
@@ -29,7 +30,14 @@ function Root() {
       />
     );
   }
-  return <HeliconApp client={new WebHeliconClient()} frame={desktopFrame()} updater={desktopUpdater()} />;
+  return (
+    <HeliconApp
+      client={new WebHeliconClient()}
+      frame={desktopFrame()}
+      updater={desktopUpdater()}
+      notifier={appNotifier()}
+    />
+  );
 }
 
 createRoot(root).render(

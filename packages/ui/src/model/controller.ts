@@ -52,6 +52,7 @@ import {
   type ThreadState,
   type Toast,
 } from "./store.js";
+import { NotificationManager, type Notifier } from "./notify.js";
 import { UpdateManager, type AppUpdater } from "./updates.js";
 
 /** The environment the controller runs in; injectable so the logic stays testable without a DOM. */
@@ -64,6 +65,8 @@ export interface Platform {
   now(): number;
   schedule(fn: () => void, ms: number): unknown;
   cancel(handle: unknown): void;
+  /** Whether the window has the user's attention; nothing is announced to someone already watching. */
+  focused(): boolean;
 }
 
 const PREFS_KEY = "helicon.prefs.v1";
@@ -104,6 +107,8 @@ export function browserPlatform(): Platform {
     now: () => Date.now(),
     schedule: (fn, ms) => window.setTimeout(fn, ms),
     cancel: (handle) => window.clearTimeout(handle as number),
+    // A window with no document at all is not one anybody is looking at.
+    focused: () => typeof document !== "undefined" && document.hasFocus(),
   };
 }
 
@@ -199,6 +204,9 @@ export class HeliconController {
   private toastSeq = 0;
 
   private updates: UpdateManager | null = null;
+  private notifications: NotificationManager | null = null;
+  /** Kept as well as the manager, because asking for permission is the shell's job, not the manager's. */
+  private notifier: Notifier | null = null;
 
   constructor(
     readonly client: HeliconClient,
@@ -232,6 +240,30 @@ export class HeliconController {
     }
     void this.boot(false);
     return () => this.dispose();
+  }
+
+  /**
+   * How this shell tells the user something happened: the browser's own notifications, or whatever
+   * the desktop OS ships. Call before `start`. Both settings are read per announcement, so turning
+   * the switch off or coming back to the window takes effect at once.
+   */
+  attachNotifier(notifier: Notifier): void {
+    this.notifier = notifier;
+    this.notifications = new NotificationManager(
+      notifier,
+      () => ({ enabled: this.state.prefs.notifications, focused: this.platform.focused() }),
+      () => this.platform.now(),
+    );
+  }
+
+  /** Asks for permission, which browsers only grant from a real gesture, so a button has to call this. */
+  async askToNotify(): Promise<void> {
+    const granted = (await this.notifier?.request()) ?? "denied";
+    if (granted !== "granted") {
+      this.toast("info", "Notifications are off", "Your browser or system refused them, so nothing will be raised.");
+      return;
+    }
+    this.setPrefs({ notifications: true });
   }
 
   /** The desktop shell's updater. Call before `start`; a browser never has one. */
@@ -496,20 +528,25 @@ export class HeliconController {
       case "msp":
         this.queueEvent(event.sessionId, { method: event.method, params: event.params, at: event.at });
         break;
-      case "session-status":
-        if (!this.state.sessions[event.sessionId]) {
+      case "session-status": {
+        const known = this.state.sessions[event.sessionId];
+        if (!known) {
           this.scheduleRefresh();
           break;
         }
+        // Held onto before the update overwrites it: what changed is the entire question.
+        const before = known.live;
         this.update((s) => {
           const current = s.sessions[event.sessionId];
           return current ? { ...s, sessions: { ...s.sessions, [event.sessionId]: { ...current, live: event.live } } } : s;
         });
+        this.announce(event.sessionId, known.title, before, event.live);
         // The only word we get about a thread this app has never opened: it is waiting on someone.
         if (this.state.bypassAll && (event.live?.pendingApprovals ?? 0) > 0) {
           this.loadForBypass(event.sessionId);
         }
         break;
+      }
       case "shell-run":
         this.addShellRun(event.sessionId, event.run);
         break;
@@ -859,6 +896,37 @@ export class HeliconController {
           this.loadForBypass(session.sessionId);
         }
       }
+    }
+  }
+
+  /**
+   * What a change in a thread's live state is worth saying out loud. Only the edges count: a request
+   * that has just appeared, a turn that has just ended, a goal that has just stopped being active.
+   * A state that was already true when the last report came in says nothing again.
+   */
+  private announce(
+    sessionId: string,
+    thread: string,
+    before: SessionSummary["live"],
+    after: SessionSummary["live"],
+  ): void {
+    const manager = this.notifications;
+    if (!manager || !after) {
+      return;
+    }
+    if ((after.pendingApprovals ?? 0) > 0 && (before?.pendingApprovals ?? 0) === 0) {
+      void manager.announce({ kind: "approval", sessionId, thread });
+    }
+    if ((after.pendingInputs ?? 0) > 0 && (before?.pendingInputs ?? 0) === 0) {
+      void manager.announce({ kind: "question", sessionId, thread });
+    }
+    if (after.activeTurnId === null && before?.activeTurnId != null && after.lastTerminal) {
+      const failed = Boolean(after.lastError) || after.lastTerminal === "failed";
+      void manager.announce({ kind: "finished", sessionId, thread, failed });
+    }
+    const status = after.goal?.status ?? null;
+    if (status && status !== "active" && status !== (before?.goal?.status ?? null)) {
+      void manager.announce({ kind: "goal", sessionId, thread, status });
     }
   }
 
