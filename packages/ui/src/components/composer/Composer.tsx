@@ -546,7 +546,7 @@ function ModelPicker(props: { sessionId: string | null; side: PickerSide }) {
 }
 
 /** Effort levels on the faster-to-smarter scale. Auto sits outside it: Muse picks per turn. */
-const LEVELS: { value: ReasoningEffort; label: string; description: string }[] = [
+export const LEVELS: { value: ReasoningEffort; label: string; description: string }[] = [
   { value: "none", label: "Off", description: "Answers right away, without reasoning" },
   { value: "minimal", label: "Minimal", description: "A quick think before answering" },
   { value: "low", label: "Low", description: "Light reasoning for simple changes" },
@@ -673,7 +673,7 @@ function EffortPicker(props: { side: PickerSide }) {
   );
 }
 
-const MODES: { value: ApprovalMode; label: string; description: string; icon: ReactNode }[] = [
+export const MODES: { value: ApprovalMode; label: string; description: string; icon: ReactNode }[] = [
   { value: "onRequest", label: "Ask first", description: "Muse asks before anything that needs approval.", icon: <Shield size={14} /> },
   {
     value: "promptUnmatched",

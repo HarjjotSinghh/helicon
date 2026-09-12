@@ -117,6 +117,8 @@ export function routeToHash(route: Route): string {
       return `#/t/${encodeURIComponent(route.sessionId)}`;
     case "usage":
       return "#/usage";
+    case "settings":
+      return "#/settings";
   }
 }
 
@@ -124,6 +126,9 @@ export function hashToRoute(hash: string): Route {
   const h = hash.replace(/^#/, "");
   if (h === "/usage") {
     return { kind: "usage" };
+  }
+  if (h === "/settings") {
+    return { kind: "settings" };
   }
   const thread = h.match(/^\/t\/(.+)$/);
   if (thread) {
@@ -874,6 +879,13 @@ export class HeliconController {
     }));
     if (on) {
       this.autoAllow([sessionId]);
+    }
+  }
+
+  /** Puts every thread that was answering for itself back to asking, without touching the session-wide switch. */
+  clearThreadBypass(): void {
+    if (this.state.bypassThreads.length > 0) {
+      this.update((s) => ({ ...s, bypassThreads: [] }));
     }
   }
 

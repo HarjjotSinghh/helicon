@@ -3,6 +3,7 @@ import type { HeliconClient } from "../client.js";
 import { AddProjectDialog } from "../components/sidebar/AddProjectDialog.js";
 import { BootError, BootScreen, NewThread, Onboarding, Welcome } from "../components/home/Home.js";
 import { CommandPalette } from "../components/palette/CommandPalette.js";
+import { SettingsPage } from "../components/settings/SettingsPage.js";
 import { Sidebar } from "../components/sidebar/Sidebar.js";
 import { ThreadView } from "../components/thread/ThreadView.js";
 import { UsagePage } from "../components/usage/UsagePage.js";
@@ -148,6 +149,9 @@ function Main() {
   }
   if (route.kind === "usage") {
     return <UsagePage />;
+  }
+  if (route.kind === "settings") {
+    return <SettingsPage />;
   }
   if (route.kind === "thread") {
     return <ThreadView key={route.sessionId} sessionId={route.sessionId} />;
