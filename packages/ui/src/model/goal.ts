@@ -58,6 +58,8 @@ export interface GoalView {
   lastProgressAt: number | null;
   /** Turns that did work toward the goal. */
   turns: number;
+  /** Those same turns by id, so the goal can be priced over exactly the work its token count covers. */
+  turnIds: string[];
   /** Input plus output tokens of those turns' model calls. */
   tokens: number;
   tokenBudget: number | null;
@@ -195,6 +197,7 @@ export function goalView(fold: ThreadFold): GoalView | null {
     pausedMs: fold.meta.goalPauses.reduce((total, p) => total + (p.to === null ? 0 : Math.max(0, p.to - p.from)), 0),
     lastProgressAt: record?.lastProgressAt ?? null,
     turns: turns.size,
+    turnIds: [...turns],
     tokens,
     tokenBudget: record?.tokenBudget ?? null,
     tokensUsed: record?.tokensUsed ?? null,
