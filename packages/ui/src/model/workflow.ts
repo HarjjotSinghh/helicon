@@ -63,6 +63,9 @@ interface Reconciled {
 
 const WRAPPER = /<workflow-launch-reconciled>([\s\S]*?)<\/workflow-launch-reconciled>/;
 
+/** Terminal statuses that mean the run did not succeed, matching how the transcript reads items. */
+export const TERMINAL_FAILURES = new Set(["failed", "rejected", "cancelled", "timedOut"]);
+
 /** The reconciliation payload Muse tucks inside `message`, or null when there is not one yet. */
 export function reconciled(message: string | undefined): Reconciled | null {
   if (!message) {
@@ -115,7 +118,11 @@ function launchArgs(fold: ThreadFold | null, callId: string | null): string | un
   return undefined;
 }
 
-function agentsOf(children: readonly WorkflowChild[], payload: Reconciled | null): WorkflowAgent[] {
+/**
+ * `runTerminal` is the run's own outcome once it has stopped, or null while it is still going.
+ * Agents taken from the payload have no status of their own, so they inherit it.
+ */
+function agentsOf(children: readonly WorkflowChild[], payload: Reconciled | null, runTerminal: string | null): WorkflowAgent[] {
   const activity = new Map<string, { duration_ms?: number; tool_calls?: number }>();
   for (const entry of payload?.agents_activity ?? []) {
     if (entry.agent) {
@@ -123,12 +130,14 @@ function agentsOf(children: readonly WorkflowChild[], payload: Reconciled | null
     }
   }
   if (children.length === 0) {
-    // The payload knows about agents before the run reports children of its own.
+    // The payload knows about agents before the run reports children of its own. They carry no
+    // status, so a run that has stopped hands them its outcome: without that, a finished workflow
+    // shows every agent spinning at nought of N.
     return [...activity].map(([id, entry]) => ({
       id,
       attempt: 1,
-      status: null,
-      terminal: null,
+      status: runTerminal,
+      terminal: runTerminal,
       durationMs: typeof entry.duration_ms === "number" ? entry.duration_ms : null,
       toolCalls: typeof entry.tool_calls === "number" ? entry.tool_calls : null,
     }));
@@ -154,7 +163,8 @@ function sum(values: (number | null)[]): number | null {
 /** Everything the card and the sheet show, from one workflow item and the thread it sits in. */
 export function workflowView(item: MspItem, fold: ThreadFold | null): WorkflowView {
   const payload = reconciled(item.message);
-  const agents = agentsOf(item.children ?? [], payload);
+  const running = item.status === "inProgress";
+  const agents = agentsOf(item.children ?? [], payload, running ? null : item.status);
   const durations = agents.map((agent) => agent.durationMs);
   const known = durations.filter((value): value is number => value !== null);
   const failure = text(payload?.latest_failure) ?? text(item.failureReason);
@@ -163,7 +173,7 @@ export function workflowView(item: MspItem, fold: ThreadFold | null): WorkflowVi
     scriptId: text(item["scriptId"]),
     trigger: text(item["triggerSource"]),
     status: item.status,
-    running: item.status === "inProgress",
+    running,
     label: text(item.fallbackText) ?? "Workflow",
     objective: objectiveOf(launchArgs(fold, text(payload?.call_id))),
     agents,

@@ -761,6 +761,8 @@
   .spin-ring,
   .attention-pulse,
   .sheet-in,
+  /* The exit rule carries an attribute, so it outranks a bare .sheet-in here. */
+  .sheet-in[data-state="closed"],
   .prose-helicon.streaming .tok {
     animation: none;
   }

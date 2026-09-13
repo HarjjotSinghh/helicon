@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { applyEvents, emptyFold } from "../src/model/fold.js";
-import { objectiveOf, reconciled, workflowView } from "../src/model/workflow.js";
+import { TERMINAL_FAILURES, objectiveOf, reconciled, workflowView } from "../src/model/workflow.js";
 import type { MspItem, ViewEvent, WorkflowChild } from "../src/types.js";
 
 const CALL = "call_01a08dd7";
@@ -154,11 +154,33 @@ describe("workflowView", () => {
   });
 
   it("falls back to the payload's agents before children are reported", () => {
-    const view = workflowView(item({ children: [] }), null);
+    const view = workflowView(item({ status: "inProgress", children: [] }), null);
     assert.equal(view.used, 2);
     assert.equal(view.toolCalls, 8);
-    // Nothing claims they finished, so none are counted as done.
+    // The run is still going, so its agents are too.
+    assert.equal(view.working, 2);
     assert.equal(view.done, 0);
+  });
+
+  it("counts the payload's agents as finished once the run is", () => {
+    const view = workflowView(item({ children: [] }), null);
+    assert.equal(view.used, 2);
+    assert.equal(view.done, 2);
+    assert.equal(view.working, 0);
+    assert.equal(view.failed, 0);
+  });
+
+  it("hands a stopped run's own outcome to agents it never reported", () => {
+    for (const status of ["failed", "rejected", "cancelled", "timedOut"]) {
+      const view = workflowView(item({ status, children: [] }), null);
+      assert.equal(view.failed, 2, status);
+      assert.equal(view.done, 0, status);
+      assert.equal(view.working, 0, status);
+    }
+  });
+
+  it("names every status that means the run did not succeed", () => {
+    assert.deepEqual([...TERMINAL_FAILURES].sort(), ["cancelled", "failed", "rejected", "timedOut"]);
   });
 
   it("carries the report and the run's identifiers", () => {

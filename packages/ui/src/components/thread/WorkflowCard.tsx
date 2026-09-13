@@ -2,7 +2,7 @@ import { ChevronDown, PanelRightOpen, Workflow } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import { useApp, useController } from "../../app/context.js";
 import { formatDuration, humanize } from "../../model/format.js";
-import { workflowView, type WorkflowAgent, type WorkflowView } from "../../model/workflow.js";
+import { TERMINAL_FAILURES, workflowView, type WorkflowAgent, type WorkflowView } from "../../model/workflow.js";
 import type { MspItem } from "../../types.js";
 import { Markdown } from "../ui/Markdown.js";
 import { Sheet } from "../ui/overlays.js";
@@ -26,7 +26,8 @@ function toneOf(view: WorkflowView): Tone {
   if (view.running) {
     return "running";
   }
-  return view.failed > 0 || view.status === "failed" ? "failed" : "done";
+  // A run that was rejected, cancelled or timed out did not succeed, even with no failed agent.
+  return view.failed > 0 || TERMINAL_FAILURES.has(view.status) ? "failed" : "done";
 }
 
 function time(ms: number | null): string {
