@@ -149,7 +149,7 @@ else
 fi
 confirm "Push $BRANCH to origin?" || die "aborted"
 git push origin "$BRANCH"
-gh workflow view "$BACKFILL_WORKFLOW" --ref "$BRANCH" >/dev/null \
+gh workflow view "$BACKFILL_WORKFLOW" --ref "$BRANCH" --yaml >/dev/null \
   || die "backfill workflow not found on $BRANCH after push"
 
 say "=== Phase 2: backfill macOS assets ==="
