@@ -1,5 +1,5 @@
 import { Dialog as RDialog, DropdownMenu, Tooltip as RTooltip } from "radix-ui";
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 import { Shortcut, cn } from "./primitives.js";
 
@@ -156,6 +156,51 @@ export function MenuLabel(props: { children: ReactNode }) {
 
 export function MenuSeparator() {
   return <DropdownMenu.Separator className="mx-1 my-1 h-px bg-line" />;
+}
+
+/**
+ * A panel off the right edge, for detail that would swamp a transcript row. Same dialog underneath
+ * as `Modal`: focus is trapped, Escape closes, and the page behind it stays where it was.
+ */
+export function Sheet(props: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <RDialog.Root open={props.open} onOpenChange={props.onOpenChange}>
+      <RDialog.Portal>
+        <RDialog.Overlay className="overlay-fade fixed inset-0 z-[var(--z-overlay)] bg-[oklch(0.1_0.01_255/0.45)]" />
+        <RDialog.Content
+          className={cn(
+            "sheet-in fixed inset-y-0 right-0 z-[var(--z-modal)] flex w-[min(560px,100vw)] flex-col bg-raised text-fg shadow-pop outline-none",
+            props.className,
+          )}
+        >
+          <header className="flex shrink-0 items-start gap-3 border-b border-line px-5 py-4">
+            <div className="min-w-0 flex-1">
+              <RDialog.Title className="text-base font-semibold tracking-[-0.01em]">{props.title}</RDialog.Title>
+              {props.description ? (
+                <RDialog.Description className="mt-0.5 text-xs text-pretty text-muted">{props.description}</RDialog.Description>
+              ) : (
+                <RDialog.Description className="sr-only">{props.title}</RDialog.Description>
+              )}
+            </div>
+            <RDialog.Close
+              aria-label="Close"
+              className="-m-1 shrink-0 rounded-lg p-1 text-subtle transition-colors duration-100 hover:bg-hover hover:text-fg"
+            >
+              <X size={16} />
+            </RDialog.Close>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{props.children}</div>
+        </RDialog.Content>
+      </RDialog.Portal>
+    </RDialog.Root>
+  );
 }
 
 export function Modal(props: {

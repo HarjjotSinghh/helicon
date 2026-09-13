@@ -13,7 +13,6 @@ import {
   Search,
   SquareTerminal,
   Target,
-  Workflow,
   Wrench,
 } from "lucide-react";
 import { Popover } from "radix-ui";
@@ -546,48 +545,6 @@ export const SubagentRow = memo(function SubagentRow(props: { item: MspItem }) {
           <>
             {result ? <Markdown text={result} className="text-sm" /> : null}
             {item.failureReason ? <p className="text-xs text-danger-text">{item.failureReason}</p> : null}
-          </>
-        ) : undefined
-      }
-    />
-  );
-});
-
-export const WorkflowRow = memo(function WorkflowRow(props: { item: MspItem }) {
-  const { item } = props;
-  const children = item.children ?? [];
-  const done = children.filter((c) => c.terminal === "completed").length;
-  const running = item.status === "inProgress";
-  return (
-    <Row
-      icon={<Workflow size={14} />}
-      label="Workflow"
-      detail={typeof item["entryId"] === "string" ? item["entryId"] : undefined}
-      trailing={
-        <span className="flex items-center gap-2 text-2xs text-subtle tabular-nums">
-          {children.length > 0 ? `${done} of ${children.length}` : null}
-          {running ? <Spinner size={12} className="text-accent-text" /> : null}
-        </span>
-      }
-      body={
-        children.length > 0 || item.message ? (
-          <>
-            {children.length > 0 ? (
-              <ul className="flex flex-col gap-1 text-sm">
-                {children.map((child) => (
-                  <li key={`${child.childId}:${child.attempt}`} className="flex items-center gap-2">
-                    {child.terminal ? (
-                      <span className={cn("size-1.5 rounded-full", child.terminal === "completed" ? "bg-ok" : "bg-danger")} />
-                    ) : (
-                      <Spinner size={10} />
-                    )}
-                    <span className="truncate text-muted">{child.label ?? child.childId}</span>
-                    <span className="text-xs text-subtle">{humanize(child.phase ?? child.status)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            {item.message ? <p className="text-sm text-muted">{item.message}</p> : null}
           </>
         ) : undefined
       }

@@ -68,6 +68,9 @@ export interface WorkflowChild {
   phase?: string;
   status: string;
   terminal?: string;
+  /** How long the agent ran. Present once it has stopped. */
+  durationMs?: number;
+  resultRef?: string;
 }
 
 /** One MSP transcript item at some revision. Unknown fields are kept and ignored. */
