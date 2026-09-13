@@ -1,8 +1,8 @@
 # Helicon
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/installer-Windows-blue.svg)](https://github.com/HarjjotSinghh/helicon/releases/latest)
-[![macOS and Linux](https://img.shields.io/badge/macOS%20%7C%20Linux-planned-lightgrey.svg)](#roadmap)
+[![Platform](https://img.shields.io/badge/installer-Windows%20%7C%20macOS-blue.svg)](https://github.com/HarjjotSinghh/helicon/releases/latest)
+[![Linux](https://img.shields.io/badge/Linux-planned-lightgrey.svg)](#roadmap)
 [![Tauri](https://img.shields.io/badge/desktop-Tauri%202-FFC131.svg)](https://tauri.app)
 [![Web](https://img.shields.io/badge/web-shared%20React%20UI-61DAFB.svg)](#architecture)
 [![Muse Code](https://img.shields.io/badge/powered_by-Muse%20Code%20CLI%20(MSP)-0668E1.svg)](https://developer.meta.com/ai/products/muse-code)
@@ -62,7 +62,8 @@ apps/web         same UI against a remote daemon
 - [x] `apps/web` - remote daemon mode
 - [x] Windows end to end (WSL2 Ubuntu)
 - [x] GitHub Releases with a signed Windows installer
-- [ ] macOS + Linux builds and releases
+- [x] macOS end to end, and macOS releases (one universal binary for Apple Silicon and Intel)
+- [ ] Linux builds and releases
 - [ ] Post-v1: mobile relay to steer running sessions from a phone
 
 ## Install
@@ -71,7 +72,11 @@ Windows: download the setup file from the [latest release](https://github.com/Ha
 
 You need Node 22+ and the `muse` CLI with `muse login` done once, in WSL2 Ubuntu. Helicon uses the login you already have and never stores credentials of its own.
 
-macOS and Linux installers are not published yet - see the [roadmap](#roadmap). Run from source on those platforms in the meantime.
+macOS: download the DMG from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest); it runs on Apple Silicon and Intel, and updates itself from then on. The builds are not Apple-notarized yet, so the first launch needs a right-click, then Open.
+
+You need Node 22+ and the `muse` CLI with `muse login` done once, however you installed them - Helicon finds Node through your shell, including fnm, nvm, Volta, mise, and Homebrew installs. Helicon uses the login you already have and never stores credentials of its own.
+
+Linux installers are not published yet - see the [roadmap](#roadmap). Run from source on that platform in the meantime.
 
 ## From source
 
@@ -106,9 +111,9 @@ The interface itself lives in `packages/ui` (state model in `src/model`, compone
 npm run dev --workspace helicon-desktop
 ```
 
-Releases ride on tags: push `v0.1.0` and the Release workflow builds the Windows installer and attaches it to a GitHub Release. Every release gets a tag; notable merged PRs bump at least the patch version.
+Releases ride on tags: push `v0.1.0` and the Release workflow builds the Windows installer and then the universal macOS build, and attaches both to a GitHub Release. Every release gets a tag; notable merged PRs bump at least the patch version.
 
-The desktop app updates itself from the newest release's `latest.json`, so releases must not be marked prerelease. The installer is signed with the updater key: the workflow reads `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` from repo secrets, and a local `tauri build` needs the same two variables set.
+The desktop app updates itself from the newest release's `latest.json`, so releases must not be marked prerelease. The installers are signed with the updater key: the workflow reads `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` from repo secrets, and a local `tauri build` needs the same two variables set (or pass `--config '{"bundle":{"createUpdaterArtifacts":false}}'` to skip signing for a local-only build).
 
 ## Remote daemon
 

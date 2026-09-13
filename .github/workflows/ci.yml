@@ -7,7 +7,11 @@ on:
 
 jobs:
   node:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,7 +27,11 @@ jobs:
   # The desktop crate is only otherwise compiled while cutting a release, which is far too late to
   # find out that it does not build.
   rust:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,3 +46,4 @@ jobs:
       # built rather than committed. This is what the release does through beforeBuildCommand.
       - run: npm run bundle:server --workspace helicon-desktop
       - run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml

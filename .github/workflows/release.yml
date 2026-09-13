@@ -5,14 +5,10 @@ on:
     tags: ["v*"]
 
 jobs:
-  desktop:
+  desktop-windows:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [windows-latest]
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,8 +28,45 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Helicon ${{ github.ref_name }}"
-          releaseBody: "Requires Node.js 22+ and the Muse CLI (WSL2 Ubuntu on Windows) with muse login."
+          releaseBody: "Requires Node.js 22+ and the Muse CLI with muse login (WSL2 Ubuntu on Windows). macOS builds are not Apple-notarized yet, so the first launch needs a right-click, then Open."
           releaseDraft: false
           # A full release, so the updater's releases/latest/download/latest.json always points at it.
           prerelease: false
           args: --target x86_64-pc-windows-msvc
+
+  desktop-macos:
+    permissions:
+      contents: write
+    # After Windows, not beside it: both jobs merge their platform into the release's latest.json,
+    # which is a read-modify-write that concurrent jobs could clobber, silently dropping a platform
+    # from auto-update.
+    needs: desktop-windows
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # universal-apple-darwin needs both halves installed; aarch64 is already the runner default.
+          targets: x86_64-apple-darwin
+      - run: npm ci
+      - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
+      # Pinned to a commit: this step holds the updater signing key, so a moved tag must not change what runs.
+      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the installer for the in-app updater, which also publishes latest.json.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Helicon ${{ github.ref_name }}"
+          releaseBody: "Requires Node.js 22+ and the Muse CLI with muse login (WSL2 Ubuntu on Windows). macOS builds are not Apple-notarized yet, so the first launch needs a right-click, then Open."
+          releaseDraft: false
+          # A full release, so the updater's releases/latest/download/latest.json always points at it.
+          prerelease: false
+          # One universal binary for Apple Silicon and Intel; the macOS bundles come from tauri.macos.conf.json.
+          args: --target universal-apple-darwin

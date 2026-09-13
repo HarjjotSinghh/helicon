@@ -2,6 +2,7 @@
 // Nothing is lost, the server's output goes to server.log.
 #![windows_subsystem = "windows"]
 
+use std::ffi::{OsStr, OsString};
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
 use std::net::TcpListener;
@@ -138,7 +139,7 @@ fn start_with_retry<T>(
 }
 
 /// A child process that never flashes a console window on Windows.
-fn command(program: &str) -> Command {
+fn command<S: AsRef<OsStr>>(program: S) -> Command {
     #[allow(unused_mut)]
     let mut cmd = Command::new(program);
     #[cfg(windows)]
@@ -150,14 +151,170 @@ fn command(program: &str) -> Command {
     cmd
 }
 
-fn node_available() -> bool {
-    command("node")
+fn node_runs(program: &Path) -> bool {
+    command(program)
         .arg("--version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
+}
+
+/// Node.js the way a terminal sees it. GUI apps on macOS start with a minimal PATH that misses
+/// Homebrew, ~/.local/bin and everything a version manager adds through the shell's rc files, so
+/// plain `node` fails for most users when Helicon is opened from the Finder rather than a terminal.
+fn find_node() -> Option<PathBuf> {
+    let mut candidates = vec![PathBuf::from("node")];
+    #[cfg(unix)]
+    {
+        if let Some(found) = shell_probe("/bin/sh", &["-lc", "command -v node"]) {
+            candidates.push(found);
+        }
+        if let Ok(shell) = std::env::var("SHELL") {
+            if shell != "/bin/sh" {
+                // Login plus interactive, so .zshrc-style rc files run and managers like fnm, nvm,
+                // volta and mise put their node on PATH.
+                let probe = if shell.ends_with("csh") {
+                    "which node"
+                } else {
+                    "command -v node"
+                };
+                if let Some(found) = shell_probe(&shell, &["-li", "-c", probe]) {
+                    candidates.push(found);
+                }
+            }
+        }
+        candidates.extend(well_known_nodes());
+    }
+    candidates.into_iter().find(|candidate| node_runs(candidate))
+}
+
+/// Runs one shell probe with a timeout: rc files can hang, and boot must not hang with them.
+#[cfg(unix)]
+fn shell_probe(shell: &str, args: &[&str]) -> Option<PathBuf> {
+    let shell = shell.to_string();
+    let args: Vec<String> = args.iter().map(|arg| arg.to_string()).collect();
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let output = command(&shell).args(&args).output().ok();
+        let _ = tx.send(output);
+    });
+    let output = rx.recv_timeout(Duration::from_secs(10)).ok()??;
+    if !output.status.success() {
+        return None;
+    }
+    // The probe runs after the rc files, so its answer is the last path-like line; anything the
+    // rc files printed above it is ignored.
+    select_probe_path(&String::from_utf8_lossy(&output.stdout))
+}
+
+#[cfg(unix)]
+fn select_probe_path(output: &str) -> Option<PathBuf> {
+    output
+        .lines()
+        .rev()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(PathBuf::from)
+        .find(|path| path.is_absolute() && path.is_file())
+}
+
+/// Node binaries in their usual homes, for when the shells above do not know them.
+#[cfg(unix)]
+fn well_known_nodes() -> Vec<PathBuf> {
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        return Vec::new();
+    };
+    well_known_nodes_in(&home)
+}
+
+#[cfg(unix)]
+fn well_known_nodes_in(home: &Path) -> Vec<PathBuf> {
+    let mut nodes = vec![
+        PathBuf::from("/opt/homebrew/bin/node"),
+        PathBuf::from("/usr/local/bin/node"),
+        PathBuf::from("/opt/local/bin/node"),
+        home.join(".local/bin/node"),
+        home.join(".volta/bin/node"),
+        home.join(".asdf/shims/node"),
+        home.join(".local/share/mise/shims/node"),
+        home.join(".fnm/aliases/default/bin/node"),
+    ];
+    if let Some(nvm) = latest_nvm_node(home) {
+        nodes.push(nvm);
+    }
+    nodes.into_iter().filter(|node| node.is_file()).collect()
+}
+
+/// The newest node nvm has installed, by version number.
+#[cfg(unix)]
+fn latest_nvm_node(home: &Path) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(home.join(".nvm/versions/node")).ok()?;
+    let mut versions: Vec<(Vec<u64>, PathBuf)> = Vec::new();
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(number) = name.strip_prefix('v') else {
+            continue;
+        };
+        let parts: Option<Vec<u64>> = number.split('.').map(|part| part.parse::<u64>().ok()).collect();
+        let node = entry.path().join("bin/node");
+        if let (Some(parts), true) = (parts, node.is_file()) {
+            versions.push((parts, node));
+        }
+    }
+    versions.sort_by(|a, b| a.0.cmp(&b.0));
+    versions.pop().map(|(_, node)| node)
+}
+
+/// A PATH for the server that sees what a terminal sees: the node that was found, plus the user
+/// bin folders, in front of whatever the app inherited. The server's own probes (`muse`, skills)
+/// and the user's `!` commands all run under it.
+#[cfg(unix)]
+fn augmented_path(node: &Path) -> Option<OsString> {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let mut prepend: Vec<PathBuf> = Vec::new();
+    if node.is_absolute() {
+        if let Some(dir) = node.parent() {
+            prepend.push(dir.to_path_buf());
+        }
+    }
+    let mut folders = vec![
+        PathBuf::from("/opt/homebrew/bin"),
+        PathBuf::from("/usr/local/bin"),
+        PathBuf::from("/opt/local/bin"),
+    ];
+    if let Some(home) = &home {
+        folders.extend([home.join(".local/bin"), home.join(".volta/bin"), home.join(".asdf/shims")]);
+    }
+    prepend.extend(folders.into_iter().filter(|dir| dir.is_dir()));
+    if prepend.is_empty() {
+        return None;
+    }
+    Some(prepend_to_path(&prepend, std::env::var_os("PATH")))
+}
+
+#[cfg(unix)]
+fn prepend_to_path(prepend: &[PathBuf], current: Option<OsString>) -> OsString {
+    let mut parts: Vec<OsString> = prepend.iter().map(|dir| dir.as_os_str().to_os_string()).collect();
+    let already: Vec<PathBuf> = current
+        .as_ref()
+        .map(|path| std::env::split_paths(path).collect())
+        .unwrap_or_default();
+    parts.retain(|dir| !already.iter().any(|have| have.as_os_str() == dir));
+    if let Some(current) = current {
+        if !current.is_empty() {
+            parts.push(current);
+        }
+    }
+    let mut joined = OsString::new();
+    for (index, part) in parts.iter().enumerate() {
+        if index > 0 {
+            joined.push(":");
+        }
+        joined.push(part);
+    }
+    joined
 }
 
 fn wait_for_url(child: &mut Child) -> Option<String> {
@@ -180,14 +337,20 @@ fn parse_listening_url(line: &str) -> Option<String> {
 }
 
 /// One attempt to run the bundled server on `port`, returning it with the URL it announced.
+#[allow(clippy::too_many_arguments)]
 fn spawn_server(
     app: &tauri::AppHandle,
+    node: &Path,
     server: &Path,
     frontend: Option<&Path>,
     data: Option<&Path>,
     port: u16,
 ) -> Result<(Child, String), StartFailure> {
-    let mut cmd = command("node");
+    let mut cmd = command(node);
+    #[cfg(unix)]
+    if let Some(path) = augmented_path(node) {
+        cmd.env("PATH", path);
+    }
     cmd.arg(server).arg("--port").arg(port.to_string());
     if let Some(frontend) = frontend {
         cmd.arg("--static").arg(frontend);
@@ -222,9 +385,7 @@ fn spawn_server(
 }
 
 fn boot_server(app: &tauri::AppHandle) -> Result<String, BootError> {
-    if !node_available() {
-        return Err(BootError::NodeMissing);
-    }
+    let node = find_node().ok_or(BootError::NodeMissing)?;
     let resource_dir = app.path().resource_dir().map_err(|_| BootError::ServerMissing)?;
     let server = find_resource(&resource_dir, "server.cjs").ok_or(BootError::ServerMissing)?;
     let frontend = find_resource(&resource_dir, "frontend");
@@ -238,7 +399,7 @@ fn boot_server(app: &tauri::AppHandle) -> Result<String, BootError> {
     let (child, url) = start_with_retry(
         stable_port(data.as_deref()),
         || fresh_port(data.as_deref()),
-        |port| spawn_server(app, &server, frontend.as_deref(), data.as_deref(), port),
+        |port| spawn_server(app, &node, &server, frontend.as_deref(), data.as_deref(), port),
     )?;
     if let Some(state) = app.try_state::<ServerChild>() {
         if let Ok(mut guard) = state.0.lock() {
@@ -306,6 +467,8 @@ mod tests {
         find_resource, fresh_port, parse_listening_url, plain_path, stable_port, start_with_retry, BootError, StartFailure,
         PORT_FILE, SPLASH_PAGE,
     };
+    #[cfg(unix)]
+    use super::{latest_nvm_node, prepend_to_path, select_probe_path, well_known_nodes_in};
     use std::net::TcpListener;
     use std::path::{Path, PathBuf};
 
@@ -393,5 +556,63 @@ mod tests {
         });
         assert!(gone.is_err());
         assert_eq!(tried, vec![4100, 4200]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shell_probe_answers_come_from_the_last_path_line() {
+        let root = std::env::temp_dir().join(format!("helicon-probe-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let node = root.join("node");
+        std::fs::write(&node, "").unwrap();
+        // rc files print above the answer; a removed install may linger below nothing.
+        let output = format!("Welcome back\n{}\n", node.display());
+        assert_eq!(select_probe_path(&output), Some(node.clone()));
+        assert_eq!(select_probe_path("Welcome back\n"), None);
+        assert_eq!(select_probe_path("/no/such/node-here\n"), None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn well_known_homes_only_list_installs_that_exist() {
+        let home = std::env::temp_dir().join(format!("helicon-home-{}", std::process::id()));
+        std::fs::create_dir_all(home.join(".volta/bin")).unwrap();
+        std::fs::write(home.join(".volta/bin/node"), "").unwrap();
+        let nodes = well_known_nodes_in(&home);
+        assert!(nodes.contains(&home.join(".volta/bin/node")));
+        assert!(!nodes.contains(&home.join(".asdf/shims/node")));
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn nvm_resolves_to_the_newest_installed_version() {
+        let home = std::env::temp_dir().join(format!("helicon-nvm-{}", std::process::id()));
+        for version in ["v18.20.4", "v20.11.0", "v20.9.0"] {
+            let dir = home.join(".nvm/versions/node").join(version).join("bin");
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("node"), "").unwrap();
+        }
+        std::fs::create_dir_all(home.join(".nvm/versions/node/junk")).unwrap();
+        let node = latest_nvm_node(&home).unwrap();
+        assert!(node.ends_with(".nvm/versions/node/v20.11.0/bin/node"), "got {node:?}");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn path_augmentation_prepends_without_duplicating() {
+        use std::ffi::OsString;
+        let prepend = [PathBuf::from("/opt/homebrew/bin"), PathBuf::from("/usr/local/bin")];
+        assert_eq!(
+            prepend_to_path(&prepend, Some(OsString::from("/usr/bin:/bin"))),
+            OsString::from("/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin")
+        );
+        assert_eq!(
+            prepend_to_path(&prepend, Some(OsString::from("/usr/local/bin:/usr/bin"))),
+            OsString::from("/opt/homebrew/bin:/usr/local/bin:/usr/bin")
+        );
+        assert_eq!(prepend_to_path(&prepend, None), OsString::from("/opt/homebrew/bin:/usr/local/bin"));
     }
 }
