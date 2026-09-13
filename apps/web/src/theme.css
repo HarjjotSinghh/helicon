@@ -333,6 +333,13 @@
   .modal-pop[data-state="closed"] {
     animation: helicon-pop-out 120ms ease-in forwards;
   }
+  /* A panel off the right edge: it arrives from the side it lives on, and leaves the same way. */
+  .sheet-in {
+    animation: helicon-sheet-in 220ms var(--ease-out);
+  }
+  .sheet-in[data-state="closed"] {
+    animation: helicon-sheet-out 160ms ease-in forwards;
+  }
   .overlay-fade {
     animation: helicon-fade-in 180ms var(--ease-out);
   }
@@ -529,6 +536,20 @@
 @keyframes helicon-fade-in {
   from {
     opacity: 0;
+  }
+}
+
+@keyframes helicon-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+
+@keyframes helicon-sheet-out {
+  to {
+    opacity: 0;
+    transform: translateX(18px);
   }
 }
 
@@ -739,6 +760,9 @@
 @media (prefers-reduced-motion: reduce) {
   .spin-ring,
   .attention-pulse,
+  .sheet-in,
+  /* The exit rule carries an attribute, so it outranks a bare .sheet-in here. */
+  .sheet-in[data-state="closed"],
   .prose-helicon.streaming .tok {
     animation: none;
   }

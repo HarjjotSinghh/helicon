@@ -35,9 +35,9 @@ import {
   SteerBubble,
   SubagentRow,
   ToolRow,
-  WorkflowRow,
   type Gate,
 } from "./items.js";
+import { WorkflowCard } from "./WorkflowCard.js";
 
 type GateMap = Record<string, Gate>;
 type AnswerMap = Record<string, UserInputAnswer[]>;
@@ -305,7 +305,7 @@ function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] |
     case "subagent":
       return <SubagentRow item={item} />;
     case "workflow":
-      return <WorkflowRow item={item} />;
+      return <WorkflowCard item={item} sessionId={props.sessionId} />;
     case "compaction":
       return <CompactionRow item={item} />;
     case "userMessage":
