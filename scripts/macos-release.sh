@@ -193,7 +193,8 @@ else
   else
     confirm "Tag $NEXT_TAG and push it?" || die "aborted"
   fi
-  git tag "$NEXT_TAG"
+  # Annotated with -m: a bare `git tag` can open $EDITOR and hang headless.
+  git tag -a "$NEXT_TAG" -m "Helicon $NEXT_TAG"
   git push origin "$NEXT_TAG"
 fi
 if gh release view "$NEXT_TAG" >/dev/null 2>&1; then
