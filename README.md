@@ -9,6 +9,12 @@
 [![Contributors](https://img.shields.io/github/contributors/HarjjotSinghh/helicon.svg)](https://github.com/HarjjotSinghh/helicon/graphs/contributors)
 [![Stars](https://img.shields.io/github/stars/HarjjotSinghh/helicon.svg?style=social)](https://github.com/HarjjotSinghh/helicon/stargazers)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-hero-dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme-hero-light.png" />
+  <img alt="Helicon logo, wordmark, and tagline" src="docs/assets/readme-hero-light.png" />
+</picture>
+
 > **Helicon** - home of the Muses. An open-source desktop + web ADE for Meta's **Muse Code CLI** (`muse`), in the spirit of the Claude Code desktop app and the Codex / ChatGPT desktop app.
 
 **Sidebar-first:** all projects grouped by working directory, each with its tasks and sessions - resume anything, including sessions started from the `muse` terminal TUI.
@@ -37,6 +43,10 @@ Muse Code today is terminal-only (`muse`, macOS/Linux, WSL2 on Windows). Helicon
 - **Approvals** surfaced honestly (`onRequest / promptUnmatched / denyUnmatched`), never bypassed
 - **One codebase** for desktop (Tauri) and web (same React UI against a remote daemon)
 - **Windows that actually works** - Tauri sidecar routes through WSL2 (`wsl -d Ubuntu -- muse serve`) with path translation
+
+![Starting a thread: recent work per project above the composer](docs/assets/home.png)
+
+![The command palette: threads, projects, and actions on Cmd/Ctrl+K](docs/assets/palette.png)
 
 ## Architecture
 

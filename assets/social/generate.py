@@ -16,7 +16,9 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))
 FONTS = os.path.join(HERE, "fonts")
+DOCS_ASSETS = os.path.join(ROOT, "docs", "assets")
 MARK_PNG = os.path.join(HERE, "helicon-mark-2048.png")
 # Ink bbox of the mark master, px at 2048 (measured from the alpha channel).
 MARK_INK = (602, 521, 1444, 1439)
@@ -279,6 +281,35 @@ def do_og(mode: str, pal: dict) -> None:
     print("wrote", path, out.size)
 
 
+def do_readme_hero(mode: str, pal: dict) -> None:
+    """Centered README banner: mark, Helicon, tagline. Flat, no gradients."""
+    w, h = 1600, 800
+    img = canvas(w, h, pal["bg"])
+    d = ImageDraw.Draw(img)
+    mark = tinted_mark(
+        round(150 * (MARK_INK[2] - MARK_INK[0]) / (MARK_INK[3] - MARK_INK[1])),
+        pal["fg"])
+    title_f = font(DISPLAY_FONT, 104)
+    tag_f = font("Inter-500.ttf", 36)
+    title_bb = d.textbbox((0, 0), "Helicon", font=title_f, anchor="lt")
+    tag_bb = d.textbbox((0, 0), TAGLINE, font=tag_f, anchor="lt")
+    title_w = d.textlength("Helicon", font=title_f)
+    tag_w = d.textlength(TAGLINE, font=tag_f)
+    gap1, gap2 = round(36 * SS), round(26 * SS)
+    block_h = (mark.size[1] + gap1 + (title_bb[3] - title_bb[1]) + gap2
+               + (tag_bb[3] - tag_bb[1]))
+    y = (img.size[1] - block_h) // 2
+    cx = img.size[0] // 2
+    img.alpha_composite(mark, ((img.size[0] - mark.size[0]) // 2, y))
+    y += mark.size[1] + gap1
+    d.text((cx - title_w // 2, y - title_bb[1]), "Helicon", font=title_f,
+           fill=pal["fg"], anchor="lt")
+    y += (title_bb[3] - title_bb[1]) + gap2
+    d.text((cx - tag_w // 2, y - tag_bb[1]), TAGLINE, font=tag_f,
+           fill=pal["muted"], anchor="lt")
+    finish(img, os.path.join(DOCS_ASSETS, f"readme-hero-{mode}.png"))
+
+
 def main() -> None:
     for name in ("Inter-400.ttf", "Inter-500.ttf", DISPLAY_FONT,
                  "JBmono-500.ttf"):
@@ -301,6 +332,7 @@ def main() -> None:
         do_header(mode, pal, 1584, 396, "linkedin-personal", 120, 92, 30, 110)
         do_linkedin_company(mode, pal)
         do_og(mode, pal)
+        do_readme_hero(mode, pal)
 
 
 if __name__ == "__main__":
