@@ -5,7 +5,14 @@ declare global {
   interface Window {
     /** Set by the desktop shell before the page loads when the window has no native title bar. */
     __HELICON_FRAME__?: string;
+    /** Set by the desktop shell before the page loads when macOS traffic lights float over the UI. */
+    __HELICON_TITLEBAR__?: string;
   }
+}
+
+/** True on macOS, where the desktop shell overlays the traffic lights on the sidebar. */
+export function titlebarOverlay(): boolean {
+  return window.__HELICON_TITLEBAR__ === "overlay";
 }
 
 /** Window controls for the desktop shell's frameless window; undefined in a browser. */

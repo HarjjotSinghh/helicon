@@ -149,6 +149,18 @@ export function Composer(props: ComposerProps) {
     }
   }, [handoff, draftKey, controller, setText]);
   const ref = useRef<HTMLTextAreaElement>(null);
+  // One keypress, one send: clearing is React state, so a second Enter in the same frame re-reads the
+  // same draft. The marker is synchronous where state is not; only an unchanged draft matches it, so a
+  // genuinely new message typed while a send is in flight still goes.
+  const consumedRef = useRef<{ value: string; files: PendingFile[] | null } | null>(null);
+  const tryConsume = (value: string, files: PendingFile[] | null): boolean => {
+    const last = consumedRef.current;
+    if (last && last.value === value && last.files === files) {
+      return false;
+    }
+    consumedRef.current = { value, files };
+    return true;
+  };
   const id = useId();
   const menuId = useId();
   const starting = useApp((s) => Boolean(s.busy["start"]));
@@ -230,6 +242,9 @@ export function Composer(props: ComposerProps) {
     }
     const value = text;
     const outgoing = files;
+    if (!tryConsume(value, outgoing)) {
+      return;
+    }
     setText("");
     setFiles([]);
     const sent = await controller.send(value, {
@@ -238,6 +253,7 @@ export function Composer(props: ComposerProps) {
       previews: outgoing.map(toPreview),
     });
     if (!sent) {
+      consumedRef.current = null;
       setText(value);
       setFiles(outgoing);
     }
@@ -248,9 +264,13 @@ export function Composer(props: ComposerProps) {
     if (props.readOnly || starting) {
       return;
     }
+    if (!tryConsume(value, null)) {
+      return;
+    }
     setText("");
     const sent = await controller.send(value, { raw });
     if (!sent) {
+      consumedRef.current = null;
       setText(value);
     }
   };
@@ -300,6 +320,10 @@ export function Composer(props: ComposerProps) {
       }
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
+        // A held Enter repeats: the first press already picked, so later ones do nothing.
+        if (event.repeat) {
+          return;
+        }
         if (live.kind === "list" && list[row]) {
           pick(live, list[row] as SlashCommand);
         } else if (live.kind === "unknown") {
@@ -313,6 +337,11 @@ export function Composer(props: ComposerProps) {
     }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
+      // A held Enter repeats: the first press already sent, so later ones do nothing. Shift+Enter keeps
+      // repeating, since holding it for several new lines is deliberate.
+      if (event.repeat) {
+        return;
+      }
       void submit(props.running && (event.metaKey || event.ctrlKey));
     } else if (event.key === "Escape" && props.running && !hasText && props.sessionId) {
       event.preventDefault();

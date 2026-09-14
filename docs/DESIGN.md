@@ -44,6 +44,7 @@ Fixed rem scale, ratio about 1.1 to 1.2: 11, 12, 13, 14, 15, 17, 20, 26, 34 px. 
 ## Layout
 
 - Sidebar 284 px by default, resizable 220 to 480 px, collapsible with Ctrl/Cmd+B.
+- Interface zoom 70% to 200% in fixed steps with Ctrl/Cmd plus, minus and 0, persisted across launches.
 - Main views share a 48 px top bar so switching between them never shifts content.
 - Transcript and dock share one 776 px track (728 px of content) so the composer lines up with the conversation.
 - Radii: 5 to 6 px for chips, 8 px for controls and rows, 12 px for cards and code, 16 to 18 px for the composer and request panels.

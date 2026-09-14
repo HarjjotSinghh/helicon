@@ -1,5 +1,5 @@
 import { Command } from "cmdk";
-import { FolderPlus, Layers, Monitor, Moon, PanelLeft, RefreshCw, RotateCw, Search, SquarePen, Sun, Folder } from "lucide-react";
+import { FolderPlus, Folder, Layers, Monitor, Moon, PanelLeft, RefreshCw, RotateCcw, RotateCw, Search, SquarePen, Sun, ZoomIn, ZoomOut } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { basename, relativeTime } from "../../model/format.js";
@@ -93,6 +93,15 @@ export function CommandPalette() {
             </Item>
             <Item value="Theme dark" keywords={["appearance"]} icon={<Moon size={15} />} onSelect={() => run(() => controller.setTheme("dark"))}>
               Use dark theme
+            </Item>
+            <Item value="Zoom in" keywords={["appearance", "bigger", "font size"]} icon={<ZoomIn size={15} />} onSelect={() => run(() => controller.zoomIn())} hint={<Shortcut keys={[MOD, "+"]} />}>
+              Zoom in
+            </Item>
+            <Item value="Zoom out" keywords={["appearance", "smaller", "font size"]} icon={<ZoomOut size={15} />} onSelect={() => run(() => controller.zoomOut())} hint={<Shortcut keys={[MOD, "-"]} />}>
+              Zoom out
+            </Item>
+            <Item value="Reset zoom" keywords={["appearance", "100%"]} icon={<RotateCcw size={15} />} onSelect={() => run(() => controller.resetZoom())} hint={<Shortcut keys={[MOD, "0"]} />}>
+              Reset zoom
             </Item>
             {updates?.status === "ready" ? (
               <Item value="Restart to update" keywords={["update", "install", "version"]} icon={<RotateCw size={15} />} onSelect={() => run(() => controller.restartToUpdate())}>

@@ -21,6 +21,8 @@ export interface HeliconAppProps {
   platform?: Platform;
   /** Present when a desktop shell wants the UI to draw the window's title bar. */
   frame?: WindowFrame;
+  /** Present when the shell overlays macOS traffic lights on the UI instead of a title bar. */
+  titlebarOverlay?: boolean;
   /** Present when the shell can update itself. */
   updater?: AppUpdater;
   /** How this shell raises a system notification; absent where it cannot. */
@@ -42,9 +44,10 @@ export function HeliconApp(props: HeliconAppProps) {
   useEffect(() => controller.start(), [controller]);
   return (
     <ControllerProvider controller={controller}>
-      <FrameProvider frame={props.frame}>
+      <FrameProvider frame={props.frame} overlay={props.titlebarOverlay}>
         <TooltipProvider>
           <ThemeSync />
+          <ZoomSync />
           <GlobalShortcuts />
           <Shell />
           <CommandPalette />
@@ -78,6 +81,24 @@ function ThemeSync() {
   return null;
 }
 
+function ZoomSync() {
+  const zoom = useApp((s) => s.prefs.zoom);
+  useEffect(() => {
+    // CSS `zoom` scales everything, icons included, like browser zoom; engines too old for it
+    // get the root font size instead, which moves every rem-based size. The pre-paint script in
+    // index.html applies the same value so a reload never flashes 100% first.
+    const root = document.documentElement;
+    const style = root.style as CSSStyleDeclaration & { zoom?: unknown };
+    if ("zoom" in style) {
+      style.zoom = zoom === 1 ? "" : String(zoom);
+      root.style.fontSize = "";
+    } else {
+      root.style.fontSize = zoom === 1 ? "" : `${Math.round(16 * zoom * 100) / 100}px`;
+    }
+  }, [zoom]);
+  return null;
+}
+
 function GlobalShortcuts() {
   const controller = useController();
   useEffect(() => {
@@ -93,6 +114,16 @@ function GlobalShortcuts() {
       } else if (mod && !event.shiftKey && key === "b") {
         event.preventDefault();
         controller.toggleSidebar();
+      } else if (mod && !event.altKey && (key === "=" || key === "+")) {
+        // Shift stays allowed: on most layouts `+` is shift plus `=`.
+        event.preventDefault();
+        controller.zoomIn();
+      } else if (mod && !event.altKey && (key === "-" || key === "_")) {
+        event.preventDefault();
+        controller.zoomOut();
+      } else if (mod && !event.shiftKey && !event.altKey && key === "0") {
+        event.preventDefault();
+        controller.resetZoom();
       } else if (event.altKey && !mod && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
         const state = controller.store.get();
         const ordered = Object.values(state.sessions).sort((a, b) => (a.activityAt < b.activityAt ? 1 : -1));

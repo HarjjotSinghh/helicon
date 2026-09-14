@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useApp, useController } from "../../app/context.js";
+import { useOverlayDragProps } from "../../app/frame.js";
 import { basename, formatDuration, formatTokens, modelDisplayName, relativeTime } from "../../model/format.js";
 import { costOf, formatCost, listedPrice, type TokenPrice } from "../../model/pricing.js";
 import type { ModelOption, UsageBucket, UsageReport, UsageThread } from "../../types.js";
@@ -55,10 +56,11 @@ export function UsagePage() {
   }, [controller, days]);
 
   const view = useMemo(() => (report ? summarize(report, models) : null), [report, models]);
+  const drag = useOverlayDragProps();
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <header className="mx-auto flex w-full max-w-[980px] shrink-0 items-center gap-3 px-6 pt-8 pb-4">
+      <header {...drag} className="mx-auto flex w-full max-w-[980px] shrink-0 items-center gap-3 px-6 pt-8 pb-4">
         <Button size="sm" variant="ghost" onClick={() => controller.navigate({ kind: "home" })}>
           <ArrowLeft size={14} /> Back
         </Button>

@@ -679,6 +679,25 @@ describe("slash commands, skills and shell", () => {
     assert.equal(await titleOf(), "Tidy the API surface");
   });
 
+  it("prefers Muse's session name over the prompt-echo title during discovery", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    connection.replies.set("session/list", {
+      sessions: [
+        { sessionId: "s1", workspaceRoot: "/work/proj", name: "pebble-caliban", title: "So far, I have been developing and working on my project Helicon on Windows only. It goes on and on.", turnCount: 9 },
+        { sessionId: "s2", workspaceRoot: "/work/proj", title: "``` Set up this Mac from my private repo", turnCount: 0 },
+      ],
+      nextCursor: null,
+    });
+    assert.equal((await send(base, "/api/discover", {})).status, 200);
+    const sessions = (await get(base, "/api/sessions")).sessions;
+    const byId = (id: string) => sessions.find((s: { sessionId: string }) => s.sessionId === id)?.title;
+    assert.equal(byId("s1"), "pebble-caliban");
+    assert.equal(byId("s2"), "Set up this Mac from my private repo");
+  });
+
   it("keeps each session's goal in its live view for the sidebar", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });
@@ -729,6 +748,14 @@ describe("wire helpers", () => {
     assert.equal(deriveTitle("   \n  "), null);
     const long = deriveTitle("Refactor the session manager so that queries never mint command ids and paging works for long threads");
     assert.ok(long && long.length <= 75 && long.endsWith("..."));
+  });
+
+  it("skips code fences when deriving thread titles", () => {
+    assert.equal(deriveTitle("```\nSet up this Mac\nmore"), "Set up this Mac");
+    assert.equal(deriveTitle("``` Fix login"), "Fix login");
+    assert.equal(deriveTitle("```python\nprint(1)"), "print(1)");
+    assert.equal(deriveTitle("Use `helicon.db` here"), "Use `helicon.db` here");
+    assert.equal(deriveTitle("```\n```"), null);
   });
 
   it("normalizes MSP timestamps", () => {

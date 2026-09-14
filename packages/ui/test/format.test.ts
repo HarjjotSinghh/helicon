@@ -2,21 +2,34 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { parseModelList } from "../src/client.js";
 import {
+  alignLines,
   describeApproval,
   describeTool,
+  diffFromEcho,
+  diffLines,
   diffStats,
   extractDiff,
   formatDuration,
   formatTokens,
+  mergeDiffLines,
   modelDisplayName,
   relativeTime,
   shortenPath,
+  withoutDiffEcho,
 } from "../src/model/format.js";
 import type { MspItem } from "../src/types.js";
 import { modelList } from "./fixtures/probe.js";
 
-function tool(name: string, args: unknown, status = "completed"): MspItem {
-  return { itemId: "i", kind: "toolCall", status, revision: 1, tool: name, args: JSON.stringify(args) };
+function tool(name: string, args: unknown, status = "completed", visibleOutput?: string): MspItem {
+  return {
+    itemId: "i",
+    kind: "toolCall",
+    status,
+    revision: 1,
+    tool: name,
+    args: JSON.stringify(args),
+    ...(visibleOutput === undefined ? {} : { visibleOutput }),
+  };
 }
 
 describe("formatting", () => {
@@ -88,6 +101,149 @@ describe("tool descriptions", () => {
     assert.ok(patch && "patch" in patch);
     assert.deepEqual(diffStats(patch), { added: 2, removed: 1 });
     assert.equal(extractDiff(tool("bash", { command: "ls" })), null);
+  });
+
+  it("aligns an edit's padding lines as context instead of remove-and-re-add", () => {
+    const diff = extractDiff(
+      tool("edit", {
+        path: "ThreadView.tsx",
+        old_string: ["const startedAt = 1;", "const now = 2;", "return (", "<header>", "<SidebarToggle />"].join("\n"),
+        new_string: [
+          "const startedAt = 1;",
+          "const now = 2;",
+          "const drag = 3;",
+          "const noDrag = 4;",
+          "return (",
+          "<header now>",
+          "<TrafficLightSpacer />",
+          "<SidebarToggle />",
+        ].join("\n"),
+      }),
+    );
+    assert.ok(diff && "hunks" in diff);
+    assert.deepEqual(
+      diff.hunks[0]?.rows.map((row) => row.kind),
+      ["same", "same", "add", "add", "same", "del", "add", "add", "same"],
+    );
+    assert.deepEqual(diffStats(diff), { added: 4, removed: 1 });
+  });
+
+  it("aligns one-sided changes without hunting for overlap", () => {
+    assert.deepEqual(
+      alignLines([], ["a", "b"]).map((row) => row.kind),
+      ["add", "add"],
+    );
+    assert.deepEqual(
+      alignLines(["a", "b"], []).map((row) => row.kind),
+      ["del", "del"],
+    );
+    assert.deepEqual(alignLines([], []), []);
+    const written = extractDiff(tool("write", { path: "note.txt", content: "hello\n" }));
+    assert.ok(written && "hunks" in written);
+    assert.deepEqual(diffStats(written), { added: 2, removed: 0 });
+  });
+
+  it("strips the runtime's edit echo but keeps anything else the output carried", () => {
+    const echo = ["edited", "changed lines: lines 39-43", "--- original", "+++ updated", "@@", "-old", "+new"].join("\n");
+    assert.equal(withoutDiffEcho(echo), "");
+    assert.equal(withoutDiffEcho(`${echo}\nnote: lint is unhappy`), "note: lint is unhappy");
+    assert.equal(withoutDiffEcho(`${echo}\n${echo}`), "");
+    assert.equal(withoutDiffEcho(echo.replace(/\n/g, "\r\n")), "");
+    assert.equal(withoutDiffEcho("command not found: frobnicate"), null);
+    assert.equal(withoutDiffEcho("edited\nchanged lines: lines 1-2"), null);
+    assert.equal(withoutDiffEcho("edited\nchanged lines: lines 1-2\n--- original\n+++ updated"), null);
+  });
+
+  it("reads the runtime's find/replace edit arguments", () => {
+    const diff = extractDiff(
+      tool("edit_file", {
+        find: 'import { useApp } from "../../app/context.js";\nimport { modelDisplayName } from "../../model/format.js";',
+        path: "packages/ui/src/components/settings/SettingsPage.tsx",
+        replace:
+          'import { useApp } from "../../app/context.js";\nimport { useOverlayDragProps } from "../../app/frame.js";\nimport { modelDisplayName } from "../../model/format.js";',
+      }),
+    );
+    assert.ok(diff && "hunks" in diff);
+    assert.equal(diff.path, "packages/ui/src/components/settings/SettingsPage.tsx");
+    assert.deepEqual(
+      diff.hunks[0]?.rows.map((row) => row.kind),
+      ["same", "add", "same"],
+    );
+    assert.deepEqual(diffStats(diff), { added: 1, removed: 0 });
+  });
+
+  it("builds the diff from the result's echo when the arguments do not carry it", () => {
+    const echo = [
+      "edited",
+      "changed lines: lines 4-5",
+      "--- original",
+      "+++ updated",
+      "@@",
+      "-import { useApp } from 1;",
+      "-import { modelDisplayName } from 2;",
+      "+import { useApp } from 1;",
+      "+import { useOverlayDragProps } from 3;",
+      "+import { modelDisplayName } from 2;",
+    ].join("\n");
+    const direct = diffFromEcho(echo, "SettingsPage.tsx");
+    assert.ok(direct && "hunks" in direct);
+    assert.deepEqual(
+      direct.hunks[0]?.rows.map((row) => row.kind),
+      ["same", "add", "same"],
+    );
+    assert.deepEqual(diffStats(direct), { added: 1, removed: 0 });
+    assert.equal(diffFromEcho("command not found: frobnicate", null), null);
+    // An unfamiliar edit shape still renders a diff, from the echo rather than the arguments.
+    const fellBack = extractDiff(tool("edit", { target: "a.ts", patch: null }, "completed", echo));
+    assert.ok(fellBack && "hunks" in fellBack);
+    assert.deepEqual(diffStats(fellBack), { added: 1, removed: 0 });
+    // But a result that echoes nothing still yields no diff.
+    assert.equal(extractDiff(tool("edit", { target: "a.ts" }, "completed", "File updated successfully")), null);
+  });
+
+  it("flattens one diff into rows, marking the gaps between its hunks", () => {
+    const hunks = diffLines({
+      path: "a.ts",
+      hunks: [
+        { rows: [{ kind: "same", text: "top" }] },
+        { rows: [{ kind: "del", text: "old" }] },
+      ],
+    });
+    assert.deepEqual(
+      hunks.map((line) => [line.kind, line.text]),
+      [
+        ["ctx", "top"],
+        ["meta", "..."],
+        ["del", "old"],
+      ],
+    );
+    const patch = diffLines({ path: "a.ts", patch: "@@\n-old\n+new\n context" });
+    assert.deepEqual(
+      patch.map((line) => [line.kind, line.text]),
+      [
+        ["meta", "@@"],
+        ["del", "old"],
+        ["add", "new"],
+        ["ctx", "context"],
+      ],
+    );
+  });
+
+  it("joins one file's diffs into a single continuous row stream, in order", () => {
+    const first = extractDiff(tool("edit_file", { path: "a.ts", find: "one", replace: "ONE" }));
+    const second = extractDiff(tool("edit_file", { path: "a.ts", find: "two", replace: "TWO" }));
+    assert.ok(first && "hunks" in first && second && "hunks" in second);
+    assert.deepEqual(
+      mergeDiffLines([first, second]).map((line) => [line.kind, line.text]),
+      [
+        ["del", "one"],
+        ["add", "ONE"],
+        ["meta", "..."],
+        ["del", "two"],
+        ["add", "TWO"],
+      ],
+    );
+    assert.deepEqual(mergeDiffLines([]), []);
   });
 });
 

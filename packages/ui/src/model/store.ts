@@ -49,6 +49,11 @@ export type ThemePref = "system" | "light" | "dark";
 export const CODE_THEMES = ["helicon", "ayu", "github", "vercel", "cursor", "catppuccin"] as const;
 export type CodeTheme = (typeof CODE_THEMES)[number];
 
+/** Interface zoom as a factor of 1, in fixed steps from 70% to 200%. */
+export const ZOOM_STEPS = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.35, 1.5, 1.75, 2] as const;
+export const ZOOM_MIN = ZOOM_STEPS[0];
+export const ZOOM_MAX = ZOOM_STEPS[ZOOM_STEPS.length - 1];
+
 export interface Prefs {
   groupBy: GroupBy;
   theme: ThemePref;
@@ -80,6 +85,8 @@ export interface Prefs {
   autoUpdate: boolean;
   /** Desktop app: no checking, downloading or installing updates until resumed. */
   updatesPaused: boolean;
+  /** Interface zoom as a factor of 1; the desktop shell has no browser chrome to do this. */
+  zoom: number;
 }
 
 export const DEFAULT_SIDEBAR_WIDTH = 284;
@@ -105,6 +112,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     contributorAck: false,
     autoUpdate: true,
     updatesPaused: false,
+    zoom: 1,
   };
 }
 
@@ -239,5 +247,6 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     contributorAck: pick("contributorAck", (v) => typeof v === "boolean"),
     autoUpdate: pick("autoUpdate", (v) => typeof v === "boolean"),
     updatesPaused: pick("updatesPaused", (v) => typeof v === "boolean"),
+    zoom: pick("zoom", (v) => typeof v === "number" && Number.isFinite(v) && v >= ZOOM_MIN && v <= ZOOM_MAX),
   };
 }

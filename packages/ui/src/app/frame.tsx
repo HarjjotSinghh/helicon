@@ -14,11 +14,14 @@ export interface WindowFrame {
 
 const FrameContext = createContext<WindowFrame | null>(null);
 
+/** True when the shell overlays macOS traffic lights on the UI instead of a title bar. */
+const OverlayContext = createContext(false);
+
 // Presses on these never move the window, even inside a drag region.
 const INTERACTIVE =
   'button, a, input, textarea, select, label, [role="button"], [role="menuitem"], [role="option"], [role="tab"], [contenteditable="true"], [data-no-drag]';
 
-export function FrameProvider(props: { frame: WindowFrame | undefined; children: ReactNode }) {
+export function FrameProvider(props: { frame: WindowFrame | undefined; overlay?: boolean; children: ReactNode }) {
   const frame = props.frame ?? null;
   useEffect(() => {
     if (!frame) {
@@ -43,11 +46,32 @@ export function FrameProvider(props: { frame: WindowFrame | undefined; children:
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [frame]);
-  return <FrameContext.Provider value={frame}>{props.children}</FrameContext.Provider>;
+  return (
+    <FrameContext.Provider value={frame}>
+      <OverlayContext.Provider value={props.overlay ?? false}>{props.children}</OverlayContext.Provider>
+    </FrameContext.Provider>
+  );
 }
 
 export function useFrame(): WindowFrame | null {
   return useContext(FrameContext);
+}
+
+export function useTitlebarOverlay(): boolean {
+  return useContext(OverlayContext);
+}
+
+/**
+ * Native drag-region props on macOS overlay windows, empty elsewhere: the Windows shell drags
+ * through its own handler, and firing both would double-toggle maximize. `deep` drags from
+ * anywhere in the subtree except clickable elements, `self` only from the element itself,
+ * and `off` opts one element out so e.g. double-click to rename keeps working.
+ */
+export function useOverlayDragProps(mode: "deep" | "self" | "off" = "deep"): { "data-tauri-drag-region"?: string } {
+  if (!useTitlebarOverlay()) {
+    return {};
+  }
+  return { "data-tauri-drag-region": mode === "deep" ? "deep" : mode === "self" ? "true" : "false" };
 }
 
 /** Reserves the caption buttons' width at the end of a `px-3` header, so its own actions never sit under them. */
@@ -57,7 +81,15 @@ export function CaptionSpacer() {
 
 /** A drag strip for full-window screens that have no header. */
 export function FrameStrip() {
-  return useFrame() ? <div data-drag-region aria-hidden="true" className="fixed inset-x-0 top-0 z-[var(--z-sticky)] h-12" /> : null;
+  const frame = useFrame();
+  const overlay = useTitlebarOverlay();
+  const drag = useOverlayDragProps("self");
+  if (!frame && !overlay) {
+    return null;
+  }
+  return (
+    <div data-drag-region {...drag} aria-hidden="true" className="fixed inset-x-0 top-0 z-[var(--z-sticky)] h-12" />
+  );
 }
 
 /** Minimize, maximize and close, drawn to match Windows 11 caption buttons. */

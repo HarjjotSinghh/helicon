@@ -343,15 +343,131 @@ export function describeTool(item: MspItem): ToolDescription {
   }
 }
 
+export interface DiffRow {
+  kind: "same" | "del" | "add";
+  text: string;
+}
+
 export interface DiffHunk {
-  removed: string[];
-  added: string[];
+  rows: DiffRow[];
 }
 
 export type DiffView = { path: string | null; hunks: DiffHunk[] } | { path: string | null; patch: string };
 
 function lines(value: unknown): string[] {
   return typeof value === "string" ? value.replace(/\r\n/g, "\n").split("\n") : [];
+}
+
+/**
+ * Aligns an edit's old and new lines the way a diff does: unchanged lines read as context instead of
+ * showing as removed and re-added, which is what the find block's padding lines would otherwise do.
+ */
+export function alignLines(removed: string[], added: string[]): DiffRow[] {
+  if (removed.length === 0) {
+    return added.map((text) => ({ kind: "add" as const, text }));
+  }
+  if (added.length === 0) {
+    return removed.map((text) => ({ kind: "del" as const, text }));
+  }
+  const width = added.length + 1;
+  const table = new Uint32Array((removed.length + 1) * width);
+  for (let i = 1; i <= removed.length; i += 1) {
+    for (let j = 1; j <= added.length; j += 1) {
+      table[i * width + j] =
+        removed[i - 1] === added[j - 1]
+          ? (table[(i - 1) * width + (j - 1)] as number) + 1
+          : Math.max(table[(i - 1) * width + j] as number, table[i * width + (j - 1)] as number);
+    }
+  }
+  const rows: DiffRow[] = [];
+  let i = removed.length;
+  let j = added.length;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && removed[i - 1] === added[j - 1]) {
+      rows.push({ kind: "same", text: removed[i - 1] as string });
+      i -= 1;
+      j -= 1;
+      // Ties walk back through the additions first, so deletions read before them going forward.
+    } else if (j > 0 && (i === 0 || (table[i * width + (j - 1)] as number) >= (table[(i - 1) * width + j] as number))) {
+      rows.push({ kind: "add", text: added[j - 1] as string });
+      j -= 1;
+    } else {
+      rows.push({ kind: "del", text: removed[i - 1] as string });
+      i -= 1;
+    }
+  }
+  return rows.reverse();
+}
+
+interface EchoBlock {
+  removed: string[];
+  added: string[];
+}
+
+/**
+ * Splits the runtime's edit echo(es) off the front of a tool result. Null when the output is not an
+ * echo at all; a bare blank line reads as both sides', since no prefix says which side dropped it.
+ */
+function splitDiffEcho(output: string): { blocks: EchoBlock[]; rest: string } | null {
+  const echoLines = output.replace(/\r\n/g, "\n").split("\n");
+  let i = 0;
+  const blocks: EchoBlock[] = [];
+  for (;;) {
+    const head = echoLines.slice(i, i + 5);
+    if (
+      head.length < 5 ||
+      !/^edited\b/.test(head[0] as string) ||
+      !(head[1] as string).startsWith("changed lines:") ||
+      head[2] !== "--- original" ||
+      head[3] !== "+++ updated" ||
+      !(head[4] as string).startsWith("@@")
+    ) {
+      break;
+    }
+    i += 5;
+    const block: EchoBlock = { removed: [], added: [] };
+    while (i < echoLines.length) {
+      const line = echoLines[i] as string;
+      if (line.startsWith("+")) {
+        block.added.push(line.slice(1));
+      } else if (line.startsWith("-")) {
+        block.removed.push(line.slice(1));
+      } else if (line === "") {
+        block.removed.push("");
+        block.added.push("");
+      } else if (!line.startsWith("\\ No newline")) {
+        break;
+      }
+      i += 1;
+    }
+    blocks.push(block);
+  }
+  if (blocks.length === 0) {
+    return null;
+  }
+  return { blocks, rest: echoLines.slice(i).join("\n") };
+}
+
+/**
+ * Strips the runtime's edit echo from a tool result, leaving anything it carried beyond the echo. Null
+ * when the output is not an echo at all, so callers keep showing those; "" when it is only the echo,
+ * which the receipt's own diff already shows better.
+ */
+export function withoutDiffEcho(output: string): string | null {
+  return splitDiffEcho(output)?.rest ?? null;
+}
+
+/** Builds the receipt's diff from the result's echo, for when the arguments do not carry the change. */
+export function diffFromEcho(output: string, path: string | null): DiffView | null {
+  const echo = splitDiffEcho(output);
+  if (!echo) {
+    return null;
+  }
+  const hunks = echo.blocks.map((block) => ({ rows: alignLines(block.removed, block.added) }));
+  if (!hunks.some((hunk) => hunk.rows.length > 0)) {
+    return null;
+  }
+  return { path, hunks };
 }
 
 /** Pull a reviewable diff out of an edit-style tool call, when its arguments carry one. */
@@ -361,10 +477,10 @@ export function extractDiff(item: MspItem): DiffView | null {
     return null;
   }
   const path = pickString(args, PATH_KEYS);
-  const oldKey = ["old_string", "oldString", "old_str", "search", "old"].find((k) => typeof args[k] === "string");
+  const oldKey = ["old_string", "oldString", "old_str", "find", "search", "old"].find((k) => typeof args[k] === "string");
   const newKey = ["new_string", "newString", "new_str", "replace", "new"].find((k) => typeof args[k] === "string");
   if (oldKey && newKey) {
-    return { path, hunks: [{ removed: lines(args[oldKey]), added: lines(args[newKey]) }] };
+    return { path, hunks: [{ rows: alignLines(lines(args[oldKey]), lines(args[newKey])) }] };
   }
   if (Array.isArray(args["edits"])) {
     const hunks: DiffHunk[] = [];
@@ -376,7 +492,7 @@ export function extractDiff(item: MspItem): DiffView | null {
       const o = e["old_string"] ?? e["oldString"] ?? e["old_str"];
       const n = e["new_string"] ?? e["newString"] ?? e["new_str"];
       if (typeof o === "string" || typeof n === "string") {
-        hunks.push({ removed: lines(o), added: lines(n) });
+        hunks.push({ rows: alignLines(lines(o), lines(n)) });
       }
     }
     if (hunks.length > 0) {
@@ -389,7 +505,15 @@ export function extractDiff(item: MspItem): DiffView | null {
   }
   const content = pickString(args, ["content", "contents", "text", "file_text"]);
   if (content && toolKind(item.tool, args) === "write") {
-    return { path, hunks: [{ removed: [], added: lines(content) }] };
+    return { path, hunks: [{ rows: alignLines([], lines(content)) }] };
+  }
+  // Last resort: the result echoes the change even when the arguments do not name it, so an unfamiliar
+  // tool shape still renders an aligned diff instead of the raw echo.
+  if (item.visibleOutput && !item.truncated) {
+    const kind = toolKind(item.tool, args);
+    if (kind === "edit" || kind === "write") {
+      return diffFromEcho(item.visibleOutput, path);
+    }
   }
   return null;
 }
@@ -407,10 +531,63 @@ export function diffStats(diff: DiffView): { added: number; removed: number } {
     }
     return { added, removed };
   }
-  return diff.hunks.reduce(
-    (acc, hunk) => ({ added: acc.added + hunk.added.length, removed: acc.removed + hunk.removed.length }),
-    { added: 0, removed: 0 },
-  );
+  let added = 0;
+  let removed = 0;
+  for (const hunk of diff.hunks) {
+    for (const row of hunk.rows) {
+      if (row.kind === "add") {
+        added += 1;
+      } else if (row.kind === "del") {
+        removed += 1;
+      }
+    }
+  }
+  return { added, removed };
+}
+
+export interface DiffLine {
+  kind: "add" | "del" | "ctx" | "meta";
+  text: string;
+}
+
+/** Flattens one diff into renderable rows, marking the gaps between its hunks. */
+export function diffLines(diff: DiffView): DiffLine[] {
+  const lines: DiffLine[] = [];
+  if ("patch" in diff) {
+    for (const line of diff.patch.split("\n")) {
+      if (/^(\+\+\+|---|\*\*\*|@@|diff )/.test(line)) {
+        lines.push({ kind: "meta", text: line });
+      } else if (line.startsWith("+")) {
+        lines.push({ kind: "add", text: line.slice(1) });
+      } else if (line.startsWith("-")) {
+        lines.push({ kind: "del", text: line.slice(1) });
+      } else {
+        lines.push({ kind: "ctx", text: line.startsWith(" ") ? line.slice(1) : line });
+      }
+    }
+    return lines;
+  }
+  diff.hunks.forEach((hunk, index) => {
+    if (index > 0) {
+      lines.push({ kind: "meta", text: "..." });
+    }
+    for (const row of hunk.rows) {
+      lines.push({ kind: row.kind === "same" ? "ctx" : row.kind, text: row.text });
+    }
+  });
+  return lines;
+}
+
+/** Joins one file's diffs into a single continuous row stream, in turn order. */
+export function mergeDiffLines(diffs: DiffView[]): DiffLine[] {
+  const lines: DiffLine[] = [];
+  diffs.forEach((diff, index) => {
+    if (index > 0) {
+      lines.push({ kind: "meta", text: "..." });
+    }
+    lines.push(...diffLines(diff));
+  });
+  return lines;
 }
 
 export interface ApprovalDescription {

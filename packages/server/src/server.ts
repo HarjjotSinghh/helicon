@@ -29,7 +29,7 @@ import {
 } from "@helicon/daemon";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
-export const HELICON_VERSION = "0.10.0";
+export const HELICON_VERSION = "0.10.1";
 
 export interface HostExit {
   code: number | null;
@@ -313,10 +313,17 @@ export function safeFileName(raw: string | null): string {
 
 /** First meaningful line of the opening prompt, capped for the sidebar. */
 export function deriveTitle(text: string): string | null {
-  const line = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .find((l) => l.length > 0);
+  let line: string | undefined;
+  for (const raw of text.split(/\r?\n/)) {
+    // Skip code fences: a bare ``` line, a ```lang info line, or a fence
+    // sharing its line with the start of the prompt. Inline code (one or
+    // two backticks) is left alone.
+    const fenceFree = raw.trim().replace(/^```[^\s]*\s*/, "");
+    if (fenceFree.length > 0) {
+      line = fenceFree;
+      break;
+    }
+  }
   if (!line) {
     return null;
   }
@@ -2011,9 +2018,12 @@ export class HeliconServer {
       const project = this.store.upsertProject(root);
       const existing = this.store.getSession(sessionId);
       // Muse names its own sessions, and that name is what the user sees in the CLI, so it wins here too.
-      // Only a title the user typed in Helicon outranks it.
+      // Only a title the user typed in Helicon outranks it. MSP `title` is just the first-prompt echo,
+      // so it is only a fallback, sanitized like any other derived title.
       const keepOurs = existing?.titleSource === "user";
-      const title = keepOurs ? null : firstString(session, ["title", "name"]);
+      const mspName = keepOurs ? null : firstString(session, ["name"]);
+      const mspTitle = keepOurs ? null : firstString(session, ["title"]);
+      const title = mspName ?? (mspTitle ? deriveTitle(mspTitle) : null);
       const stored = this.store.recordSession({
         id: sessionId,
         projectId: project.id,

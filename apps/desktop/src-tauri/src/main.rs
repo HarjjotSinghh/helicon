@@ -30,11 +30,17 @@ impl Drop for ServerGuard {
     }
 }
 
-/// Windows gets Helicon's own title bar, drawn by the UI; other platforms keep the native frame.
+/// Windows gets Helicon's own title bar, drawn by the UI; macOS keeps the native traffic
+/// lights overlaid on the UI, so the sidebar runs the full height of the window; other
+/// platforms keep the native frame.
 const CUSTOM_FRAME: bool = cfg!(windows);
 
 /// Tells the UI, before it loads, to draw the window controls and drag regions.
 const FRAME_SCRIPT: &str = "window.__HELICON_FRAME__ = 'custom';";
+
+/// Tells the UI, before it loads, that the macOS traffic lights float over the sidebar.
+#[cfg(target_os = "macos")]
+const OVERLAY_SCRIPT: &str = "window.__HELICON_TITLEBAR__ = 'overlay';";
 
 /// Where the server's port is remembered between launches, inside the app's data folder.
 const PORT_FILE: &str = "server-port";
@@ -424,6 +430,16 @@ fn main() {
                 .min_inner_size(880.0, 560.0);
             if CUSTOM_FRAME {
                 builder = builder.decorations(false).initialization_script(FRAME_SCRIPT);
+            }
+            // The traffic lights float over the sidebar's top-left corner; the UI leaves room
+            // for them and marks its headers as drag regions, like T3 Code.
+            #[cfg(target_os = "macos")]
+            {
+                builder = builder
+                    .title_bar_style(tauri::TitleBarStyle::Overlay)
+                    .hidden_title(true)
+                    .traffic_light_position(tauri::LogicalPosition::new(20.0, 14.0))
+                    .initialization_script(OVERLAY_SCRIPT);
             }
             let window = builder.build()?;
             let handle = app.handle().clone();

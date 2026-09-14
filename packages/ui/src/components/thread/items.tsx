@@ -21,12 +21,16 @@ import { useController } from "../../app/context.js";
 import {
   basename,
   describeTool,
+  diffLines,
   diffStats,
   extractDiff,
   formatDuration,
   formatTokens,
   humanize,
+  mergeDiffLines,
   parseArgs,
+  withoutDiffEcho,
+  type DiffLine,
   type DiffView,
   type ToolKind,
 } from "../../model/format.js";
@@ -155,41 +159,20 @@ export function OutputBlock(props: { text: string; truncated?: boolean; label?: 
 }
 
 export function DiffBlock(props: { diff: DiffView }) {
-  const stats = diffStats(props.diff);
+  // No header: the receipt row above, or the hovered chip, already names the file and its totals.
   // A diff is code, so it gets the same colours a code block does; the language comes from the file's name.
-  const language = languageFromPath(props.diff.path);
-  const lines: { kind: "add" | "del" | "ctx" | "meta"; text: string }[] = [];
-  if ("patch" in props.diff) {
-    for (const line of props.diff.patch.split("\n")) {
-      if (/^(\+\+\+|---|\*\*\*|@@|diff )/.test(line)) {
-        lines.push({ kind: "meta", text: line });
-      } else if (line.startsWith("+")) {
-        lines.push({ kind: "add", text: line.slice(1) });
-      } else if (line.startsWith("-")) {
-        lines.push({ kind: "del", text: line.slice(1) });
-      } else {
-        lines.push({ kind: "ctx", text: line.startsWith(" ") ? line.slice(1) : line });
-      }
-    }
-  } else {
-    props.diff.hunks.forEach((hunk, index) => {
-      if (index > 0) {
-        lines.push({ kind: "meta", text: "..." });
-      }
-      for (const text of hunk.removed) {
-        lines.push({ kind: "del", text });
-      }
-      for (const text of hunk.added) {
-        lines.push({ kind: "add", text });
-      }
-    });
-  }
+  return <DiffCard lines={diffLines(props.diff)} language={languageFromPath(props.diff.path)} />;
+}
+
+/** Every change to one hovered file as a single continuous card, in turn order. */
+function FileDiffCard(props: { diffs: DiffView[] }) {
+  return <DiffCard lines={mergeDiffLines(props.diffs)} language={languageFromPath(props.diffs[0]?.path ?? null)} />;
+}
+
+function DiffCard(props: { lines: DiffLine[]; language: string | null }) {
+  const { lines, language } = props;
   return (
     <div className="overflow-hidden rounded-lg bg-sunken shadow-[0_0_0_1px_var(--border)]">
-      <div className="flex h-8 items-center gap-2 border-b border-line px-3 text-xs">
-        <span className="min-w-0 flex-1 truncate font-mono text-muted">{props.diff.path ?? "Changes"}</span>
-        <DiffCount added={stats.added} removed={stats.removed} />
-      </div>
       <div className="max-h-80 overflow-x-hidden overflow-y-auto py-1 font-mono text-xs leading-[1.65]">
         {lines.map((line, i) => (
           <div
@@ -325,9 +308,7 @@ function DiffChip(props: { file: FileChanges }) {
           onOpenAutoFocus={(event) => event.preventDefault()}
           className="pop z-[var(--z-dropdown)] flex max-h-[60vh] w-[min(560px,calc(100vw-32px))] flex-col gap-2 overflow-y-auto rounded-xl bg-raised p-2 shadow-pop outline-none"
         >
-          {props.file.diffs.map((diff, index) => (
-            <DiffBlock key={index} diff={diff} />
-          ))}
+          <FileDiffCard diffs={props.file.diffs} />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -409,7 +390,14 @@ export const ToolRow = memo(function ToolRow(props: { item: MspItem; gate?: Gate
       body.push(<DiffBlock key="diff" diff={diff} />);
     }
     if (item.visibleOutput) {
-      body.push(<OutputBlock key="out" text={item.visibleOutput} truncated={item.truncated} label={d.kind === "shell" ? "Output" : undefined} />);
+      // The runtime echoes the edit below its result header, unaligned; the diff above already shows
+      // that change properly, so only whatever else the output carried stays visible.
+      const stripped =
+        diff && (d.kind === "edit" || d.kind === "write") && !item.truncated ? withoutDiffEcho(item.visibleOutput) : null;
+      const text = stripped ?? item.visibleOutput;
+      if (text.trim().length > 0) {
+        body.push(<OutputBlock key="out" text={text} truncated={item.truncated} label={d.kind === "shell" ? "Output" : undefined} />);
+      }
     }
     if (d.kind === "generic" && args) {
       body.push(<CodeBlock key="args" code={JSON.stringify(args, null, 2)} language="json" className="my-0" />);

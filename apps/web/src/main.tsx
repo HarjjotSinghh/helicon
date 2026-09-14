@@ -2,7 +2,7 @@ import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { HeliconApp } from "@helicon/ui";
 import { Connect } from "./Connect.js";
-import { desktopFrame } from "./frame.js";
+import { desktopFrame, titlebarOverlay } from "./frame.js";
 import { appNotifier } from "./notifier.js";
 import { desktopUpdater } from "./updater.js";
 import { WebHeliconClient } from "./webClient.js";
@@ -34,6 +34,7 @@ function Root() {
     <HeliconApp
       client={new WebHeliconClient()}
       frame={desktopFrame()}
+      titlebarOverlay={titlebarOverlay()}
       updater={desktopUpdater()}
       notifier={appNotifier()}
     />

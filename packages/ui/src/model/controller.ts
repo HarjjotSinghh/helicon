@@ -38,6 +38,9 @@ import {
 } from "./fold.js";
 import {
   Store,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  ZOOM_STEPS,
   defaultPrefs,
   initialState,
   revivePrefs,
@@ -195,6 +198,8 @@ export class HeliconController {
   readonly store: Store<AppState>;
   private readonly pending = new Map<string, ViewEvent[]>();
   private readonly loading = new Map<string, ViewEvent[]>();
+  /** Keys of prompt deliveries still waiting for the server, so a double-sent draft turns once. */
+  private readonly inflightSends = new Set<string>();
   private readonly disposers: (() => void)[] = [];
   private flushHandle: unknown = null;
   private refreshHandle: unknown = null;
@@ -760,6 +765,13 @@ export class HeliconController {
       this.toast("info", "This thread is read-only here", thread.readOnlyReason ?? "Another Muse session has it open.");
       return false;
     }
+    // A second Enter lands before the composer clears, so one draft arrives twice: the first send owns
+    // it, and the duplicate reports sent — the text is going, so the composer stays clear.
+    const key = this.sendKey(sessionId, text, options);
+    if (this.inflightSends.has(key)) {
+      return true;
+    }
+    this.inflightSends.add(key);
     // A caller that knows a turn is starting elsewhere can say so, before its `turn/started` reaches us.
     const running = thread.fold.activeTurnId !== null || options.queue === true;
     const echo: LocalEcho = {
@@ -802,11 +814,24 @@ export class HeliconController {
       const kind = errorKind(error);
       if (!retried && (kind === "sessionNotLoaded" || kind === "sessionStreamMismatch")) {
         await this.loadThread(sessionId);
+        // The retry re-sends under this key, so it must not trip over its own guard.
+        this.inflightSends.delete(key);
         return this.sendToThread(sessionId, text, options, true);
       }
       this.toast("error", "Message not sent", errorMessage(error));
       return false;
+    } finally {
+      this.inflightSends.delete(key);
     }
+  }
+
+  /** What makes two prompt deliveries the same send: the thread, the text, and the files riding along. */
+  private sendKey(sessionId: string, text: string, options: TurnDelivery): string {
+    const files = (options.attachments ?? [])
+      .map((file) => `${file.name}:${file.mediaType}:${file.base64.length}:${file.base64.slice(0, 24)}`)
+      .join(",");
+    const mode = options.steer ? "steer" : options.queue ? "queue" : "send";
+    return [sessionId, mode, options.displayText ?? "", text, files].join("\n");
   }
 
   async stop(sessionId: string): Promise<void> {
@@ -1756,6 +1781,25 @@ export class HeliconController {
 
   setCodeTheme(codeTheme: CodeTheme): void {
     this.setPrefs({ codeTheme });
+  }
+
+  setZoom(zoom: number): void {
+    const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(zoom * 100) / 100));
+    this.setPrefs({ zoom: clamped });
+  }
+
+  zoomIn(): void {
+    const current = this.state.prefs.zoom;
+    this.setZoom(ZOOM_STEPS.find((step) => step > current + 1e-9) ?? ZOOM_MAX);
+  }
+
+  zoomOut(): void {
+    const current = this.state.prefs.zoom;
+    this.setZoom([...ZOOM_STEPS].reverse().find((step) => step < current - 1e-9) ?? ZOOM_MIN);
+  }
+
+  resetZoom(): void {
+    this.setZoom(1);
   }
 
   toggleSidebar(): void {

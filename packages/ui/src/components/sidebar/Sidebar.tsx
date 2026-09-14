@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { memo, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { shallowEqual, useApp, useController, useNow } from "../../app/context.js";
+import { useOverlayDragProps, useTitlebarOverlay } from "../../app/frame.js";
 import { basename, formatElapsed, relativeTime } from "../../model/format.js";
 import { statusLabel } from "../../model/goal.js";
 import {
@@ -60,12 +61,14 @@ const END_DROP = "end";
 
 export function Sidebar() {
   const width = useApp((s) => s.prefs.sidebarWidth);
+  const overlay = useTitlebarOverlay();
   return (
     <aside
       aria-label="Sidebar"
       className="@container relative flex h-full shrink-0 flex-col border-r border-line bg-sidebar"
       style={{ width }}
     >
+      {overlay ? <TrafficLightsSlot /> : null}
       <SidebarTop />
       <ThreadList />
       <SidebarFooter />
@@ -74,11 +77,21 @@ export function Sidebar() {
   );
 }
 
+/**
+ * The macOS traffic lights float in this slot, 20px from the left and 14px from the top,
+ * which centers the 12px lights in the 40px strip. It also drags the window.
+ */
+function TrafficLightsSlot() {
+  const drag = useOverlayDragProps("self");
+  return <div data-drag-region {...drag} aria-hidden="true" className="h-10 shrink-0" />;
+}
+
 function SidebarTop() {
   const controller = useController();
   const routeKind = useApp((s) => s.route.kind);
+  const drag = useOverlayDragProps();
   return (
-    <div data-drag-region className="flex flex-col gap-px px-2 pt-2 pb-1.5">
+    <div data-drag-region {...drag} className="flex flex-col gap-px px-2 pt-2 pb-1.5">
       <div className="mb-2 flex h-8 items-center gap-2 pr-0.5 pl-1.5">
         <Logo size={20} />
         <span className="text-[14px] font-semibold tracking-[-0.01em] text-fg">Helicon</span>

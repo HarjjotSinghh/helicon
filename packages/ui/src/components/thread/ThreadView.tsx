@@ -1,11 +1,11 @@
 import { Archive, Code, Copy, Ellipsis, Folder, FolderOpen, GitBranch, Lock, Minimize2, Pencil, Square, SquarePen } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
-import { CaptionSpacer } from "../../app/frame.js";
+import { CaptionSpacer, useOverlayDragProps } from "../../app/frame.js";
 import { basename, formatDuration } from "../../model/format.js";
 import type { ThreadState } from "../../model/store.js";
 import type { SessionSummary } from "../../types.js";
-import { SidebarToggle } from "../chrome.js";
+import { SidebarToggle, TrafficLightSpacer } from "../chrome.js";
 import { Composer, ComposerFooter } from "../composer/Composer.js";
 import { ApprovalPanel, PlanPanel, QuestionPanel, QueuedList, ReadOnlyNotice } from "../requests/Requests.js";
 import { GoalPanel } from "./GoalPanel.js";
@@ -38,8 +38,11 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
   const waiting = fold ? Object.keys(fold.approvals).length + Object.keys(fold.userInputs).length > 0 : false;
   const startedAt = fold?.activeTurnId ? fold.turns[fold.activeTurnId]?.startedAt : undefined;
   const now = useNow(1000, props.running && startedAt !== undefined);
+  const drag = useOverlayDragProps();
+  const noDrag = useOverlayDragProps("off");
   return (
-    <header data-drag-region className="flex h-12 shrink-0 items-center gap-1.5 border-b border-line px-3">
+    <header data-drag-region {...drag} className="flex h-12 shrink-0 items-center gap-1.5 border-b border-line px-3">
+      <TrafficLightSpacer />
       <SidebarToggle />
       <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
         {renaming ? (
@@ -55,6 +58,7 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
         ) : (
           <h1
             data-no-drag
+            {...noDrag}
             className="min-w-0 cursor-text truncate text-sm font-semibold text-fg"
             title={`${session.title} (double-click to rename)`}
             onDoubleClick={() => setRenaming(true)}
@@ -230,9 +234,11 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
 
 function MissingThread() {
   const controller = useController();
+  const drag = useOverlayDragProps();
   return (
     <div className="flex h-full flex-1 flex-col">
-      <header data-drag-region className="flex h-12 items-center px-3">
+      <header data-drag-region {...drag} className="flex h-12 items-center px-3">
+        <TrafficLightSpacer />
         <SidebarToggle />
         <CaptionSpacer />
       </header>

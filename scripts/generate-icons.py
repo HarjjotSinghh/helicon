@@ -2,7 +2,7 @@
 """Regenerate the desktop app icon set from the Helicon mark.
 
 Treatment (locked): navy rounded tile (#1A1A2E, radius 16.8%%) + light mark
-(#EFF0F2, 38%% of tile height), no dot. iOS gets the opaque square variant,
+(#EFF0F2, 48%% of tile height), no dot. iOS gets the opaque square variant,
 Android round gets the circular variant; everything else is the tile.
 
 Writes into apps/desktop/src-tauri/icons/ with the exact filenames and sizes
@@ -30,7 +30,7 @@ MARK_INK = (602, 521, 1444, 1439)
 TILE = "#1A1A2E"
 MARK = "#EFF0F2"
 RADIUS_FRAC = 86 / 512  # measured from the previous icon
-MARK_H_FRAC = 0.38
+MARK_H_FRAC = 0.48
 
 
 def mark_layer(height: int, color: str) -> Image.Image:

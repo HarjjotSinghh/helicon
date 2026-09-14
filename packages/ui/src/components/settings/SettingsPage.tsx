@@ -1,14 +1,15 @@
-import { ArrowDownToLine, ArrowLeft, RefreshCw, RotateCw } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft, Minus, Plus, RefreshCw, RotateCw } from "lucide-react";
 import { Switch } from "radix-ui";
 import { useState, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
+import { useOverlayDragProps } from "../../app/frame.js";
 import { modelDisplayName } from "../../model/format.js";
-import { CODE_THEMES, type CodeTheme, type GroupBy, type ThemePref } from "../../model/store.js";
+import { CODE_THEMES, ZOOM_MAX, ZOOM_MIN, type CodeTheme, type GroupBy, type ThemePref } from "../../model/store.js";
 import type { ApprovalMode, ReasoningEffort } from "../../types.js";
 import { LEVELS, MODES } from "../composer/Composer.js";
 import { CODE_THEME_LABELS, updateSummary } from "../sidebar/Sidebar.js";
 import { Modal } from "../ui/overlays.js";
-import { Button, cn } from "../ui/primitives.js";
+import { Button, IconButton, MOD, cn } from "../ui/primitives.js";
 
 /** A row's control: one choice out of a few, laid out as a segmented strip that wraps when it must. */
 function Pick<T extends string | null>(props: {
@@ -105,10 +106,11 @@ export function SettingsPage() {
   const [confirmBypass, setConfirmBypass] = useState(false);
   const now = useNow(60_000);
   const busy = updates?.status === "checking" || updates?.status === "downloading" || updates?.status === "installing";
+  const drag = useOverlayDragProps();
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <header className="mx-auto flex w-full max-w-[720px] shrink-0 items-center gap-3 px-6 pt-8 pb-1">
+      <header {...drag} className="mx-auto flex w-full max-w-[720px] shrink-0 items-center gap-3 px-6 pt-8 pb-1">
         <Button size="sm" variant="ghost" onClick={() => controller.navigate({ kind: "home" })}>
           <ArrowLeft size={14} /> Back
         </Button>
@@ -129,6 +131,27 @@ export function SettingsPage() {
               options={CODE_THEMES.map((name) => ({ value: name as CodeTheme, label: CODE_THEME_LABELS[name] }))}
               onChange={(value) => controller.setCodeTheme(value)}
             />
+          </Row>
+          <Row
+            label="Zoom"
+            description={`How big the whole interface is. ${MOD} plus, ${MOD} minus and ${MOD} 0 adjust it anywhere; the percentage resets it.`}
+          >
+            <div className="flex items-center gap-1">
+              <IconButton label="Zoom out" size="xs" onClick={() => controller.zoomOut()} disabled={prefs.zoom <= ZOOM_MIN}>
+                <Minus size={14} />
+              </IconButton>
+              <button
+                type="button"
+                title="Reset zoom to 100%"
+                onClick={() => controller.resetZoom()}
+                className="h-6 min-w-11 rounded-md px-1.5 text-xs text-muted tabular-nums transition-colors duration-100 hover:bg-hover hover:text-fg"
+              >
+                {Math.round(prefs.zoom * 100)}%
+              </button>
+              <IconButton label="Zoom in" size="xs" onClick={() => controller.zoomIn()} disabled={prefs.zoom >= ZOOM_MAX}>
+                <Plus size={14} />
+              </IconButton>
+            </div>
           </Row>
         </Section>
 

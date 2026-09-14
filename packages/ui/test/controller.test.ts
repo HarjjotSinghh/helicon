@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { HeliconError, type EventHandler, type HeliconClient } from "../src/client.js";
 import { HeliconController, type Platform } from "../src/model/controller.js";
 import { buildTurns } from "../src/model/fold.js";
+import { ZOOM_MAX, ZOOM_MIN } from "../src/model/store.js";
 import type { SessionSummary, SkillEntry, TranscriptLoad } from "../src/types.js";
 import { historyEvents } from "./fixtures/probe.js";
 
@@ -243,6 +244,78 @@ describe("HeliconController", () => {
     client.sendResult = async () => ({ turnId: "t1", disposition: "steered" });
     await controller.send("actually use tabs", { steer: true });
     assert.equal(client.sent.at(-1)?.ifBusy, "steer");
+    stop();
+  });
+
+  it("turns a double-pressed Enter into one send, and the duplicate still reports sent", async () => {
+    const client = new FakeClient();
+    const releases: ((ack: { turnId: string | null; disposition: string | null }) => void)[] = [];
+    client.sendResult = () => new Promise((resolve) => {
+      releases.push(resolve);
+    });
+    const { controller, stop } = await started(client);
+    // Both arrive before either is acknowledged, the way two Enters land before the composer clears.
+    const first = controller.send("check the vault");
+    const second = controller.send("check the vault");
+    releases.forEach((release, index) => release({ turnId: `t${9 + index}`, disposition: "started" }));
+    assert.deepEqual(await Promise.all([first, second]), [true, true]);
+    assert.equal(client.sent.length, 1);
+    assert.equal(controller.store.get().threads["s1"]!.fold.echoes.length, 1);
+    stop();
+  });
+
+  it("lets the same prompt go again once the first send settles", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.send("check the vault"), true);
+    assert.equal(await controller.send("check the vault"), true);
+    assert.equal(client.sent.length, 2);
+    stop();
+  });
+
+  it("lets a different prompt go while one is still in flight", async () => {
+    const client = new FakeClient();
+    const releases: ((ack: { turnId: string | null; disposition: string | null }) => void)[] = [];
+    client.sendResult = () => new Promise((resolve) => {
+      releases.push(resolve);
+    });
+    const { controller, stop } = await started(client);
+    const first = controller.send("check the vault");
+    const second = controller.send("and the firewall rules");
+    releases.forEach((release, index) => release({ turnId: `t${9 + index}`, disposition: "started" }));
+    assert.deepEqual(await Promise.all([first, second]), [true, true]);
+    assert.equal(client.sent.length, 2);
+    stop();
+  });
+
+  it("releases the guard when the first send fails, so a retry goes", async () => {
+    const client = new FakeClient();
+    client.sendResult = async () => {
+      throw new HeliconError("turn rejected", 409, "turnRejected");
+    };
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.send("check the vault"), false);
+    client.sendResult = async () => ({ turnId: "t9", disposition: "started" });
+    assert.equal(await controller.send("check the vault"), true);
+    assert.equal(client.sent.length, 2);
+    stop();
+  });
+
+  it("sends identical text with identical files once, but new files go", async () => {
+    const client = new FakeClient();
+    const releases: ((ack: { turnId: string | null; disposition: string | null }) => void)[] = [];
+    client.sendResult = () => new Promise((resolve) => {
+      releases.push(resolve);
+    });
+    const { controller, stop } = await started(client);
+    const shot = { name: "shot.png", mediaType: "image/png", base64: "AAAA" };
+    const other = { name: "other.png", mediaType: "image/png", base64: "BBBB" };
+    const first = controller.send("look at this", { attachments: [shot] });
+    const duplicate = controller.send("look at this", { attachments: [{ ...shot }] });
+    const changed = controller.send("look at this", { attachments: [other] });
+    releases.forEach((release, index) => release({ turnId: `t${9 + index}`, disposition: "started" }));
+    assert.deepEqual(await Promise.all([first, duplicate, changed]), [true, true, true]);
+    assert.equal(client.sent.length, 2);
     stop();
   });
 
@@ -636,5 +709,42 @@ describe("HeliconController", () => {
     assert.equal(state.sessions["s2"]?.title, "Probe (fork)");
     assert.equal(state.toasts.at(-1)?.title, "Forked into a new thread");
     stop();
+  });
+
+  it("walks interface zoom through its fixed steps and back to 100%", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    const zoom = () => controller.store.get().prefs.zoom;
+    assert.equal(zoom(), 1);
+    controller.zoomIn();
+    assert.equal(zoom(), 1.1);
+    controller.zoomIn();
+    assert.equal(zoom(), 1.2);
+    controller.zoomOut();
+    controller.zoomOut();
+    assert.equal(zoom(), 1);
+    controller.zoomOut();
+    assert.equal(zoom(), 0.9);
+    controller.resetZoom();
+    assert.equal(zoom(), 1);
+    stop();
+  });
+
+  it("clamps interface zoom to its ends and drops malformed saved values", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    controller.setZoom(5);
+    assert.equal(controller.store.get().prefs.zoom, ZOOM_MAX);
+    controller.zoomIn();
+    assert.equal(controller.store.get().prefs.zoom, ZOOM_MAX);
+    controller.setZoom(0.05);
+    assert.equal(controller.store.get().prefs.zoom, ZOOM_MIN);
+    controller.zoomOut();
+    assert.equal(controller.store.get().prefs.zoom, ZOOM_MIN);
+    controller.setZoom(1.234);
+    assert.equal(controller.store.get().prefs.zoom, 1.23);
+    stop();
+    const revived = new HeliconController(client, { ...platform(), loadPrefs: () => ({ zoom: 99 }) });
+    assert.equal(revived.store.get().prefs.zoom, 1);
   });
 });
