@@ -33,3 +33,8 @@ Thumbs.db
 # Images the docs and the README deliberately show are the exception to the rule above.
 !docs/assets/*.png
 !docs/assets/**/*.png
+# So are the shipped brand images: desktop icons, web favicons, social assets.
+!apps/desktop/src-tauri/icons/**/*.png
+!apps/web/public/*.png
+!assets/social/*.png
+!assets/social/**/*.png

@@ -8,7 +8,7 @@ import { Sidebar } from "../components/sidebar/Sidebar.js";
 import { ThreadView } from "../components/thread/ThreadView.js";
 import { UsagePage } from "../components/usage/UsagePage.js";
 import { TooltipProvider } from "../components/ui/overlays.js";
-import { isMac } from "../components/ui/primitives.js";
+import { cn, isMac } from "../components/ui/primitives.js";
 import { Toasts } from "../components/ui/Toasts.js";
 import { HeliconController, type Platform } from "../model/controller.js";
 import type { Notifier } from "../model/notify.js";
@@ -137,7 +137,19 @@ function Shell() {
   }
   return (
     <div className="flex h-full w-full bg-bg text-fg">
-      {collapsed ? null : <Sidebar />}
+      {/* The sidebar stays mounted and wipes open/closed via the 0fr/1fr
+          disclosure trick; visibility flips at the end of the close so the
+          clipped panel leaves the tab order only once it is gone. */}
+      <div
+        className={cn(
+          "grid h-full transition-[grid-template-columns,visibility] duration-200 ease-drawer motion-reduce:transition-none",
+          collapsed ? "grid-cols-[0fr] invisible" : "grid-cols-[1fr] visible",
+        )}
+      >
+        <div className="min-w-0 overflow-hidden">
+          <Sidebar />
+        </div>
+      </div>
       <main className="flex min-w-0 flex-1 flex-col">
         <Main />
       </main>
