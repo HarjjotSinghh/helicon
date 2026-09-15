@@ -78,8 +78,8 @@ export function Sidebar() {
 }
 
 /**
- * The macOS traffic lights float in this slot, 20px from the left and 14px from the top,
- * which centers the 12px lights in the 40px strip. It also drags the window.
+ * The macOS traffic lights float in this slot, 20px from the left and 20px from the top.
+ * It also drags the window.
  */
 function TrafficLightsSlot() {
   const drag = useOverlayDragProps("self");

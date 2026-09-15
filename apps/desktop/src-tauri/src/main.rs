@@ -11,6 +11,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
+#[cfg(target_os = "macos")]
+use tauri::Emitter;
 
 struct ServerChild(Arc<Mutex<Option<Child>>>);
 
@@ -416,6 +418,68 @@ fn boot_server(app: &tauri::AppHandle) -> Result<String, BootError> {
     Ok(url)
 }
 
+/// WKWebView swallows Cmd+/− for its own page zoom before JS sees them. A native View menu
+/// takes those keys and emits `helicon://zoom` so the UI can step Helicon's zoom instead.
+#[cfg(target_os = "macos")]
+fn install_zoom_menu(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+
+    let zoom_in = MenuItemBuilder::with_id("zoom-in", "Zoom In")
+        .accelerator("CmdOrCtrl+=")
+        .build(app)?;
+    let zoom_out = MenuItemBuilder::with_id("zoom-out", "Zoom Out")
+        .accelerator("CmdOrCtrl+-")
+        .build(app)?;
+    let zoom_reset = MenuItemBuilder::with_id("zoom-reset", "Actual Size")
+        .accelerator("CmdOrCtrl+0")
+        .build(app)?;
+    let app_menu = SubmenuBuilder::new(app, "Helicon")
+        .about(None)
+        .separator()
+        .hide()
+        .hide_others()
+        .show_all()
+        .separator()
+        .quit()
+        .build()?;
+    let edit = SubmenuBuilder::new(app, "Edit")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+    let view = SubmenuBuilder::new(app, "View")
+        .item(&zoom_in)
+        .item(&zoom_out)
+        .item(&zoom_reset)
+        .build()?;
+    let window = SubmenuBuilder::new(app, "Window")
+        .minimize()
+        .separator()
+        .close_window()
+        .build()?;
+    let menu = MenuBuilder::new(app)
+        .item(&app_menu)
+        .item(&edit)
+        .item(&view)
+        .item(&window)
+        .build()?;
+    app.set_menu(menu)?;
+    app.on_menu_event(|app, event| {
+        let step = match event.id().0.as_str() {
+            "zoom-in" => "in",
+            "zoom-out" => "out",
+            "zoom-reset" => "reset",
+            _ => return,
+        };
+        let _ = app.emit("helicon://zoom", step);
+    });
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -423,6 +487,8 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .manage(ServerChild(Arc::new(Mutex::new(None))))
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            install_zoom_menu(app)?;
             // Open the window at once on a splash page; the server can take a few seconds to probe WSL.
             let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(SPLASH_PAGE.parse()?))
                 .title("Helicon")
@@ -438,7 +504,7 @@ fn main() {
                 builder = builder
                     .title_bar_style(tauri::TitleBarStyle::Overlay)
                     .hidden_title(true)
-                    .traffic_light_position(tauri::LogicalPosition::new(20.0, 14.0))
+                    .traffic_light_position(tauri::LogicalPosition::new(20.0, 20.0))
                     .initialization_script(OVERLAY_SCRIPT);
             }
             let window = builder.build()?;

@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { WindowFrame } from "@helicon/ui";
@@ -11,6 +12,7 @@ declare global {
   }
   interface WindowEventMap {
     "helicon-zoom": CustomEvent<number>;
+    "helicon-zoom-step": CustomEvent<"in" | "out" | "reset">;
   }
 }
 
@@ -33,6 +35,9 @@ export function bindDesktopZoom(): void {
       .catch((error: unknown) => console.error("Helicon: webview zoom failed", error));
   };
   window.addEventListener("helicon-zoom", (event) => apply(event.detail));
+  void listen<"in" | "out" | "reset">("helicon://zoom", (event) => {
+    window.dispatchEvent(new CustomEvent("helicon-zoom-step", { detail: event.payload }));
+  }).catch((error: unknown) => console.error("Helicon: zoom menu listen failed", error));
 }
 
 /** Window controls for the desktop shell's frameless window; undefined in a browser. */

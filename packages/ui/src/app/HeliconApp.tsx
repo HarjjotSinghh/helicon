@@ -13,8 +13,15 @@ import { Toasts } from "../components/ui/Toasts.js";
 import { HeliconController, type Platform } from "../model/controller.js";
 import type { Notifier } from "../model/notify.js";
 import type { AppUpdater } from "../model/updates.js";
+import { zoomStepFromKey, type ZoomStep } from "../model/zoom-shortcut.js";
 import { ControllerProvider, useApp, useController } from "./context.js";
 import { FrameProvider, FrameStrip, WindowControls, type WindowFrame } from "./frame.js";
+
+declare global {
+  interface WindowEventMap {
+    "helicon-zoom-step": CustomEvent<ZoomStep>;
+  }
+}
 
 export interface HeliconAppProps {
   client: HeliconClient;
@@ -109,12 +116,28 @@ function ZoomSync() {
   return null;
 }
 
+function applyZoomStep(controller: HeliconController, step: ZoomStep) {
+  if (step === "in") {
+    controller.zoomIn();
+  } else if (step === "out") {
+    controller.zoomOut();
+  } else {
+    controller.resetZoom();
+  }
+}
+
 function GlobalShortcuts() {
   const controller = useController();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const mod = isMac ? event.metaKey : event.ctrlKey;
       const key = event.key.toLowerCase();
+      const zoom = zoomStepFromKey(event, isMac);
+      if (zoom) {
+        event.preventDefault();
+        applyZoomStep(controller, zoom);
+        return;
+      }
       if (mod && !event.shiftKey && !event.altKey && key === "k") {
         event.preventDefault();
         controller.setPaletteOpen(!controller.store.get().paletteOpen);
@@ -124,16 +147,6 @@ function GlobalShortcuts() {
       } else if (mod && !event.shiftKey && key === "b") {
         event.preventDefault();
         controller.toggleSidebar();
-      } else if (mod && !event.altKey && (key === "=" || key === "+")) {
-        // Shift stays allowed: on most layouts `+` is shift plus `=`.
-        event.preventDefault();
-        controller.zoomIn();
-      } else if (mod && !event.altKey && (key === "-" || key === "_")) {
-        event.preventDefault();
-        controller.zoomOut();
-      } else if (mod && !event.shiftKey && !event.altKey && key === "0") {
-        event.preventDefault();
-        controller.resetZoom();
       } else if (event.altKey && !mod && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
         const state = controller.store.get();
         const ordered = Object.values(state.sessions).sort((a, b) => (a.activityAt < b.activityAt ? 1 : -1));
@@ -149,8 +162,18 @@ function GlobalShortcuts() {
         }
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const onMenuZoom = (event: Event) => {
+      const step = (event as CustomEvent<ZoomStep>).detail;
+      if (step === "in" || step === "out" || step === "reset") {
+        applyZoomStep(controller, step);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("helicon-zoom-step", onMenuZoom);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("helicon-zoom-step", onMenuZoom);
+    };
   }, [controller]);
   return null;
 }
