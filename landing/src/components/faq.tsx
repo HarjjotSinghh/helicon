@@ -1,6 +1,7 @@
 "use client";
 
-import { ChatCircleDots, Plus, Question } from "@phosphor-icons/react";
+import { Plus, Question } from "@phosphor-icons/react";
+import { GitHubLogo } from "./os-logos";
 import { useState } from "react";
 import { FAQS, ISSUES_URL } from "@/lib/site";
 import type { Audience } from "@/lib/os";
@@ -26,7 +27,7 @@ export function Faq({ audience, intro }: { audience: Audience; intro: string }) 
             {intro}
           </SectionHeading>
           <a href={ISSUES_URL} target="_blank" rel="noopener noreferrer" className={buttonClass("outline", "sm", "mt-6 max-sm:h-11")}>
-            <ChatCircleDots weight="bold" aria-hidden="true" />
+            <GitHubLogo aria-hidden="true" />
             Ask on GitHub
           </a>
         </div>

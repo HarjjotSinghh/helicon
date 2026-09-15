@@ -1,6 +1,5 @@
 import {
   DownloadSimple,
-  GithubLogo,
   Lightning,
   MonitorPlay,
   Question,
@@ -9,6 +8,7 @@ import {
 } from "@phosphor-icons/react/ssr";
 import { REPO_URL } from "@/lib/site";
 import type { PageCopy } from "@/lib/copy";
+import { GitHubLogo } from "./os-logos";
 import { MobileNav } from "./mobile-nav";
 import { ThemeToggle } from "./theme-toggle";
 import { Logo, Rule, buttonClass } from "./ui";
@@ -55,7 +55,7 @@ export function SiteHeader({ copy }: { copy: PageCopy }) {
             aria-label="Helicon on GitHub"
             title="Helicon on GitHub"
           >
-            <GithubLogo weight="bold" aria-hidden="true" />
+            <GitHubLogo aria-hidden="true" />
           </a>
           <a href={copy.headerHref} className={buttonClass("primary", "sm", "ml-0 min-h-11 px-3 sm:ml-1.5 sm:min-h-0")}>
             <DownloadSimple weight="bold" aria-hidden="true" />

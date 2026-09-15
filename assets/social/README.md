@@ -17,7 +17,7 @@ for the OG footer.
 | `linkedin-personal-{light,dark}.png` | LinkedIn profile background | 1584 × 396 |
 | `linkedin-company-{light,dark}.png` | LinkedIn company page cover | 1128 × 191 |
 | `og-{light,dark}.png` | Open Graph / link preview (also fits GitHub social preview) | 1200 × 630 |
-| `../docs/assets/readme-hero-{light,dark}.png` | README hero banner (auto light/dark via `<picture>`) | 1600 × 800 |
+| `../docs/assets/readme-hero-{light,dark}.png` | README hero banner (auto light/dark via `<picture>`) | 1600 × 400 |
 | `helicon-logo-black.svg` / `helicon-logo-white.svg` | The mark for print, web, press | vector |
 | `helicon-mark-2048.png` | Mark master the generator paints from | 2048 × 2048 |
 

@@ -77,7 +77,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
       headerCta: "Download",
       headerHref: installerPath("macos", "header"),
       closingTitle: "Bring your threads out of the terminal.",
-      closingBody: "Free, MIT licensed, and running on the Muse subscription you already have.",
+      closingBody: "Free, MIT licensed, and running on the Muse subscription you already have for Muse Code.",
       featuresTitle: "Everything a session needs, in one window",
       featuresBody:
         "Projects, threads, diffs, approvals and cost live side by side, so you stop hunting through terminal tabs.",
@@ -100,7 +100,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
     headerCta: "Download",
     headerHref: "#install",
     closingTitle: "Bring your threads out of the terminal.",
-    closingBody: "Free, MIT licensed, and running on the Muse subscription you already have.",
+    closingBody: "Free, MIT licensed, and running on the Muse subscription you already have for Muse Code.",
     featuresTitle: "Everything a session needs, in one window",
     featuresBody:
       "Projects, threads, diffs, approvals and cost live side by side, so you stop hunting through terminal tabs.",

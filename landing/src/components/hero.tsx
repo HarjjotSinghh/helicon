@@ -3,7 +3,7 @@ import { RELEASES_URL } from "@/lib/site";
 import type { PageCopy } from "@/lib/copy";
 import { DemoVideo } from "./demo-video";
 import { CtaRow } from "./cta-row";
-import { CellGrid, Rule, WindowFrame, bandX } from "./ui";
+import { CellGrid, Rule, bandX } from "./ui";
 
 const facts = [
   { icon: Scales, title: "MIT licensed", body: "Free, no paid tier" },
@@ -72,26 +72,12 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
 
       <Rule />
 
-      <div id="demo" className={`${bandX} relative isolate overflow-hidden py-10 sm:py-12`}>
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-1/3 -z-10 mx-auto h-[70%] max-w-[1000px] rounded-full blur-3xl"
-          style={{ background: "radial-gradient(closest-side, var(--glow), transparent)" }}
+      <div id="demo">
+        <DemoVideo
+          src="/demo/a1.mp4"
+          poster="/demo/a1.jpg"
+          label="Helicon walkthrough: open a CLI thread, send a fix, then usage and settings"
         />
-        <WindowFrame title="Helicon" badge="Recorded">
-          <DemoVideo
-            src="/demo/a1.mp4"
-            poster="/demo/a1.jpg"
-            label="Helicon walkthrough: open a CLI thread, send a fix, then usage and settings"
-          />
-        </WindowFrame>
-        <p className="mt-3 text-center text-[13.5px] text-subtle">
-          Recorded on the desktop app.{" "}
-          <a href="#tour" className="font-medium text-muted underline-offset-2 hover:text-fg hover:underline">
-            Try the live UI below
-          </a>
-          .
-        </p>
       </div>
 
       <Rule />

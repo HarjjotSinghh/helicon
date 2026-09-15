@@ -1,12 +1,12 @@
 import type { Cta } from "@/lib/copy";
 import { buttonClass } from "./ui";
-import { Code, DownloadSimple } from "@phosphor-icons/react/ssr";
-import { WindowsLogo, AppleLogo } from "./os-logos";
+import { DownloadSimple } from "@phosphor-icons/react/ssr";
+import { AppleLogo, GitHubLogo, WindowsLogo } from "./os-logos";
 
-function Icon({ href, kind }: { href: string; kind: Cta["kind"] }) {
+function Icon({ href }: { href: string; kind: Cta["kind"] }) {
+  if (href.includes("github.com")) return <GitHubLogo />;
   if (href.includes("/download/windows")) return <WindowsLogo className="size-[18px]" />;
   if (href.includes("/download/macos")) return <AppleLogo className="size-[18px]" />;
-  if (kind === "outline") return <Code weight="bold" />;
   return <DownloadSimple weight="bold" />;
 }
 

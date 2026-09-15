@@ -3,12 +3,12 @@ import {
   BookOpen,
   Bug,
   DownloadSimple,
-  GithubLogo,
   Heart,
   Question,
 } from "@phosphor-icons/react/ssr";
 import { ISSUES_URL, RELEASES_URL, REPO_URL } from "@/lib/site";
 import { closingCta, type PageCopy } from "@/lib/copy";
+import { GitHubLogo } from "./os-logos";
 import { Logo, buttonClass } from "./ui";
 import { ThemeToggle } from "./theme-toggle";
 import { CtaRow } from "./cta-row";
@@ -47,7 +47,7 @@ const groups = [
   {
     title: "Project",
     links: [
-      { href: REPO_URL, label: "Source", icon: GithubLogo, external: true },
+      { href: REPO_URL, label: "Source", icon: GitHubLogo, external: true },
       { href: RELEASES_URL, label: "Releases", icon: DownloadSimple, external: true },
       { href: ISSUES_URL, label: "Report an issue", icon: Bug, external: true },
     ],

@@ -43,8 +43,18 @@ def font(name: str, size: int) -> ImageFont.FreeTypeFont:
 
 
 def mark_ink() -> Image.Image:
-    """The black mark master cropped to its ink box (RGBA)."""
-    return Image.open(MARK_PNG).crop(MARK_INK)
+    """The mark cropped to its ink box (RGBA)."""
+    if os.path.exists(MARK_PNG):
+        return Image.open(MARK_PNG).crop(MARK_INK)
+    # Fallback: the site logo (blue on black) as an alpha mask.
+    logo = os.path.join(ROOT, "landing", "public", "assets", "logo-dark.png")
+    im = Image.open(logo).convert("RGBA")
+    alpha = im.convert("L").point(lambda v: min(255, v * 2) if v > 16 else 0)
+    layer = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    layer.putalpha(alpha)
+    bbox = layer.getbbox()
+    assert bbox, "logo-dark.png has no ink"
+    return layer.crop(bbox)
 
 
 def tinted_mark(width: int, color: str) -> Image.Image:
@@ -119,6 +129,7 @@ def check_glyphs(chars: str, names: list[str]) -> None:
 
 
 TAGLINE = "Open-source desktop + web client for Muse Code."
+README_TAGLINE = "Open-source desktop & web client for Muse Code."
 
 
 def do_pfp(mode: str, pal: dict, size: int = 1024) -> Image.Image:
@@ -282,20 +293,18 @@ def do_og(mode: str, pal: dict) -> None:
 
 
 def do_readme_hero(mode: str, pal: dict) -> None:
-    """Centered README banner: mark, Helicon, tagline. Flat, no gradients."""
-    w, h = 1600, 800
+    """Centered README banner: blue mark, Helicon, tagline. Half the old 800px height."""
+    w, h = 1600, 400
     img = canvas(w, h, pal["bg"])
     d = ImageDraw.Draw(img)
-    mark = tinted_mark(
-        round(150 * (MARK_INK[2] - MARK_INK[0]) / (MARK_INK[3] - MARK_INK[1])),
-        pal["fg"])
-    title_f = font(DISPLAY_FONT, 104)
-    tag_f = font("Inter-500.ttf", 36)
+    mark = tinted_mark(96, pal["blue"])
+    title_f = font(DISPLAY_FONT, 72)
+    tag_f = font("Inter-500.ttf", 28)
     title_bb = d.textbbox((0, 0), "Helicon", font=title_f, anchor="lt")
-    tag_bb = d.textbbox((0, 0), TAGLINE, font=tag_f, anchor="lt")
+    tag_bb = d.textbbox((0, 0), README_TAGLINE, font=tag_f, anchor="lt")
     title_w = d.textlength("Helicon", font=title_f)
-    tag_w = d.textlength(TAGLINE, font=tag_f)
-    gap1, gap2 = round(36 * SS), round(26 * SS)
+    tag_w = d.textlength(README_TAGLINE, font=tag_f)
+    gap1, gap2 = round(18 * SS), round(12 * SS)
     block_h = (mark.size[1] + gap1 + (title_bb[3] - title_bb[1]) + gap2
                + (tag_bb[3] - tag_bb[1]))
     y = (img.size[1] - block_h) // 2
@@ -305,23 +314,31 @@ def do_readme_hero(mode: str, pal: dict) -> None:
     d.text((cx - title_w // 2, y - title_bb[1]), "Helicon", font=title_f,
            fill=pal["fg"], anchor="lt")
     y += (title_bb[3] - title_bb[1]) + gap2
-    d.text((cx - tag_w // 2, y - tag_bb[1]), TAGLINE, font=tag_f,
+    d.text((cx - tag_w // 2, y - tag_bb[1]), README_TAGLINE, font=tag_f,
            fill=pal["muted"], anchor="lt")
     finish(img, os.path.join(DOCS_ASSETS, f"readme-hero-{mode}.png"))
 
 
 def main() -> None:
-    for name in ("Inter-400.ttf", "Inter-500.ttf", DISPLAY_FONT,
-                 "JBmono-500.ttf"):
+    readme_only = "--readme" in sys.argv
+    needed = ([DISPLAY_FONT, "Inter-500.ttf"] if readme_only
+              else ["Inter-400.ttf", "Inter-500.ttf", DISPLAY_FONT,
+                    "JBmono-500.ttf"])
+    for name in needed:
         assert os.path.exists(os.path.join(FONTS, name)), f"missing {name}"
-    assert os.path.exists(MARK_PNG), "missing mark master"
+    if not os.path.exists(MARK_PNG):
+        logo = os.path.join(ROOT, "landing", "public", "assets", "logo-dark.png")
+        assert os.path.exists(logo), "missing mark master and logo-dark.png"
     check_glyphs(
-        TAGLINE + "Helicon" + OG_HEADLINE + OG_SUB + "".join(OG_FEATURES)
-        + OG_FOOTER,
-        ["Inter-400.ttf", "Inter-500.ttf", DISPLAY_FONT,
-         "JBmono-500.ttf"],
+        README_TAGLINE + "Helicon" if readme_only else (
+            TAGLINE + README_TAGLINE + "Helicon" + OG_HEADLINE + OG_SUB
+            + "".join(OG_FEATURES) + OG_FOOTER),
+        needed,
     )
     for mode, pal in (("light", LIGHT), ("dark", DARK)):
+        if readme_only:
+            do_readme_hero(mode, pal)
+            continue
         master = do_pfp(mode, pal, 1024)
         for size in (400, 300):
             small = master.resize((size, size), Image.LANCZOS)

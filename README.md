@@ -12,7 +12,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-hero-dark.png" />
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme-hero-light.png" />
-  <img alt="Helicon logo, wordmark, and tagline" src="docs/assets/readme-hero-light.png" />
+  <img alt="Helicon: open-source desktop & web client for Muse Code" src="docs/assets/readme-hero-light.png" />
 </picture>
 
 > **Helicon** - home of the Muses. An open-source desktop + web ADE for Meta's **Muse Code CLI** (`muse`), in the spirit of the Claude Code desktop app and the Codex / ChatGPT desktop app.
