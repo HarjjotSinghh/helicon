@@ -1,6 +1,6 @@
 "use client";
 
-import { CornersIn, CornersOut, Pause, Play, SpeakerHigh, SpeakerSlash } from "@phosphor-icons/react";
+import { CornersIn, CornersOut, Pause, SpeakerHigh, SpeakerSlash } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 function formatTime(seconds: number) {
@@ -9,6 +9,27 @@ function formatTime(seconds: number) {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+/** Play triangle with its centroid on the viewBox center, so it sits optically in a circle. */
+function PlayGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M8.7 6.4v11.2L18.6 12 8.7 6.4z" />
+    </svg>
+  );
+}
+
+function canAutoplayWithoutJank() {
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  const slow = connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g";
+  return (
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+    !window.matchMedia("(pointer: coarse)").matches &&
+    !connection?.saveData &&
+    !slow &&
+    window.innerWidth >= 768
+  );
 }
 
 export function DemoVideo({
@@ -23,6 +44,7 @@ export function DemoVideo({
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hideTimer = useRef<number>(0);
+  const userTouched = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [current, setCurrent] = useState(0);
@@ -48,17 +70,57 @@ export function DemoVideo({
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
+  useEffect(() => {
+    const node = videoRef.current;
+    const root = rootRef.current;
+    if (!node || !root || !canAutoplayWithoutJank()) return;
+
+    let timer = 0;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (userTouched.current) return;
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.45) {
+          if (timer) return;
+          timer = window.setTimeout(() => {
+            if (userTouched.current || !videoRef.current) return;
+            videoRef.current.muted = true;
+            setMuted(true);
+            void videoRef.current.play();
+          }, 2500);
+        } else {
+          window.clearTimeout(timer);
+          timer = 0;
+          const video = videoRef.current;
+          if (video && !video.paused) video.pause();
+        }
+      },
+      { threshold: [0.45] },
+    );
+    io.observe(root);
+    return () => {
+      io.disconnect();
+      window.clearTimeout(timer);
+    };
+  }, []);
+
   const togglePlay = useCallback(() => {
     const node = videoRef.current;
     if (!node) return;
+    userTouched.current = true;
     if (node.ended) node.currentTime = 0;
-    if (node.paused) void node.play();
-    else node.pause();
+    if (node.paused) {
+      node.muted = false;
+      setMuted(false);
+      void node.play();
+    } else {
+      node.pause();
+    }
   }, []);
 
   const toggleMute = useCallback(() => {
     const node = videoRef.current;
     if (!node) return;
+    userTouched.current = true;
     node.muted = !node.muted;
     setMuted(node.muted);
   }, []);
@@ -153,7 +215,7 @@ export function DemoVideo({
           className="absolute top-1/2 left-1/2 inline-flex size-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-btn text-btn-fg shadow-[0_8px_32px_rgb(10_60_130/0.45)] transition-transform duration-150 ease-out hover:bg-btn-hover active:scale-[0.96] sm:size-[4.5rem]"
           aria-label="Play walkthrough"
         >
-          <Play weight="fill" className="size-8 translate-x-[1.5px] sm:size-9" />
+          <PlayGlyph className="size-7 sm:size-8" />
         </button>
       ) : null}
 
@@ -179,7 +241,7 @@ export function DemoVideo({
         </label>
         <div className="mt-2 flex items-center gap-1 sm:gap-1.5">
           <button type="button" className="demo-ctrl" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
-            {playing ? <Pause weight="fill" /> : <Play weight="fill" className="translate-x-[0.5px]" />}
+            {playing ? <Pause weight="fill" /> : <PlayGlyph />}
           </button>
           <p className="min-w-[5.75rem] px-1.5 text-[12.5px] font-medium tabular-nums text-white/80">
             {formatTime(current)}
