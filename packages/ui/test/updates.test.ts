@@ -82,6 +82,21 @@ describe("app updates", () => {
     assert.deepEqual(fake.installs, []);
   });
 
+  it("treats a missing-platform feed as up to date instead of an error", async () => {
+    const fake = new FakeUpdater();
+    fake.check = async () => {
+      fake.checks += 1;
+      throw new Error(
+        'None of the fallback platforms `["darwin-aarch64-app", "darwin-aarch64"]` were found in the response `platforms` object',
+      );
+    };
+    const { manager } = setup({ autoUpdate: true, paused: false }, fake);
+    await manager.check();
+    assert.equal(manager.current.status, "upToDate");
+    assert.equal(manager.current.error, null);
+    assert.equal(manager.current.checkedAt, 1000);
+  });
+
   it("reports a failed check, then says when it is up to date", async () => {
     const fake = new FakeUpdater();
     fake.failCheck = true;
