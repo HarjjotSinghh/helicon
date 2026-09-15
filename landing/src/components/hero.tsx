@@ -1,5 +1,5 @@
 import { ArrowUpRight, Key, Receipt, Scales, Database, Sparkle, Monitor } from "@phosphor-icons/react/ssr";
-import { RELEASES_URL, VERSION } from "@/lib/site";
+import { RELEASES_URL } from "@/lib/site";
 import type { PageCopy } from "@/lib/copy";
 import { DemoApp } from "@/demo/demo-app";
 import { CtaRow } from "./cta-row";
@@ -19,20 +19,21 @@ const windowsFacts = [
   { icon: Database, title: "WSL2 handled", body: "Sidecar + path translation" },
 ];
 
-export function Hero({ copy }: { copy: PageCopy }) {
+export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: string | null; notesUrl: string }) {
   const shown = copy.audience === "windows" ? windowsFacts : facts;
+  const badge = version ? `v${version}` : "Latest";
   return (
     <div id="top">
       <div className={`${bandX} pt-14 pb-12 sm:pt-20 sm:pb-16 lg:pt-24`}>
         <a
-          href={RELEASES_URL}
+          href={notesUrl || RELEASES_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="group inline-flex items-center gap-2 rounded-full bg-surface py-1 pr-3 pl-1 text-[13px] font-medium text-muted shadow-soft transition-colors hover:text-fg"
         >
           <span className="inline-flex items-center gap-1 rounded-full bg-tint px-2 py-0.5 text-accent-text">
             <Sparkle weight="fill" aria-hidden="true" className="size-3.5" />
-            v{VERSION}
+            {badge}
           </span>
           Read the release notes
           <ArrowUpRight

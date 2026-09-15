@@ -1,6 +1,6 @@
 import { installerPath } from "./downloads";
 import { audienceFromOs, type Audience, type VisitorOs } from "./os";
-import { REPO_URL, VERSION } from "./site";
+import { REPO_URL } from "./site";
 
 export type Cta = {
   label: string;
@@ -109,5 +109,5 @@ export function getPageCopy(os: VisitorOs): PageCopy {
 
 export function closingCta(copy: PageCopy): Cta {
   const primary = copy.ctas.find((c) => c.kind === "primary");
-  return primary ?? { label: `Download v${VERSION}`, href: "#install", kind: "primary" };
+  return primary ?? { label: "Download", href: "#install", kind: "primary" };
 }

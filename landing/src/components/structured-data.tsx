@@ -1,7 +1,7 @@
-import { AUTHOR, DESCRIPTION, FAQS, REPO_URL, SITE_NAME, SITE_URL, VERSION } from "@/lib/site";
+import { AUTHOR, DESCRIPTION, FAQS, REPO_URL, SITE_NAME, SITE_URL } from "@/lib/site";
 
 /** schema.org data for search and answer engines: the app, its FAQ, and the site itself. */
-export function StructuredData() {
+export function StructuredData({ version }: { version: string | null }) {
   const graph = {
     "@context": "https://schema.org",
     "@graph": [
@@ -30,7 +30,7 @@ export function StructuredData() {
         applicationCategory: "DeveloperApplication",
         applicationSubCategory: "AI coding agent interface",
         operatingSystem: "Windows, macOS, Linux",
-        softwareVersion: VERSION,
+        softwareVersion: version ?? undefined,
         license: "https://opensource.org/licenses/MIT",
         isAccessibleForFree: true,
         downloadUrl: `${SITE_URL}/download/windows`,

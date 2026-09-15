@@ -1,13 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
-import { TAGLINE, VERSION } from "./site";
+import { TAGLINE } from "./site";
 
 /** Shared by opengraph-image and twitter-image: the page's own frame, blueprint and wordmark. */
 export const ogSize = { width: 1200, height: 630 };
 export const ogAlt = "Helicon: Muse Code, without living in the terminal. A free, open-source desktop and web app for the muse CLI.";
 
-export async function renderOgImage() {
+export async function renderOgImage(version: string | null) {
   const [heading, headingBold, body, logo] = await Promise.all([
     // Literal paths keep the build's file tracing to exactly these four files.
     readFile(join(process.cwd(), "node_modules/@fontsource/instrument-sans/files/instrument-sans-latin-500-normal.woff")),
@@ -69,7 +69,7 @@ export async function renderOgImage() {
                 fontSize: 20,
               }}
             >
-              v{VERSION} · Free and MIT licensed
+              {version ? `v${version} · Free and MIT licensed` : "Free and MIT licensed"}
             </div>
           </div>
 

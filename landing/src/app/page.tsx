@@ -12,6 +12,7 @@ import { DemoApp } from "@/demo/demo-app";
 import { Rule } from "@/components/ui";
 import { StructuredData } from "@/components/structured-data";
 import { getPageCopy } from "@/lib/copy";
+import { latestRelease } from "@/lib/github-release";
 import { getVisitorOs } from "@/lib/visitor";
 
 const shots: TourShot[] = [
@@ -60,7 +61,9 @@ const shots: TourShot[] = [
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const copy = getPageCopy(await getVisitorOs());
+  const [os, release] = await Promise.all([getVisitorOs(), latestRelease()]);
+  const copy = getPageCopy(os);
+  const version = release?.version ?? null;
   return (
     <>
       <a
@@ -72,7 +75,7 @@ export default async function Page() {
       <div className="page-frame relative mx-auto min-h-dvh w-[calc(100%-1.5rem)] max-w-[1200px] border-x border-line bg-bg sm:w-[calc(100%-3rem)]">
         <SiteHeader copy={copy} />
         <main id="main">
-          <Hero copy={copy} />
+          <Hero copy={copy} version={version} notesUrl={release?.notesUrl ?? ""} />
           <Rule />
           <Features title={copy.featuresTitle} body={copy.featuresBody} />
           <Rule />
@@ -82,7 +85,7 @@ export default async function Page() {
           <Rule />
           <Compare body={copy.compareBody} />
           <Rule />
-          <Install />
+          <Install version={version} />
           <Rule />
           <Faq audience={copy.audience} intro={copy.faqIntro} />
           <Rule />
@@ -91,7 +94,7 @@ export default async function Page() {
         </main>
         <SiteFooter />
       </div>
-      <StructuredData />
+      <StructuredData version={version} />
     </>
   );
 }

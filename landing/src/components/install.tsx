@@ -11,7 +11,7 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { AppleLogo, LinuxLogo, WindowsLogo } from "./os-logos";
-import { OSES, VERSION, type OsId } from "@/lib/site";
+import { osesFor, type OsId } from "@/lib/site";
 import { installerPath } from "@/lib/downloads";
 import { parseVisitorOs } from "@/lib/os";
 import { CellGrid, Rule, SectionHeading, bandX, buttonClass, cn } from "./ui";
@@ -22,13 +22,15 @@ const OS_ICONS: Record<OsId, typeof WindowsLogo> = {
   linux: LinuxLogo,
 };
 
-const REQUIREMENTS = [
-  "Node 22+ on the machine running the daemon.",
-  "The muse CLI installed and logged in.",
-  "Windows: Muse runs in WSL2 Ubuntu, routed by a sidecar.",
-  "macOS builds are not notarized yet, so right-click, then Open.",
-  `Linux: run from source at v${VERSION}.`,
-];
+function requirements(version: string | null) {
+  return [
+    "Node 22+ on the machine running the daemon.",
+    "The muse CLI installed and logged in.",
+    "Windows: Muse runs in WSL2 Ubuntu, routed by a sidecar.",
+    "macOS builds are not notarized yet, so right-click, then Open.",
+    version ? `Linux: run from source at v${version}.` : "Linux: run from source; there is no packaged build yet.",
+  ];
+}
 
 const noop = () => () => {};
 
@@ -85,20 +87,21 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-export function Install() {
+export function Install({ version }: { version: string | null }) {
+  const oses = osesFor(version);
   const detected = useSyncExternalStore(noop, detectOs, () => "windows" as OsId);
   const [chosen, setOsId] = useState<OsId | null>(null);
   const osId = chosen ?? detected;
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
-  const os = OSES.find((o) => o.id === osId) ?? OSES[0];
+  const os = oses.find((o) => o.id === osId) ?? oses[0];
 
   function onKey(e: KeyboardEvent<HTMLDivElement>) {
-    const i = OSES.findIndex((o) => o.id === osId);
+    const i = oses.findIndex((o) => o.id === osId);
     const dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
     if (!dir) return;
     e.preventDefault();
-    const next = (i + dir + OSES.length) % OSES.length;
-    setOsId(OSES[next].id);
+    const next = (i + dir + oses.length) % oses.length;
+    setOsId(oses[next].id);
     tabs.current[next]?.focus();
   }
 
@@ -120,7 +123,7 @@ export function Install() {
         onKeyDown={onKey}
         className="mt-10 inline-flex rounded-xl bg-sunken p-1 shadow-[inset_0_0_0_1px_var(--border)]"
       >
-        {OSES.map((o, i) => {
+        {oses.map((o, i) => {
           const Ico = OS_ICONS[o.id];
           const selected = o.id === os.id;
           return (
@@ -216,7 +219,7 @@ export function Install() {
             Requirements and caveats
           </h3>
           <ul className="mt-5 space-y-3.5">
-            {REQUIREMENTS.map((r) => (
+            {requirements(version).map((r) => (
               <li key={r} data-reveal="slide" className="flex gap-2.5 text-[15px] leading-relaxed text-muted">
                 <CheckCircle aria-hidden="true" weight="duotone" className="mt-0.5 size-[18px] shrink-0 text-accent-text" />
                 {r}

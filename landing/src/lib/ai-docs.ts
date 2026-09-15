@@ -3,7 +3,7 @@
  * data the page renders, so they never drift: /llms.txt (the llmstxt.org index), /llms-full.txt
  * (everything in one file) and /agents.md (how an agent should install and use Helicon).
  */
-import { AUTHOR, DESCRIPTION, FAQS, ISSUES_URL, OSES, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL, TAGLINE, VERSION } from "./site";
+import { AUTHOR, DESCRIPTION, FAQS, ISSUES_URL, osesFor, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL, TAGLINE } from "./site";
 
 const FEATURES: [string, string][] = [
   ["Every project, grouped", "Threads grouped by working folder, git worktrees included. Resume any session in one click, including sessions started in the terminal TUI."],
@@ -29,20 +29,22 @@ const COMPARE: [string, string, string, string][] = [
   ["Approvals", "Surfaced, never bypassed", "Editor-dependent", "Harness-dependent"],
 ];
 
-const facts = [
-  `- Current version: v${VERSION}`,
-  "- License: MIT, free, no paid tier",
-  "- Platforms: Windows (signed installer, WSL2), macOS (universal DMG, Apple Silicon and Intel), Linux (from source)",
-  "- Requirements: Node 22+ and the muse CLI, logged in",
-  "- Billing: uses your existing Muse subscription through the muse CLI; no separate API key",
-  "- Status: unofficial community project; not made, sponsored or endorsed by Meta",
-  `- Source: ${REPO_URL}`,
-  `- Downloads: ${RELEASES_URL}`,
-  `- Author: ${AUTHOR.name} (${AUTHOR.url})`,
-];
+function factsFor(version: string | null) {
+  return [
+    version ? `- Current version: v${version}` : "- Current version: see the latest GitHub release",
+    "- License: MIT, free, no paid tier",
+    "- Platforms: Windows (signed installer, WSL2), macOS (universal DMG, Apple Silicon and Intel), Linux (from source)",
+    "- Requirements: Node 22+ and the muse CLI, logged in",
+    "- Billing: uses your existing Muse subscription through the muse CLI; no separate API key",
+    "- Status: unofficial community project; not made, sponsored or endorsed by Meta",
+    `- Source: ${REPO_URL}`,
+    `- Downloads: ${RELEASES_URL}`,
+    `- Author: ${AUTHOR.name} (${AUTHOR.url})`,
+  ];
+}
 
-function installSection() {
-  return OSES.map((os) => {
+function installSection(version: string | null) {
+  return osesFor(version).map((os) => {
     const steps = os.steps
       .map((step, i) => `${i + 1}. ${step.text}${step.command ? `\n   \`\`\`sh\n   ${step.command}\n   \`\`\`` : ""}`)
       .join("\n");
@@ -50,14 +52,14 @@ function installSection() {
   }).join("\n\n");
 }
 
-export function llmsTxt() {
+export function llmsTxt(version: string | null) {
   return `# ${SITE_NAME}
 
 > ${DESCRIPTION}
 
 ${TAGLINE}
 
-${facts.join("\n")}
+${factsFor(version).join("\n")}
 
 ## Docs
 
@@ -77,7 +79,7 @@ ${facts.join("\n")}
 `;
 }
 
-export function llmsFullTxt() {
+export function llmsFullTxt(version: string | null) {
   return `# ${SITE_NAME}: Muse Code, without living in the terminal
 
 > ${DESCRIPTION}
@@ -88,7 +90,7 @@ Source: ${SITE_URL}
 
 ## Key facts
 
-${facts.join("\n")}
+${factsFor(version).join("\n")}
 
 ## Features
 
@@ -108,7 +110,7 @@ ${COMPARE.map((row) => `| ${row.join(" | ")} |`).join("\n")}
 
 ## Install
 
-${installSection()}
+${installSection(version)}
 
 ## Frequently asked questions
 
@@ -116,7 +118,7 @@ ${FAQS.map(([q, a]) => `### ${q}\n\n${a}`).join("\n\n")}
 `;
 }
 
-export function agentsMd() {
+export function agentsMd(version: string | null) {
   return `# AGENTS.md: ${SITE_NAME}
 
 This file is for AI agents helping a person evaluate, install or use Helicon. The human-facing page is ${SITE_URL}/ and the full text is ${SITE_URL}/llms-full.txt.
@@ -131,15 +133,15 @@ It is a graphical interface for the **muse CLI** (Muse Code). It does not replac
 
 1. The user already has, or wants, a Muse subscription and the \`muse\` CLI.
 2. Node 22+ is available on the machine that will run the daemon.
-3. Platform: Windows needs WSL2 Ubuntu with muse installed inside it; macOS builds are not notarized yet; Linux is source-only at v${VERSION}.
+3. Platform: Windows needs WSL2 Ubuntu with muse installed inside it; macOS builds are not notarized yet; Linux is source-only${version ? ` at v${version}` : ""}.
 
 ## Install
 
-${installSection()}
+${installSection(version)}
 
 ## Facts to state accurately
 
-${facts.join("\n")}
+${factsFor(version).join("\n")}
 
 ## What not to claim
 

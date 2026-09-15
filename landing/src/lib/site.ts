@@ -1,5 +1,3 @@
-export const VERSION = "0.10.1";
-
 /**
  * The public origin, used for canonical URLs, sitemaps, Open Graph and the llms.txt files.
  * Set NEXT_PUBLIC_SITE_URL once the domain is live; Vercel's production URL is the fallback.
@@ -36,41 +34,50 @@ export type OsInfo = {
   note?: string;
 };
 
-export const OSES: OsInfo[] = [
-  {
-    id: "windows",
-    label: "Windows",
-    summary:
-      "Signed installer with auto-update. Muse runs inside WSL2 Ubuntu; a sidecar routes calls through it and translates paths.",
-    steps: [
-      { text: "Install the muse CLI inside WSL2 Ubuntu." },
-      { text: "Sign in from the WSL2 shell.", command: "muse login" },
-      { text: `Run Helicon-${VERSION}-setup.exe from the latest release.` },
-    ],
-  },
-  {
-    id: "macos",
-    label: "macOS",
-    summary: "One universal DMG for Apple Silicon and Intel, with auto-update.",
-    steps: [
-      { text: "Sign in with the muse CLI.", command: "muse login" },
-      { text: `Open Helicon-${VERSION}-universal.dmg from the latest release.` },
-      { text: "Drag Helicon into Applications." },
-    ],
-    note: "Builds are not Apple-notarized yet. On first launch, right-click the app and choose Open.",
-  },
-  {
-    id: "linux",
-    label: "Linux",
-    summary: "Run from source for now. There is no packaged build yet.",
-    steps: [
-      { text: "Clone the repository.", command: `git clone ${REPO_URL}` },
-      { text: "Install dependencies.", command: "cd helicon && npm install" },
-      { text: "Start the app.", command: "npm run dev" },
-    ],
-    note: `Linux is source-only at v${VERSION}.`,
-  },
-];
+export function osesFor(version: string | null): OsInfo[] {
+  const win = version
+    ? `Run Helicon-${version}-setup.exe from the latest release.`
+    : "Run the Windows installer from the latest GitHub release.";
+  const dmg = version
+    ? `Open Helicon-${version}-universal.dmg from the latest release.`
+    : "Open the macOS DMG from the latest GitHub release.";
+  const linux = version ? `Linux is source-only at v${version}.` : "Linux is source-only; there is no packaged build yet.";
+  return [
+    {
+      id: "windows",
+      label: "Windows",
+      summary:
+        "Signed installer with auto-update. Muse runs inside WSL2 Ubuntu; a sidecar routes calls through it and translates paths.",
+      steps: [
+        { text: "Install the muse CLI inside WSL2 Ubuntu." },
+        { text: "Sign in from the WSL2 shell.", command: "muse login" },
+        { text: win },
+      ],
+    },
+    {
+      id: "macos",
+      label: "macOS",
+      summary: "One universal DMG for Apple Silicon and Intel, with auto-update.",
+      steps: [
+        { text: "Sign in with the muse CLI.", command: "muse login" },
+        { text: dmg },
+        { text: "Drag Helicon into Applications." },
+      ],
+      note: "Builds are not Apple-notarized yet. On first launch, right-click the app and choose Open.",
+    },
+    {
+      id: "linux",
+      label: "Linux",
+      summary: "Run from source for now. There is no packaged build yet.",
+      steps: [
+        { text: "Clone the repository.", command: `git clone ${REPO_URL}` },
+        { text: "Install dependencies.", command: "cd helicon && npm install" },
+        { text: "Start the app.", command: "npm run dev" },
+      ],
+      note: linux,
+    },
+  ];
+}
 
 export const FAQS: [string, string][] = [
   ["Is this official?", "No. Helicon is an unofficial community project, MIT licensed. It is not made, sponsored or endorsed by Meta."],

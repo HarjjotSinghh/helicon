@@ -1,4 +1,5 @@
-import { REPO_URL } from "./site";
+import { cache } from "react";
+import { RELEASES_URL, REPO_URL } from "./site";
 
 export type InstallerKind = "windows" | "macos";
 
@@ -9,13 +10,17 @@ export type ReleaseAsset = {
   size: number;
 };
 
+export type LatestRelease = {
+  version: string;
+  tag: string;
+  notesUrl: string;
+  assets: Array<{ name: string; size: number; browser_download_url: string }>;
+};
+
 type GithubRelease = {
   tag_name?: string;
-  assets?: Array<{
-    name: string;
-    size: number;
-    browser_download_url: string;
-  }>;
+  html_url?: string;
+  assets?: LatestRelease["assets"];
 };
 
 const repoPath = REPO_URL.replace("https://github.com/", "");
@@ -25,7 +30,7 @@ function matchAsset(kind: InstallerKind, name: string) {
   return /\.dmg$/i.test(name) && !/\.sig$/i.test(name);
 }
 
-export async function latestInstaller(kind: InstallerKind): Promise<ReleaseAsset | null> {
+async function githubHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "User-Agent": "helicon.sh",
@@ -33,19 +38,35 @@ export async function latestInstaller(kind: InstallerKind): Promise<ReleaseAsset
   };
   const token = process.env.GITHUB_TOKEN;
   if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
 
+/** One GitHub fetch per request. Cached for a minute so a new tag shows up without a redeploy. */
+export const latestRelease = cache(async (): Promise<LatestRelease | null> => {
   const res = await fetch(`https://api.github.com/repos/${repoPath}/releases/latest`, {
-    headers,
-    next: { revalidate: 300 },
+    headers: await githubHeaders(),
+    next: { revalidate: 60 },
   });
   if (!res.ok) return null;
-
   const body = (await res.json()) as GithubRelease;
-  const asset = body.assets?.find((item) => matchAsset(kind, item.name));
-  if (!asset) return null;
-
+  const tag = body.tag_name ?? "";
+  const version = tag.replace(/^v/, "");
+  if (!version) return null;
   return {
-    version: (body.tag_name ?? "").replace(/^v/, ""),
+    version,
+    tag,
+    notesUrl: body.html_url || RELEASES_URL,
+    assets: body.assets ?? [],
+  };
+});
+
+export async function latestInstaller(kind: InstallerKind): Promise<ReleaseAsset | null> {
+  const release = await latestRelease();
+  if (!release) return null;
+  const asset = release.assets.find((item) => matchAsset(kind, item.name));
+  if (!asset) return null;
+  return {
+    version: release.version,
     name: asset.name,
     url: asset.browser_download_url,
     size: asset.size,
