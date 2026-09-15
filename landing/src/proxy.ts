@@ -16,15 +16,14 @@ export function proxy(request: NextRequest) {
   response.headers.set("Vary", "User-Agent, Sec-CH-UA-Platform, Sec-CH-UA-Mobile");
   response.headers.set("Accept-CH", "Sec-CH-UA-Platform, Sec-CH-UA-Mobile");
 
-  if (!request.cookies.get(ANON_COOKIE)?.value) {
-    response.cookies.set(ANON_COOKIE, crypto.randomUUID(), {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 365,
-      sameSite: "lax",
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-    });
-  }
+  const anon = request.cookies.get(ANON_COOKIE)?.value ?? crypto.randomUUID();
+  response.cookies.set(ANON_COOKIE, anon, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: "lax",
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+  });
 
   return response;
 }

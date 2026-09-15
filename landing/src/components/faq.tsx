@@ -6,6 +6,8 @@ import { useState } from "react";
 import { FAQS, ISSUES_URL } from "@/lib/site";
 import type { Audience } from "@/lib/os";
 import { CellGrid, SectionHeading, buttonClass, cn } from "./ui";
+import { TrackedLink } from "./tracked-link";
+import { trackEvent } from "@/lib/client-analytics";
 
 function faqsFor(audience: Audience) {
   if (audience !== "windows") return FAQS;
@@ -26,10 +28,17 @@ export function Faq({ audience, intro }: { audience: Audience; intro: string }) 
           <SectionHeading id="faq-title" icon={<Question weight="duotone" />} title="Before you install" className="sm:[&_h2]:whitespace-nowrap">
             {intro}
           </SectionHeading>
-          <a href={ISSUES_URL} target="_blank" rel="noopener noreferrer" className={buttonClass("outline", "sm", "mt-6 max-sm:h-11")}>
+          <TrackedLink
+            href={ISSUES_URL}
+            placement="faq"
+            eventLabel="Ask on GitHub"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={buttonClass("outline", "sm", "mt-6 max-sm:h-11")}
+          >
             <GitHubLogo aria-hidden="true" />
             Ask on GitHub
-          </a>
+          </TrackedLink>
         </div>
 
         </div>
@@ -44,7 +53,11 @@ export function Faq({ audience, intro }: { audience: Audience; intro: string }) 
                     id={`faq-q-${i}`}
                     aria-expanded={expanded}
                     aria-controls={`faq-a-${i}`}
-                    onClick={() => setOpen(expanded ? -1 : i)}
+                    onClick={() => {
+                      const next = expanded ? -1 : i;
+                      setOpen(next);
+                      trackEvent("faq_toggle", { question: q, action: next === -1 ? "close" : "open" });
+                    }}
                     className="group flex w-full items-center justify-between gap-6 py-5 text-left text-[15px] font-medium text-fg sm:text-[17px]"
                   >
                     <span className="transition-colors group-hover:text-accent-text">{q}</span>

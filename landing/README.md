@@ -27,7 +27,7 @@ live. Every absolute URL below is built from it; without it, Vercel's production
 
 Optional env:
 
-- **`NEXT_PUBLIC_POSTHOG_KEY`** / **`POSTHOG_KEY`** — records `installer_download` (os, src, asset, version). No-op if unset. Use a Helicon-only PostHog project, not another product.
+- **`NEXT_PUBLIC_POSTHOG_KEY`** / **`POSTHOG_KEY`** / **`NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`** — Helicon-only PostHog project. Client SDK captures pageviews, autocapture, heatmaps, session replay, `download_click`, `github_click`, `demo_play`, `copy_command`, `install_os_tab`, `faq_toggle`. `/download/*` records `installer_download` (installer OS vs visitor OS, src, asset, version). No-op if unset. Not the desktop app.
 - **`NEXT_PUBLIC_POSTHOG_HOST`** — defaults to `https://us.i.posthog.com`
 - **`GITHUB_TOKEN`** — optional, raises GitHub API rate limits for latest-release lookups
 

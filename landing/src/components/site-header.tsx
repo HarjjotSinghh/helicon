@@ -12,6 +12,7 @@ import { GitHubLogo } from "./os-logos";
 import { MobileNav } from "./mobile-nav";
 import { ThemeToggle } from "./theme-toggle";
 import { Logo, Rule, buttonClass } from "./ui";
+import { TrackedLink } from "./tracked-link";
 
 const links = [
   { href: "#demo", label: "Demo", icon: MonitorPlay },
@@ -49,18 +50,27 @@ export function SiteHeader({ copy }: { copy: PageCopy }) {
 
         <div className="ml-auto flex items-center gap-1.5">
           <ThemeToggle className="max-sm:hidden" />
-          <a
-            href={REPO_URL} target="_blank" rel="noopener noreferrer"
+          <TrackedLink
+            href={REPO_URL}
+            placement="header"
+            eventLabel="GitHub"
+            target="_blank"
+            rel="noopener noreferrer"
             className={buttonClass("ghost", "icon", "max-sm:hidden")}
             aria-label="Helicon on GitHub"
             title="Helicon on GitHub"
           >
             <GitHubLogo aria-hidden="true" />
-          </a>
-          <a href={copy.headerHref} className={buttonClass("primary", "sm", "ml-0 min-h-11 px-3 sm:ml-1.5 sm:min-h-0")}>
+          </TrackedLink>
+          <TrackedLink
+            href={copy.headerHref}
+            placement="header"
+            eventLabel={copy.headerCta}
+            className={buttonClass("primary", "sm", "ml-0 min-h-11 px-3 sm:ml-1.5 sm:min-h-0")}
+          >
             <DownloadSimple weight="bold" aria-hidden="true" />
             {copy.headerCta}
-          </a>
+          </TrackedLink>
           <MobileNav
             links={[
               ...links.map(({ href, label }) => ({ href, label })),

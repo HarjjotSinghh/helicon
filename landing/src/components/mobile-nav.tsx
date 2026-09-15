@@ -4,6 +4,7 @@ import { List, X } from "@phosphor-icons/react";
 import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { buttonClass } from "./ui";
+import { trackHref } from "@/lib/client-analytics";
 
 export function MobileNav({ links }: { links: { href: string; label: string }[] }) {
   const [open, setOpen] = useState(false);
@@ -60,7 +61,10 @@ export function MobileNav({ links }: { links: { href: string; label: string }[] 
                       href={link.href}
                       target={external ? "_blank" : undefined}
                       rel={external ? "noopener noreferrer" : undefined}
-                      onClick={() => setOpen(false)}
+                      onClick={() => {
+                        trackHref(link.href, { placement: "mobile_nav", label: link.label });
+                        setOpen(false);
+                      }}
                       className="flex min-h-11 items-center rounded-lg px-3 text-[15px] font-medium text-fg"
                     >
                       {link.label}

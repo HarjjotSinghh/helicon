@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { track } from "@/lib/analytics";
+import { identityFromCookies, track, visitorOsFromRequest } from "@/lib/analytics";
 import { latestInstaller, type InstallerKind } from "@/lib/github-release";
-import { ANON_COOKIE } from "@/lib/os";
 import { RELEASES_URL } from "@/lib/site";
 
 export const runtime = "nodejs";
@@ -22,25 +21,22 @@ export async function GET(request: Request, context: { params: Promise<{ os: str
   }
 
   const asset = await latestInstaller(kind);
-  const cookie = request.headers.get("cookie") ?? "";
-  const distinct =
-    cookie
-      .split(";")
-      .map((part) => part.trim())
-      .find((part) => part.startsWith(`${ANON_COOKIE}=`))
-      ?.slice(ANON_COOKIE.length + 1) ?? "anonymous";
+  const { distinctId, sessionId } = identityFromCookies(request.headers.get("cookie"));
 
   await track(
     "installer_download",
     {
       os: kind,
+      installer_os: kind,
+      visitor_os: visitorOsFromRequest(request),
       src,
       asset: asset?.name ?? null,
       version: asset?.version ?? null,
       referrer: request.headers.get("referer") ?? null,
-      user_agent: request.headers.get("user-agent") ?? null,
+      $current_url: url.toString(),
+      ...(sessionId ? { $session_id: sessionId } : {}),
     },
-    distinct,
+    distinctId,
   );
 
   if (!asset) {

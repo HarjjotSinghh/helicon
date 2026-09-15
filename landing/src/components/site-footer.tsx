@@ -12,6 +12,7 @@ import { GitHubLogo } from "./os-logos";
 import { Logo, buttonClass } from "./ui";
 import { ThemeToggle } from "./theme-toggle";
 import { CtaRow } from "./cta-row";
+import { TrackedLink } from "./tracked-link";
 
 export function ClosingCta({ copy }: { copy: PageCopy }) {
   const primary = closingCta(copy);
@@ -36,7 +37,11 @@ export function ClosingCta({ copy }: { copy: PageCopy }) {
           {copy.closingBody}
         </p>
         <div className="mt-8 flex justify-center">
-          <CtaRow ctas={[primary, { label: "View source", href: REPO_URL, kind: "outline", external: true }]} className="flex w-full max-w-sm flex-col gap-3 sm:max-w-none sm:w-auto sm:flex-row sm:flex-wrap sm:justify-center" />
+          <CtaRow
+            placement="closing"
+            ctas={[primary, { label: "View source", href: REPO_URL, kind: "outline", external: true }]}
+            className="flex w-full max-w-sm flex-col gap-3 sm:max-w-none sm:w-auto sm:flex-row sm:flex-wrap sm:justify-center"
+          />
         </div>
       </div>
     </section>
@@ -101,8 +106,10 @@ export function SiteFooter() {
               <ul className="mt-3 space-y-1">
                 {g.links.map(({ href, label, icon: Icon, external }) => (
                   <li key={label}>
-                    <a
+                    <TrackedLink
                       href={href}
+                      placement="footer"
+                      eventLabel={label}
                       target={external ? "_blank" : undefined}
                       rel={external ? "noopener noreferrer" : undefined}
                       className={buttonClass("ghost", "sm", "-ml-3 h-10 gap-2 font-normal sm:h-8")}
@@ -115,7 +122,7 @@ export function SiteFooter() {
                           className="!size-3 text-subtle transition-transform duration-200 ease-out [@media(hover:hover)]:group-hover/btn:translate-x-0.5 [@media(hover:hover)]:group-hover/btn:-translate-y-0.5"
                         />
                       ) : null}
-                    </a>
+                    </TrackedLink>
                   </li>
                 ))}
               </ul>

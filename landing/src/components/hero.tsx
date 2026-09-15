@@ -3,6 +3,7 @@ import { RELEASES_URL } from "@/lib/site";
 import type { PageCopy } from "@/lib/copy";
 import { DemoVideo } from "./demo-video";
 import { CtaRow } from "./cta-row";
+import { TrackedLink } from "./tracked-link";
 import { CellGrid, Rule, bandX } from "./ui";
 
 const facts = [
@@ -25,8 +26,10 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
   return (
     <div id="top">
       <div className={`${bandX} pt-14 pb-12 sm:pt-20 sm:pb-16 lg:pt-24`}>
-        <a
+        <TrackedLink
           href={notesUrl || RELEASES_URL}
+          placement="hero_badge"
+          eventLabel="Read the release notes"
           target="_blank"
           rel="noopener noreferrer"
           className="group inline-flex items-center gap-2 rounded-full bg-surface p-1 pr-3 text-[13px] font-medium whitespace-nowrap text-muted shadow-soft transition-colors hover:text-fg"
@@ -40,7 +43,7 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
             aria-hidden="true"
             className="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
           />
-        </a>
+        </TrackedLink>
 
         <h1
           className="mt-7 font-headline text-[clamp(2.6rem,6.6vw,5.25rem)] leading-[1] font-semibold tracking-[-0.02em] text-fg max-[359px]:text-[2.2rem]"
@@ -66,7 +69,7 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
               {copy.body}
             </p>
           </div>
-          <CtaRow ctas={copy.ctas} />
+          <CtaRow placement="hero" ctas={copy.ctas} />
         </div>
       </div>
 

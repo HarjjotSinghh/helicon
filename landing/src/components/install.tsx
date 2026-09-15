@@ -14,7 +14,9 @@ import { AppleLogo, LinuxLogo, WindowsLogo } from "./os-logos";
 import { osesFor, type OsId } from "@/lib/site";
 import { installerPath } from "@/lib/downloads";
 import { parseVisitorOs } from "@/lib/os";
+import { trackEvent } from "@/lib/client-analytics";
 import { CellGrid, Rule, SectionHeading, bandX, buttonClass, cn } from "./ui";
+import { TrackedLink } from "./tracked-link";
 
 const OS_ICONS: Record<OsId, typeof WindowsLogo> = {
   windows: WindowsLogo,
@@ -54,6 +56,7 @@ function CopyButton({ value }: { value: string }) {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
+      trackEvent("copy_command", { command: value });
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -95,13 +98,18 @@ export function Install({ version }: { version: string | null }) {
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const os = oses.find((o) => o.id === osId) ?? oses[0];
 
+  function chooseOs(id: OsId) {
+    setOsId(id);
+    trackEvent("install_os_tab", { os: id, detected });
+  }
+
   function onKey(e: KeyboardEvent<HTMLDivElement>) {
     const i = oses.findIndex((o) => o.id === osId);
     const dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
     if (!dir) return;
     e.preventDefault();
     const next = (i + dir + oses.length) % oses.length;
-    setOsId(oses[next].id);
+    chooseOs(oses[next].id);
     tabs.current[next]?.focus();
   }
 
@@ -138,7 +146,7 @@ export function Install({ version }: { version: string | null }) {
               aria-selected={selected}
               aria-controls="os-panel"
               tabIndex={selected ? 0 : -1}
-              onClick={() => setOsId(o.id)}
+              onClick={() => chooseOs(o.id)}
               className={cn(
                 "inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-[9px] px-2 text-[14px] font-medium transition-[background-color,color,box-shadow] duration-150 sm:h-9 sm:min-h-0 sm:flex-none sm:justify-start sm:px-4",
                 selected ? "bg-surface text-fg shadow-soft" : "text-muted hover:text-fg",
@@ -202,10 +210,16 @@ export function Install({ version }: { version: string | null }) {
           ) : null}
 
           {os.id !== "linux" ? (
-            <a key={`download-${os.id}`} href={installerPath(os.id, "install")} className={buttonClass("primary", "md", "mt-7 w-full sm:w-auto")}>
+            <TrackedLink
+              key={`download-${os.id}`}
+              href={installerPath(os.id, "install")}
+              placement="install"
+              eventLabel={`Download for ${os.label}`}
+              className={buttonClass("primary", "md", "mt-7 w-full sm:w-auto")}
+            >
               <DownloadSimple weight="bold" aria-hidden="true" />
               Download for {os.label}
-            </a>
+            </TrackedLink>
           ) : null}
         </div>
 

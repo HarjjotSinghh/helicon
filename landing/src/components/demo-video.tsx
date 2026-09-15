@@ -2,6 +2,7 @@
 
 import { CornersIn, CornersOut, Pause, SpeakerHigh, SpeakerSlash } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { trackEvent } from "@/lib/client-analytics";
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -109,6 +110,7 @@ export function DemoVideo({
     userTouched.current = true;
     if (node.ended) node.currentTime = 0;
     if (node.paused) {
+      trackEvent("demo_play", { source: "user" });
       node.muted = false;
       setMuted(false);
       void node.play();
