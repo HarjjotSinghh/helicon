@@ -39,7 +39,7 @@ import { matchSlash, parseSlash, resolveSlash, slashCommands, type SlashCommand 
 import type { SkillsState } from "../../model/store";
 import { lastTurnSpeed, streamingSpeed } from "../../model/usage";
 import type { ApprovalMode, ReasoningEffort } from "../../types";
-import { Menu, MenuContent, MenuItem, MenuLabel, MenuOption, MenuRadioGroup, MenuSeparator, MenuTrigger, Modal, Tip } from "../ui/overlays";
+import { Menu, MenuContent, MenuItem, MenuLabel, MenuOption, MenuRadioGroup, MenuSeparator, MenuTrigger, Modal, Tip, FLOATING } from "../ui/overlays";
 import { Button, IconButton, MOD, Spinner, cn } from "../ui/primitives";
 import { PixelFlow } from "../ui/PixelFlow";
 import { ContextMeter } from "./ContextPanel";
@@ -364,7 +364,7 @@ export function Composer(props: ComposerProps) {
   return (
     <div
       className={cn(
-        "relative rounded-[18px] bg-raised shadow-[0_0_0_1px_var(--border-strong),0_1px_2px_oklch(0_0_0/0.05)] transition-shadow duration-150 ease-out focus-within:shadow-[0_0_0_1px_color-mix(in_oklch,var(--fg)_30%,transparent),0_2px_8px_-2px_oklch(0_0_0/0.12)]",
+        "relative min-w-0 max-w-full rounded-[18px] bg-raised shadow-[0_0_0_1px_var(--border-strong),0_1px_2px_oklch(0_0_0/0.05)] transition-shadow duration-150 ease-out focus-within:shadow-[0_0_0_1px_color-mix(in_oklch,var(--fg)_30%,transparent),0_2px_8px_-2px_oklch(0_0_0/0.12)]",
         props.readOnly && "opacity-75",
       )}
       onMouseDown={(event) => {
@@ -440,11 +440,11 @@ export function Composer(props: ComposerProps) {
         onBlur={() => setDismissed(word)}
         onFocus={() => setDismissed(null)}
         className={cn(
-          "block max-h-[40vh] min-h-[52px] w-full resize-none bg-transparent px-4 pb-1.5 text-md leading-relaxed text-fg outline-none placeholder:text-subtle focus-visible:outline-none disabled:cursor-not-allowed",
+          "block max-h-[40vh] min-h-[52px] w-full min-w-0 max-w-full resize-none overflow-x-hidden bg-transparent px-4 pb-1.5 text-md leading-relaxed text-fg outline-none [field-sizing:fixed] [overflow-wrap:anywhere] whitespace-pre-wrap placeholder:text-subtle focus-visible:outline-none disabled:cursor-not-allowed",
           shell ? "pt-1.5 font-mono text-sm" : "pt-3.5",
         )}
       />
-      <div className="flex items-center gap-0.5 px-2 pb-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-0.5 px-2 pb-2">
         {/* The new-thread composer sits high, so its menus open downward; they still flip when there is no room. */}
         <AttachButton onFiles={(picked) => addFiles(Array.from(picked))} disabled={props.readOnly || files.length >= MAX_FILES} />
         <ModelPicker sessionId={props.sessionId} side={props.variant === "home" ? "bottom" : "top"} />
@@ -621,12 +621,12 @@ function EffortPicker(props: { side: PickerSide }) {
           side={props.side}
           align="start"
           sideOffset={6}
-          collisionPadding={8}
+          {...FLOATING}
           onOpenAutoFocus={(event) => {
             event.preventDefault();
             thumb.current?.focus();
           }}
-          className="pop z-[var(--z-dropdown)] w-[300px] max-w-[calc(100vw-16px)] rounded-xl bg-raised p-3.5 text-fg shadow-pop outline-none"
+          className="pop z-[var(--z-dropdown)] w-[300px] max-w-[calc(100dvw-24px)] rounded-xl bg-raised p-3.5 text-fg shadow-pop outline-none"
         >
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted">Effort</span>

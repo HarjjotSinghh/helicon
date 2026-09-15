@@ -54,6 +54,11 @@ function messageOf(error: unknown): string {
   return typeof error === "string" && error ? error : "Something went wrong.";
 }
 
+/** Tauri throws this when latest.json exists but this OS is not in it yet (Windows publishes first). */
+export function isMissingPlatformFeed(error: unknown): boolean {
+  return /fallback platforms/i.test(messageOf(error));
+}
+
 export class UpdateManager {
   private state: UpdateState = NO_UPDATE;
   private queue: Promise<void> = Promise.resolve();
@@ -106,6 +111,10 @@ export class UpdateManager {
       try {
         update = await this.updater.check();
       } catch (error) {
+        if (isMissingPlatformFeed(error)) {
+          this.set({ status: "upToDate", update: null, error: null, checkedAt: this.now() });
+          return;
+        }
         this.set({ status: "error", error: messageOf(error), checkedAt: this.now() });
         return;
       }

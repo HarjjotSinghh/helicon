@@ -12,7 +12,7 @@ import {
   type SessionUsage,
   type SliceKey,
 } from "../../model/usage";
-import { Tip } from "../ui/overlays";
+import { Tip, FLOATING } from "../ui/overlays";
 import { cn } from "../ui/primitives";
 import { Collapse } from "../ui/sourced";
 
@@ -88,8 +88,8 @@ export function ContextMeter(props: { sessionId: string }) {
           side="top"
           align="end"
           sideOffset={6}
-          collisionPadding={8}
-          className="pop z-[var(--z-dropdown)] max-h-[var(--radix-popover-content-available-height)] w-[360px] max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl bg-raised text-fg shadow-pop outline-none"
+          {...FLOATING}
+          className="pop z-[var(--z-dropdown)] max-h-[var(--radix-popover-content-available-height)] w-[360px] max-w-[calc(100dvw-24px)] overflow-y-auto rounded-xl bg-raised text-fg shadow-pop outline-none"
         >
           <ContextPanel sessionId={props.sessionId} />
         </Popover.Content>

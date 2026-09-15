@@ -245,7 +245,8 @@
     animation: helicon-pulse 1.8s var(--ease-in-out) infinite;
   }
 
-  /* Popovers grow from their trigger; tooltips after the first skip the animation. */
+  /* Popovers grow from their trigger; tooltips after the first skip the animation.
+     Scale via the `scale` property so it never overrides Radix's position `transform`. */
   .pop {
     transform-origin: var(
       --radix-dropdown-menu-content-transform-origin,
@@ -446,14 +447,14 @@
 @keyframes helicon-pop-in {
   from {
     opacity: 0;
-    transform: scale(0.96);
+    scale: 0.96;
   }
 }
 
 @keyframes helicon-pop-out {
   to {
     opacity: 0;
-    transform: scale(0.97);
+    scale: 0.97;
   }
 }
 

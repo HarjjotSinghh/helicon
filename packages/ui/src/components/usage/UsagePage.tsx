@@ -4,11 +4,10 @@ import { useApp, useController } from "../../app/context.js";
 import { useOverlayDragProps } from "../../app/frame.js";
 import { basename, formatDuration, formatTokens, modelDisplayName, relativeTime } from "../../model/format.js";
 import { costOf, formatCost, listedPrice, type TokenPrice } from "../../model/pricing.js";
+import { fillUsageDays, rangeLabel, USAGE_RANGES } from "../../model/usage-range.js";
 import type { ModelOption, UsageBucket, UsageReport, UsageThread } from "../../types.js";
 import { Button, Spinner, cn } from "../ui/primitives.js";
 import { Tip } from "../ui/overlays.js";
-
-const RANGES = [7, 30, 90] as const;
 
 /** One colour per model, in the order they appear; the accent leads and the rest step away from it. */
 const SERIES = [
@@ -69,17 +68,17 @@ export function UsagePage() {
           <p className="text-xs text-muted">What these threads would have cost billed per token, not what your plan charged.</p>
         </div>
         <div className="flex shrink-0 items-center gap-1 rounded-lg bg-sunken p-0.5">
-          {RANGES.map((range) => (
+          {USAGE_RANGES.map((range) => (
             <button
-              key={range}
+              key={range.days}
               type="button"
-              onClick={() => setDays(range)}
+              onClick={() => setDays(range.days)}
               className={cn(
                 "h-7 rounded-md px-2.5 text-xs font-medium transition-colors duration-100",
-                days === range ? "bg-raised text-fg shadow-btn" : "text-muted hover:text-fg",
+                days === range.days ? "bg-raised text-fg shadow-btn" : "text-muted hover:text-fg",
               )}
             >
-              {range}d
+              {range.label}
             </button>
           ))}
         </div>
@@ -242,7 +241,7 @@ function summarize(report: UsageReport, models: readonly ModelOption[]): UsageVi
     modelMs,
     cacheSaved,
     models: modelRows,
-    days: [...byDay.values()].sort((a, b) => (a.day < b.day ? -1 : 1)),
+    days: fillUsageDays([...byDay.values()], report, (day) => ({ day, cost: 0, byModel: [] })),
     threads,
     unpriced,
   };
@@ -397,7 +396,7 @@ function Threads(props: { view: UsageView }) {
 function EmptyUsage(props: { days: number }) {
   return (
     <div className="flex flex-col items-center gap-2 rounded-xl bg-raised px-6 py-16 text-center shadow-[0_0_0_1px_var(--border)]">
-      <p className="text-sm font-medium text-fg">No model calls in the last {props.days} days</p>
+      <p className="text-sm font-medium text-fg">No model calls in the last {rangeLabel(props.days)}</p>
       <p className="max-w-[42ch] text-xs text-muted">
         This fills in as threads run. Opening an older thread also backfills what it spent, so its calls show up here too.
       </p>

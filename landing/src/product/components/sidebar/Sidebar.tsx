@@ -856,7 +856,7 @@ function UpdatesMenu() {
           </IconButton>
         </MenuTrigger>
       </Tip>
-      <MenuContent side="top" align="end" className="w-[290px]">
+      <MenuContent side="top" align="start" className="w-[290px]">
         <div className="px-2 pt-1.5 pb-2">
           <p className="text-sm font-medium text-fg">Helicon {updates.currentVersion ?? ""}</p>
           <p className="mt-0.5 text-xs text-muted">{updateSummary(updates, autoUpdate, paused, now)}</p>

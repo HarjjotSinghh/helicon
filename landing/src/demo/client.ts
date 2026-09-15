@@ -285,13 +285,15 @@ function seed(now: number): Seeded[] {
   return out;
 }
 
-function usageReport(now: number, sessions: SessionSummary[]): UsageReport {
+function usageReport(now: number, sessions: SessionSummary[], days = 30): UsageReport {
+  const window = Math.min(365, Math.max(1, Math.round(days)));
   const buckets: UsageBucket[] = [];
-  for (let d = 29; d >= 0; d--) {
-    const day = new Date(now - d * DAY).toISOString().slice(0, 10);
-    const weekday = new Date(now - d * DAY).getDay();
+  for (let d = window - 1; d >= 0; d--) {
+    const at = now - d * DAY;
+    const day = new Date(at).toISOString().slice(0, 10);
+    const weekday = new Date(at).getDay();
     const weekend = weekday === 0 || weekday === 6;
-    const wave = 0.55 + 0.45 * Math.sin((d / 29) * Math.PI * 3.2 + 1.1);
+    const wave = 0.55 + 0.45 * Math.sin((d / Math.max(1, window - 1)) * Math.PI * 3.2 + 1.1);
     const calls = Math.round((weekend ? 14 : 58) * wave + 6);
     buckets.push({
       day,
@@ -321,8 +323,9 @@ function usageReport(now: number, sessions: SessionSummary[]): UsageReport {
       });
     }
   }
+  const scale = window / 30;
   const threads: UsageThread[] = sessions.map((s, i) => {
-    const calls = 180 - i * 22;
+    const calls = Math.max(1, Math.round((180 - i * 22) * scale));
     return {
       sessionId: s.sessionId,
       title: s.title,
@@ -335,7 +338,7 @@ function usageReport(now: number, sessions: SessionSummary[]): UsageReport {
       lastAt: s.activityAt,
     };
   });
-  return { since: new Date(now - 29 * DAY).toISOString(), days: 30, buckets, threads };
+  return { since: new Date(now - (window - 1) * DAY).toISOString(), days: window, buckets, threads };
 }
 
 const MODELS: ModelOption[] = [
@@ -432,8 +435,8 @@ export class DemoClient implements HeliconClient {
   async setPinned() {}
   async setProjectOrder() {}
 
-  async usage(): Promise<UsageReport> {
-    return usageReport(this.now, [...this.sessions.values()].map((s) => s.summary));
+  async usage(days?: number): Promise<UsageReport> {
+    return usageReport(this.now, [...this.sessions.values()].map((s) => s.summary), days ?? 30);
   }
 
   async listSessions(options?: { archived?: boolean }) {

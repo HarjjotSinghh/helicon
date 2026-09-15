@@ -84,11 +84,21 @@ function ThemeSync() {
 function ZoomSync() {
   const zoom = useApp((s) => s.prefs.zoom);
   useEffect(() => {
-    // CSS `zoom` scales everything, icons included, like browser zoom; engines too old for it
-    // get the root font size instead, which moves every rem-based size. The pre-paint script in
-    // index.html applies the same value so a reload never flashes 100% first.
+    // CSS `zoom` on <html> breaks Radix `position: fixed` menus in WKWebView (the desktop
+    // shell). The desktop page listens for `helicon-zoom` and uses the webview's own zoom
+    // instead. Browsers keep CSS zoom; engines that lack it fall back to the root font size.
+    // The pre-paint script in index.html applies the same split so a reload never flashes 100%.
     const root = document.documentElement;
     const style = root.style as CSSStyleDeclaration & { zoom?: unknown };
+    const desktop = "__TAURI_INTERNALS__" in window;
+    if (desktop) {
+      if ("zoom" in style) {
+        style.zoom = "";
+      }
+      root.style.fontSize = "";
+      window.dispatchEvent(new CustomEvent("helicon-zoom", { detail: zoom }));
+      return;
+    }
     if ("zoom" in style) {
       style.zoom = zoom === 1 ? "" : String(zoom);
       root.style.fontSize = "";
