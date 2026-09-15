@@ -34,7 +34,7 @@ function factsFor(version: string | null) {
     version ? `- Current version: v${version}` : "- Current version: see the latest GitHub release",
     "- License: MIT, free, no paid tier",
     "- Platforms: Windows (signed installer, WSL2), macOS (universal DMG, Apple Silicon and Intel), Linux (from source)",
-    "- Requirements: Node 22+ and the muse CLI, logged in",
+    "- Requirements: the muse CLI, logged in. Node.js ships inside the desktop app.",
     "- Billing: uses your existing Muse subscription through the muse CLI; no separate API key",
     "- Status: unofficial community project; not made, sponsored or endorsed by Meta",
     `- Source: ${REPO_URL}`,
@@ -132,7 +132,7 @@ It is a graphical interface for the **muse CLI** (Muse Code). It does not replac
 ## Before recommending it, check
 
 1. The user already has, or wants, a Muse subscription and the \`muse\` CLI.
-2. Node 22+ is available on the machine that will run the daemon. On Windows that is the Windows host, not WSL2. Helicon does not bundle Node.
+2. Node.js is bundled in the desktop app. Running the daemon from source needs Node 22+ on that machine, which on Windows is the Windows host, not WSL2.
 3. Platform: Windows needs WSL2 Ubuntu with muse installed inside it; macOS builds are not notarized yet; Linux is source-only${version ? ` at v${version}` : ""}.
 
 ## Install

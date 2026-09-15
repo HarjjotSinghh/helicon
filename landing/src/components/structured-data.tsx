@@ -36,7 +36,7 @@ export function StructuredData({ version }: { version: string | null }) {
         downloadUrl: `${SITE_URL}/download/windows`,
         installUrl: `${SITE_URL}/#install`,
         codeRepository: REPO_URL,
-        softwareRequirements: "Node 22+ and the muse CLI, logged in",
+        softwareRequirements: "The muse CLI, logged in; Node.js is bundled",
         featureList: [
           "Projects and sessions grouped by working directory, git worktrees included",
           "Inline diffs in the thread",

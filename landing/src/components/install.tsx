@@ -26,7 +26,7 @@ const OS_ICONS: Record<OsId, typeof WindowsLogo> = {
 
 function requirements(version: string | null) {
   return [
-    "Node.js 22+ installed. Helicon does not bundle it yet.",
+    "Nothing to install for Node.js: the desktop app bundles its own.",
     "The muse CLI installed and logged in.",
     "Windows: Node goes on Windows itself; muse runs in WSL2 Ubuntu, routed by a sidecar.",
     "macOS builds are not notarized yet, so right-click, then Open.",

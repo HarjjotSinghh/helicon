@@ -80,17 +80,17 @@ apps/web         same UI against a remote daemon
 
 Windows: download the setup file from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest). It is signed, and updates itself from then on.
 
-You need Node 22+ installed on Windows itself, plus the `muse` CLI with `muse login` done once inside WSL2 Ubuntu. Helicon uses the login you already have and never stores credentials of its own.
+Helicon bundles its own Node.js, so you only need the `muse` CLI with `muse login` done once inside WSL2 Ubuntu. Helicon uses the login you already have and never stores credentials of its own.
 
 macOS: download the DMG from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest); it runs on Apple Silicon and Intel, and updates itself from then on. The builds are not Apple-notarized yet, so the first launch needs a right-click, then Open.
 
-You need Node 22+ and the `muse` CLI with `muse login` done once, however you installed them - Helicon finds Node through your shell, including fnm, nvm, Volta, mise, and Homebrew installs. Helicon uses the login you already have and never stores credentials of its own.
+Helicon bundles its own Node.js, so you only need the `muse` CLI with `muse login` done once, however you installed it. Helicon uses the login you already have and never stores credentials of its own.
 
 Linux installers are not published yet - see the [roadmap](#roadmap). Run from source on that platform in the meantime.
 
 ## From source
 
-Prereqs: Node 22+, the `muse` CLI with `muse login` done once (WSL2 Ubuntu on Windows), and the repo checked out.
+Prereqs (source builds and the web app only - the desktop installers bundle Node.js): Node 22+, the `muse` CLI with `muse login` done once (WSL2 Ubuntu on Windows), and the repo checked out.
 
 ```bash
 npm install
