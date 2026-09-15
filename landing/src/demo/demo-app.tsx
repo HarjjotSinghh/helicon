@@ -206,12 +206,27 @@ export function DemoApp({ route = "", palette = false, width = 1100, height = 70
   const [scale, setScale] = useState(1);
   const [fluidWidth, setFluidWidth] = useState<number | null>(null);
 
+  const [wide, setWide] = useState<boolean | null>(poster ? null : true);
+
   useEffect(() => {
+    if (!poster) return;
+    const media = window.matchMedia("(min-width: 768px)");
+    const sync = () => setWide(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, [poster]);
+
+  const showLive = !poster || wide === true;
+  const showPoster = Boolean(poster) && wide !== true;
+
+  useEffect(() => {
+    if (!showLive) return;
     const stop = controller.start();
     return () => {
       stop();
     };
-  }, [controller]);
+  }, [controller, showLive]);
 
   useLayoutEffect(() => {
     const el = outer.current;
@@ -239,12 +254,9 @@ export function DemoApp({ route = "", palette = false, width = 1100, height = 70
 
   return (
     <>
-    {poster ? (
-      <div className="md:hidden">
-        <ThemedImage light={poster.light} dark={poster.dark} alt={poster.alt} />
-      </div>
-    ) : null}
-    <div ref={outer} className={cn("relative w-full overflow-hidden", poster && "hidden md:block", className)} style={{ height: height * scale }}>
+    {showPoster && poster ? <ThemedImage light={poster.light} dark={poster.dark} alt={poster.alt} /> : null}
+    {showLive ? (
+    <div ref={outer} className={cn("relative w-full overflow-hidden", className)} style={{ height: height * scale }}>
       <div
         role="region"
         aria-label={label}
@@ -268,7 +280,8 @@ export function DemoApp({ route = "", palette = false, width = 1100, height = 70
         <div ref={setPortal} className="contents" />
       </div>
     </div>
-    {scale < 0.6 && !poster ? (
+    ) : null}
+    {scale < 0.6 && showLive && !poster ? (
       <p className="border-t border-line px-4 py-2.5 text-center text-[12.5px] text-subtle">
         Shrunk to fit your screen. Open this page on a laptop to try the app at full size.
       </p>

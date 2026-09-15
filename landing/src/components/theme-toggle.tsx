@@ -50,7 +50,7 @@ export function ThemeToggle() {
             onClick={() => setThemePref(value)}
             suppressHydrationWarning
             className={cn(
-              "inline-flex size-7 items-center justify-center rounded-lg transition-[background-color,color,box-shadow] duration-150",
+              "inline-flex size-8 items-center justify-center rounded-lg transition-[background-color,color,box-shadow] duration-150 sm:size-7",
               checked ? "bg-surface text-fg shadow-soft" : "text-subtle hover:text-fg",
             )}
           >

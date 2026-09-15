@@ -19,7 +19,7 @@
 
 **Sidebar-first:** all projects grouped by working directory, each with its tasks and sessions - resume anything, including sessions started from the `muse` terminal TUI.
 
-![A thread in Helicon: projects down the side, the agent's reply, and what the turn cost](docs/assets/thread.png)
+[![Helicon walkthrough: open a CLI thread, send a fix, then usage](docs/assets/demo.gif)](https://helicon.sh)
 
 <details>
 <summary>Usage and settings</summary>

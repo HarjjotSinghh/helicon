@@ -34,8 +34,8 @@ export function ClosingCta({ copy }: { copy: PageCopy }) {
         <p className="mx-auto mt-4 max-w-[48ch] text-[17px] leading-relaxed text-muted">
           {copy.closingBody}
         </p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <CtaRow ctas={[primary, { label: "View source", href: REPO_URL, kind: "outline", external: true }]} className="flex flex-wrap justify-center gap-3" />
+        <div className="mt-8 flex justify-center">
+          <CtaRow ctas={[primary, { label: "View source", href: REPO_URL, kind: "outline", external: true }]} className="flex w-full max-w-sm flex-col gap-3 sm:max-w-none sm:w-auto sm:flex-row sm:flex-wrap sm:justify-center" />
         </div>
       </div>
     </section>

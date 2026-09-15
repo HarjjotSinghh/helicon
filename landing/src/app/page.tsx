@@ -72,7 +72,7 @@ export default async function Page() {
       >
         Skip to content
       </a>
-      <div className="page-frame relative mx-auto min-h-dvh w-[calc(100%-1.5rem)] max-w-[1200px] border-x border-line bg-bg sm:w-[calc(100%-3rem)]">
+      <div className="page-frame relative mx-auto min-h-dvh w-full max-w-[1200px] border-line bg-bg max-[360px]:border-x-0 min-[361px]:w-[calc(100%-1rem)] min-[361px]:border-x sm:w-[calc(100%-3rem)] pb-[env(safe-area-inset-bottom)]">
         <SiteHeader copy={copy} />
         <main id="main">
           <Hero copy={copy} version={version} notesUrl={release?.notesUrl ?? ""} />

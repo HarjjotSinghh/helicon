@@ -121,7 +121,7 @@ export function Install({ version }: { version: string | null }) {
         aria-label="Platform"
         data-reveal
         onKeyDown={onKey}
-        className="mt-10 inline-flex rounded-xl bg-sunken p-1 shadow-[inset_0_0_0_1px_var(--border)]"
+        className="mt-10 flex w-full rounded-xl bg-sunken p-1 shadow-[inset_0_0_0_1px_var(--border)] sm:inline-flex sm:w-auto"
       >
         {oses.map((o, i) => {
           const Ico = OS_ICONS[o.id];
@@ -140,7 +140,7 @@ export function Install({ version }: { version: string | null }) {
               tabIndex={selected ? 0 : -1}
               onClick={() => setOsId(o.id)}
               className={cn(
-                "inline-flex h-9 items-center gap-2 rounded-[9px] px-4 text-[14px] font-medium transition-[background-color,color,box-shadow] duration-150",
+                "inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[9px] px-3 text-[13.5px] font-medium transition-[background-color,color,box-shadow] duration-150 sm:h-9 sm:min-h-0 sm:flex-none sm:px-4 sm:text-[14px]",
                 selected ? "bg-surface text-fg shadow-soft" : "text-muted hover:text-fg",
               )}
             >
@@ -202,7 +202,7 @@ export function Install({ version }: { version: string | null }) {
           ) : null}
 
           {os.id !== "linux" ? (
-            <a key={`download-${os.id}`} href={installerPath(os.id, "install")} className={buttonClass("primary", "md", "mt-7")}>
+            <a key={`download-${os.id}`} href={installerPath(os.id, "install")} className={buttonClass("primary", "md", "mt-7 w-full sm:w-auto")}>
               <DownloadSimple weight="bold" aria-hidden="true" />
               Download for {os.label}
             </a>

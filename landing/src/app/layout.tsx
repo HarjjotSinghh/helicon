@@ -77,6 +77,7 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: light)", color: "#fbfcfe" },
     { media: "(prefers-color-scheme: dark)", color: "#18191b" },
   ],
+  viewportFit: "cover",
 };
 
 // Runs before first paint: a saved choice wins, otherwise the system theme.

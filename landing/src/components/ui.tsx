@@ -177,6 +177,7 @@ export function WindowFrame({
   children,
   className,
   live,
+  badge,
   ...rest
 }: {
   title: string;
@@ -184,7 +185,10 @@ export function WindowFrame({
   className?: string;
   /** Marks the window as a working demo rather than a picture. */
   live?: boolean;
+  /** Quiet label in the title bar, e.g. a recorded walkthrough. */
+  badge?: string;
 } & Omit<ComponentProps<"div">, "title">) {
+  const pill = live ? "Live demo, try it" : badge;
   return (
     <div className={cn("overflow-hidden rounded-xl bg-bg shadow-frame", className)} {...rest}>
       <div className="grid h-10 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-line bg-surface-2 px-4">
@@ -193,11 +197,11 @@ export function WindowFrame({
           <span className="size-2.5 rounded-full bg-[#febc2e]" />
           <span className="size-2.5 rounded-full bg-[#28c840]" />
         </span>
-        <span className="text-[12.5px] font-medium text-subtle">{title}</span>
-        {live ? (
-          <span className="inline-flex items-center gap-1.5 justify-self-end rounded-full bg-tint px-2 py-0.5 text-[11.5px] font-medium text-accent-text">
-            <span aria-hidden="true" className="size-1.5 rounded-full bg-ok" />
-            Live demo, try it
+        <span className="truncate text-[12.5px] font-medium text-subtle">{title}</span>
+        {pill ? (
+          <span className="inline-flex max-w-full items-center gap-1.5 justify-self-end truncate rounded-full bg-tint px-2 py-0.5 text-[11.5px] font-medium text-accent-text">
+            {live ? <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-ok" /> : null}
+            {pill}
           </span>
         ) : (
           <span />

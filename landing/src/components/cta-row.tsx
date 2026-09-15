@@ -12,14 +12,14 @@ function Icon({ href, kind }: { href: string; kind: Cta["kind"] }) {
 
 export function CtaRow({ ctas, size = "md", className }: { ctas: Cta[]; size?: "sm" | "md"; className?: string }) {
   return (
-    <div className={className ?? "flex flex-wrap gap-3"}>
+    <div className={className ?? "flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap"}>
       {ctas.map((cta) => (
         <a
           key={cta.href + cta.label}
           href={cta.href}
           target={cta.external ? "_blank" : undefined}
           rel={cta.external ? "noopener noreferrer" : undefined}
-          className={buttonClass(cta.kind, size)}
+          className={buttonClass(cta.kind, size, "w-full sm:w-auto")}
         >
           <Icon href={cta.href} kind={cta.kind} />
           {cta.label}

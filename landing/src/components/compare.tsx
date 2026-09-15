@@ -31,13 +31,26 @@ export function Compare({ body }: { body: string }) {
       <Rule />
 
       <div className="divide-y divide-line md:hidden">
-        {rows.map(({ icon: Icon, label, a }) => (
-          <div key={label} className="flex gap-3 px-5 py-4 sm:px-8">
-            <Icon aria-hidden="true" weight="duotone" className="mt-0.5 size-[18px] shrink-0 text-subtle" />
-            <div>
-              <p className="text-[14px] font-medium text-fg">{label}</p>
-              <p className="mt-0.5 text-[14px] text-muted">{a}</p>
-            </div>
+        {rows.map(({ icon: Icon, label, a, b, c }) => (
+          <div key={label} className="px-5 py-4 sm:px-8">
+            <p className="flex items-center gap-2.5 text-[14px] font-medium text-fg">
+              <Icon aria-hidden="true" weight="duotone" className="size-[18px] shrink-0 text-subtle" />
+              {label}
+            </p>
+            <dl className="mt-3 grid gap-3 text-[13.5px] leading-relaxed">
+              <div>
+                <dt className="text-[12px] font-semibold tracking-wide text-accent-text uppercase">Helicon</dt>
+                <dd className="mt-0.5 text-fg">{a}</dd>
+              </div>
+              <div>
+                <dt className="text-[12px] font-semibold tracking-wide text-subtle uppercase">Editor extension</dt>
+                <dd className="mt-0.5 text-muted">{b}</dd>
+              </div>
+              <div>
+                <dt className="text-[12px] font-semibold tracking-wide text-subtle uppercase">Switch harness</dt>
+                <dd className="mt-0.5 text-muted">{c}</dd>
+              </div>
+            </dl>
           </div>
         ))}
       </div>

@@ -31,9 +31,13 @@ Optional env:
 - **`NEXT_PUBLIC_POSTHOG_HOST`** — defaults to `https://us.i.posthog.com`
 - **`GITHUB_TOKEN`** — optional, raises GitHub API rate limits for latest-release lookups
 
+## Recorded walkthrough
+
+Hero video is `public/demo/a1.mp4` (muted, looping on desktop). GitHub README uses `docs/assets/demo.gif` because repository MP4s do not play inline.
+
 ## Live product demos
 
-The app windows on the page are the real Helicon UI, not screenshots:
+Below the recording, the app windows are the real Helicon UI, not screenshots:
 
 - `src/product/` is a copy of `packages/ui/src`, and `src/app/product-theme.css` is generated from
   `apps/web/src/theme.css`. Refresh both after product UI changes: `node scripts/sync-product-ui.mjs`.
