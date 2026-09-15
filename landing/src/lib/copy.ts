@@ -12,6 +12,8 @@ export type Cta = {
 export type PageCopy = {
   audience: Audience;
   headline: string;
+  /** When set, the hero stacks this under `headline` as its own line. */
+  headlineContinue?: string;
   lead: string;
   body: string;
   ctas: Cta[];
@@ -39,9 +41,10 @@ export function getPageCopy(os: VisitorOs): PageCopy {
   if (audience === "windows") {
     return {
       audience,
-      headline: "Muse Code on Windows, with a real UI.",
+      headline: "Muse Code on Windows,",
+      headlineContinue: "with a real UI instead of the terminal.",
       lead: "Signed installer. Your existing Muse plan. No second bill.",
-      body: "Muse itself is terminal-only and WSL-only on Windows. Helicon is the desktop app: a sidecar talks to muse in Ubuntu, translates paths, and puts every project, session and diff in one window.",
+      body: "A free, open-source Windows app for the muse CLI, with every project, session and diff in one window.",
       ctas: [
         { label: "Download for Windows", href: installerPath("windows", "hero"), kind: "primary" },
         source,
@@ -49,7 +52,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
       headerCta: "Download",
       headerHref: installerPath("windows", "header"),
       closingTitle: "Muse Code on Windows, without living in WSL.",
-      closingBody: "Free, MIT licensed, and running on the Muse subscription you already have.",
+      closingBody: "Free, MIT licensed, and running on the Muse subscription you already have for Muse Code.",
       featuresTitle: "Seven agents, one window, on Windows",
       featuresBody:
         "Parallel subagents and a replayable event log are wasted in a terminal. Projects, diffs, approvals and cost sit side by side.",

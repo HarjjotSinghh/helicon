@@ -45,7 +45,14 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
         <h1
           className="mt-7 font-headline text-[clamp(2.6rem,6.6vw,5.25rem)] leading-[1] font-semibold tracking-[-0.02em] text-fg"
         >
-          {copy.headline}
+          {copy.headlineContinue ? (
+            <>
+              <span className="block">{copy.headline}</span>
+              <span className="block">{copy.headlineContinue}</span>
+            </>
+          ) : (
+            copy.headline
+          )}
         </h1>
 
         <div
