@@ -2,6 +2,7 @@
 
 import { List, X } from "@phosphor-icons/react";
 import { useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { buttonClass } from "./ui";
 
 export function MobileNav({ links }: { links: { href: string; label: string }[] }) {
@@ -13,12 +14,18 @@ export function MobileNav({ links }: { links: { href: string; label: string }[] 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
+    const onResize = () => {
+      if (window.matchMedia("(min-width: 1024px)").matches) setOpen(false);
+    };
     document.addEventListener("keydown", onKey);
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    window.addEventListener("resize", onResize);
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previous;
+      window.removeEventListener("resize", onResize);
+      root.style.overflow = previous;
     };
   }, [open]);
 
@@ -34,30 +41,37 @@ export function MobileNav({ links }: { links: { href: string; label: string }[] 
       >
         {open ? <X weight="bold" /> : <List weight="bold" />}
       </button>
-      {open ? (
-        <div
-          id={panelId}
-          className="absolute inset-x-0 top-full z-50 border-b border-line bg-bg p-2 shadow-soft"
-        >
-          <nav aria-label="Page sections" className="flex flex-col">
-            {links.map((link) => {
-              const external = link.href.startsWith("http");
-              return (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  target={external ? "_blank" : undefined}
-                  rel={external ? "noopener noreferrer" : undefined}
-                  onClick={() => setOpen(false)}
-                  className="flex min-h-11 items-center rounded-lg px-3 text-[15px] font-medium text-fg"
-                >
-                  {link.label}
-                </a>
-              );
-            })}
-          </nav>
-        </div>
-      ) : null}
+      {open
+        ? createPortal(
+            <div
+              id={panelId}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Page sections"
+              className="fixed inset-x-0 bottom-0 z-[200] overflow-y-auto bg-bg p-2 lg:hidden"
+              style={{ top: "var(--header-offset)" }}
+            >
+              <nav className="flex flex-col">
+                {links.map((link) => {
+                  const external = link.href.startsWith("http");
+                  return (
+                    <a
+                      key={link.href}
+                      href={link.href}
+                      target={external ? "_blank" : undefined}
+                      rel={external ? "noopener noreferrer" : undefined}
+                      onClick={() => setOpen(false)}
+                      className="flex min-h-11 items-center rounded-lg px-3 text-[15px] font-medium text-fg"
+                    >
+                      {link.label}
+                    </a>
+                  );
+                })}
+              </nav>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

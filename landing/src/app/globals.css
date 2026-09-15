@@ -53,14 +53,15 @@
 @layer base {
   html {
     background: var(--bg);
-    /* The sticky header: 4rem bar plus its 1px rule, so anchored sections start flush below it. */
-    scroll-padding-top: calc(3.5rem + 1px + env(safe-area-inset-top, 0px));
+    /* Sticky header: bar + 1px rule + notch. Anchors, the mobile sheet, and scroll-padding share this. */
+    --header-offset: calc(3.5rem + 1px + env(safe-area-inset-top, 0px));
+    scroll-padding-top: var(--header-offset);
     -webkit-text-size-adjust: 100%;
   }
 
   @media (min-width: 640px) {
     html {
-      scroll-padding-top: calc(4rem + 1px + env(safe-area-inset-top, 0px));
+      --header-offset: calc(4rem + 1px + env(safe-area-inset-top, 0px));
     }
   }
 
@@ -70,9 +71,8 @@
     }
   }
 
-  html,
-  body {
-    overflow-x: clip;
+  html {
+    overflow-x: hidden;
   }
 
   body {

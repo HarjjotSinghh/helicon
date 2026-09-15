@@ -74,7 +74,7 @@ export default async function Page() {
       </a>
       <div className="page-frame relative mx-auto min-h-dvh w-full max-w-[1200px] border-line bg-bg max-[360px]:border-x-0 min-[361px]:w-[calc(100%-1rem)] min-[361px]:border-x sm:w-[calc(100%-3rem)] pb-[env(safe-area-inset-bottom)]">
         <SiteHeader copy={copy} />
-        <main id="main">
+        <main id="main" className="relative z-0">
           <Hero copy={copy} version={version} notesUrl={release?.notesUrl ?? ""} />
           <Rule />
           <Features title={copy.featuresTitle} body={copy.featuresBody} />
