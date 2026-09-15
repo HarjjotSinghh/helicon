@@ -77,7 +77,7 @@ export function AppTour({ shots }: { shots: TourShot[] }) {
         data-stagger="40"
         data-base="100"
         onKeyDown={onKey}
-        className={`${bandX} mt-10 flex gap-2 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden`}
+        className={`${bandX} mt-10 flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-px-5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:scroll-px-0 [&::-webkit-scrollbar]:hidden`}
       >
         {shots.map((s, i) => {
           const selected = i === active;
@@ -96,7 +96,7 @@ export function AppTour({ shots }: { shots: TourShot[] }) {
               tabIndex={selected ? 0 : -1}
               onClick={() => choose(i)}
               className={cn(
-                "relative isolate inline-flex h-10 shrink-0 items-center gap-2 overflow-hidden rounded-full pr-4 pl-3 text-[14.5px] font-medium transition-[background-color,color,box-shadow] duration-150 [&_svg]:size-[18px]",
+                "relative isolate inline-flex h-11 shrink-0 snap-start items-center gap-2 overflow-hidden rounded-full pr-4 pl-3 text-[14.5px] font-medium transition-[background-color,color,box-shadow] duration-150 sm:h-10 [&_svg]:size-[18px]",
                 selected ? "bg-btn text-btn-fg shadow-[0_1px_2px_rgb(10_60_130/0.25)]" : "bg-surface text-muted shadow-soft hover:text-fg",
               )}
             >

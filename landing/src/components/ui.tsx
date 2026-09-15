@@ -191,7 +191,7 @@ export function WindowFrame({
   const pill = live ? "Live demo, try it" : badge;
   return (
     <div className={cn("overflow-hidden rounded-xl bg-bg shadow-frame", className)} {...rest}>
-      <div className="grid h-10 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-line bg-surface-2 px-4">
+      <div className="grid h-10 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-line bg-surface-2 px-3 sm:px-4">
         <span aria-hidden="true" className="flex gap-1.5">
           <span className="size-2.5 rounded-full bg-[#ff5f57]" />
           <span className="size-2.5 rounded-full bg-[#febc2e]" />
@@ -199,9 +199,15 @@ export function WindowFrame({
         </span>
         <span className="truncate text-[12.5px] font-medium text-subtle">{title}</span>
         {pill ? (
-          <span className="inline-flex max-w-full items-center gap-1.5 justify-self-end truncate rounded-full bg-tint px-2 py-0.5 text-[11.5px] font-medium text-accent-text">
+          <span className="inline-flex max-w-full items-center gap-1.5 justify-self-end truncate rounded-full bg-tint px-2 py-0.5 text-[11.5px] font-medium whitespace-nowrap text-accent-text">
             {live ? <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-ok" /> : null}
-            {pill}
+            {live ? (
+              <>
+                Live demo<span className="hidden sm:inline">, try it</span>
+              </>
+            ) : (
+              pill
+            )}
           </span>
         ) : (
           <span />

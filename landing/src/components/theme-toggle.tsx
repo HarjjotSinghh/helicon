@@ -12,7 +12,7 @@ const OPTIONS: { value: ThemePref; label: string; icon: Icon }[] = [
 ];
 
 /** System, light or dark. The choice is saved; system is the default. */
-export function ThemeToggle() {
+export function ThemeToggle({ className }: { className?: string } = {}) {
   // The server cannot know the saved choice, so it renders "system" and the client corrects it.
   const pref = useSyncExternalStore(subscribeThemePref, readThemePref, () => "system" as ThemePref);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
@@ -31,7 +31,10 @@ export function ThemeToggle() {
       role="radiogroup"
       aria-label="Color theme"
       onKeyDown={onKey}
-      className="flex items-center gap-0.5 rounded-[10px] bg-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--border)]"
+      className={cn(
+        "flex items-center gap-0.5 rounded-[10px] bg-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--border)]",
+        className,
+      )}
     >
       {OPTIONS.map(({ value, label, icon: Glyph }, i) => {
         const checked = pref === value;
@@ -50,7 +53,7 @@ export function ThemeToggle() {
             onClick={() => setThemePref(value)}
             suppressHydrationWarning
             className={cn(
-              "inline-flex size-8 items-center justify-center rounded-lg transition-[background-color,color,box-shadow] duration-150 sm:size-7",
+              "inline-flex size-9 items-center justify-center rounded-lg transition-[background-color,color,box-shadow] duration-150 sm:size-7",
               checked ? "bg-surface text-fg shadow-soft" : "text-subtle hover:text-fg",
             )}
           >

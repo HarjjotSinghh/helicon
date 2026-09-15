@@ -10,6 +10,7 @@ import {
 import { ISSUES_URL, RELEASES_URL, REPO_URL } from "@/lib/site";
 import { closingCta, type PageCopy } from "@/lib/copy";
 import { Logo, buttonClass } from "./ui";
+import { ThemeToggle } from "./theme-toggle";
 import { CtaRow } from "./cta-row";
 
 export function ClosingCta({ copy }: { copy: PageCopy }) {
@@ -87,6 +88,10 @@ export function SiteFooter() {
             </a>{" "}
             and contributors.
           </p>
+          <div className="mt-6 flex items-center gap-3 sm:hidden">
+            <span className="text-[13px] font-semibold text-fg">Theme</span>
+            <ThemeToggle />
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-12">
@@ -100,7 +105,7 @@ export function SiteFooter() {
                       href={href}
                       target={external ? "_blank" : undefined}
                       rel={external ? "noopener noreferrer" : undefined}
-                      className={buttonClass("ghost", "sm", "-ml-3 h-8 gap-2 font-normal")}
+                      className={buttonClass("ghost", "sm", "-ml-3 h-10 gap-2 font-normal sm:h-8")}
                     >
                       <Icon aria-hidden="true" className="text-subtle" />
                       {label}

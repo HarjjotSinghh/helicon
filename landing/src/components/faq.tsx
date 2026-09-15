@@ -25,7 +25,7 @@ export function Faq({ audience, intro }: { audience: Audience; intro: string }) 
           <SectionHeading id="faq-title" icon={<Question weight="duotone" />} title="Before you install" className="sm:[&_h2]:whitespace-nowrap">
             {intro}
           </SectionHeading>
-          <a href={ISSUES_URL} target="_blank" rel="noopener noreferrer" className={buttonClass("outline", "sm", "mt-6")}>
+          <a href={ISSUES_URL} target="_blank" rel="noopener noreferrer" className={buttonClass("outline", "sm", "mt-6 max-sm:h-11")}>
             <ChatCircleDots weight="bold" aria-hidden="true" />
             Ask on GitHub
           </a>
@@ -69,7 +69,7 @@ export function Faq({ audience, intro }: { audience: Audience; intro: string }) 
                   )}
                 >
                   <div className="overflow-hidden">
-                    <p className="max-w-[64ch] pr-12 pb-6 text-[16px] leading-relaxed text-muted">{a}</p>
+                    <p className="max-w-[64ch] pb-6 text-[16px] leading-relaxed text-muted sm:pr-12">{a}</p>
                   </div>
                 </div>
               </div>

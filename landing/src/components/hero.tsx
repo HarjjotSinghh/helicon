@@ -29,7 +29,7 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
           href={notesUrl || RELEASES_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="group inline-flex items-center gap-2 rounded-full bg-surface py-1 pr-3 pl-1 text-[13px] font-medium text-muted shadow-soft transition-colors hover:text-fg"
+          className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-surface py-1 pr-3 pl-1 text-[13px] font-medium whitespace-nowrap text-muted shadow-soft transition-colors hover:text-fg sm:min-h-0"
         >
           <span className="inline-flex items-center gap-1 rounded-full bg-tint px-2 py-0.5 text-accent-text">
             <Sparkle weight="fill" aria-hidden="true" className="size-3.5" />
@@ -43,7 +43,7 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
         </a>
 
         <h1
-          className="mt-7 font-headline text-[clamp(2.6rem,6.6vw,5.25rem)] leading-[1] font-semibold tracking-[-0.02em] text-fg"
+          className="mt-7 font-headline text-[clamp(2.6rem,6.6vw,5.25rem)] leading-[1] font-semibold tracking-[-0.02em] text-fg max-[359px]:text-[2.2rem]"
         >
           {copy.headlineContinue ? (
             <>
@@ -96,7 +96,7 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
 
       <Rule />
 
-      <CellGrid className="grid-cols-2 lg:grid-cols-4">
+      <CellGrid className="min-[420px]:grid-cols-2 lg:grid-cols-4">
         {shown.map(({ icon: Icon, title, body }) => (
           <div key={title} className="flex items-start gap-3 bg-bg px-5 py-6 sm:px-8">
             <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-tint text-accent-text">

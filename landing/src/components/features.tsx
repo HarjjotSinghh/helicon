@@ -321,7 +321,7 @@ export function Features({ title, body }: { title: string; body: string }) {
           order={0}
           body="Threads grouped by folder, worktrees included. Resume any of them in one click."
         >
-          <Panel className="mt-7 h-[450px]">
+          <Panel className="mt-7 md:h-[450px]">
             <DemoApp
               view="sidebar"
               fluid

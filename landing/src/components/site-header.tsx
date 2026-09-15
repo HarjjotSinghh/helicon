@@ -24,7 +24,7 @@ const links = [
 export function SiteHeader({ copy }: { copy: PageCopy }) {
   return (
     <header className="sticky top-0 z-40 bg-bg/85 pt-[env(safe-area-inset-top)] backdrop-blur-md backdrop-saturate-150 supports-[not(backdrop-filter:blur(1px))]:bg-bg">
-      <div className="relative flex h-14 items-center gap-2 px-3 sm:h-16 sm:gap-4 sm:px-8 lg:px-12">
+      <div className="relative flex h-14 items-center gap-3 px-4 sm:h-16 sm:gap-4 sm:px-8 lg:px-12">
         <a
           href="#top"
           className="-mx-1 flex min-h-11 items-center gap-2 rounded-lg px-1 py-1 text-fg sm:-mx-1.5 sm:gap-2.5 sm:px-1.5"
@@ -47,17 +47,17 @@ export function SiteHeader({ copy }: { copy: PageCopy }) {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
-          <ThemeToggle />
+        <div className="ml-auto flex items-center gap-1.5">
+          <ThemeToggle className="max-sm:hidden" />
           <a
             href={REPO_URL} target="_blank" rel="noopener noreferrer"
-            className={buttonClass("ghost", "icon", "hidden sm:inline-flex")}
+            className={buttonClass("ghost", "icon", "max-sm:hidden")}
             aria-label="Helicon on GitHub"
             title="Helicon on GitHub"
           >
             <GithubLogo weight="bold" aria-hidden="true" />
           </a>
-          <a href={copy.headerHref} className={buttonClass("primary", "sm", "ml-1 min-h-11 px-3 sm:ml-1.5")}>
+          <a href={copy.headerHref} className={buttonClass("primary", "sm", "ml-0 min-h-11 px-3 sm:ml-1.5 sm:min-h-0")}>
             <DownloadSimple weight="bold" aria-hidden="true" />
             {copy.headerCta}
           </a>
