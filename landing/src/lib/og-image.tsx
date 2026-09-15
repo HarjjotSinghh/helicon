@@ -5,7 +5,7 @@ import { TAGLINE } from "./site";
 
 /** Shared by opengraph-image and twitter-image: the page's own frame, blueprint and wordmark. */
 export const ogSize = { width: 1200, height: 630 };
-export const ogAlt = "Helicon: Muse Code, without living in the terminal. A free, open-source desktop and web app for the muse CLI.";
+export const ogAlt = "Helicon: Muse Code desktop app for Windows and macOS. A free, open-source desktop and web app for the muse CLI.";
 
 export async function renderOgImage(version: string | null) {
   const [heading, headingBold, body, logo] = await Promise.all([
@@ -87,7 +87,7 @@ export async function renderOgImage(version: string | null) {
                 maxWidth: 940,
               }}
             >
-              Muse Code, without living in the terminal.
+              Muse Code desktop app for Windows and macOS.
             </div>
             <div style={{ marginTop: 22, fontSize: 28, color: "rgba(239,241,243,0.72)" }}>{TAGLINE}</div>
           </div>

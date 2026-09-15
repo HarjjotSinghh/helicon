@@ -8,7 +8,7 @@ export const SITE_URL = (
 ).replace(/\/$/, "");
 
 export const SITE_NAME = "Helicon";
-export const TITLE = "Helicon: Muse Code, without living in the terminal";
+export const TITLE = "Helicon: Muse Code desktop app for Windows and macOS";
 export const TAGLINE = "Same Muse Code. Same subscription. Better interface.";
 export const DESCRIPTION =
   "Helicon is a free, open-source desktop and web app for the Muse Code CLI. Every project, session and diff in one window, with approvals, inline diffs and cost at API rates, on your existing Muse subscription.";
@@ -49,6 +49,7 @@ export function osesFor(version: string | null): OsInfo[] {
       summary:
         "Signed installer with auto-update. Muse runs inside WSL2 Ubuntu; a sidecar routes calls through it and translates paths.",
       steps: [
+        { text: "Install Node.js 22+ on Windows itself, not inside WSL." },
         { text: "Install the muse CLI inside WSL2 Ubuntu." },
         { text: "Sign in from the WSL2 shell.", command: "muse login" },
         { text: win },
@@ -59,6 +60,7 @@ export function osesFor(version: string | null): OsInfo[] {
       label: "macOS",
       summary: "One universal DMG for Apple Silicon and Intel, with auto-update.",
       steps: [
+        { text: "Install Node.js 22+. Homebrew, nvm, fnm, Volta and mise all work." },
         { text: "Sign in with the muse CLI.", command: "muse login" },
         { text: dmg },
         { text: "Drag Helicon into Applications." },
@@ -89,6 +91,6 @@ export const FAQS: [string, string][] = [
   ["How does it work on Windows?", "Muse has no native Windows build, so it runs inside WSL2 Ubuntu. Helicon ships a signed installer with a sidecar that routes through WSL2 and translates paths both ways."],
   ["What does the cost view actually show?", "What each thread would have cost at Meta's published per-token rates. It is not a bill, just the meter reading, so you can see what your subscription did."],
   ["Can I drive it without a mouse?", "Yes. Command palette, slash commands, and a model and reasoning-effort picker cover everything, with full keyboard operation throughout."],
-  ["What do I need installed?", "Node 22+ and the muse CLI, logged in with your own muse login. That is the whole list."],
+  ["What do I need installed?", "Node.js 22+ and the muse CLI, logged in with your own muse login. Helicon does not bundle Node yet. On Windows, install Node on Windows itself and muse inside WSL2 Ubuntu."],
   ["Is it really free?", "Yes. MIT licensed, no paid tier, source on GitHub. It uses your existing Muse subscription, so there is no second bill."],
 ];

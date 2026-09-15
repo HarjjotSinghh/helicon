@@ -26,9 +26,9 @@ const OS_ICONS: Record<OsId, typeof WindowsLogo> = {
 
 function requirements(version: string | null) {
   return [
-    "Node 22+ on the machine running the daemon.",
+    "Node.js 22+ installed. Helicon does not bundle it yet.",
     "The muse CLI installed and logged in.",
-    "Windows: Muse runs in WSL2 Ubuntu, routed by a sidecar.",
+    "Windows: Node goes on Windows itself; muse runs in WSL2 Ubuntu, routed by a sidecar.",
     "macOS builds are not notarized yet, so right-click, then Open.",
     version ? `Linux: run from source at v${version}.` : "Linux: run from source; there is no packaged build yet.",
   ];

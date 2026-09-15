@@ -80,7 +80,7 @@ apps/web         same UI against a remote daemon
 
 Windows: download the setup file from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest). It is signed, and updates itself from then on.
 
-You need Node 22+ and the `muse` CLI with `muse login` done once, in WSL2 Ubuntu. Helicon uses the login you already have and never stores credentials of its own.
+You need Node 22+ installed on Windows itself, plus the `muse` CLI with `muse login` done once inside WSL2 Ubuntu. Helicon uses the login you already have and never stores credentials of its own.
 
 macOS: download the DMG from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest); it runs on Apple Silicon and Intel, and updates itself from then on. The builds are not Apple-notarized yet, so the first launch needs a right-click, then Open.
 

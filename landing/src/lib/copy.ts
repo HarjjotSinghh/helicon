@@ -69,7 +69,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
       audience,
       headline: "Muse Code, without living in the terminal.",
       lead: "Same Muse Code. Same subscription. Better interface.",
-      body: "A free, open-source Mac app for the muse CLI. One universal DMG for Apple Silicon and Intel, with every project, session and diff in one window.",
+      body: "A free, open-source Mac app for the muse CLI. One universal DMG, with every project, session and diff in one window.",
       ctas: [
         { label: "Download for macOS", href: installerPath("macos", "hero"), kind: "primary" },
         source,

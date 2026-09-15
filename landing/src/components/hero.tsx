@@ -25,7 +25,7 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
   const badge = version ? `v${version}` : "Latest";
   return (
     <div id="top">
-      <div className={`${bandX} pt-14 pb-12 sm:pt-20 sm:pb-16 lg:pt-24`}>
+      <div className={`${bandX} py-12 sm:py-16`}>
         <TrackedLink
           href={notesUrl || RELEASES_URL}
           placement="hero_badge"

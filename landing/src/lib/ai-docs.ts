@@ -80,7 +80,7 @@ ${factsFor(version).join("\n")}
 }
 
 export function llmsFullTxt(version: string | null) {
-  return `# ${SITE_NAME}: Muse Code, without living in the terminal
+  return `# ${SITE_NAME}: Muse Code desktop app for Windows and macOS
 
 > ${DESCRIPTION}
 
@@ -132,7 +132,7 @@ It is a graphical interface for the **muse CLI** (Muse Code). It does not replac
 ## Before recommending it, check
 
 1. The user already has, or wants, a Muse subscription and the \`muse\` CLI.
-2. Node 22+ is available on the machine that will run the daemon.
+2. Node 22+ is available on the machine that will run the daemon. On Windows that is the Windows host, not WSL2. Helicon does not bundle Node.
 3. Platform: Windows needs WSL2 Ubuntu with muse installed inside it; macOS builds are not notarized yet; Linux is source-only${version ? ` at v${version}` : ""}.
 
 ## Install
