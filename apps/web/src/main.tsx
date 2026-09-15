@@ -2,11 +2,13 @@ import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { HeliconApp } from "@helicon/ui";
 import { Connect } from "./Connect.js";
-import { desktopFrame, titlebarOverlay } from "./frame.js";
+import { desktopFrame, titlebarOverlay, bindDesktopZoom } from "./frame.js";
 import { appNotifier } from "./notifier.js";
 import { desktopUpdater } from "./updater.js";
 import { WebHeliconClient } from "./webClient.js";
 import "./theme.css";
+
+bindDesktopZoom();
 
 const root = document.getElementById("root");
 if (!root) {

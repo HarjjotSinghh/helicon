@@ -22,7 +22,7 @@
           if (typeof prefs.zoom === "number" && isFinite(prefs.zoom)) zoom = prefs.zoom;
         } catch (e) {}
         document.documentElement.dataset.theme = theme;
-        if (zoom !== 1) document.documentElement.style.zoom = String(zoom);
+        if (zoom !== 1 && !("__TAURI_INTERNALS__" in window)) document.documentElement.style.zoom = String(zoom);
       })();
     </script>
   </head>

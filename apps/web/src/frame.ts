@@ -1,4 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { WindowFrame } from "@helicon/ui";
 
 declare global {
@@ -8,11 +9,30 @@ declare global {
     /** Set by the desktop shell before the page loads when macOS traffic lights float over the UI. */
     __HELICON_TITLEBAR__?: string;
   }
+  interface WindowEventMap {
+    "helicon-zoom": CustomEvent<number>;
+  }
 }
 
 /** True on macOS, where the desktop shell overlays the traffic lights on the sidebar. */
 export function titlebarOverlay(): boolean {
   return window.__HELICON_TITLEBAR__ === "overlay";
+}
+
+/**
+ * Desktop zoom must go through the webview, not CSS `zoom` on <html>: WKWebView then mis-places
+ * every Radix `position: fixed` menu. No-op in a browser. Call once at startup.
+ */
+export function bindDesktopZoom(): void {
+  if (!("__TAURI_INTERNALS__" in window)) {
+    return;
+  }
+  const apply = (zoom: number) => {
+    getCurrentWebview()
+      .setZoom(zoom)
+      .catch((error: unknown) => console.error("Helicon: webview zoom failed", error));
+  };
+  window.addEventListener("helicon-zoom", (event) => apply(event.detail));
 }
 
 /** Window controls for the desktop shell's frameless window; undefined in a browser. */

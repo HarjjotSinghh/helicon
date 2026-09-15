@@ -38,6 +38,7 @@ import type { MspItem, UserInputAnswer } from "../../types.js";
 import { CodeBlock, Markdown, highlightCode, languageFromPath } from "../ui/Markdown.js";
 import { Button, Shimmer, Spinner, cn } from "../ui/primitives.js";
 import { Collapse } from "../ui/sourced.js";
+import { FLOATING } from "../ui/overlays.js";
 
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, "g");
 const TERMINAL_FAILURES = new Set(["failed", "rejected", "cancelled", "timedOut"]);
@@ -302,11 +303,11 @@ function DiffChip(props: { file: FileChanges }) {
           side="bottom"
           align="start"
           sideOffset={6}
-          collisionPadding={12}
+          {...FLOATING}
           onMouseEnter={show}
           onMouseLeave={hide}
           onOpenAutoFocus={(event) => event.preventDefault()}
-          className="pop z-[var(--z-dropdown)] flex max-h-[60vh] w-[min(560px,calc(100vw-32px))] flex-col gap-2 overflow-y-auto rounded-xl bg-raised p-2 shadow-pop outline-none"
+          className="pop z-[var(--z-dropdown)] flex max-h-[60vh] w-[min(560px,calc(100dvw-32px))] flex-col gap-2 overflow-y-auto rounded-xl bg-raised p-2 shadow-pop outline-none"
         >
           <FileDiffCard diffs={props.file.diffs} />
         </Popover.Content>

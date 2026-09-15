@@ -3,7 +3,7 @@ import { shallowEqual, useApp } from "../../app/context.js";
 import { formatTokens, modelDisplayName } from "../../model/format.js";
 import { formatCost } from "../../model/pricing.js";
 import { sessionUsage } from "../../model/usage.js";
-import { Tip } from "../ui/overlays.js";
+import { Tip, FLOATING } from "../ui/overlays.js";
 
 /** What this thread would have cost on API billing, beside the context meter. */
 export function CostMeter(props: { sessionId: string }) {
@@ -37,8 +37,8 @@ export function CostMeter(props: { sessionId: string }) {
           side="top"
           align="end"
           sideOffset={6}
-          collisionPadding={8}
-          className="pop z-[var(--z-dropdown)] max-h-[var(--radix-popover-content-available-height)] w-[340px] max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl bg-raised text-fg shadow-pop outline-none"
+          {...FLOATING}
+          className="pop z-[var(--z-dropdown)] max-h-[var(--radix-popover-content-available-height)] w-[340px] max-w-[calc(100dvw-24px)] overflow-y-auto rounded-xl bg-raised text-fg shadow-pop outline-none"
         >
           <CostPanel sessionId={props.sessionId} />
         </Popover.Content>
