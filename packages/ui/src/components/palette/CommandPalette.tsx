@@ -52,13 +52,12 @@ export function CommandPalette() {
       title="Search threads, projects and actions"
       hideTitle
       bare
-      className="top-[12vh] w-[min(620px,calc(100vw-32px))] overflow-hidden"
+      className="top-[12%] w-[min(620px,calc(100%-16px))] overflow-hidden"
     >
       <Command loop label="Search threads, projects and actions">
         <div className="flex items-center gap-2.5 border-b border-line px-4">
           <Search size={16} className="shrink-0 text-subtle" />
           <Command.Input
-            autoFocus
             placeholder="Search threads, projects and actions"
             className="h-12 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-subtle"
           />

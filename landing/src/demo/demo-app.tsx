@@ -49,6 +49,7 @@ if (typeof window !== "undefined" && !(window as { __heliconFocusPatch?: boolean
       const target = event.target as HTMLElement;
       const demo = target.closest?.(".helicon-app");
       if (!demo || demo.contains(event.relatedTarget as Node | null)) return;
+      if (target.closest('[role="dialog"]') || target.closest("[cmdk-root]")) return;
       if (Date.now() - gesture.at < 1500 && gesture.target instanceof Node && demo.contains(gesture.target)) return;
       const back = event.relatedTarget as HTMLElement | null;
       if (back && back.isConnected) focus.call(back, { preventScroll: true });
@@ -61,20 +62,22 @@ if (typeof window !== "undefined" && !(window as { __heliconFocusPatch?: boolean
 /** Interface zoom last chosen in any landing demo, so tour screens keep it. */
 let sharedDemoZoom = 1;
 
-function DemoZoom({ host }: { host: RefObject<HTMLDivElement | null> }) {
+function DemoZoom({ host, contain }: { host: RefObject<HTMLDivElement | null>; contain?: boolean }) {
   const zoom = useApp((s) => s.prefs.zoom);
   useLayoutEffect(() => {
     sharedDemoZoom = zoom;
     const node = host.current;
     if (!node) return;
+    // Phone cards are already 1:1. Extra CSS zoom paints past the clip.
+    const applied = contain ? 1 : zoom;
     const style = node.style as CSSStyleDeclaration & { zoom?: string };
     if ("zoom" in style) {
-      style.zoom = zoom === 1 ? "" : String(zoom);
+      style.zoom = applied === 1 ? "" : String(applied);
       node.style.fontSize = "";
     } else {
-      node.style.fontSize = zoom === 1 ? "" : `${Math.round(16 * zoom * 100) / 100}px`;
+      node.style.fontSize = applied === 1 ? "" : `${Math.round(16 * applied * 100) / 100}px`;
     }
-  }, [host, zoom]);
+  }, [contain, host, zoom]);
   return null;
 }
 
@@ -301,14 +304,14 @@ export function DemoApp({ route = "", palette = false, width = 1100, height = 70
         role="region"
         aria-label={label}
         onKeyDown={onKeyDown}
-        className="helicon-app absolute top-0 left-0 origin-top-left overflow-hidden"
+        className="helicon-app @container absolute top-0 left-0 origin-top-left overflow-hidden"
         style={{ width: fluid || compact ? (fluidWidth ?? "100%") : width, height: layoutHeight, transform: `scale(${scale})` }}
       >
         <ControllerProvider controller={controller}>
           <PortalContainer value={portal}>
             <TooltipProvider>
               <ThemeBridge />
-              <DemoZoom host={host} />
+              <DemoZoom host={host} contain={compact} />
               {/* Overlays wait for their mount point, so nothing ever opens on the page body. */}
               {portal ? <OpenPalette open={palette} /> : null}
               {view === "sidebar" ? <SidebarOnly /> : <Shell />}

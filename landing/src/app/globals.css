@@ -147,7 +147,11 @@
   & h1,
   & h2,
   & h3 {
-    text-wrap: initial;
+    text-wrap: unset;
+  }
+
+  & .truncate {
+    text-wrap: nowrap;
   }
 }
 

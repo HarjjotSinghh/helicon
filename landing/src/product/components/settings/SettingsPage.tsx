@@ -11,14 +11,14 @@ import { CODE_THEME_LABELS, updateSummary } from "../sidebar/Sidebar";
 import { Modal } from "../ui/overlays";
 import { Button, IconButton, MOD, cn } from "../ui/primitives";
 
-/** A row's control: one choice out of a few, laid out as a segmented strip that wraps when it must. */
+/** A row's control: one choice out of a few. Scrolls sideways when the row is too narrow to wrap. */
 function Pick<T extends string | null>(props: {
   value: T;
   options: readonly { value: T; label: string; hint?: string }[];
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1 rounded-lg bg-sunken p-0.5">
+    <div className="flex max-w-full min-w-0 items-center gap-1 overflow-x-auto overscroll-x-contain rounded-lg bg-sunken p-0.5 [scrollbar-width:thin]">
       {props.options.map((option) => (
         <button
           key={String(option.value)}
@@ -27,7 +27,7 @@ function Pick<T extends string | null>(props: {
           aria-pressed={props.value === option.value}
           onClick={() => props.onChange(option.value)}
           className={cn(
-            "h-7 rounded-md px-2.5 text-xs font-medium transition-colors duration-100",
+            "h-7 shrink-0 rounded-md px-2.5 text-xs font-medium whitespace-nowrap transition-colors duration-100",
             props.value === option.value ? "bg-raised text-fg shadow-btn" : "text-muted hover:text-fg",
           )}
         >
@@ -68,7 +68,7 @@ function Row(props: { label: string; description?: string; children?: ReactNode 
         <p className="text-sm text-fg">{props.label}</p>
         {props.description ? <p className="mt-0.5 text-xs text-pretty text-muted">{props.description}</p> : null}
       </div>
-      {props.children ? <div className="shrink-0">{props.children}</div> : null}
+      {props.children ? <div className="min-w-0 w-full @min-[520px]:w-auto">{props.children}</div> : null}
     </div>
   );
 }
@@ -109,8 +109,8 @@ export function SettingsPage() {
   const drag = useOverlayDragProps();
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
-      <header {...drag} className="mx-auto flex w-full max-w-[720px] shrink-0 items-center gap-3 px-6 pt-8 pb-1">
+    <div className="@container flex h-full min-w-0 flex-col overflow-x-hidden overflow-y-auto">
+      <header {...drag} className="mx-auto flex w-full max-w-[720px] shrink-0 items-center gap-3 px-4 pt-8 pb-1 @min-[520px]:px-6">
         <Button size="sm" variant="ghost" onClick={() => controller.navigate({ kind: "home" })}>
           <ArrowLeft size={14} /> Back
         </Button>
@@ -120,7 +120,7 @@ export function SettingsPage() {
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-[720px] px-6 pb-16">
+      <div className="mx-auto w-full min-w-0 max-w-[720px] px-4 pb-16 @min-[520px]:px-6">
         <Section title="Appearance">
           <Row label="Theme" description="Light, dark, or whatever this device is set to.">
             <Pick value={prefs.theme} options={THEMES} onChange={(value) => controller.setTheme(value)} />

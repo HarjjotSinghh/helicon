@@ -58,8 +58,8 @@ export function UsagePage() {
   const drag = useOverlayDragProps();
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
-      <header {...drag} className="mx-auto flex w-full max-w-[980px] shrink-0 flex-wrap items-center gap-3 px-4 pt-6 pb-4 sm:px-6 sm:pt-8">
+    <div className="@container flex h-full min-w-0 flex-col overflow-x-hidden overflow-y-auto">
+      <header {...drag} className="mx-auto flex w-full max-w-[980px] shrink-0 flex-wrap items-center gap-3 px-4 pt-6 pb-4 @min-[520px]:px-6 sm:pt-8">
         <Button size="sm" variant="ghost" onClick={() => controller.navigate({ kind: "home" })}>
           <ArrowLeft size={14} /> Back
         </Button>
@@ -67,7 +67,7 @@ export function UsagePage() {
           <h1 className="text-lg font-semibold text-fg">Usage</h1>
           <p className="text-pretty text-xs text-muted">What these threads would have cost billed per token, not what your plan charged.</p>
         </div>
-        <div className="flex w-full shrink-0 items-center gap-1 rounded-lg bg-sunken p-0.5 min-[520px]:ml-auto min-[520px]:w-auto">
+        <div className="flex w-full shrink-0 items-center gap-1 overflow-x-auto rounded-lg bg-sunken p-0.5 @min-[520px]:ml-auto @min-[520px]:w-auto">
           {USAGE_RANGES.map((range) => (
             <button
               key={range.days}
@@ -84,7 +84,7 @@ export function UsagePage() {
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-[980px] px-6 pb-16">
+      <div className="mx-auto w-full min-w-0 max-w-[980px] px-4 pb-16 @min-[520px]:px-6">
         {error ? (
           <p className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-text">{error}</p>
         ) : !view ? (
@@ -286,31 +286,32 @@ function DailyChart(props: { view: UsageView }) {
   const max = Math.max(...view.days.map((d) => d.cost), 0.000001);
   const order = view.models.map((m) => m.modelId);
   return (
-    <section className="rounded-xl bg-raised px-4 py-4 shadow-[0_0_0_1px_var(--border)]">
+    <section className="min-w-0 overflow-hidden rounded-xl bg-raised px-4 py-4 shadow-[0_0_0_1px_var(--border)]">
       <div className="mb-3 flex items-baseline justify-between">
         <h2 className="text-sm font-semibold text-fg">Cost by day</h2>
         <span className="text-2xs text-subtle tabular-nums">peak {formatCost(max, view.currency)}</span>
       </div>
-      <div className="flex h-40 items-end gap-[3px]">
+      <div className="flex h-40 min-w-0 items-end gap-px overflow-hidden">
         {view.days.map((day) => (
-          <Tip key={day.day} label={`${day.day}: ${formatCost(day.cost, view.currency)}`}>
-            {/* A quiet range must not stretch one day across the card, so a bar has a width it will not pass. */}
-            <div tabIndex={0} className="group/bar flex h-full min-w-[6px] max-w-[44px] flex-1 flex-col justify-end rounded-t-[3px]">
-              {day.byModel
-                .slice()
-                .sort((a, b) => order.indexOf(a.modelId) - order.indexOf(b.modelId))
-                .map((slice) => (
-                  <div
-                    key={slice.modelId}
-                    style={{
-                      height: `${Math.max((slice.cost / max) * 100, slice.cost > 0 ? 1.5 : 0)}%`,
-                      background: SERIES[Math.max(0, order.indexOf(slice.modelId)) % SERIES.length],
-                    }}
-                    className="w-full first:rounded-t-[3px] transition-opacity duration-100 group-hover/bar:opacity-80"
-                  />
-                ))}
-            </div>
-          </Tip>
+          <div key={day.day} className="flex h-full min-w-0 flex-1 flex-col justify-end">
+            <Tip label={`${day.day}: ${formatCost(day.cost, view.currency)}`}>
+              <div tabIndex={0} className="group/bar flex h-full w-full min-w-0 flex-col justify-end rounded-t-[3px]">
+                {day.byModel
+                  .slice()
+                  .sort((a, b) => order.indexOf(a.modelId) - order.indexOf(b.modelId))
+                  .map((slice) => (
+                    <div
+                      key={slice.modelId}
+                      style={{
+                        height: `${Math.max((slice.cost / max) * 100, slice.cost > 0 ? 1.5 : 0)}%`,
+                        background: SERIES[Math.max(0, order.indexOf(slice.modelId)) % SERIES.length],
+                      }}
+                      className="w-full first:rounded-t-[3px] transition-opacity duration-100 group-hover/bar:opacity-80"
+                    />
+                  ))}
+              </div>
+            </Tip>
+          </div>
         ))}
       </div>
       <div className="mt-2 flex items-center justify-between text-2xs text-subtle tabular-nums">

@@ -89,7 +89,7 @@ function Row(props: {
         disabled={!expandable}
         aria-expanded={expandable ? open : undefined}
         onClick={() => setOpen((v) => !v)}
-        className="group/row -mx-1.5 flex h-8 w-[calc(100%+0.75rem)] min-w-0 items-center gap-2 rounded-lg px-1.5 text-left transition-colors duration-100 enabled:hover:bg-hover disabled:cursor-default"
+        className="group/row -mx-1.5 flex h-8 w-[calc(100%+0.75rem)] min-w-0 items-center gap-2 overflow-hidden rounded-lg px-1.5 text-left transition-colors duration-100 enabled:hover:bg-hover disabled:cursor-default"
       >
         <span
           className={cn(

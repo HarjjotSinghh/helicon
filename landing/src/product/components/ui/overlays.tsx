@@ -230,10 +230,20 @@ export function Modal(props: {
       <RDialog.Portal container={usePortalContainer()}>
         <RDialog.Overlay className="overlay-fade fixed inset-0 z-[var(--z-overlay)] bg-[oklch(0.1_0.01_255/0.45)]" />
         <RDialog.Content
+          onOpenAutoFocus={(event) => {
+            const demo = (event.target as HTMLElement | null)?.closest?.(".helicon-app");
+            if (demo && !demo.contains(document.activeElement)) event.preventDefault();
+          }}
+          onFocusOutside={(event) => {
+            const demo = (event.currentTarget as HTMLElement).closest(".helicon-app");
+            if (!demo) return;
+            const next = event.target as Node | null;
+            if (next && !demo.contains(next)) event.preventDefault();
+          }}
           className={cn(
             "modal-pop fixed left-1/2 z-[var(--z-modal)] -translate-x-1/2 rounded-2xl bg-raised text-fg shadow-pop outline-none",
             props.bare ? "p-0" : "p-5",
-            props.className ?? "top-[14vh] w-[min(520px,calc(100vw-32px))]",
+            props.className ?? "top-[14vh] w-[min(520px,calc(100%-32px))]",
           )}
         >
           <RDialog.Title className={cn("text-lg font-semibold tracking-[-0.01em]", props.hideTitle && "sr-only")}>

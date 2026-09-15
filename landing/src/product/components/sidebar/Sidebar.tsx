@@ -58,6 +58,23 @@ const PROJECT_PREVIEW = 6;
 const STATUS_PREVIEW = 30;
 /** The strip under the last project: dropping there sends a project to the bottom. */
 const END_DROP = "end";
+const REORDER_SLOP = 6;
+
+function projectUnderPoint(x: number, y: number): string | null {
+  for (const node of document.elementsFromPoint(x, y)) {
+    if (!(node instanceof Element)) {
+      continue;
+    }
+    if (node.closest("[data-project-end-drop]")) {
+      return END_DROP;
+    }
+    const section = node.closest("[data-project-cwd]");
+    if (section instanceof HTMLElement && section.dataset.projectCwd) {
+      return section.dataset.projectCwd;
+    }
+  }
+  return null;
+}
 
 export function Sidebar() {
   const width = useApp((s) => s.prefs.sidebarWidth);
@@ -221,14 +238,7 @@ function ThreadList() {
             {dragging ? (
               <div
                 aria-hidden="true"
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setOver(END_DROP);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  drop(null);
-                }}
+                data-project-end-drop=""
                 className={cn(
                   "mx-1 h-7 rounded-lg border border-dashed transition-colors duration-100",
                   over === END_DROP ? "border-accent bg-hover" : "border-line",
@@ -258,10 +268,12 @@ const ProjectSection = memo(function ProjectSection(props: {
   over: string | null;
   onDragStart: (cwd: string) => void;
   onDragOver: (cwd: string) => void;
-  onDrop: (beforeCwd: string) => void;
+  onDrop: (beforeCwd: string | null) => void;
   onDragEnd: () => void;
 }) {
   const controller = useController();
+  const noWindowDrag = useOverlayDragProps("off");
+  const didReorder = useRef(false);
   const [expanded, setExpanded] = useState(false);
   const { project, entries } = props.group;
   const activeIndex = entries.findIndex((e) => e.session.sessionId === props.activeId);
@@ -270,22 +282,9 @@ const ProjectSection = memo(function ProjectSection(props: {
   const visible = entries.slice(0, limit);
   return (
     <section
+      data-project-cwd={project.cwd}
       className={cn("mb-1", props.dragging === project.cwd && "opacity-50")}
       aria-label={project.displayName}
-      onDragOver={(event) => {
-        if (!props.dragging) {
-          return;
-        }
-        event.preventDefault();
-        props.onDragOver(project.cwd);
-      }}
-      onDrop={(event) => {
-        if (!props.dragging) {
-          return;
-        }
-        event.preventDefault();
-        props.onDrop(project.cwd);
-      }}
     >
       <div
         className={cn(
@@ -294,13 +293,62 @@ const ProjectSection = memo(function ProjectSection(props: {
         )}
       />
       <div
-        draggable
-        onDragStart={(event) => {
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", project.cwd);
-          props.onDragStart(project.cwd);
+        data-no-drag
+        {...noWindowDrag}
+        onPointerDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
+          const origin = event.target;
+          if (origin instanceof Element && origin.closest("[data-no-reorder]")) {
+            return;
+          }
+          const startX = event.clientX;
+          const startY = event.clientY;
+          const cwd = project.cwd;
+          let started = false;
+          const onMove = (move: globalThis.PointerEvent) => {
+            if (!started) {
+              if (Math.hypot(move.clientX - startX, move.clientY - startY) < REORDER_SLOP) {
+                return;
+              }
+              started = true;
+              didReorder.current = true;
+              props.onDragStart(cwd);
+            }
+            const over = projectUnderPoint(move.clientX, move.clientY);
+            if (over) {
+              props.onDragOver(over);
+            }
+          };
+          const onUp = (up: globalThis.PointerEvent) => {
+            window.removeEventListener("pointermove", onMove);
+            window.removeEventListener("pointerup", onUp);
+            window.removeEventListener("pointercancel", onUp);
+            if (!started) {
+              return;
+            }
+            const over = projectUnderPoint(up.clientX, up.clientY);
+            if (over === END_DROP) {
+              props.onDrop(null);
+            } else if (over && over !== cwd) {
+              props.onDrop(over);
+            } else {
+              props.onDragEnd();
+            }
+          };
+          window.addEventListener("pointermove", onMove);
+          window.addEventListener("pointerup", onUp);
+          window.addEventListener("pointercancel", onUp);
         }}
-        onDragEnd={props.onDragEnd}
+        onClickCapture={(event) => {
+          if (!didReorder.current) {
+            return;
+          }
+          didReorder.current = false;
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         className="group/project flex h-8 cursor-grab items-center gap-0.5 rounded-lg pr-1 transition-colors duration-100 hover:bg-hover active:cursor-grabbing"
       >
         <button
@@ -327,7 +375,10 @@ const ProjectSection = memo(function ProjectSection(props: {
             <Spinner size={10} className="mr-1 ml-auto text-accent-text" label="Working" />
           ) : null}
         </button>
-        <div className="flex shrink-0 items-center opacity-0 transition-opacity duration-100 group-hover/project:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100">
+        <div
+          data-no-reorder
+          className="flex shrink-0 items-center opacity-0 transition-opacity duration-100 group-hover/project:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100"
+        >
           <Tip label={`New thread in ${project.displayName}`}>
             <IconButton size="xs" label={`New thread in ${project.displayName}`} onClick={() => controller.newThread(project.cwd)}>
               <SquarePen size={13} />

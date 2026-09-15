@@ -129,7 +129,7 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
   return (
     <div className="relative min-h-0 flex-1">
       <div ref={scrollRef} className="h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-        <div ref={contentRef} className="mx-auto flex w-full max-w-[776px] flex-col gap-8 px-6 pt-8 pb-10">
+        <div ref={contentRef} className="mx-auto flex w-full max-w-[776px] flex-col gap-8 px-4 pt-8 pb-10 @min-[520px]:px-6">
           {thread.truncated ? (
             <p className="text-center text-xs text-subtle">Earlier turns are not shown. Open the session in Muse to see the full history.</p>
           ) : null}
@@ -386,7 +386,7 @@ function WorkLog(props: { turn: TurnView; gates: GateMap; answers: AnswerMap; se
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="group/log -mx-1.5 flex h-8 max-w-full items-center gap-2 rounded-lg px-1.5 text-sm text-subtle transition-colors duration-100 hover:bg-hover hover:text-muted"
+        className="group/log -mx-1.5 flex h-8 max-w-full min-w-0 items-center gap-2 overflow-hidden rounded-lg px-1.5 text-sm text-subtle transition-colors duration-100 hover:bg-hover hover:text-muted"
       >
         <ChevronRight size={13} strokeWidth={2.2} className={cn("shrink-0 transition-transform duration-200 ease-out", open && "rotate-90")} />
         <span className="shrink-0">{duration !== null ? `Worked for ${formatDuration(duration)}` : "Work log"}</span>

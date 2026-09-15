@@ -22,7 +22,7 @@ export function ThreadView(props: { sessionId: string }) {
   }
   const running = thread ? thread.fold.activeTurnId !== null : Boolean(session.live?.activeTurnId);
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col">
+    <div className="@container flex h-full min-w-0 flex-1 flex-col overflow-hidden">
       <ThreadHeader session={session} thread={thread} running={running} />
       {thread ? <Transcript sessionId={props.sessionId} thread={thread} /> : <div className="min-h-0 flex-1" />}
       <Dock session={session} thread={thread} running={running} />
@@ -41,7 +41,7 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
   const drag = useOverlayDragProps();
   const noDrag = useOverlayDragProps("off");
   return (
-    <header data-drag-region {...drag} className="flex h-12 shrink-0 items-center gap-1.5 border-b border-line px-3">
+    <header data-drag-region {...drag} className="flex h-12 shrink-0 items-center gap-1.5 overflow-hidden border-b border-line px-3">
       <TrafficLightSpacer />
       <SidebarToggle />
       <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
@@ -59,14 +59,16 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
           <h1
             data-no-drag
             {...noDrag}
-            className="min-w-0 cursor-text truncate text-sm font-semibold text-fg"
+            className="min-w-0 flex-1 cursor-text truncate overflow-hidden text-sm font-semibold text-nowrap text-ellipsis text-fg"
             title={`${session.title} (double-click to rename)`}
             onDoubleClick={() => setRenaming(true)}
           >
             {session.title}
           </h1>
         )}
-        <ProjectChip cwd={session.cwd} />
+        <span className="hidden min-w-0 shrink @min-[420px]:flex">
+          <ProjectChip cwd={session.cwd} />
+        </span>
         {fold?.meta.branch ? (
           <span className="hidden min-w-0 items-center gap-1 text-xs text-subtle lg:flex">
             <GitBranch size={12} className="shrink-0" />
@@ -77,17 +79,18 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
       {waiting ? (
         <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium text-warn-text">
           <span className="attention-pulse size-1.5 rounded-full bg-warn" aria-hidden="true" />
-          Waiting for you
+          <span className="@max-[420px]:hidden">Waiting for you</span>
         </span>
       ) : props.running ? (
         <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs text-muted" role="status">
           <Spinner size={11} className="text-accent-text" />
-          Working
+          <span className="@max-[420px]:hidden">Working</span>
           {startedAt ? <span className="text-subtle tabular-nums">{formatDuration(now - startedAt)}</span> : null}
         </span>
       ) : thread?.readOnly ? (
         <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs text-subtle">
-          <Lock size={12} /> Read-only
+          <Lock size={12} />
+          <span className="@max-[420px]:hidden">Read-only</span>
         </span>
       ) : null}
       {props.running ? (
@@ -97,11 +100,13 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
           </IconButton>
         </Tip>
       ) : null}
-      <Tip label="Open in VS Code">
-        <IconButton label="Open in VS Code" onClick={() => void controller.openFolder(session.cwd, "editor")}>
-          <Code size={15} />
-        </IconButton>
-      </Tip>
+      <span className="@max-[360px]:hidden">
+        <Tip label="Open in VS Code">
+          <IconButton label="Open in VS Code" onClick={() => void controller.openFolder(session.cwd, "editor")}>
+            <Code size={15} />
+          </IconButton>
+        </Tip>
+      </span>
       <Menu>
         <Tip label="More">
           <MenuTrigger asChild>
@@ -201,7 +206,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
   const showPlan = todo !== null && todo.length > 0 && (props.running || todo.some((t) => t.status !== "completed"));
   return (
     <div className="shrink-0">
-      <div className="mx-auto flex w-full max-w-[776px] flex-col gap-2 px-6 pb-2">
+      <div className="mx-auto flex w-full max-w-[776px] flex-col gap-2 px-4 pb-2 @min-[520px]:px-6">
         {thread?.readOnly ? (
           <ReadOnlyNotice
             reason={thread.readOnlyReason}

@@ -107,7 +107,7 @@ export function Architecture({ extra }: { extra: string | null }) {
                 data-reveal="scale"
                 className="inline-flex max-w-full items-center gap-2 rounded-full bg-surface py-1.5 pr-3.5 pl-2.5 text-[12.5px] font-medium whitespace-nowrap text-muted shadow-soft sm:text-[13.5px]"
               >
-                <Icon aria-hidden="true" className="size-4 text-accent-text" />
+                <Icon aria-hidden="true" size={16} className="size-4 shrink-0 text-accent-text" />
                 {text}
               </li>
             ))}
