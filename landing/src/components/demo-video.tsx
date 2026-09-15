@@ -65,6 +65,13 @@ export function DemoVideo({
 
   useEffect(() => () => window.clearTimeout(hideTimer.current), []);
 
+  // A cached video can reach loadedmetadata before React attaches its handler, which would leave
+  // duration at 0 and the seek bar dead. Read whatever the element already knows on mount.
+  useEffect(() => {
+    const node = videoRef.current;
+    if (node && Number.isFinite(node.duration) && node.duration > 0) setDuration(node.duration);
+  }, []);
+
   useEffect(() => {
     const onFs = () => setFullscreen(Boolean(document.fullscreenElement));
     document.addEventListener("fullscreenchange", onFs);
@@ -202,6 +209,10 @@ export function DemoVideo({
         }}
         onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
         onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
+        onDurationChange={(event) => {
+          const value = event.currentTarget.duration;
+          if (Number.isFinite(value) && value > 0) setDuration(value);
+        }}
         onEnded={() => {
           setPlaying(false);
           setControls(true);
