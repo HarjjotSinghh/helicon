@@ -42,7 +42,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
     return {
       audience,
       headline: "Muse Code on Windows,",
-      headlineContinue: "with a real UI instead of the terminal.",
+      headlineContinue: "with a real UI, not WSL.",
       lead: "Signed installer. Your existing Muse plan. No second bill.",
       body: "A free, open-source Windows app for the muse CLI, with every project, session and diff in one window.",
       ctas: [

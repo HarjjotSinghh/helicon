@@ -62,7 +62,7 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
             <p data-hero-lead className="text-[clamp(1.0625rem,0.8rem+0.7vw,1.25rem)] leading-snug font-semibold text-balance text-fg">
               {copy.lead}
             </p>
-            <p className="mt-2 max-w-[58ch] text-[17px] leading-[1.6] text-muted">
+            <p className="mt-2 max-w-[52ch] text-[17px] leading-[1.6] text-muted">
               {copy.body}
             </p>
           </div>
