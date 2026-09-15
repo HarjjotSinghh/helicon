@@ -108,11 +108,11 @@ function DiffPreview() {
         </span>
         <span className="rounded-md bg-tint px-1.5 py-0.5 text-[11px] font-medium text-accent-text">Edited</span>
       </div>
-      <div className="border-b border-line bg-tint/50 px-3 text-subtle">@@ -10,11 +10,14 @@ openWorkspace</div>
+      <div className="border-b border-line bg-tint/50 px-3 text-pretty text-subtle">@@ -10,11 +10,14 @@ openWorkspace</div>
       <div
         data-stagger="30"
         data-base="230"
-        className="flex-1 overflow-x-auto py-1"
+        className="flex-1 overflow-x-hidden overflow-y-auto py-1"
         role="img"
         aria-label="Diff of src/daemon/host.ts: three lines removed, six added"
       >
@@ -122,7 +122,7 @@ function DiffPreview() {
             aria-hidden="true"
             data-reveal="slide"
             className={cn(
-              "grid min-w-max grid-cols-[2rem_2rem_1rem_1fr] pr-4",
+              "grid grid-cols-[2rem_2rem_1rem_minmax(0,1fr)] pr-2 sm:pr-4",
               l.kind === "add" && "bg-add-bg",
               l.kind === "del" && "bg-del-bg",
             )}
@@ -133,7 +133,7 @@ function DiffPreview() {
               {l.kind === "add" ? "+" : l.kind === "del" ? "-" : ""}
             </span>
             {/* Same highlighter and --sh-* token colors as the app's own diffs, so it follows the theme. */}
-            <span className="whitespace-pre" dangerouslySetInnerHTML={{ __html: highlight(l.text) || " " }} />
+            <span className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]" dangerouslySetInnerHTML={{ __html: highlight(l.text) || " " }} />
           </div>
         ))}
       </div>
@@ -212,10 +212,10 @@ function PalettePreview() {
   ];
   return (
     <Panel data-reveal="scale" className="flex flex-1 flex-col text-[13px]">
-      <div className="flex items-center gap-2 border-b border-line px-3 py-2.5 text-subtle">
-        <MagnifyingGlass aria-hidden="true" className="size-4" />
-        <span>Search threads, projects and actions</span>
-        <span className="ml-auto flex gap-1">
+      <div className="flex items-start gap-2 border-b border-line px-3 py-2.5 text-subtle">
+        <MagnifyingGlass aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+        <span className="min-w-0 flex-1 text-pretty">Search threads, projects and&nbsp;actions</span>
+        <span className="ml-auto flex shrink-0 gap-1">
           <Key>⌘</Key>
           <Key>K</Key>
         </span>
@@ -321,14 +321,13 @@ export function Features({ title, body }: { title: string; body: string }) {
           order={0}
           body="Threads grouped by folder, worktrees included. Resume any of them in one click."
         >
-          <Panel className="mt-7 md:h-[450px]">
+          <Panel className="mt-7 h-[450px]">
             <DemoApp
               view="sidebar"
               fluid
               route="#/t/api-paginate"
               height={450}
               label="Live demo: the Helicon sidebar with projects grouped by folder"
-              poster={{ light: "/assets/sidebar-light.png", dark: "/assets/sidebar-dark.png", alt: "Helicon sidebar with projects grouped by folder" }}
             />
           </Panel>
         </Cell>

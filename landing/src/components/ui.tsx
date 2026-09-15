@@ -158,7 +158,7 @@ export function SectionHeading({
         {title}
       </h2>
       {children ? (
-        <p className="mt-4 max-w-[60ch] text-[17px] leading-relaxed text-muted">{children}</p>
+        <p className="mt-4 max-w-[60ch] text-[15px] leading-relaxed text-muted sm:text-[17px]">{children}</p>
       ) : null}
     </div>
   );

@@ -32,7 +32,7 @@ export function ClosingCta({ copy }: { copy: PageCopy }) {
         >
           {copy.closingTitle}
         </h2>
-        <p className="mx-auto mt-4 max-w-[48ch] text-[17px] leading-relaxed text-muted">
+        <p className="mx-auto mt-4 max-w-[48ch] text-[15px] leading-relaxed text-muted sm:text-[17px]">
           {copy.closingBody}
         </p>
         <div className="mt-8 flex justify-center">
@@ -69,7 +69,7 @@ export function SiteFooter() {
         <div className="max-w-[52ch]">
           <div className="flex items-center gap-2.5">
             <Logo size={26} />
-            <span className="font-headline text-[17px] font-semibold text-fg">Helicon</span>
+            <span className="font-headline text-[15px] font-semibold text-fg sm:text-[17px]">Helicon</span>
           </div>
           <p className="mt-4 text-[14px] leading-relaxed text-subtle">
             An unofficial, community-built project. Not made, sponsored or endorsed by Meta. Muse Code is

@@ -22,7 +22,7 @@ const shots: TourShot[] = [
     title: "Thread",
     icon: <ChatsCircle weight="duotone" />,
     body: "A thread waiting on your approval. Allow the test run and watch the turn finish, or send a message of your own.",
-    view: <DemoApp route="#/t/api-paginate" label="Live demo: a thread waiting on an approval" poster={{ light: "/assets/thread-light.png", dark: "/assets/thread.png", alt: "A Helicon thread waiting on an approval" }} />,
+    view: <DemoApp route="#/t/api-paginate" label="Live demo: a thread waiting on an approval" />,
   },
   {
     id: "usage",
@@ -30,7 +30,7 @@ const shots: TourShot[] = [
     title: "Usage",
     icon: <ChartBar weight="duotone" />,
     body: "What each thread would have cost at API rates, by day, by model and by thread.",
-    view: <DemoApp route="#/usage" label="Live demo: the usage and cost page" poster={{ light: "/assets/usage-light.png", dark: "/assets/usage.png", alt: "Helicon usage and cost" }} />,
+    view: <DemoApp route="#/usage" label="Live demo: the usage and cost page" />,
   },
   {
     id: "home",
@@ -38,7 +38,7 @@ const shots: TourShot[] = [
     title: "Home",
     icon: <House weight="duotone" />,
     body: "Start a thread in any project. Recent work per project sits right by the composer.",
-    view: <DemoApp route="" label="Live demo: the home screen" poster={{ light: "/assets/home-light.png", dark: "/assets/home.png", alt: "Helicon home screen" }} />,
+    view: <DemoApp route="" label="Live demo: the home screen" />,
   },
   {
     id: "palette",
@@ -46,7 +46,7 @@ const shots: TourShot[] = [
     title: "Command palette",
     icon: <Command weight="duotone" />,
     body: "Jump to any project, session or action without reaching for the mouse.",
-    view: <DemoApp route="#/t/readme-oneliner" palette label="Live demo: the command palette" poster={{ light: "/assets/palette-light.png", dark: "/assets/palette.png", alt: "Helicon command palette" }} />,
+    view: <DemoApp route="#/t/readme-oneliner" palette label="Live demo: the command palette" />,
   },
   {
     id: "settings",
@@ -54,7 +54,7 @@ const shots: TourShot[] = [
     title: "Settings",
     icon: <GearSix weight="duotone" />,
     body: "Model, reasoning effort, approvals and daemon configuration. The theme follows your system.",
-    view: <DemoApp route="#/settings" label="Live demo: settings" poster={{ light: "/assets/settings-light.png", dark: "/assets/settings.png", alt: "Helicon settings" }} />,
+    view: <DemoApp route="#/settings" label="Live demo: settings" />,
   },
 ];
 

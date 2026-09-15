@@ -59,15 +59,15 @@ export function UsagePage() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <header {...drag} className="mx-auto flex w-full max-w-[980px] shrink-0 items-center gap-3 px-6 pt-8 pb-4">
+      <header {...drag} className="mx-auto flex w-full max-w-[980px] shrink-0 flex-wrap items-center gap-3 px-4 pt-6 pb-4 sm:px-6 sm:pt-8">
         <Button size="sm" variant="ghost" onClick={() => controller.navigate({ kind: "home" })}>
           <ArrowLeft size={14} /> Back
         </Button>
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold text-fg">Usage</h1>
-          <p className="text-xs text-muted">What these threads would have cost billed per token, not what your plan charged.</p>
+          <p className="text-pretty text-xs text-muted">What these threads would have cost billed per token, not what your plan charged.</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1 rounded-lg bg-sunken p-0.5">
+        <div className="flex w-full shrink-0 items-center gap-1 rounded-lg bg-sunken p-0.5 min-[520px]:ml-auto min-[520px]:w-auto">
           {USAGE_RANGES.map((range) => (
             <button
               key={range.days}

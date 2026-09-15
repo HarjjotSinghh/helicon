@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement, type RefObject } from "react";
 import { ControllerProvider, useApp, useController } from "@/product/app/context";
 import { NewThread, Welcome } from "@/product/components/home/Home";
 import { CommandPalette } from "@/product/components/palette/CommandPalette";
@@ -56,6 +56,26 @@ if (typeof window !== "undefined" && !(window as { __heliconFocusPatch?: boolean
     },
     true,
   );
+}
+
+/** Interface zoom last chosen in any landing demo, so tour screens keep it. */
+let sharedDemoZoom = 1;
+
+function DemoZoom({ host }: { host: RefObject<HTMLDivElement | null> }) {
+  const zoom = useApp((s) => s.prefs.zoom);
+  useLayoutEffect(() => {
+    sharedDemoZoom = zoom;
+    const node = host.current;
+    if (!node) return;
+    const style = node.style as CSSStyleDeclaration & { zoom?: string };
+    if ("zoom" in style) {
+      style.zoom = zoom === 1 ? "" : String(zoom);
+      node.style.fontSize = "";
+    } else {
+      node.style.fontSize = zoom === 1 ? "" : `${Math.round(16 * zoom * 100) / 100}px`;
+    }
+  }, [host, zoom]);
+  return null;
 }
 
 /** Routing, prefs and timers live in memory, so a demo never touches the page URL or storage. */
@@ -198,27 +218,41 @@ export type DemoAppProps = {
 export function DemoApp({ route = "", palette = false, width = 1100, height = 700, className, label, view = "app", fluid = false, poster }: DemoAppProps) {
   const [controller] = useState(() => new HeliconController(
       new DemoClient(),
-      // The sidebar card opens with only api-server expanded, so the list fits without scrolling.
-      memoryPlatform(route, view === "sidebar" ? { collapsedProjects: [PROJECTS.readme, PROJECTS.helicon] } : {}),
+      // Sidebar card: only api-server expanded. Phone tour: main pane only, keep the last zoom.
+      memoryPlatform(route, {
+        zoom: sharedDemoZoom,
+        ...(view === "sidebar"
+          ? { collapsedProjects: [PROJECTS.readme, PROJECTS.helicon] }
+          : { sidebarCollapsed: true }),
+      }),
     ));
   const [portal, setPortal] = useState<HTMLDivElement | null>(null);
   const outer = useRef<HTMLDivElement>(null);
+  const host = useRef<HTMLDivElement>(null);
+  const userSidebar = useRef(false);
   const [scale, setScale] = useState(1);
   const [fluidWidth, setFluidWidth] = useState<number | null>(null);
-
-  const [wide, setWide] = useState<boolean | null>(poster ? null : true);
+  const [wide, setWide] = useState(false);
 
   useEffect(() => {
-    if (!poster) return;
     const media = window.matchMedia("(min-width: 768px)");
     const sync = () => setWide(media.matches);
     sync();
     media.addEventListener("change", sync);
     return () => media.removeEventListener("change", sync);
-  }, [poster]);
+  }, []);
 
-  const showLive = !poster || wide === true;
-  const showPoster = Boolean(poster) && wide !== true;
+  const compact = view === "app" && !wide;
+  const showPoster = Boolean(poster) && view === "app" && !compact && !wide;
+  const showLive = !showPoster;
+  const layoutHeight = compact ? 560 : height;
+
+  useLayoutEffect(() => {
+    if (view !== "app" || userSidebar.current) return;
+    const collapsed = controller.store.get().prefs.sidebarCollapsed;
+    if (wide && collapsed) controller.setPrefs({ sidebarCollapsed: false });
+    if (!wide && !collapsed) controller.setPrefs({ sidebarCollapsed: true });
+  }, [controller, view, wide]);
 
   useEffect(() => {
     if (!showLive) return;
@@ -232,14 +266,18 @@ export function DemoApp({ route = "", palette = false, width = 1100, height = 70
     const el = outer.current;
     if (!el) return;
     const measure = () => {
-      if (fluid) setFluidWidth(el.clientWidth);
-      else setScale(Math.min(1, el.clientWidth / width));
+      if (fluid || compact) {
+        setFluidWidth(el.clientWidth);
+        setScale(1);
+      } else {
+        setScale(Math.min(1, el.clientWidth / width));
+      }
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [width, fluid]);
+  }, [compact, fluid, width]);
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const mod = isMac ? event.metaKey : event.ctrlKey;
@@ -248,6 +286,7 @@ export function DemoApp({ route = "", palette = false, width = 1100, height = 70
       controller.setPaletteOpen(!controller.store.get().paletteOpen);
     } else if (mod && !event.shiftKey && event.key.toLowerCase() === "b") {
       event.preventDefault();
+      userSidebar.current = true;
       controller.toggleSidebar();
     }
   }
@@ -256,18 +295,20 @@ export function DemoApp({ route = "", palette = false, width = 1100, height = 70
     <>
     {showPoster && poster ? <ThemedImage light={poster.light} dark={poster.dark} alt={poster.alt} /> : null}
     {showLive ? (
-    <div ref={outer} className={cn("relative w-full overflow-hidden", className)} style={{ height: height * scale }}>
+    <div ref={outer} className={cn("relative w-full overflow-hidden", className)} style={{ height: layoutHeight * scale }}>
       <div
+        ref={host}
         role="region"
         aria-label={label}
         onKeyDown={onKeyDown}
         className="helicon-app absolute top-0 left-0 origin-top-left overflow-hidden"
-        style={{ width: fluid ? (fluidWidth ?? "100%") : width, height, transform: `scale(${scale})` }}
+        style={{ width: fluid || compact ? (fluidWidth ?? "100%") : width, height: layoutHeight, transform: `scale(${scale})` }}
       >
         <ControllerProvider controller={controller}>
           <PortalContainer value={portal}>
             <TooltipProvider>
               <ThemeBridge />
+              <DemoZoom host={host} />
               {/* Overlays wait for their mount point, so nothing ever opens on the page body. */}
               {portal ? <OpenPalette open={palette} /> : null}
               {view === "sidebar" ? <SidebarOnly /> : <Shell />}
@@ -281,7 +322,7 @@ export function DemoApp({ route = "", palette = false, width = 1100, height = 70
       </div>
     </div>
     ) : null}
-    {scale < 0.6 && showLive && !poster ? (
+    {scale < 0.6 && showLive && !compact && !poster ? (
       <p className="border-t border-line px-4 py-2.5 text-center text-[12.5px] text-subtle">
         Shrunk to fit your screen. Open this page on a laptop to try the app at full size.
       </p>

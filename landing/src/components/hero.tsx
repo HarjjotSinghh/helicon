@@ -29,7 +29,7 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
           href={notesUrl || RELEASES_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-surface py-1 pr-3 pl-1 text-[13px] font-medium whitespace-nowrap text-muted shadow-soft transition-colors hover:text-fg sm:min-h-0"
+          className="group inline-flex items-center gap-2 rounded-full bg-surface p-1 pr-3 text-[13px] font-medium whitespace-nowrap text-muted shadow-soft transition-colors hover:text-fg"
         >
           <span className="inline-flex items-center gap-1 rounded-full bg-tint px-2 py-0.5 text-accent-text">
             <Sparkle weight="fill" aria-hidden="true" className="size-3.5" />
@@ -62,7 +62,7 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
             <p data-hero-lead className="text-[clamp(1.0625rem,0.8rem+0.7vw,1.25rem)] leading-snug font-semibold text-balance text-fg">
               {copy.lead}
             </p>
-            <p className="mt-2 max-w-[52ch] text-[17px] leading-[1.6] text-muted">
+            <p className="mt-2 max-w-[52ch] text-[15px] leading-[1.6] text-muted sm:text-[17px]">
               {copy.body}
             </p>
           </div>

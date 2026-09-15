@@ -85,7 +85,7 @@ export function Architecture({ extra }: { extra: string | null }) {
           <div>
             <SectionHeading id="how-title" icon={<Lightning weight="duotone" />} title="No terminal scraping" />
           </div>
-          <div className="mt-5 max-w-[56ch] space-y-4 text-[17px] leading-relaxed text-muted">
+          <div className="mt-5 max-w-[56ch] space-y-4 text-[15px] leading-relaxed text-muted sm:text-[17px]">
             <p>
               A local daemon spawns one <Code>muse serve</Code> host per workspace and speaks the Muse
               Session Protocol through Meta&apos;s official MIT <Code>@muse-code/sdk</Code>.
@@ -105,7 +105,7 @@ export function Architecture({ extra }: { extra: string | null }) {
               <li
                 key={text}
                 data-reveal="scale"
-                className="inline-flex items-center gap-2 rounded-full bg-surface py-1.5 pr-3.5 pl-2.5 text-[13.5px] font-medium text-muted shadow-soft"
+                className="inline-flex max-w-full items-center gap-2 rounded-full bg-surface py-1.5 pr-3.5 pl-2.5 text-[12.5px] font-medium whitespace-nowrap text-muted shadow-soft sm:text-[13.5px]"
               >
                 <Icon aria-hidden="true" className="size-4 text-accent-text" />
                 {text}

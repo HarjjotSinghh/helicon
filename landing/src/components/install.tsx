@@ -214,7 +214,7 @@ export function Install({ version }: { version: string | null }) {
           data-stagger="45"
           className="bg-[color-mix(in_oklab,var(--bg-sidebar)_40%,var(--bg))] px-5 py-10 sm:px-8 sm:py-12 lg:col-span-2 lg:px-10"
         >
-          <h3 id="req-title" data-reveal className="flex items-center gap-2.5 text-[17px] font-semibold text-fg">
+          <h3 id="req-title" data-reveal className="flex items-center gap-2.5 text-[15px] font-semibold text-fg sm:text-[17px]">
             <ListChecks aria-hidden="true" weight="duotone" className="size-5 text-accent-text" />
             Requirements and caveats
           </h3>

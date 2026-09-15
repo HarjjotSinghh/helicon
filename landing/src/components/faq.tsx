@@ -45,7 +45,7 @@ export function Faq({ audience, intro }: { audience: Audience; intro: string }) 
                     aria-expanded={expanded}
                     aria-controls={`faq-a-${i}`}
                     onClick={() => setOpen(expanded ? -1 : i)}
-                    className="group flex w-full items-center justify-between gap-6 py-5 text-left text-[17px] font-medium text-fg"
+                    className="group flex w-full items-center justify-between gap-6 py-5 text-left text-[15px] font-medium text-fg sm:text-[17px]"
                   >
                     <span className="transition-colors group-hover:text-accent-text">{q}</span>
                     <span
