@@ -45,5 +45,7 @@ jobs:
       # tauri-build checks every path in bundle.resources before it compiles anything, and those are
       # built rather than committed. This is what the release does through beforeBuildCommand.
       - run: npm run bundle:server --workspace helicon-desktop
+      # bundle.externalBin is checked the same way, so fetch the Node.js sidecar too.
+      - run: npm run fetch:node --workspace helicon-desktop
       - run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml

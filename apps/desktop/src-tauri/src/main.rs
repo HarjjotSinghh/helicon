@@ -50,7 +50,7 @@ const PORT_FILE: &str = "server-port";
 /// Shown the instant the window opens, while the local server starts. System colors follow the OS theme.
 const SPLASH_PAGE: &str = "data:text/html,<!doctype html><meta charset=utf-8><title>Helicon</title><style>html{color-scheme:light dark;background:Canvas;color:GrayText;font:13px system-ui,sans-serif}body{margin:0;height:100vh;display:grid;place-items:center}</style><body>Starting Helicon</body>";
 
-const MISSING_NODE_PAGE: &str = "data:text/html,<!doctype html><meta charset=utf-8><title>Helicon</title><style>html{color-scheme:light dark;background:Canvas;color:CanvasText;font:14px/1.5 system-ui,sans-serif}body{margin:0;height:100vh;display:grid;place-items:center}main{max-width:420px;padding:24px}p{color:GrayText}</style><main><h1 style=font-size:20px>Helicon needs Node.js</h1><p>Helicon could not start its local server because Node.js 22 or newer was not found. Install Node.js 22 or newer, then open Helicon again.</p></main>";
+const MISSING_NODE_PAGE: &str = "data:text/html,<!doctype html><meta charset=utf-8><title>Helicon</title><style>html{color-scheme:light dark;background:Canvas;color:CanvasText;font:14px/1.5 system-ui,sans-serif}body{margin:0;height:100vh;display:grid;place-items:center}main{max-width:420px;padding:24px}p{color:GrayText}</style><main><h1 style=font-size:20px>Helicon needs Node.js</h1><p>Helicon could not start its local server because its bundled Node.js is missing and Node.js 22 or newer was not found on this computer. Reinstall Helicon, or install Node.js 22 or newer, then open Helicon again.</p></main>";
 
 const MISSING_SERVER_PAGE: &str = "data:text/html,<!doctype html><meta charset=utf-8><title>Helicon</title><style>html{color-scheme:light dark;background:Canvas;color:CanvasText;font:14px/1.5 system-ui,sans-serif}body{margin:0;height:100vh;display:grid;place-items:center}main{max-width:420px;padding:24px}p{color:GrayText}</style><main><h1 style=font-size:20px>Helicon is missing files</h1><p>The bundled Helicon server was not found next to the app. Reinstall Helicon to restore it.</p></main>";
 
@@ -169,10 +169,25 @@ fn node_runs(program: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Node.js the way a terminal sees it. GUI apps on macOS start with a minimal PATH that misses
+/// The Node.js runtime that ships next to the app executable as a Tauri sidecar, when this build has one.
+fn bundled_node() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    bundled_node_in(exe.parent()?)
+}
+
+fn bundled_node_in(dir: &Path) -> Option<PathBuf> {
+    let name = if cfg!(windows) { "node.exe" } else { "node" };
+    Some(dir.join(name)).filter(|path| path.is_file()).map(|path| plain_path(&path))
+}
+
+/// The bundled Node.js first, so users need nothing installed. Without it (a source build, or a damaged
+/// install), Node.js the way a terminal sees it. GUI apps on macOS start with a minimal PATH that misses
 /// Homebrew, ~/.local/bin and everything a version manager adds through the shell's rc files, so
 /// plain `node` fails for most users when Helicon is opened from the Finder rather than a terminal.
 fn find_node() -> Option<PathBuf> {
+    if let Some(bundled) = bundled_node().filter(|node| node_runs(node)) {
+        return Some(bundled);
+    }
     let mut candidates = vec![PathBuf::from("node")];
     #[cfg(unix)]
     {
@@ -282,7 +297,9 @@ fn latest_nvm_node(home: &Path) -> Option<PathBuf> {
 fn augmented_path(node: &Path) -> Option<OsString> {
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let mut prepend: Vec<PathBuf> = Vec::new();
-    if node.is_absolute() {
+    // The bundled node sits beside the app executable; putting that folder first would shadow the
+    // user's own node for their `!` commands.
+    if node.is_absolute() && bundled_node().as_deref() != Some(node) {
         if let Some(dir) = node.parent() {
             prepend.push(dir.to_path_buf());
         }
@@ -548,7 +565,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        find_resource, fresh_port, parse_listening_url, plain_path, stable_port, start_with_retry, BootError, StartFailure,
+        bundled_node_in, find_resource, fresh_port, parse_listening_url, plain_path, stable_port, start_with_retry, BootError, StartFailure,
         PORT_FILE, SPLASH_PAGE,
     };
     #[cfg(unix)]
@@ -588,6 +605,17 @@ mod tests {
         assert_eq!(find_resource(&root, "server.cjs"), Some(root.join("resources").join("server.cjs")));
         assert_eq!(find_resource(&root, "missing.cjs"), None);
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn finds_the_bundled_node_beside_the_executable() {
+        let dir = std::env::temp_dir().join(format!("helicon-sidecar-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(bundled_node_in(&dir), None);
+        let name = if cfg!(windows) { "node.exe" } else { "node" };
+        std::fs::write(dir.join(name), "").unwrap();
+        assert_eq!(bundled_node_in(&dir), Some(dir.join(name)));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

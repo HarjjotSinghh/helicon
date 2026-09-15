@@ -35,6 +35,8 @@ jobs:
       # Pinned to a commit: this step holds the updater signing key, so a moved tag must not change what runs.
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
+          # Which Node.js sidecar beforeBuildCommand bundles (apps/desktop/scripts/fetch-node.mjs).
+          HELICON_NODE_TARGET: universal-apple-darwin
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signs the installer for the in-app updater, which also publishes latest.json.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

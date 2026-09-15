@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../../web/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm run dev --workspace @helicon/web",
-    "beforeBuildCommand": "npm run build --workspace @helicon/web && npm run bundle:server --workspace helicon-desktop"
+    "beforeDevCommand": "npm run fetch:node --workspace helicon-desktop && npm run dev --workspace @helicon/web",
+    "beforeBuildCommand": "npm run build --workspace @helicon/web && npm run bundle:server --workspace helicon-desktop && npm run fetch:node --workspace helicon-desktop"
   },
   "app": {
     "windows": [
@@ -31,6 +31,7 @@
     "targets": ["nsis"],
     "icon": ["icons/icon.png"],
     "resources": ["resources/server.cjs", "resources/frontend"],
+    "externalBin": ["binaries/node"],
     "createUpdaterArtifacts": true
   },
   "plugins": {
