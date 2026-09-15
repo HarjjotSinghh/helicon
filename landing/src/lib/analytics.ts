@@ -1,5 +1,5 @@
 /**
- * Website-only events. No-ops until NEXT_PUBLIC_POSTHOG_KEY (or POSTHOG_KEY) is set.
+ * Website-only events. No-ops until a Helicon PostHog key is set.
  * Do not call this from the desktop/web app; Helicon itself stays telemetry-free.
  */
 export async function track(
@@ -7,7 +7,10 @@ export async function track(
   properties: Record<string, unknown>,
   distinctId: string,
 ) {
-  const key = process.env.POSTHOG_KEY ?? process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  const key =
+    process.env.POSTHOG_KEY ??
+    process.env.NEXT_PUBLIC_POSTHOG_KEY ??
+    process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
   if (!key) return;
 
   const host = (process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com").replace(/\/$/, "");
