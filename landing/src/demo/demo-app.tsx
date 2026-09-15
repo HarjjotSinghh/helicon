@@ -62,21 +62,28 @@ if (typeof window !== "undefined" && !(window as { __heliconFocusPatch?: boolean
 /** Interface zoom last chosen in any landing demo, so tour screens keep it. */
 let sharedDemoZoom = 1;
 
+function rememberDemoZoom(zoom: number) {
+  sharedDemoZoom = zoom;
+}
+
+function applyDemoZoom(node: HTMLDivElement, applied: number) {
+  const style = node.style as CSSStyleDeclaration & { zoom?: string };
+  if ("zoom" in style) {
+    style.zoom = applied === 1 ? "" : String(applied);
+    node.style.fontSize = "";
+  } else {
+    node.style.fontSize = applied === 1 ? "" : `${Math.round(16 * applied * 100) / 100}px`;
+  }
+}
+
 function DemoZoom({ host, contain }: { host: RefObject<HTMLDivElement | null>; contain?: boolean }) {
   const zoom = useApp((s) => s.prefs.zoom);
   useLayoutEffect(() => {
-    sharedDemoZoom = zoom;
+    rememberDemoZoom(zoom);
     const node = host.current;
     if (!node) return;
     // Phone cards are already 1:1. Extra CSS zoom paints past the clip.
-    const applied = contain ? 1 : zoom;
-    const style = node.style as CSSStyleDeclaration & { zoom?: string };
-    if ("zoom" in style) {
-      style.zoom = applied === 1 ? "" : String(applied);
-      node.style.fontSize = "";
-    } else {
-      node.style.fontSize = applied === 1 ? "" : `${Math.round(16 * applied * 100) / 100}px`;
-    }
+    applyDemoZoom(node, contain ? 1 : zoom);
   }, [contain, host, zoom]);
   return null;
 }
