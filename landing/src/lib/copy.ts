@@ -42,7 +42,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
     return {
       audience,
       headline: "Muse Code on Windows,",
-      headlineContinue: "with a real UI, not WSL.",
+      headlineContinue: "with a real UI.",
       lead: "Signed installer. Your existing Muse plan. No second bill.",
       body: "A free, open-source Windows app for the muse CLI, with every project, session and diff in one window.",
       ctas: [
@@ -51,7 +51,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
       ],
       headerCta: "Download",
       headerHref: installerPath("windows", "header"),
-      closingTitle: "Muse Code on Windows, without living in WSL.",
+      closingTitle: "Muse Code on Windows, without the WSL terminal juggling.",
       closingBody: "Free, MIT licensed, and running on the Muse subscription you already have for Muse Code.",
       featuresTitle: "Seven agents, one window, on Windows",
       featuresBody:

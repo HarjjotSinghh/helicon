@@ -69,7 +69,12 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
               {copy.body}
             </p>
           </div>
-          <CtaRow placement="hero" ctas={copy.ctas} />
+          <div>
+            <CtaRow placement="hero" ctas={copy.ctas} />
+            <p className="mt-3 text-[13px] leading-snug text-muted">
+              Unofficial community project. Not affiliated with Meta.
+            </p>
+          </div>
         </div>
       </div>
 

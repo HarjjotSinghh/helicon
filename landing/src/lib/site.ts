@@ -36,10 +36,10 @@ export type OsInfo = {
 
 export function osesFor(version: string | null): OsInfo[] {
   const win = version
-    ? `Run Helicon-${version}-setup.exe from the latest release.`
+    ? `Run Helicon_${version}_x64-setup.exe from the latest release.`
     : "Run the Windows installer from the latest GitHub release.";
   const dmg = version
-    ? `Open Helicon-${version}-universal.dmg from the latest release.`
+    ? `Open Helicon_${version}_universal.dmg from the latest release.`
     : "Open the macOS DMG from the latest GitHub release.";
   const linux = version ? `Linux is source-only at v${version}.` : "Linux is source-only; there is no packaged build yet.";
   return [
