@@ -493,7 +493,9 @@ fn main() {
             let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(SPLASH_PAGE.parse()?))
                 .title("Helicon")
                 .inner_size(1280.0, 820.0)
-                .min_inner_size(880.0, 560.0);
+                .min_inner_size(880.0, 560.0)
+                // Native file-drop consumes HTML5 DnD (sidebar reorder, composer attach) on Windows.
+                .disable_drag_drop_handler();
             if CUSTOM_FRAME {
                 builder = builder.decorations(false).initialization_script(FRAME_SCRIPT);
             }

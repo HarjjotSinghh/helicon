@@ -376,6 +376,39 @@ function stripEvent(event: unknown): { method: string; params: Record<string, un
   return { method, params: stripSource(params) };
 }
 
+function asHistoryItem(value: unknown): Record<string, unknown> | null {
+  const item = asRecord(value);
+  return item && typeof item["itemId"] === "string" ? item : null;
+}
+
+/** Folded items from `session/read`, which works even when another host holds the session. */
+export function eventsFromHistory(payload: unknown): { method: string; params: Record<string, unknown> }[] {
+  const record = asRecord(payload);
+  if (!record) {
+    return [];
+  }
+  const history = asRecord(record["history"]) ?? record;
+  const fromInline = Array.isArray(history["items"]) ? history["items"] : [];
+  const snapshot = asRecord(history["snapshot"]);
+  const state = asRecord(snapshot?.["state"]);
+  const fromSnapshot = Array.isArray(state?.["items"]) ? state["items"] : [];
+  const bag = asRecord(state?.["items"]);
+  const order = Array.isArray(state?.["order"]) ? state["order"] : bag ? Object.keys(bag) : [];
+  const fromBag = bag ? order.map((id) => bag[String(id)]) : [];
+  const items = [...fromInline, ...fromSnapshot, ...fromBag].map(asHistoryItem).filter((item): item is Record<string, unknown> => item !== null);
+  const seen = new Set<string>();
+  const events: { method: string; params: Record<string, unknown> }[] = [];
+  for (const item of items) {
+    const id = String(item["itemId"]);
+    if (seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    events.push({ method: "item/completed", params: { item: stripSource(item) } });
+  }
+  return events;
+}
+
 /** A live MSP notification reshaped for the browser: session-scoped, provenance stripped. */
 export function toWireEvent(
   method: string,
@@ -1874,6 +1907,28 @@ export class HeliconServer {
     };
   }
 
+  private async pageTranscript(
+    manager: SessionManager,
+    sessionId: string,
+  ): Promise<{ events: { method: string; params: Record<string, unknown> }[]; truncated: boolean }> {
+    const pages: unknown[][] = [];
+    let cursor: string | undefined;
+    let truncated = false;
+    for (let page = 0; page < MAX_HISTORY_PAGES; page += 1) {
+      const result = await manager.pageView(sessionId, { cursor, direction: "backward", limit: HISTORY_PAGE_SIZE });
+      pages.unshift(result.events);
+      if (!result.nextCursor || result.events.length === 0) {
+        break;
+      }
+      cursor = result.nextCursor;
+      truncated = page === MAX_HISTORY_PAGES - 1;
+    }
+    return {
+      events: pages.flat().map(stripEvent).filter((e): e is NonNullable<typeof e> => e !== null),
+      truncated,
+    };
+  }
+
   private async loadTranscript(sessionId: string): Promise<Record<string, unknown>> {
     // A goal change can land while this load is in flight; history must not then write the older goal back.
     const goalSeqAtStart = this.liveFor(sessionId).goalSeq;
@@ -1894,26 +1949,31 @@ export class HeliconServer {
       }
       readOnly = true;
       readOnlyReason = info.message;
-      const read = await manager.readSession(sessionId, true).catch(() => null);
-      msp = asRecord(asRecord(read)?.["session"]);
     }
 
-    const pages: unknown[][] = [];
-    let cursor: string | undefined;
+    let events: { method: string; params: Record<string, unknown> }[] = [];
     let truncated = false;
-    for (let page = 0; page < MAX_HISTORY_PAGES; page += 1) {
-      const result = await manager.pageView(sessionId, { cursor, direction: "backward", limit: HISTORY_PAGE_SIZE });
-      pages.unshift(result.events);
-      if (!result.nextCursor || result.events.length === 0) {
-        break;
+    try {
+      const paged = await this.pageTranscript(manager, sessionId);
+      events = paged.events;
+      truncated = paged.truncated;
+    } catch (error) {
+      const kind = errorInfo(error).kind;
+      // view/page needs a loaded session; another host's lease leaves this host with nothing to page.
+      if (kind !== "sessionInUse" && kind !== "sessionNotLoaded") {
+        throw error;
       }
-      cursor = result.nextCursor;
-      truncated = page === MAX_HISTORY_PAGES - 1;
     }
-    const events = pages
-      .flat()
-      .map(stripEvent)
-      .filter((e): e is NonNullable<typeof e> => e !== null);
+
+    // session/read with items is a point-in-time log: it does not take the lease, so CLI history still lands.
+    if (events.length === 0) {
+      const read = await manager.readSession(sessionId, false).catch(() => null);
+      const payload = asRecord(read);
+      if (!msp) {
+        msp = asRecord(payload?.["session"]);
+      }
+      events = eventsFromHistory(payload);
+    }
 
     const pending = await manager.listPending(sessionId).catch(() => ({ approvals: [], userInputs: [] }));
     const approvals = pending.approvals.map((a) => stripSource(asRecord(a) ?? {}));

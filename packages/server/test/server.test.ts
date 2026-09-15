@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   HeliconServer,
   deriveTitle,
+  eventsFromHistory,
   normalizeIso,
   parseSkillList,
   stripFrontmatter,
@@ -391,6 +392,47 @@ describe("HeliconServer", () => {
     assert.equal(loaded.status, 200);
     assert.equal(loaded.json.readOnly, true);
     assert.match(loaded.json.readOnlyReason, /another host/);
+    const read = connection.requests.find((c) => c.method === "session/read");
+    assert.equal(read?.params?.["excludeItems"], false);
+  });
+
+  it("hydrates a read-only CLI transcript from session/read items", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    connection.replies.set("session/resume", new MspTestError("session is loaded by another host", "sessionInUse"));
+    connection.replies.set("session/read", {
+      session: { sessionId: "s1", status: "running", activeTurnId: null, turnCount: 1 },
+      history: {
+        mode: "inline",
+        items: [
+          { itemId: "i1", kind: "userMessage", text: "Ship the fairtab tip", status: "completed", revision: 1 },
+          { itemId: "i2", kind: "agentMessage", text: "Done.", status: "completed", revision: 1 },
+        ],
+      },
+    });
+    connection.replies.set("view/page", { events: [], nextCursor: null });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const loaded = await send(base, "/api/sessions/s1/resume", {});
+    assert.equal(loaded.status, 200);
+    assert.equal(loaded.json.readOnly, true);
+    assert.deepEqual(
+      loaded.json.events.map((e: { method: string; params: { item: { itemId: string } } }) => [e.method, e.params.item.itemId]),
+      [
+        ["item/completed", "i1"],
+        ["item/completed", "i2"],
+      ],
+    );
+  });
+
+  it("turns session/read history items into fold events", () => {
+    const events = eventsFromHistory({
+      history: {
+        mode: "inline",
+        items: [{ itemId: "a", kind: "userMessage", text: "Hi", sourceRange: { first: 1 } }],
+      },
+    });
+    assert.deepEqual(events, [{ method: "item/completed", params: { item: { itemId: "a", kind: "userMessage", text: "Hi" } } }]);
   });
 
   it("surfaces resume failures that are not about another host", async () => {
