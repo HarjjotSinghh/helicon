@@ -28,7 +28,7 @@ function requirements(version: string | null) {
   return [
     "Nothing to install for Node.js: the desktop app bundles its own.",
     "The muse CLI installed and logged in.",
-    "Windows: Node goes on Windows itself; muse runs in WSL2 Ubuntu, routed by a sidecar.",
+    "Windows: install Muse for Windows from PowerShell, no WSL needed. Muse in WSL2 works too.",
     "macOS builds are not notarized yet, so right-click, then Open.",
     version ? `Linux: run from source at v${version}.` : "Linux: run from source; there is no packaged build yet.",
   ];

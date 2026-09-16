@@ -13,7 +13,7 @@ import {
 import { Logo, Rule, SectionHeading, bandX } from "./ui";
 
 const rows = [
-  { icon: Monitor, label: "Runs on Windows", a: "Signed installer, WSL2 routed", b: "Via your editor's WSL setup", c: "Varies" },
+  { icon: Monitor, label: "Runs on Windows", a: "Signed installer, native or WSL2", b: "Via your editor's WSL setup", c: "Varies" },
   { icon: CreditCard, label: "Billing", a: "Your Muse subscription", b: "Your Muse subscription", c: "Usually its own API billing" },
   { icon: MapPin, label: "Lives where", a: "Standalone app or web", b: "Inside the editor", c: "Its own harness" },
   { icon: FolderSimple, label: "Several repos at once", a: "Sidebar, grouped by directory", b: "One window per project", c: "Varies" },

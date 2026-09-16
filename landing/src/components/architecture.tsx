@@ -100,7 +100,7 @@ export function Architecture({ extra }: { extra: string | null }) {
             {[
               { icon: Key, text: "Auth from muse login" },
               { icon: Database, text: "Local SQLite" },
-              { icon: WindowsLogo, text: "Windows: WSL2 sidecar with path translation" },
+              { icon: WindowsLogo, text: "Windows: native Muse, or WSL2 with path translation" },
             ].map(({ icon: Icon, text }) => (
               <li
                 key={text}

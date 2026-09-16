@@ -36,13 +36,14 @@
 
 ## Idea
 
-Muse Code today is terminal-only (`muse`, macOS/Linux, WSL2 on Windows). Helicon wraps it in a Codex/Claude-style experience:
+Muse Code today is terminal-only (`muse`, on macOS, Linux and Windows). Helicon wraps it in a Codex/Claude-style experience:
 
 - **Projects** grouped by directory the agent worked in (incl. isolated worktrees)
 - **Sessions/tasks** per project with full history, resume, and diffs
 - **Approvals** surfaced honestly (`onRequest / promptUnmatched / denyUnmatched`), never bypassed
 - **One codebase** for desktop (Tauri) and web (same React UI against a remote daemon)
-- **Windows that actually works** - Tauri sidecar routes through WSL2 (`wsl -d Ubuntu -- muse serve`) with path translation
+- **Windows that actually works** - runs Muse for Windows natively (no WSL), or Muse inside WSL2 with path translation if that is what you use
+- **A file viewer beside the thread** - browse the project, read highlighted source, preview and edit Markdown, and view images, video and PDFs; paths Muse mentions open there
 - **Your real plan meter** - the 5-hour window and weekly cap as Muse reports them, in the sidebar and on the usage page
 - **Goals you can steer** - set, pause, resume, change and clear a `/goal` from the goal panel or the composer
 - **Background work under control** - send a running tool call to the background, stop one, or stop them all; cancel a workflow run, or skip and retry its agents
@@ -74,7 +75,7 @@ apps/web         same UI against a remote daemon
 - [x] `apps/desktop` - Tauri shell + WSL2 routing + path translation, signed auto-update
 - [x] `apps/web` - the same UI in a browser against the local server
 - [x] `apps/web` - remote daemon mode
-- [x] Windows end to end (WSL2 Ubuntu)
+- [x] Windows end to end (native Muse for Windows, or WSL2 Ubuntu)
 - [x] GitHub Releases with a signed Windows installer
 - [x] macOS end to end, and macOS releases (one universal binary for Apple Silicon and Intel)
 - [ ] Linux builds and releases
@@ -84,7 +85,7 @@ apps/web         same UI against a remote daemon
 
 Windows: download the setup file from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest). It is signed, and updates itself from then on.
 
-Helicon bundles its own Node.js, so you only need the `muse` CLI with `muse login` done once inside WSL2 Ubuntu. Helicon uses the login you already have and never stores credentials of its own.
+Helicon bundles its own Node.js, so you only need Muse for Windows (`irm https://dev.meta.ai/install.ps1 | iex` in PowerShell) with `muse login` done once. Already run Muse inside WSL2? Helicon uses that when native Muse is not installed; set `HELICON_MUSE_RUNTIME=wsl` to keep WSL when both are. Helicon uses the login you already have and never stores credentials of its own.
 
 macOS: download the DMG from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest); it runs on Apple Silicon and Intel, and updates itself from then on. The builds are not Apple-notarized yet, so the first launch needs a right-click, then Open.
 
@@ -94,7 +95,7 @@ Linux installers are not published yet - see the [roadmap](#roadmap). Run from s
 
 ## From source
 
-Prereqs (source builds and the web app only - the desktop installers bundle Node.js): Node 22+, the `muse` CLI with `muse login` done once (WSL2 Ubuntu on Windows), and the repo checked out.
+Prereqs (source builds and the web app only - the desktop installers bundle Node.js): Node 22+, the `muse` CLI with `muse login` done once (natively or in WSL2 on Windows), and the repo checked out.
 
 ```bash
 npm install

@@ -30,7 +30,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Helicon ${{ github.ref_name }}"
-          releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (inside WSL2 Ubuntu on Windows). macOS builds are not Apple-notarized yet, so the first launch needs a right-click, then Open."
+          releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (Muse for Windows natively, or inside WSL2). macOS builds are not Apple-notarized yet, so the first launch needs a right-click, then Open."
           releaseDraft: false
           # A full release, so the updater's releases/latest/download/latest.json always points at it.
           prerelease: false
@@ -68,7 +68,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Helicon ${{ github.ref_name }}"
-          releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (inside WSL2 Ubuntu on Windows). macOS builds are not Apple-notarized yet, so the first launch needs a right-click, then Open."
+          releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (Muse for Windows natively, or inside WSL2). macOS builds are not Apple-notarized yet, so the first launch needs a right-click, then Open."
           releaseDraft: false
           # A full release, so the updater's releases/latest/download/latest.json always points at it.
           prerelease: false

@@ -173,26 +173,35 @@ export function Onboarding() {
     return null;
   }
   const windows = env.platform === "win32";
+  const install = "irm https://dev.meta.ai/install.ps1 | iex";
   const steps: Step[] = [];
-  if (windows) {
+  if (windows && (env.runtime === "native" || !env.wslAvailable)) {
+    // Muse runs natively on Windows now, so a new setup needs no WSL at all.
     steps.push({
-      ok: env.wslAvailable,
-      title: "WSL2 with a Linux distro",
-      detail: env.wslAvailable
-        ? `Using ${env.defaultDistro ?? "your default distro"}.`
-        : "Muse runs inside WSL on Windows. Install it from PowerShell, then restart Windows.",
-      command: env.wslAvailable ? undefined : "wsl --install -d Ubuntu",
+      ok: env.museFound,
+      title: "Muse for Windows",
+      detail: env.museFound
+        ? `Found at ${env.musePath}.`
+        : "Install Muse from PowerShell. No WSL needed. Already use Muse inside WSL? Set WSL up and Helicon uses it there.",
+      command: env.museFound ? undefined : install,
+    });
+  } else if (windows) {
+    steps.push({ ok: true, title: "WSL2 with a Linux distro", detail: `Using ${env.defaultDistro ?? "your default distro"}.` });
+    steps.push({
+      ok: env.museFound,
+      title: "The Muse CLI",
+      detail: env.museFound
+        ? `Found at ${env.musePath}.`
+        : `Install Muse for Windows from PowerShell (no WSL needed), or install it inside ${env.defaultDistro ?? "your WSL distro"}.`,
+      command: env.museFound ? undefined : install,
+    });
+  } else {
+    steps.push({
+      ok: env.museFound,
+      title: "The Muse CLI",
+      detail: env.museFound ? `Found at ${env.musePath}.` : "Install Muse so the muse command is on your PATH.",
     });
   }
-  steps.push({
-    ok: env.museFound,
-    title: "The Muse CLI",
-    detail: env.museFound
-      ? `Found at ${env.musePath}.`
-      : windows
-        ? "Install Muse inside your WSL distro so the muse command is on its PATH."
-        : "Install Muse so the muse command is on your PATH.",
-  });
   steps.push({
     ok: null,
     title: "Signed in to Muse",

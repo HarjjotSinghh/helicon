@@ -17,7 +17,7 @@ const windowsFacts = [
   { icon: Monitor, title: "Signed for Windows", body: "Installer with auto-update" },
   { icon: Receipt, title: "No second bill", body: "Runs on your Muse plan" },
   { icon: Key, title: "Your own login", body: "Credentials stay in muse" },
-  { icon: Database, title: "WSL2 handled", body: "Sidecar + path translation" },
+  { icon: Database, title: "Native on Windows", body: "No WSL needed, WSL2 still works" },
 ];
 
 export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: string | null; notesUrl: string }) {

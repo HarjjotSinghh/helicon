@@ -43,7 +43,7 @@ import {
 import { FileError, listFolder, readProjectFile, resolveInRoot, searchProjectFiles, serveProjectFile, writeProjectFile } from "./files.js";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
-export const HELICON_VERSION = "0.11.1";
+export const HELICON_VERSION = "0.12.0";
 
 export interface HostExit {
   code: number | null;
@@ -2142,7 +2142,7 @@ export class HeliconServer {
       const powershell = win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
       const script = `Set-Location -LiteralPath '${folder}' -ErrorAction Stop\n${command}`;
       const result = await this.options.shellRunner(powershell, ["-NoProfile", "-NonInteractive", "-Command", script]);
-      return { ...result, durationMs: Date.now() - started };
+      return { ...result, output: result.output.replace(/\r\n/g, "\n"), durationMs: Date.now() - started };
     }
     const plan = planHostCommand({
       platform: this.options.platform,

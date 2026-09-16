@@ -6,6 +6,8 @@ export type IfBusy = "queue" | "steer";
 
 export interface EnvironmentStatus {
   platform: string;
+  /** Where Muse runs: on the OS itself, as native Windows Muse, or in WSL. Older servers leave it out. */
+  runtime?: "posix" | "native" | "wsl";
   wslAvailable: boolean;
   defaultDistro: string | null;
   museFound: boolean;

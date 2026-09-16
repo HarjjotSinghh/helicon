@@ -822,7 +822,7 @@ function SidebarFooter() {
       ? { dot: "bg-warn", text: "Reconnecting to Helicon" }
       : hostError
         ? { dot: "bg-danger", text: "Muse needs attention" }
-        : env?.platform === "win32"
+        : env?.platform === "win32" && env.runtime !== "native"
           ? { dot: "bg-ok", text: `Muse in WSL (${env.defaultDistro ?? "Ubuntu"})` }
           : { dot: "bg-ok", text: "Muse ready" };
   const detail = hostError ?? (env?.musePath ? `${env.musePath}  |  Helicon ${env.version}` : `Helicon ${env?.version ?? ""}`);
