@@ -268,7 +268,12 @@ export function SettingsPage() {
         <Section title="Environment">
           <Fact label="Helicon" value={env?.version ?? "Unknown"} />
           <Fact label="Platform" value={env?.platform ?? "Unknown"} />
-          {env?.platform === "win32" ? <Fact label="WSL" value={env.wslAvailable ? (env.defaultDistro ?? "Available") : "Not available"} /> : null}
+          {env?.platform === "win32" ? (
+            <Fact
+              label="Muse runs"
+              value={env.runtime === "native" ? "Natively on Windows" : `In WSL${env.wslAvailable && env.defaultDistro ? ` (${env.defaultDistro})` : ""}`}
+            />
+          ) : null}
           <Fact label="Muse" value={env?.musePath ?? (env?.museFound ? "Found" : "Not found")} />
           <Fact label="Sessions" value={env?.persistent ? "Kept on disk" : "In memory only"} />
         </Section>

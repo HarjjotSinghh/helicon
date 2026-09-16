@@ -1,5 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
+import { findNativeMuse, type MuseRuntime, type NativeMuse, type RuntimePreference } from "./native.js";
 
 const execFileAsync = promisify(execFileCallback);
 
@@ -131,9 +132,11 @@ export function planServe(options: {
   distro?: string;
   musePath?: string | null;
   cwd: string;
+  /** On Windows, `native` runs Windows Muse itself; anything else goes through WSL. */
+  runtime?: MuseRuntime;
 }): ServePlan {
   const platform = options.platform ?? process.platform;
-  if (platform === "win32") {
+  if (platform === "win32" && options.runtime !== "native") {
     const distro = options.distro ?? "Ubuntu";
     if (options.musePath) {
       return {
@@ -170,9 +173,10 @@ export function planHostCommand(options: {
   distro?: string;
   program: string;
   args: string[];
+  runtime?: MuseRuntime;
 }): { command: string; args: string[] } {
   const platform = options.platform ?? process.platform;
-  if (platform === "win32") {
+  if (platform === "win32" && options.runtime !== "native") {
     return { command: "wsl", args: ["-d", options.distro ?? "Ubuntu", "-e", options.program, ...options.args] };
   }
   return { command: options.program, args: options.args };
@@ -184,15 +188,23 @@ export function planMuseCli(options: {
   distro?: string;
   musePath?: string | null;
   args: string[];
+  runtime?: MuseRuntime;
 }): { command: string; args: string[] } {
+  if (options.runtime === "native") {
+    return { command: options.musePath ?? "muse", args: options.args };
+  }
   const direct = options.musePath
     ? { program: options.musePath, args: options.args }
     : { program: "sh", args: ["-lc", 'exec muse "$@"', "muse", ...options.args] };
-  return planHostCommand({ platform: options.platform, distro: options.distro, ...direct });
+  return planHostCommand({ platform: options.platform, distro: options.distro, runtime: options.runtime, ...direct });
 }
 
 export interface EnvironmentProbe {
   platform: string;
+  /** Where Muse runs. On Windows, `native` when Windows Muse is installed (unless WSL is asked for), else `wsl`. */
+  runtime: MuseRuntime;
+  /** Native Windows Muse, when installed, whichever runtime was picked. */
+  native: NativeMuse | null;
   wslAvailable: boolean;
   distros: WslDistro[];
   defaultDistro: string | null;
@@ -202,6 +214,7 @@ export interface EnvironmentProbe {
 export async function probeEnvironment(
   exec: ExecFn = defaultExec,
   platform: string = process.platform,
+  options: { preference?: RuntimePreference; findNative?: () => NativeMuse | null } = {},
 ): Promise<EnvironmentProbe> {
   if (platform !== "win32") {
     const found = await exec("sh", ["-lc", "command -v muse"]);
@@ -209,17 +222,28 @@ export async function probeEnvironment(
       found.exitCode === 0
         ? (found.stdout.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? null)
         : null;
-    return { platform, wslAvailable: false, distros: [], defaultDistro: null, musePath };
+    return { platform, runtime: "posix", native: null, wslAvailable: false, distros: [], defaultDistro: null, musePath };
+  }
+  const preference = options.preference ?? "auto";
+  const native = (options.findNative ?? (() => findNativeMuse()))();
+  // Native Muse needs no WSL at all, so WSL is not even started to look.
+  if (native && preference !== "wsl") {
+    return { platform, runtime: "native", native, wslAvailable: false, distros: [], defaultDistro: null, musePath: native.binary };
+  }
+  if (preference === "native") {
+    return { platform, runtime: "native", native: null, wslAvailable: false, distros: [], defaultDistro: null, musePath: null };
   }
   const listed = await exec("wsl", ["-l", "-v"]);
   if (listed.exitCode !== 0) {
-    return { platform, wslAvailable: false, distros: [], defaultDistro: null, musePath: null };
+    return { platform, runtime: "wsl", native, wslAvailable: false, distros: [], defaultDistro: null, musePath: null };
   }
   const distros = parseWslList(listed.stdout);
   const def = defaultDistro(distros);
   const musePath = def ? await resolveMuseInDistro(exec, def.name) : null;
   return {
     platform,
+    runtime: "wsl",
+    native,
     wslAvailable: true,
     distros,
     defaultDistro: def ? def.name : null,

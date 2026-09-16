@@ -269,6 +269,52 @@ describe("HeliconServer", () => {
     assert.equal(sessions.sessions[0].activityAt, "2026-09-11T12:35:42.947Z");
   });
 
+  it("runs native Windows Muse with Windows paths, and no WSL", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s9" } });
+    connection.replies.set("session/list", {
+      sessions: [{ sessionId: "tui-1", workspaceRoot: "d:/work/other", turnCount: 2 }],
+      nextCursor: null,
+    });
+    const probe: FactoryProbe = { targets: [], exits: [] };
+    const ran: { command: string; args: string[] }[] = [];
+    const binary = "C:\\Users\\ada\\AppData\\Local\\Programs\\muse\\muse-bin-1.3.0-R1.exe";
+    const { base } = await start(connection, {
+      platform: "win32",
+      musePath: undefined,
+      findNativeMuse: () => ({ binary, dir: "C:\\Users\\ada\\AppData\\Local\\Programs\\muse", version: "1.3.0-R1", launcher: null }),
+      hostFactory: fakeFactory(connection, probe),
+      shellRunner: async (command: string, args: string[]) => {
+        ran.push({ command, args });
+        return { output: "ok\n", exitCode: 0, truncated: false };
+      },
+    });
+
+    const env = await get(base, "/api/env");
+    assert.equal(env.runtime, "native");
+    assert.equal(env.musePath, binary);
+
+    const created = await send(base, "/api/sessions", { cwd: "D:\\work\\it's here" });
+    assert.equal(created.status, 200);
+    const startCall = connection.calls.find((c) => c.method === "session/start");
+    assert.equal(startCall?.params?.["workspaceRoot"], "D:\\work\\it's here", "native Muse gets the Windows path itself");
+    assert.equal(probe.targets[0]?.command, binary);
+    assert.deepEqual(probe.targets[0]?.args, ["serve"]);
+    assert.equal(probe.targets[0]?.cwd, "D:\\work\\it's here");
+
+    const found = await send(base, "/api/discover", {});
+    assert.equal(found.status, 200);
+    const cwds = (await get(base, "/api/projects")).projects.map((p: { cwd: string }) => p.cwd);
+    assert.ok(cwds.includes("D:\\work\\other"), "a root spelled d:/work/other is stored as D:\\work\\other");
+
+    const shell = await send(base, "/api/sessions/s9/shell-proxy", { command: "Get-ChildItem" });
+    assert.equal(shell.status, 200);
+    assert.match(ran[0]!.command, /powershell\.exe$/i);
+    const script = ran[0]!.args.at(-1)!;
+    assert.ok(script.startsWith("Set-Location -LiteralPath 'D:\\work\\it''s here'"), script);
+    assert.ok(script.endsWith("\nGet-ChildItem"));
+  });
+
   it("tracks live status and derives titles from the view stream", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });

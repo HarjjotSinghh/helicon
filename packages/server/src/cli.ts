@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { parseRuntimePreference } from "@helicon/daemon";
 
 function usage(): string {
   return [
@@ -14,6 +15,7 @@ function usage(): string {
     "  --token <value>   require a token for non-loopback access",
     "  --allow-origin <o>  browser origin allowed to connect from another site (repeatable)",
     "  --distro <name>   WSL distro for muse on Windows (default Ubuntu)",
+    "  --runtime <mode>  Windows only: native, wsl, or auto (default; native Muse once installed)",
     "  --muse <path>     explicit muse binary path",
   ].join("\n");
 }
@@ -57,6 +59,7 @@ async function main(): Promise<void> {
     token: flagValue(argv, "--token"),
     allowOrigins: flagValues(argv, "--allow-origin"),
     distro: flagValue(argv, "--distro") ?? undefined,
+    runtime: parseRuntimePreference(flagValue(argv, "--runtime") ?? process.env["HELICON_MUSE_RUNTIME"]),
     musePath: flagValue(argv, "--muse") ?? undefined,
   });
   const bound = await server.listen();

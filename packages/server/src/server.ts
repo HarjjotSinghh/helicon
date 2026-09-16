@@ -15,7 +15,13 @@ import {
   isSubagentAction,
   isWorkflowChildAction,
   parseSubscriptionUsage,
+  nativeReleaseInfo,
+  parseRuntimePreference,
   planHostCommand,
+  refreshNativeMuse,
+  type MuseRuntime,
+  type NativeMuse,
+  type RuntimePreference,
   planMuseCli,
   planServe,
   probeEnvironment,
@@ -76,6 +82,10 @@ export interface ServerOptions {
   platform?: string;
   distro?: string;
   musePath?: string | null;
+  /** On Windows: `native` runs Windows Muse, `wsl` runs Muse in WSL, `auto` (the default) prefers native once installed. */
+  runtime?: RuntimePreference;
+  /** Finds native Windows Muse; the real install folders by default. */
+  findNativeMuse?: () => NativeMuse | null;
   hostFactory?: HostFactory;
   opener?: Opener;
   /** Where `~` points in typed paths; the OS home by default. */
@@ -485,6 +495,7 @@ const MIME: Record<string, string> = {
 
 interface EnvView {
   platform: string;
+  runtime: MuseRuntime;
   wslAvailable: boolean;
   defaultDistro: string | null;
   museFound: boolean;
@@ -625,11 +636,13 @@ export class HeliconServer {
   /** The reasoning effort each session is known to be running at, so a turn only re-sets it when it changes. */
   private readonly effortApplied = new Map<string, ReasoningEffort>();
   private lastHostError: string | null = null;
+  /** Where Muse runs, once known; see `museRuntime`. */
+  private runtimeKnown: MuseRuntime | null = null;
   private closed = false;
   private readonly options: Required<
-    Omit<ServerOptions, "staticDir" | "token" | "platform" | "distro" | "musePath" | "hostFactory" | "opener" | "exec">
+    Omit<ServerOptions, "staticDir" | "token" | "platform" | "distro" | "musePath" | "hostFactory" | "opener" | "exec" | "findNativeMuse">
   > &
-    Pick<ServerOptions, "staticDir" | "token"> & {
+    Pick<ServerOptions, "staticDir" | "token" | "findNativeMuse"> & {
       platform: string;
       distro?: string;
       musePath?: string | null;
@@ -648,6 +661,8 @@ export class HeliconServer {
       platform: options.platform ?? process.platform,
       distro: options.distro,
       musePath: options.musePath,
+      runtime: options.runtime ?? parseRuntimePreference(process.env["HELICON_MUSE_RUNTIME"]),
+      findNativeMuse: options.findNativeMuse,
       hostFactory: options.hostFactory ?? realHostFactory,
       home: options.home ?? homedir(),
       autoSettleDays: options.autoSettleDays === undefined ? 3 : options.autoSettleDays,
@@ -1450,9 +1465,20 @@ export class HeliconServer {
     if (!refresh && this.envCache && Date.now() - this.envCache.at < ENV_CACHE_MS) {
       return this.envCache.value;
     }
-    const probe = await probeEnvironment(defaultExec, this.options.platform);
+    const hint = this.runtimeHint();
+    const probe = await probeEnvironment(defaultExec, this.options.platform, {
+      preference: hint === "native" || hint === "wsl" ? hint : this.options.runtime,
+      ...(this.options.findNativeMuse ? { findNative: this.options.findNativeMuse } : {}),
+    });
+    if (!hint) {
+      this.runtimeKnown = probe.runtime;
+    }
+    if (probe.runtime === "native" && probe.native && !this.options.findNativeMuse) {
+      refreshNativeMuse(probe.native);
+    }
     const value: EnvView = {
       platform: probe.platform,
+      runtime: probe.runtime,
       wslAvailable: probe.wslAvailable,
       defaultDistro: probe.defaultDistro,
       museFound: probe.musePath !== null,
@@ -1618,6 +1644,36 @@ export class HeliconServer {
     }
   }
 
+  /** A runtime the options settle without probing: the OS, an explicit `--runtime`, or the style of a `--muse` path. */
+  private runtimeHint(): MuseRuntime | null {
+    if (this.options.platform !== "win32") {
+      return "posix";
+    }
+    if (this.options.runtime === "native" || this.options.runtime === "wsl") {
+      return this.options.runtime;
+    }
+    const configured = this.options.musePath;
+    if (configured && isWindowsAbs(configured)) {
+      return "native";
+    }
+    if (configured?.startsWith("/")) {
+      return "wsl";
+    }
+    return null;
+  }
+
+  /** Where Muse runs. On Windows, native Muse wins over WSL once it is installed, unless WSL was asked for. */
+  private async museRuntime(): Promise<MuseRuntime> {
+    const hinted = this.runtimeHint();
+    if (hinted) {
+      return hinted;
+    }
+    if (!this.runtimeKnown) {
+      await this.environment(false);
+    }
+    return this.runtimeKnown ?? "wsl";
+  }
+
   private spawnCwdFor(cwd: string): string {
     if (!cwd) {
       return process.cwd();
@@ -1635,9 +1691,13 @@ export class HeliconServer {
     return cwd;
   }
 
+  /** The workspace path as Muse sees it: `/mnt/d/...` for Muse in WSL, `D:\\...` for native Windows Muse. */
   private hostPathFor(cwd: string): string {
     if (!cwd || this.options.platform !== "win32") {
       return cwd;
+    }
+    if ((this.runtimeHint() ?? this.runtimeKnown) === "native") {
+      return this.spawnCwdFor(cwd);
     }
     if (isWindowsAbs(cwd)) {
       try {
@@ -1650,6 +1710,11 @@ export class HeliconServer {
   }
 
   private storePathFor(remoteRoot: string): string {
+    if (this.options.platform === "win32" && isWindowsAbs(remoteRoot)) {
+      // Native Muse may spell a folder `d:/work`; the store keeps one spelling, `D:\\work`.
+      const normal = win32.normalize(remoteRoot);
+      return normal.charAt(0).toUpperCase() + normal.slice(1);
+    }
     if (this.options.platform !== "win32" || !isWslAbs(remoteRoot)) {
       return remoteRoot;
     }
@@ -1728,8 +1793,9 @@ export class HeliconServer {
     return resolved.display;
   }
 
-  /** The muse binary for one-off CLI calls; on Windows the environment probe finds it inside WSL. */
+  /** The muse binary for one-off CLI calls; on Windows the environment probe finds it natively or inside WSL. */
   private async cliMusePath(): Promise<string | null> {
+    await this.museRuntime();
     const configured = this.options.musePath ?? null;
     if (this.options.platform !== "win32" || (configured && (configured.includes("/") || configured.includes("\\")))) {
       return configured;
@@ -1765,11 +1831,12 @@ export class HeliconServer {
       return cached;
     }
     const args = ["skills", "list", "--json"];
+    const musePath = await this.cliMusePath();
     const root = this.hostPathFor(cwd);
     if (root) {
       args.push("--workspace", root);
     }
-    const plan = planMuseCli({ platform: this.options.platform, distro: this.options.distro, musePath: await this.cliMusePath(), args });
+    const plan = planMuseCli({ platform: this.options.platform, distro: this.options.distro, musePath, args, runtime: await this.museRuntime() });
     const result = await this.options.exec(plan.command, plan.args);
     const parsed = parseSkillList(result.stdout);
     const listing: SkillListing = parsed
@@ -1796,6 +1863,16 @@ export class HeliconServer {
     const bundled = /^bundled:\/\/(.+)$/.exec(path)?.[1];
     if (bundled?.split("/").includes("..")) {
       throw new HttpError(400, "That skill's path is not readable.");
+    }
+    if ((await this.museRuntime()) === "native") {
+      // Native Muse keeps its data where the launcher keeps its config: XDG folders under the user profile.
+      const dataHome = process.env["XDG_DATA_HOME"] || join(this.options.home, ".local", "share");
+      const file = bundled ? win32.join(dataHome, "muse", "skills", "bundled", ...bundled.split("/")) : path;
+      const body = stripFrontmatter(await readFile(file, "utf8").catch(() => ""));
+      if (!body) {
+        throw new HttpError(502, "Could not read that skill's instructions.");
+      }
+      return body;
     }
     // Bundled skills live in Muse's data folder; the others list a real file path.
     const script = bundled ? 'exec cat -- "${XDG_DATA_HOME:-$HOME/.local/share}/muse/skills/bundled/$1"' : 'exec cat -- "$1"';
@@ -2058,6 +2135,15 @@ export class HeliconServer {
     command: string,
   ): Promise<{ output: string; exitCode: number | null; truncated: boolean; durationMs: number }> {
     const started = Date.now();
+    if ((await this.museRuntime()) === "native") {
+      // Native Windows Muse works in PowerShell, so `!` commands run there too, in the workspace folder.
+      // PowerShell reads curly single quotes as quotes too, so each kind is doubled to stay literal.
+      const folder = this.spawnCwdFor(cwd).replace(/['\u2018\u2019\u201a\u201b]/g, "$&$&");
+      const powershell = win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+      const script = `Set-Location -LiteralPath '${folder}' -ErrorAction Stop\n${command}`;
+      const result = await this.options.shellRunner(powershell, ["-NoProfile", "-NonInteractive", "-Command", script]);
+      return { ...result, durationMs: Date.now() - started };
+    }
     const plan = planHostCommand({
       platform: this.options.platform,
       distro: this.options.distro,
@@ -2340,6 +2426,7 @@ export class HeliconServer {
   }
 
   private async hostFor(cwd: string): Promise<ManagedHost> {
+    await this.museRuntime();
     const key = this.hostPathFor(cwd) || "__default__";
     const existing = this.hosts.get(key);
     if (existing) {
@@ -2422,10 +2509,23 @@ export class HeliconServer {
     if (this.options.platform !== "win32") {
       return { command: this.options.musePath ?? "muse", args: ["serve"], cwd: cwd || process.cwd() };
     }
+    const runtime = await this.museRuntime();
     let musePath = this.options.musePath ?? null;
     if (!musePath || (!musePath.includes("/") && !musePath.includes("\\"))) {
       const probe = await this.environment(false);
       musePath = probe.musePath;
+    }
+    if (runtime === "native") {
+      if (!musePath) {
+        throw new HttpError(503, "Muse for Windows is not installed. Install it from PowerShell: irm https://dev.meta.ai/install.ps1 | iex");
+      }
+      const releaseInfo = this.releaseInfoFor(musePath);
+      return {
+        command: musePath,
+        args: ["serve"],
+        cwd: this.spawnCwdFor(cwd) || process.cwd(),
+        ...(releaseInfo ? { env: { ...process.env, MUSE_RELEASE_INFO: releaseInfo } } : {}),
+      };
     }
     const plan = planServe({
       platform: "win32",
@@ -2434,6 +2534,12 @@ export class HeliconServer {
       cwd: this.spawnCwdFor(cwd),
     });
     return { command: plan.command, args: plan.args, cwd: plan.cwd };
+  }
+
+  /** The launcher's release details for a binary in its install folder, as the launcher itself would pass them. */
+  private releaseInfoFor(binary: string): string | null {
+    const version = /muse-bin-(.+)\.exe$/i.exec(win32.basename(binary))?.[1] ?? null;
+    return version ? nativeReleaseInfo({ binary, dir: win32.dirname(binary), version, launcher: null }) : null;
   }
 
   private forward(hostKey: string, notification: { method: string; params?: unknown; emittedAtMs?: number }): void {
