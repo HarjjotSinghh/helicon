@@ -472,6 +472,24 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("keeps closed dock cards out until the thread brings them back", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    const hidden = () => controller.store.get().prefs.hiddenCards;
+    assert.deepEqual(hidden(), []);
+    controller.setCardHidden("plan:s1", true);
+    controller.setCardHidden("goal:s1", true);
+    controller.setCardHidden("plan:s2", true);
+    controller.setCardHidden("plan:s1", true);
+    assert.deepEqual(hidden(), ["plan:s1", "goal:s1", "plan:s2"]);
+    // Bringing one thread's cards back leaves another thread's alone.
+    controller.showThreadCards("s1");
+    assert.deepEqual(hidden(), ["plan:s2"]);
+    controller.setCardHidden("plan:s2", false);
+    assert.deepEqual(hidden(), []);
+    stop();
+  });
+
   it("remembers which dock cards a thread had folded away", async () => {
     const client = new FakeClient();
     const { controller, stop } = await started(client);

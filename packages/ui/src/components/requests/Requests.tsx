@@ -427,30 +427,48 @@ function TodoMark(props: { status: string }) {
   }
 }
 
+/** Closes a dock card until the user brings it back from the thread's top bar. */
+export function CloseCard(props: { label: string; onClose: () => void }) {
+  return (
+    <Tip label={`${props.label}. Bring it back from the top bar.`}>
+      <IconButton size="sm" label={props.label} onClick={props.onClose} className="ml-1 shrink-0">
+        <X size={13} />
+      </IconButton>
+    </Tip>
+  );
+}
+
 export function PlanPanel(props: { sessionId: string; items: TodoItem[] }) {
   const controller = useController();
   // Kept in prefs, not here: this panel unmounts whenever the user looks at another thread.
   const cardKey = `plan:${props.sessionId}`;
   const open = useApp((s) => !s.prefs.collapsedCards.includes(cardKey));
+  const hidden = useApp((s) => s.prefs.hiddenCards.includes(cardKey));
   const done = props.items.filter((i) => i.status === "completed").length;
   const active = props.items.find((i) => i.status === "inProgress");
+  if (hidden) {
+    return null;
+  }
   return (
     <section aria-label="Plan" className="enter-up overflow-hidden rounded-2xl bg-raised shadow-card">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => controller.setCardOpen(cardKey, !open)}
-        className="flex h-10 w-full items-center gap-2.5 px-3.5 text-left transition-colors hover:bg-hover"
-      >
-        <ListTodo size={15} className="shrink-0 text-subtle" />
-        <span className="text-sm font-medium text-fg">Plan</span>
-        <span className="shrink-0 text-xs text-subtle tabular-nums">
-          <RollingDigits value={String(done)} /> of {props.items.length} done
-        </span>
-        {!open && active ? <span className="min-w-0 truncate text-xs text-muted">{active.activeForm ?? active.text}</span> : null}
-        <span className="flex-1" />
-        <ChevronDown size={14} className={cn("shrink-0 text-subtle transition-transform duration-200", !open && "-rotate-90")} />
-      </button>
+      <div className="flex items-center pr-1.5 transition-colors hover:bg-hover">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => controller.setCardOpen(cardKey, !open)}
+          className="flex h-10 min-w-0 flex-1 items-center gap-2.5 pl-3.5 text-left"
+        >
+          <ListTodo size={15} className="shrink-0 text-subtle" />
+          <span className="text-sm font-medium text-fg">Plan</span>
+          <span className="shrink-0 text-xs text-subtle tabular-nums">
+            <RollingDigits value={String(done)} /> of {props.items.length} done
+          </span>
+          {!open && active ? <span className="min-w-0 truncate text-xs text-muted">{active.activeForm ?? active.text}</span> : null}
+          <span className="flex-1" />
+          <ChevronDown size={14} className={cn("shrink-0 text-subtle transition-transform duration-200", !open && "-rotate-90")} />
+        </button>
+        <CloseCard label="Hide the plan" onClose={() => controller.setCardHidden(cardKey, true)} />
+      </div>
       {open ? (
         <ol className="flex max-h-52 flex-col gap-1.5 overflow-y-auto px-3.5 pb-3">
           {props.items.map((item, index) => (

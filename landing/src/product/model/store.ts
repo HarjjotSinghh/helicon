@@ -69,6 +69,11 @@ export interface Prefs {
    * kept, so a card opens by default and a thread the user has never touched costs nothing to remember.
    */
   collapsedCards: string[];
+  /**
+   * Dock cards the user closed, with the same keys (plus `tasks:<sessionId>`). A closed card stays out of the dock
+   * until the user brings it back from the thread's top bar.
+   */
+  hiddenCards: string[];
   /** Raise a system notification when a thread needs attention while the window does not have it. */
   notifications: boolean;
   /** When the user last viewed each thread (ISO). */
@@ -124,6 +129,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     collapsedProjects: [],
     openShelves: [],
     collapsedCards: [],
+    hiddenCards: [],
     // Off until asked for: nobody should be interrupted by something they never turned on.
     notifications: false,
     lastSeen: {},
@@ -276,6 +282,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     collapsedProjects: pick("collapsedProjects", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
     openShelves: pick("openShelves", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
     collapsedCards: pick("collapsedCards", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
+    hiddenCards: pick("hiddenCards", (v) => Array.isArray(v) && v.every((x) => typeof x === "string")),
     notifications: pick("notifications", (v) => typeof v === "boolean"),
     lastSeen: pick("lastSeen", (v) => typeof v === "object" && v !== null && !Array.isArray(v)),
     baseline: pick("baseline", (v) => typeof v === "string" && !Number.isNaN(Date.parse(v))),

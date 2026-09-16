@@ -2019,6 +2019,25 @@ export class HeliconController {
     this.setPrefs({ collapsedCards: open ? collapsed.filter((k) => k !== key) : [...collapsed, key] });
   }
 
+  /** Closes a dock card for good, or brings it back. The oldest are forgotten past a few hundred threads. */
+  setCardHidden(key: string, hidden: boolean): void {
+    const current = this.state.prefs.hiddenCards;
+    if (hidden === current.includes(key)) {
+      return;
+    }
+    this.setPrefs({ hiddenCards: hidden ? [...current, key].slice(-300) : current.filter((k) => k !== key) });
+  }
+
+  /** Brings back every dock card closed in one thread. */
+  showThreadCards(sessionId: string): void {
+    const suffix = `:${sessionId}`;
+    const current = this.state.prefs.hiddenCards;
+    const kept = current.filter((k) => !k.endsWith(suffix));
+    if (kept.length !== current.length) {
+      this.setPrefs({ hiddenCards: kept });
+    }
+  }
+
   setGroupBy(groupBy: GroupBy): void {
     this.setPrefs({ groupBy });
   }

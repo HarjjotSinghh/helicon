@@ -1,14 +1,15 @@
-import { Archive, CircleStop, Code, Copy, Ellipsis, Folder, FolderOpen, FolderTree, GitBranch, Lock, Minimize2, Pencil, Square, SquarePen } from "lucide-react";
+import { Archive, CircleStop, Code, Copy, Ellipsis, Folder, FolderOpen, FolderTree, PanelBottomOpen, GitBranch, Lock, Minimize2, Pencil, Square, SquarePen } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context";
 import { CaptionSpacer, useOverlayDragProps } from "../../app/frame";
 import { basename, formatDuration } from "../../model/format";
 import { backgroundTasks } from "../../model/plan";
+import { goalView } from "../../model/goal";
 import type { ThreadState } from "../../model/store";
 import type { SessionSummary } from "../../types";
 import { SidebarToggle, TrafficLightSpacer } from "../chrome";
 import { Composer, ComposerFooter } from "../composer/Composer";
-import { ApprovalPanel, PlanPanel, QuestionPanel, QueuedList, ReadOnlyNotice } from "../requests/Requests";
+import { ApprovalPanel, CloseCard, PlanPanel, QuestionPanel, QueuedList, ReadOnlyNotice } from "../requests/Requests";
 import { GoalPanel } from "./GoalPanel";
 import { revealLabel } from "../sidebar/Sidebar";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tip } from "../ui/overlays";
@@ -109,6 +110,7 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
           </IconButton>
         </Tip>
       ) : null}
+      <HiddenCardsButton sessionId={session.sessionId} running={props.running} />
       <Tip label={filesOpen ? "Hide files" : "Show files"} shortcut={[MOD, "Shift", "E"]}>
         <IconButton label={filesOpen ? "Hide files" : "Show files"} active={filesOpen} onClick={() => controller.toggleFiles()}>
           <FolderTree size={15} />
@@ -209,6 +211,44 @@ function TitleField(props: { initial: string; onDone: (title: string | null) => 
   );
 }
 
+function planShown(todo: ThreadState["fold"]["meta"]["todoList"] | null | undefined, running: boolean): boolean {
+  return Boolean(todo && todo.length > 0 && (running || todo.some((t) => t.status !== "completed")));
+}
+
+/** Shown while a dock card the user closed has something to show; brings every closed card in the thread back. */
+function HiddenCardsButton(props: { sessionId: string; running: boolean }) {
+  const controller = useController();
+  const names = useApp((s) => {
+    const hidden = s.prefs.hiddenCards;
+    const fold = s.threads[props.sessionId]?.fold;
+    if (!fold || !hidden.some((k) => k.endsWith(`:${props.sessionId}`))) {
+      return "";
+    }
+    const out: string[] = [];
+    if (hidden.includes(`plan:${props.sessionId}`) && planShown(fold.meta.todoList, props.running)) {
+      out.push("plan");
+    }
+    if (hidden.includes(`goal:${props.sessionId}`) && goalView(fold) !== null) {
+      out.push("goal");
+    }
+    if (hidden.includes(`tasks:${props.sessionId}`) && backgroundTasks(fold).length > 0) {
+      out.push("background tasks");
+    }
+    return out.join(", ");
+  });
+  if (!names) {
+    return null;
+  }
+  const label = `Show the ${names.replace(/, ([^,]*)$/, " and $1")}`;
+  return (
+    <Tip label={label}>
+      <IconButton label={label} onClick={() => controller.showThreadCards(props.sessionId)}>
+        <PanelBottomOpen size={15} />
+      </IconButton>
+    </Tip>
+  );
+}
+
 function Dock(props: { session: SessionSummary; thread: ThreadState | null; running: boolean }) {
   const controller = useController();
   const { session, thread } = props;
@@ -217,7 +257,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
   const inputs = fold ? Object.values(fold.userInputs) : [];
   const queued = fold ? fold.echoes.filter((e) => e.disposition === "queued") : [];
   const todo = fold?.meta.todoList ?? null;
-  const showPlan = todo !== null && todo.length > 0 && (props.running || todo.some((t) => t.status !== "completed"));
+  const showPlan = planShown(todo, props.running);
   return (
     <div className="shrink-0">
       <div className="mx-auto flex w-full max-w-[776px] flex-col gap-2 px-4 pb-2 @min-[520px]:px-6">
@@ -260,7 +300,8 @@ function BackgroundTasks(props: { sessionId: string }) {
     return fold ? backgroundTasks(fold).length : 0;
   });
   const busy = useApp((s) => Boolean(s.busy[`task:${props.sessionId}:all`]));
-  if (count === 0) {
+  const hidden = useApp((s) => s.prefs.hiddenCards.includes(`tasks:${props.sessionId}`));
+  if (count === 0 || hidden) {
     return null;
   }
   return (
@@ -272,6 +313,7 @@ function BackgroundTasks(props: { sessionId: string }) {
       <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" loading={busy} onClick={() => void controller.taskAction(props.sessionId, "stopAll")}>
         <CircleStop size={12} /> Stop all
       </Button>
+      <CloseCard label="Hide background tasks" onClose={() => controller.setCardHidden(`tasks:${props.sessionId}`, true)} />
     </div>
   );
 }

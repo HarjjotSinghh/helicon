@@ -5,6 +5,7 @@ import { formatDuration, formatTokens, relativeTime } from "../../model/format";
 import { goalView, type GoalTone, type GoalView } from "../../model/goal";
 import { formatCost } from "../../model/pricing";
 import { turnCost } from "../../model/usage";
+import { CloseCard } from "../requests/Requests";
 import { Tip } from "../ui/overlays";
 import { Button, cn } from "../ui/primitives";
 
@@ -41,29 +42,33 @@ export function GoalPanel(props: { sessionId: string; running: boolean; readOnly
   // Kept in prefs, not here: this panel unmounts whenever the user looks at another thread.
   const cardKey = `goal:${props.sessionId}`;
   const open = useApp((s) => !s.prefs.collapsedCards.includes(cardKey));
+  const hidden = useApp((s) => s.prefs.hiddenCards.includes(cardKey));
   const ticking = view?.tone === "active" && view.startedAt !== null;
   const now = useNow(1000, ticking);
-  if (!view) {
+  if (!view || hidden) {
     return null;
   }
   const elapsed = view.startedAt === null ? null : Math.max(0, (view.endedAt ?? now) - view.startedAt - view.pausedMs);
   return (
     <section aria-label="Goal" className="enter-up overflow-hidden rounded-2xl bg-raised shadow-card">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => controller.setCardOpen(cardKey, !open)}
-        className="flex h-10 w-full items-center gap-2.5 px-3.5 text-left transition-colors hover:bg-hover"
-      >
-        <Target size={15} className="shrink-0 text-subtle" />
-        <span className="text-sm font-medium text-fg">Goal</span>
-        <span className={cn("shrink-0 rounded-md px-1.5 py-px text-2xs font-medium", PILL[view.tone])}>{view.label}</span>
-        <span className="shrink-0 text-xs text-subtle tabular-nums">{Math.round(view.percent)}%</span>
-        {!open ? <span className="min-w-0 truncate text-xs text-muted">{view.objective}</span> : null}
-        <span className="flex-1" />
-        {elapsed !== null ? <span className="shrink-0 text-xs text-subtle tabular-nums">{formatDuration(elapsed) || "0s"}</span> : null}
-        <ChevronDown size={14} className={cn("shrink-0 text-subtle transition-transform duration-200", !open && "-rotate-90")} />
-      </button>
+      <div className="flex items-center pr-1.5 transition-colors hover:bg-hover">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => controller.setCardOpen(cardKey, !open)}
+          className="flex h-10 min-w-0 flex-1 items-center gap-2.5 pl-3.5 text-left"
+        >
+          <Target size={15} className="shrink-0 text-subtle" />
+          <span className="text-sm font-medium text-fg">Goal</span>
+          <span className={cn("shrink-0 rounded-md px-1.5 py-px text-2xs font-medium", PILL[view.tone])}>{view.label}</span>
+          <span className="shrink-0 text-xs text-subtle tabular-nums">{Math.round(view.percent)}%</span>
+          {!open ? <span className="min-w-0 truncate text-xs text-muted">{view.objective}</span> : null}
+          <span className="flex-1" />
+          {elapsed !== null ? <span className="shrink-0 text-xs text-subtle tabular-nums">{formatDuration(elapsed) || "0s"}</span> : null}
+          <ChevronDown size={14} className={cn("shrink-0 text-subtle transition-transform duration-200", !open && "-rotate-90")} />
+        </button>
+        <CloseCard label="Hide the goal" onClose={() => controller.setCardHidden(cardKey, true)} />
+      </div>
       {open ? <GoalBody view={view} elapsed={elapsed} now={now} {...props} /> : null}
     </section>
   );
