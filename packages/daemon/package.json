@@ -1,6 +1,6 @@
 {
   "name": "@helicon/daemon",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "Helicon daemon: MSP host management, session orchestration, local state, WSL routing",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
