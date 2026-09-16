@@ -319,6 +319,89 @@ def do_readme_hero(mode: str, pal: dict) -> None:
     finish(img, os.path.join(DOCS_ASSETS, f"readme-hero-{mode}.png"))
 
 
+ARTICLE_HEAD = ("Harness-locked,", "not terminal-locked.")
+ARTICLE_SUB = ("Where the call originates decides what your users pay. "
+               "Building a desktop client for Meta's Muse Code.")
+# Route label, where it bills, and whether that is the good outcome.
+ARTICLE_ROUTES = (
+    ("Reimplement the agent loop", "API rates", False),
+    ("Generic OpenAI-style client", "API rates", False),
+    ("Drive muse serve over MSP", "your plan", True),
+)
+
+
+def do_x_article(mode: str, pal: dict) -> None:
+    """5:2 banner for the X article: headline left, the billing routes right."""
+    w, h, pad = 1500, 600, 80
+    img = canvas(w, h, pal["bg"])
+    d = ImageDraw.Draw(img)
+    x = pad * SS
+    y = round(84 * SS)
+
+    mark_w = round(44 * (MARK_INK[2] - MARK_INK[0]) / (MARK_INK[3] - MARK_INK[1]))
+    mark = tinted_mark(mark_w, pal["blue"])
+    img.alpha_composite(mark, (x, y))
+    brand_f = font(DISPLAY_FONT, 34)
+    brand_bb = d.textbbox((0, 0), "Helicon", font=brand_f, anchor="lt")
+    d.text((x + mark.size[0] + round(16 * SS),
+            y + (mark.size[1] - (brand_bb[3] - brand_bb[1])) // 2 - brand_bb[1]),
+           "Helicon", font=brand_f, fill=pal["fg"], anchor="lt")
+    y += mark.size[1] + round(44 * SS)
+
+    head_f = font(DISPLAY_FONT, 68)
+    for line in ARTICLE_HEAD:
+        bb = d.textbbox((0, 0), line, font=head_f, anchor="lt")
+        d.text((x, y - bb[1]), line, font=head_f, fill=pal["fg"], anchor="lt")
+        y += (bb[3] - bb[1]) + round(16 * SS)
+    y += round(14 * SS)
+
+    sub_f = font("Inter-400.ttf", 25)
+    for line in wrap(d, ARTICLE_SUB, sub_f, 560):
+        bb = d.textbbox((0, 0), line, font=sub_f, anchor="lt")
+        d.text((x, y - bb[1]), line, font=sub_f, fill=pal["muted"], anchor="lt")
+        y += (bb[3] - bb[1]) + round(10 * SS)
+
+    # Right column: the three routes, with the one that keeps your plan in blue.
+    # Ends well clear of the footer line, which sits at h - 56.
+    card = (860, 92, 1420, 452)
+    card_box = [v * SS for v in card]
+    d.rounded_rectangle(card_box, radius=round(22 * SS), fill=pal["card"])
+    label_f = font("Inter-500.ttf", 23)
+    bill_f = font("JBmono-500.ttf", 19)
+    rows_top = card[1] + 46
+    row_h = (card[3] - card[1] - 76) / len(ARTICLE_ROUTES)
+    for i, (route, bills, good) in enumerate(ARTICLE_ROUTES):
+        ry = rows_top + row_h * i
+        colour = pal["blue"] if good else pal["subtle"]
+        sq = 11
+        d.rectangle([(card[0] + 30) * SS, round((ry + 7) * SS),
+                     (card[0] + 30 + sq) * SS, round((ry + 7 + sq) * SS)],
+                    fill=colour)
+        d.text(((card[0] + 30 + sq + 16) * SS, round(ry * SS)), route,
+               font=label_f, fill=pal["fg"] if good else pal["muted"],
+               anchor="la")
+        d.text(((card[0] + 30 + sq + 16) * SS, round((ry + 34) * SS)), bills,
+               font=bill_f, fill=colour, anchor="la")
+        if i < len(ARTICLE_ROUTES) - 1:
+            ly = round((ry + row_h - 22) * SS)
+            d.line([(card[0] + 30) * SS, ly, (card[2] - 30) * SS, ly],
+                   fill=flat_ring(pal), width=max(1, SS // 2))
+
+    foot_f = font("JBmono-500.ttf", 19)
+    foot = "helicon.sh · free & open source · unofficial, not affiliated with Meta"
+    assert d.textlength(foot, font=foot_f) <= (w - 2 * pad) * SS, "banner footer overflow"
+    foot_bb = d.textbbox((0, 0), foot, font=foot_f, anchor="lt")
+    d.text((x, (h - 56) * SS - (foot_bb[3] - foot_bb[1]) - foot_bb[1]), foot,
+           font=foot_f, fill=pal["subtle"], anchor="lt")
+
+    out = downscale(img)
+    ImageDraw.Draw(out).rounded_rectangle(card, radius=22,
+                                          outline=flat_ring(pal), width=2)
+    path = os.path.join(HERE, f"x-article-{mode}.png")
+    out.save(path)
+    print("wrote", path, out.size)
+
+
 def main() -> None:
     readme_only = "--readme" in sys.argv
     needed = ([DISPLAY_FONT, "Inter-500.ttf"] if readme_only
@@ -332,7 +415,9 @@ def main() -> None:
     check_glyphs(
         README_TAGLINE + "Helicon" if readme_only else (
             TAGLINE + README_TAGLINE + "Helicon" + OG_HEADLINE + OG_SUB
-            + "".join(OG_FEATURES) + OG_FOOTER),
+            + "".join(OG_FEATURES) + OG_FOOTER
+            + "".join(ARTICLE_HEAD) + ARTICLE_SUB
+            + "".join(r + b for r, b, _ in ARTICLE_ROUTES)),
         needed,
     )
     for mode, pal in (("light", LIGHT), ("dark", DARK)):
@@ -349,6 +434,7 @@ def main() -> None:
         do_header(mode, pal, 1584, 396, "linkedin-personal", 120, 92, 30, 110)
         do_linkedin_company(mode, pal)
         do_og(mode, pal)
+        do_x_article(mode, pal)
         do_readme_hero(mode, pal)
 
 
