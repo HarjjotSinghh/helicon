@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.1
+
+### Fixed
+
+- **Dragging a project to reorder the sidebar works again.** The drop marker showed where a project would land, but letting go left the order unchanged, in the desktop app and in the browser alike. The drop handler was reading which project was being dragged from state captured before the drag began, when nothing was.
+
 ## 0.11.0
 
 Built on the Muse Session Protocol methods that shipped with Muse Code 1.3.0, each checked against a real `muse serve` host.

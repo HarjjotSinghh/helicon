@@ -1,7 +1,7 @@
 {
   "name": "@helicon/web",
   "private": true,
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Helicon web app: shared UI wired to the local server over REST and SSE",
   "type": "module",
   "scripts": {
