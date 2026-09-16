@@ -43,7 +43,7 @@ import {
 import { FileError, listFolder, readProjectFile, resolveInRoot, searchProjectFiles, serveProjectFile, writeProjectFile } from "./files.js";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
-export const HELICON_VERSION = "0.12.1";
+export const HELICON_VERSION = "0.12.2";
 
 export interface HostExit {
   code: number | null;

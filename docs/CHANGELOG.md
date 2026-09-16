@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.2
+
+### Fixed
+
+- **Links open in your browser.** Clicking a link in a reply, like a pull request Muse mentions, did nothing in the desktop app. Web and mail links now open in the default browser or mail app, and a link can no longer navigate the Helicon window away. File links still open in the file viewer.
+
 ## 0.12.1
 
 ### Fixed
