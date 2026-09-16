@@ -43,6 +43,10 @@ Muse Code today is terminal-only (`muse`, macOS/Linux, WSL2 on Windows). Helicon
 - **Approvals** surfaced honestly (`onRequest / promptUnmatched / denyUnmatched`), never bypassed
 - **One codebase** for desktop (Tauri) and web (same React UI against a remote daemon)
 - **Windows that actually works** - Tauri sidecar routes through WSL2 (`wsl -d Ubuntu -- muse serve`) with path translation
+- **Your real plan meter** - the 5-hour window and weekly cap as Muse reports them, in the sidebar and on the usage page
+- **Goals you can steer** - set, pause, resume, change and clear a `/goal` from the goal panel or the composer
+- **Background work under control** - send a running tool call to the background, stop one, or stop them all; cancel a workflow run, or skip and retry its agents
+- **Reasoning effort that sticks** - applied as the session's own default, which is the level `muse serve` actually uses
 
 ![Starting a thread: recent work per project above the composer](docs/assets/home.png)
 

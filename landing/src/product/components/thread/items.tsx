@@ -1,8 +1,10 @@
 import { usePortalContainer } from "@/demo/portal";
 import {
+  ArrowDownToLine,
   Bot,
   ChevronRight,
   CircleAlert,
+  CircleStop,
   FilePen,
   FilePlus,
   FileText,
@@ -12,13 +14,14 @@ import {
   Minimize2,
   MessageCircleQuestion,
   Search,
+  Send,
   SquareTerminal,
   Target,
   Wrench,
 } from "lucide-react";
 import { Popover } from "radix-ui";
 import { memo, useMemo, useRef, useState, type ReactNode } from "react";
-import { useController } from "../../app/context";
+import { useApp, useController } from "../../app/context";
 import {
   basename,
   describeTool,
@@ -35,7 +38,7 @@ import {
   type DiffView,
   type ToolKind,
 } from "../../model/format";
-import type { MspItem, UserInputAnswer } from "../../types";
+import type { MspItem, OutputRef, UserInputAnswer } from "../../types";
 import { CodeBlock, Markdown, highlightCode, languageFromPath } from "../ui/Markdown";
 import { Button, Shimmer, Spinner, cn } from "../ui/primitives";
 import { Collapse } from "../ui/sourced";
@@ -79,18 +82,22 @@ function Row(props: {
   tone?: "default" | "warn" | "danger";
   /** Starts expanded, for output the user asked to see. */
   defaultOpen?: boolean;
+  /** Controls beside the row, kept outside its disclosure button so each stays its own control. */
+  actions?: ReactNode;
 }) {
   const [open, setOpen] = useState(props.defaultOpen ?? false);
   const expandable = Boolean(props.body);
-  return (
-    <div className="enter-up">
-      <button
-        type="button"
-        disabled={!expandable}
-        aria-expanded={expandable ? open : undefined}
-        onClick={() => setOpen((v) => !v)}
-        className="group/row -mx-1.5 flex h-8 w-[calc(100%+0.75rem)] min-w-0 items-center gap-2 overflow-hidden rounded-lg px-1.5 text-left transition-colors duration-100 enabled:hover:bg-hover disabled:cursor-default"
-      >
+  const toggle = (
+    <button
+      type="button"
+      disabled={!expandable}
+      aria-expanded={expandable ? open : undefined}
+      onClick={() => setOpen((v) => !v)}
+      className={cn(
+        "group/row flex h-8 min-w-0 items-center gap-2 overflow-hidden rounded-lg px-1.5 text-left transition-colors duration-100 enabled:hover:bg-hover disabled:cursor-default",
+        props.actions ? "flex-1" : "-mx-1.5 w-[calc(100%+0.75rem)]",
+      )}
+    >
         <span
           className={cn(
             "relative flex size-4 shrink-0 items-center justify-center",
@@ -131,7 +138,18 @@ function Row(props: {
         {props.detail ? <span className="min-w-0 truncate text-sm text-subtle">{props.detail}</span> : null}
         <span className="min-w-2 flex-1" />
         {props.trailing}
-      </button>
+    </button>
+  );
+  return (
+    <div className="enter-up">
+      {props.actions ? (
+        <div className="-mx-1.5 flex w-[calc(100%+0.75rem)] min-w-0 items-center gap-1">
+          {toggle}
+          <div className="flex shrink-0 items-center gap-0.5 pr-0.5">{props.actions}</div>
+        </div>
+      ) : (
+        toggle
+      )}
       {!open && props.preview ? <div className="ml-6 pb-1">{props.preview}</div> : null}
       {expandable ? (
         <Collapse open={open}>
@@ -142,21 +160,131 @@ function Row(props: {
   );
 }
 
-export function OutputBlock(props: { text: string; truncated?: boolean; label?: string }) {
-  const clean = props.text.replace(ANSI, "").replace(/\s+$/, "");
+/** How much stored output one "show more" loads, and the most a row will hold before sending you to the file. */
+const OUTPUT_PAGE_LIMIT = 4 * 1024 * 1024;
+
+/** Where a truncated output's full bytes can be read from, when Muse kept them. */
+export interface StoredOutput {
+  sessionId: string;
+  itemId: string;
+  ref: OutputRef;
+}
+
+export function OutputBlock(props: { text: string; truncated?: boolean; label?: string; stored?: StoredOutput | null }) {
+  const controller = useController();
+  const [full, setFull] = useState<{ text: string; next: number; eof: boolean } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const shown = full ? full.text : props.text;
+  const clean = shown.replace(ANSI, "").replace(/\s+$/, "");
   if (!clean) {
     return null;
   }
+  const stored = props.truncated && props.stored?.ref.availability !== "unavailable" ? props.stored : null;
+  // Pages until the end or the cap, so a runaway log cannot freeze the thread it is shown in.
+  const load = async () => {
+    if (!stored || loading) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      let text = full?.text ?? "";
+      let offset = full?.next ?? 0;
+      let eof = false;
+      while (!eof && offset < OUTPUT_PAGE_LIMIT + (full?.next ?? 0)) {
+        const page = await controller.readOutput(stored.sessionId, stored.itemId, stored.ref.id, offset);
+        text += page.encoding === "base64" ? "[binary output]" : page.content;
+        offset = page.offsetBytes + page.byteLen;
+        eof = page.eof || page.byteLen === 0;
+      }
+      setFull({ text, next: offset, eof });
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setLoading(false);
+    }
+  };
+  const total = stored?.ref.byteLen;
   return (
     <div className="overflow-hidden rounded-lg bg-sunken shadow-[0_0_0_1px_var(--border)]">
       {props.label ? <div className="px-3 pt-2 font-sans text-2xs font-medium text-subtle">{props.label}</div> : null}
       <pre className="max-h-72 overflow-x-hidden overflow-y-auto px-3 py-2 font-mono text-xs leading-relaxed whitespace-pre-wrap text-muted [overflow-wrap:anywhere]">
         {clean}
       </pre>
-      {props.truncated ? (
-        <p className="border-t border-line px-3 py-1.5 text-2xs text-subtle">Output was trimmed here; the full log is in the Muse session.</p>
+      {props.truncated && !full?.eof ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-3 py-1.5">
+          <p className="min-w-0 flex-1 text-2xs text-subtle">
+            {error ? (
+              <span className="text-danger-text">{error}</span>
+            ) : full ? (
+              `Showing the first ${formatBytes(full.next)}${total ? ` of ${formatBytes(total)}` : ""}.`
+            ) : stored ? (
+              `Output was trimmed here${total ? `; the full log is ${formatBytes(total)}` : ""}.`
+            ) : (
+              "Output was trimmed here; the full log is in the Muse session."
+            )}
+          </p>
+          {stored ? (
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" loading={loading} onClick={() => void load()}>
+              {full ? "Show more" : "Show full output"}
+            </Button>
+          ) : null}
+        </div>
       ) : null}
     </div>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** The stored-output handle on an item, when its view was truncated and Muse kept the rest. */
+function storedOutput(item: MspItem, sessionId: string | undefined): StoredOutput | null {
+  const ref = item.outputRef;
+  return sessionId && item.truncated && ref && typeof ref.id === "string" ? { sessionId, itemId: item.itemId, ref } : null;
+}
+
+/**
+ * Moving a running tool call to the background, or stopping one that already runs there. Muse names the task by
+ * the tool call's own item id. Hidden on threads another client holds, where Muse would refuse the command.
+ */
+function TaskActions(props: { item: MspItem; sessionId: string }) {
+  const controller = useController();
+  const { item, sessionId } = props;
+  const readOnly = useApp((s) => s.threads[sessionId]?.readOnly ?? true);
+  const busy = useApp((s) => Boolean(s.busy[`task:${sessionId}:${item.itemId}`]));
+  if (readOnly || item.status !== "inProgress") {
+    return null;
+  }
+  return item.background ? (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="h-6 px-2 text-xs"
+      loading={busy}
+      onClick={() => void controller.taskAction(sessionId, "stop", item.itemId)}
+    >
+      <CircleStop size={12} /> Stop
+    </Button>
+  ) : (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="h-6 px-2 text-xs"
+      loading={busy}
+      title="Let this keep running while Muse moves on"
+      onClick={() => void controller.taskAction(sessionId, "background", item.itemId)}
+    >
+      <ArrowDownToLine size={12} /> Background
+    </Button>
   );
 }
 
@@ -349,7 +477,7 @@ function QuestionSummary(props: { item: MspItem; answers: UserInputAnswer[] | nu
   );
 }
 
-export const ToolRow = memo(function ToolRow(props: { item: MspItem; gate?: Gate; answers?: UserInputAnswer[] | null }) {
+export const ToolRow = memo(function ToolRow(props: { item: MspItem; gate?: Gate; answers?: UserInputAnswer[] | null; sessionId?: string }) {
   const { item } = props;
   const d = useMemo(() => describeTool(item), [item]);
   const diff = useMemo(() => (d.kind === "edit" || d.kind === "write" ? extractDiff(item) : null), [d.kind, item]);
@@ -367,7 +495,13 @@ export const ToolRow = memo(function ToolRow(props: { item: MspItem; gate?: Gate
       </span>
     );
   } else if (running) {
-    trailing = <Spinner size={12} className="text-accent-text" label="Running" />;
+    trailing = item.background ? (
+      <span className="flex shrink-0 items-center gap-1.5 text-xs text-subtle">
+        <Spinner size={12} className="text-accent-text" label="Running in the background" /> In the background
+      </span>
+    ) : (
+      <Spinner size={12} className="text-accent-text" label="Running" />
+    );
   } else if (failed) {
     trailing = <span className="shrink-0 text-xs text-danger-text">{humanize(item.status)}</span>;
   } else if (stats) {
@@ -398,7 +532,15 @@ export const ToolRow = memo(function ToolRow(props: { item: MspItem; gate?: Gate
         diff && (d.kind === "edit" || d.kind === "write") && !item.truncated ? withoutDiffEcho(item.visibleOutput) : null;
       const text = stripped ?? item.visibleOutput;
       if (text.trim().length > 0) {
-        body.push(<OutputBlock key="out" text={text} truncated={item.truncated} label={d.kind === "shell" ? "Output" : undefined} />);
+        body.push(
+          <OutputBlock
+            key="out"
+            text={text}
+            truncated={item.truncated}
+            label={d.kind === "shell" ? "Output" : undefined}
+            stored={storedOutput(item, props.sessionId)}
+          />,
+        );
       }
     }
     if (d.kind === "generic" && args) {
@@ -424,6 +566,7 @@ export const ToolRow = memo(function ToolRow(props: { item: MspItem; gate?: Gate
       trailing={trailing}
       body={body.length > 0 ? body : undefined}
       preview={tail ? <p className="truncate font-mono text-2xs text-subtle">{tail}</p> : undefined}
+      actions={props.sessionId && running && !props.gate ? <TaskActions item={item} sessionId={props.sessionId} /> : undefined}
     />
   );
 });
@@ -478,7 +621,7 @@ export const ShellRow = memo(function ShellRow(props: { item: MspItem; sessionId
       body={
         item.visibleOutput ? (
           <>
-            <OutputBlock text={item.visibleOutput} truncated={item.truncated} />
+            <OutputBlock text={item.visibleOutput} truncated={item.truncated} stored={storedOutput(item, props.sessionId)} />
             {noSandbox ? (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <p className="text-xs text-pretty text-muted">
@@ -513,10 +656,12 @@ function AskToRun(props: { sessionId: string; command: string }) {
   );
 }
 
-export const SubagentRow = memo(function SubagentRow(props: { item: MspItem }) {
+export const SubagentRow = memo(function SubagentRow(props: { item: MspItem; sessionId?: string }) {
   const { item } = props;
   const running = item.status === "inProgress";
   const result = item.result?.summary ?? item.result?.text ?? null;
+  // Muse addresses a subagent by its durable id; a build that does not report one gets no controls.
+  const controls = props.sessionId && item.subagentId ? <SubagentControls item={item} sessionId={props.sessionId} subagentId={item.subagentId} /> : null;
   return (
     <Row
       icon={<Bot size={14} />}
@@ -531,16 +676,98 @@ export const SubagentRow = memo(function SubagentRow(props: { item: MspItem }) {
         ) : null
       }
       body={
-        result || item.failureReason ? (
+        result || item.failureReason || controls ? (
           <>
             {result ? <Markdown text={result} className="text-sm" /> : null}
             {item.failureReason ? <p className="text-xs text-danger-text">{item.failureReason}</p> : null}
+            {controls}
           </>
         ) : undefined
       }
     />
   );
 });
+
+/** What `subagent/*` allows for the state the child is in: talk to a running one, or bring a finished one back. */
+function SubagentControls(props: { item: MspItem; sessionId: string; subagentId: string }) {
+  const controller = useController();
+  const { item, sessionId, subagentId } = props;
+  const readOnly = useApp((s) => s.threads[sessionId]?.readOnly ?? true);
+  const busy = useApp((s) => Boolean(s.busy[`subagent:${sessionId}:${subagentId}`]));
+  const [note, setNote] = useState("");
+  if (readOnly) {
+    return null;
+  }
+  const control = item.controlStatus ?? "";
+  const running = item.status === "inProgress" || control === "running" || control === "starting";
+  const act = (action: import("../../types").SubagentAction, body?: string) =>
+    void controller.subagentAction(sessionId, action, subagentId, body).then((ok) => {
+      if (ok && body) {
+        setNote("");
+      }
+    });
+  const send = () => {
+    const text = note.trim();
+    if (text) {
+      act(running ? "sendMessage" : "followupTask", text);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <form
+        className="flex items-center gap-1.5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          send();
+        }}
+      >
+        <input
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          disabled={busy}
+          aria-label={running ? "Message this subagent" : "Give this subagent a follow-up task"}
+          placeholder={running ? "Tell this subagent something" : "Give it a follow-up task"}
+          className="h-7 min-w-0 flex-1 rounded-md bg-sunken px-2 text-sm text-fg shadow-[0_0_0_1px_var(--border)] outline-none placeholder:text-subtle focus-visible:shadow-[0_0_0_1px_var(--accent)]"
+        />
+        <Button type="submit" size="sm" variant="secondary" disabled={!note.trim()} loading={busy}>
+          <Send size={12} /> Send
+        </Button>
+      </form>
+      <div className="flex flex-wrap items-center gap-1">
+        {running ? (
+          <>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => act("interrupt")}>
+              Pause at next step
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => act("stop")}>
+              <CircleStop size={13} /> Stop
+            </Button>
+          </>
+        ) : null}
+        {control === "resultReady" ? (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => act("readResult")}>
+            Take the result
+          </Button>
+        ) : null}
+        {control === "recoveryPending" ? (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => act("resume")}>
+            Resume
+          </Button>
+        ) : null}
+        {!running && (control === "closed" || TERMINAL_FAILURES.has(item.status)) ? (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => act("reopen")}>
+            Reopen
+          </Button>
+        ) : null}
+        {!running && control !== "closed" && control !== "closing" ? (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => act("close")}>
+            Close
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export function CompactionRow(props: { item: MspItem }) {
   const { item } = props;

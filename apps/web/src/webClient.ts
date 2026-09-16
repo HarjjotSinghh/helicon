@@ -7,17 +7,24 @@ import {
   type DirectoryListing,
   type EnvironmentStatus,
   type EventHandler,
+  type GoalAction,
   type HeliconClient,
   type HeliconEvent,
   type ModelOption,
+  type OutputRange,
+  type PlanUsage,
   type ProjectView,
+  type ReasoningEffort,
   type SessionSummary,
   type ShellRun,
   type SkillCatalog,
+  type SubagentAction,
+  type TaskAction,
   type TranscriptLoad,
   type TurnOptions,
   type UsageReport,
   type UserInputAnswer,
+  type WorkflowAction,
 } from "@helicon/ui";
 
 /** Which daemon this page talks to. An empty base is the origin that served the page. */
@@ -295,8 +302,8 @@ export class WebHeliconClient implements HeliconClient {
     return (await call<{ session: SessionSummary }>("POST", `/api/sessions/${enc(sessionId)}/fork`, {})).session;
   }
 
-  listSkills(cwd: string): Promise<SkillCatalog> {
-    return call<SkillCatalog>("GET", `/api/slash?cwd=${enc(cwd)}`);
+  listSkills(cwd: string, sessionId?: string): Promise<SkillCatalog> {
+    return call<SkillCatalog>("GET", `/api/slash?cwd=${enc(cwd)}${sessionId ? `&sessionId=${enc(sessionId)}` : ""}`);
   }
 
   async skillBody(cwd: string, skillId: string): Promise<string> {
@@ -305,6 +312,36 @@ export class WebHeliconClient implements HeliconClient {
 
   async openFolder(cwd: string, target: "files" | "editor"): Promise<void> {
     await call("POST", "/api/open", { cwd, target });
+  }
+
+  async setReasoningEffort(sessionId: string, effort: ReasoningEffort): Promise<void> {
+    await call("POST", `/api/sessions/${enc(sessionId)}/effort`, { reasoningEffort: effort });
+  }
+
+  async goal(sessionId: string, action: GoalAction, objective?: string): Promise<{ turnId: string | null }> {
+    const result = await call<{ turnId?: string | null }>("POST", `/api/sessions/${enc(sessionId)}/goal`, { action, objective });
+    return { turnId: result.turnId ?? null };
+  }
+
+  async subagent(sessionId: string, action: SubagentAction, subagentId: string, options?: { reason?: string; body?: string }): Promise<void> {
+    await call("POST", `/api/sessions/${enc(sessionId)}/subagent`, { action, subagentId, reason: options?.reason, body: options?.body });
+  }
+
+  async task(sessionId: string, action: TaskAction, taskId?: string): Promise<void> {
+    await call("POST", `/api/sessions/${enc(sessionId)}/tasks`, { action, taskId });
+  }
+
+  async workflow(sessionId: string, action: WorkflowAction, workflowRunId: string, child?: { childId: string; attempt: number }): Promise<void> {
+    await call("POST", `/api/sessions/${enc(sessionId)}/workflow`, { action, workflowRunId, childId: child?.childId, attempt: child?.attempt });
+  }
+
+  async readOutput(sessionId: string, itemId: string, outputRef: string, offset = 0): Promise<OutputRange> {
+    const path = `/api/sessions/${enc(sessionId)}/output?itemId=${enc(itemId)}&outputRef=${enc(outputRef)}&offset=${offset}`;
+    return (await call<{ output: OutputRange }>("GET", path)).output;
+  }
+
+  async planUsage(): Promise<PlanUsage | null> {
+    return (await call<{ usage: PlanUsage | null }>("GET", "/api/plan-usage")).usage;
   }
 
   /**

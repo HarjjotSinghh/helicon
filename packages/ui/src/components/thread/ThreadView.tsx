@@ -1,8 +1,9 @@
-import { Archive, Code, Copy, Ellipsis, Folder, FolderOpen, GitBranch, Lock, Minimize2, Pencil, Square, SquarePen } from "lucide-react";
+import { Archive, CircleStop, Code, Copy, Ellipsis, Folder, FolderOpen, GitBranch, Lock, Minimize2, Pencil, Square, SquarePen } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { CaptionSpacer, useOverlayDragProps } from "../../app/frame.js";
 import { basename, formatDuration } from "../../model/format.js";
+import { backgroundTasks } from "../../model/plan.js";
 import type { ThreadState } from "../../model/store.js";
 import type { SessionSummary } from "../../types.js";
 import { SidebarToggle, TrafficLightSpacer } from "../chrome.js";
@@ -11,7 +12,7 @@ import { ApprovalPanel, PlanPanel, QuestionPanel, QueuedList, ReadOnlyNotice } f
 import { GoalPanel } from "./GoalPanel.js";
 import { revealLabel } from "../sidebar/Sidebar.js";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tip } from "../ui/overlays.js";
-import { IconButton, Spinner } from "../ui/primitives.js";
+import { Button, IconButton, Spinner } from "../ui/primitives.js";
 import { Transcript } from "./Transcript.js";
 
 export function ThreadView(props: { sessionId: string }) {
@@ -220,6 +221,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
         {inputs.map((request, index) => (
           <QuestionPanel key={request.userInputId} request={request} keyboard={approvals.length === 0 && index === 0} />
         ))}
+        {fold && !thread?.readOnly ? <BackgroundTasks sessionId={session.sessionId} /> : null}
         <GoalPanel sessionId={session.sessionId} running={props.running} readOnly={Boolean(thread?.readOnly)} />
         {showPlan && todo ? <PlanPanel sessionId={session.sessionId} items={todo} /> : null}
         {queued.length > 0 ? <QueuedList sessionId={session.sessionId} items={queued} /> : null}
@@ -233,6 +235,30 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
         />
         <ComposerFooter cwd={session.cwd} branch={fold?.meta.branch ?? null} running={props.running} />
       </div>
+    </div>
+  );
+}
+
+/** Tool calls still running after being sent to the background, with one way to stop all of them. */
+function BackgroundTasks(props: { sessionId: string }) {
+  const controller = useController();
+  const count = useApp((s) => {
+    const fold = s.threads[props.sessionId]?.fold;
+    return fold ? backgroundTasks(fold).length : 0;
+  });
+  const busy = useApp((s) => Boolean(s.busy[`task:${props.sessionId}:all`]));
+  if (count === 0) {
+    return null;
+  }
+  return (
+    <div role="status" className="flex items-center gap-2 rounded-xl bg-raised px-3 py-1.5 text-xs text-muted shadow-card">
+      <Spinner size={11} className="shrink-0 text-accent-text" />
+      <span className="min-w-0 flex-1 truncate">
+        {count === 1 ? "1 task is running in the background" : `${count} tasks are running in the background`}
+      </span>
+      <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" loading={busy} onClick={() => void controller.taskAction(props.sessionId, "stopAll")}>
+        <CircleStop size={12} /> Stop all
+      </Button>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import {
   HeliconServer,
   deriveTitle,
   eventsFromHistory,
+  mergeSessionSkills,
   normalizeIso,
   parseSkillList,
   stripFrontmatter,
@@ -538,6 +539,159 @@ describe("HeliconServer", () => {
     assert.equal((await find()).settled, false);
   });
 
+  it("carries a turn's reasoning effort as the session default, once per change", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    connection.replies.set("turn/start", { status: "accepted", turnId: "t1", disposition: "started" });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const efforts = () => connection.calls.filter((c) => c.method === "session/setReasoningEffort").map((c) => c.params?.["reasoningEffort"]);
+
+    await send(base, "/api/turns", { sessionId: "s1", text: "one", reasoningEffort: "low" });
+    const methods = connection.calls.map((c) => c.method);
+    assert.ok(methods.indexOf("session/setReasoningEffort") < methods.lastIndexOf("turn/start"), "the default is set before the turn goes");
+    await send(base, "/api/turns", { sessionId: "s1", text: "two", reasoningEffort: "low" });
+    await send(base, "/api/turns", { sessionId: "s1", text: "three" });
+    assert.deepEqual(efforts(), ["low"], "an unchanged or absent effort sends nothing");
+
+    // Changed in another client: the next turn asking for that level has nothing to do.
+    connection.notify("session/reasoningEffortChanged", { sessionId: "s1", reasoningEffort: "xhigh", source: "user" });
+    await send(base, "/api/turns", { sessionId: "s1", text: "four", reasoningEffort: "xhigh" });
+    assert.deepEqual(efforts(), ["low"]);
+
+    const direct = await send(base, "/api/sessions/s1/effort", { reasoningEffort: "max" });
+    assert.equal(direct.status, 200);
+    assert.deepEqual(efforts(), ["low", "max"]);
+    assert.equal((await send(base, "/api/sessions/s1/effort", { reasoningEffort: "loud" })).status, 400);
+
+    // A host without the method still takes the turn, with the effort riding on turn/start.
+    connection.replies.set("session/setReasoningEffort", new MspTestError("no such method", "methodNotFound"));
+    const old = await send(base, "/api/turns", { sessionId: "s1", text: "five", reasoningEffort: "low" });
+    assert.equal(old.status, 200);
+    assert.equal(connection.calls.at(-1)?.params?.["reasoningEffort"], "low");
+
+    connection.replies.set("session/setReasoningEffort", new MspTestError("not loaded", "sessionNotLoaded"));
+    const unloaded = await send(base, "/api/turns", { sessionId: "s1", text: "six", reasoningEffort: "medium" });
+    assert.equal(unloaded.status, 409);
+    assert.equal(unloaded.json.kind, "sessionNotLoaded", "the UI reloads and retries on this kind");
+  });
+
+  it("drives goals, subagents, background tasks and workflow children", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    connection.replies.set("goal/set", { commandId: "c", status: "accepted", turnId: "t7" });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const last = () => connection.calls.at(-1);
+
+    const goal = await send(base, "/api/sessions/s1/goal", { action: "set", objective: "get CI green" });
+    assert.deepEqual(goal.json, { turnId: "t7" });
+    assert.deepEqual(last(), { method: "goal/set", params: { sessionId: "s1", objective: "get CI green" } });
+    await send(base, "/api/sessions/s1/goal", { action: "pause" });
+    assert.deepEqual(last(), { method: "goal/pause", params: { sessionId: "s1" } });
+    assert.equal((await send(base, "/api/sessions/s1/goal", { action: "edit" })).status, 400);
+    assert.equal((await send(base, "/api/sessions/s1/goal", { action: "finish" })).status, 400);
+
+    await send(base, "/api/sessions/s1/subagent", { action: "sendMessage", subagentId: "sa1", body: "use pnpm" });
+    assert.deepEqual(last(), { method: "subagent/sendMessage", params: { sessionId: "s1", subagentId: "sa1", body: "use pnpm" } });
+    assert.equal((await send(base, "/api/sessions/s1/subagent", { action: "followupTask", subagentId: "sa1" })).status, 400);
+    assert.equal((await send(base, "/api/sessions/s1/subagent", { action: "stop" })).status, 400);
+
+    await send(base, "/api/sessions/s1/tasks", { action: "background", taskId: "item-4" });
+    assert.deepEqual(last(), { method: "task/background", params: { sessionId: "s1", taskId: "item-4" } });
+    await send(base, "/api/sessions/s1/tasks", { action: "stop", taskId: "item-4" });
+    assert.deepEqual(last(), { method: "task/stop", params: { sessionId: "s1", taskId: "item-4" } });
+    await send(base, "/api/sessions/s1/tasks", { action: "stopAll" });
+    assert.deepEqual(last(), { method: "task/stopAll", params: { sessionId: "s1" } });
+    assert.equal((await send(base, "/api/sessions/s1/tasks", { action: "stop" })).status, 400);
+
+    await send(base, "/api/sessions/s1/workflow", { action: "cancel", workflowRunId: "run-9" });
+    assert.deepEqual(last(), { method: "workflow/cancel", params: { sessionId: "s1", workflowRunId: "run-9" } });
+    await send(base, "/api/sessions/s1/workflow", { action: "skip", workflowRunId: "run-9", childId: "c1", attempt: 2 });
+    assert.deepEqual(last(), { method: "workflow/childControl", params: { sessionId: "s1", workflowRunId: "run-9", childId: "c1", attempt: 2, action: "skip" } });
+    assert.equal((await send(base, "/api/sessions/s1/workflow", { action: "retry", workflowRunId: "run-9", childId: "c1", attempt: 0 })).status, 400);
+    assert.equal((await send(base, "/api/sessions/s1/workflow", { action: "cancel" })).status, 400);
+
+    connection.replies.set("workflow/childControl", new MspTestError("stale attempt", "stale_attempt"));
+    const stale = await send(base, "/api/sessions/s1/workflow", { action: "retry", workflowRunId: "run-9", childId: "c1", attempt: 1 });
+    assert.equal(stale.status, 409);
+    assert.equal(stale.json.kind, "stale_attempt");
+  });
+
+  it("reads a tool's stored output one page at a time", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    connection.replies.set("item/readOutput", (params: Record<string, unknown>) => ({
+      content: "x".repeat(4),
+      encoding: "utf8",
+      mediaType: "text/plain",
+      offsetBytes: params["offsetBytes"],
+      byteLen: 4,
+      eof: params["offsetBytes"] === 4,
+    }));
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const first = await get(base, "/api/sessions/s1/output?itemId=i1&outputRef=bash-1");
+    assert.deepEqual(first.output, { content: "xxxx", encoding: "utf8", mediaType: "text/plain", offsetBytes: 0, byteLen: 4, eof: false });
+    const next = await get(base, "/api/sessions/s1/output?itemId=i1&outputRef=bash-1&offset=4&length=99999999");
+    assert.equal(next.output.eof, true);
+    assert.deepEqual(connection.requests.at(-1)?.params, { sessionId: "s1", itemId: "i1", outputRef: "bash-1", offsetBytes: 4, lengthBytes: 1024 * 1024 });
+    assert.equal((await fetch(`${base}/api/sessions/s1/output?itemId=i1`)).status, 400);
+  });
+
+  it("keeps the newest subscription window any host reports", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const window = (percent: number, at: number) => ({
+      tier: "high",
+      observedAtMs: at,
+      window: { usedPercent: percent, resetsAtMs: at + 1000, windowDurationMins: 300 },
+      weekly: { usedPercent: 10, resetsAtMs: at + 9000 },
+    });
+    const { base } = await start(connection);
+    connection.replies.set("usage/read", {});
+    assert.equal((await get(base, "/api/plan-usage")).usage, null, "no host running and nothing seen");
+
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    assert.equal((await get(base, "/api/plan-usage")).usage, null, "a host that has seen nothing is not an error");
+
+    connection.notify("usage/changed", window(40, 2_000));
+    assert.equal((await get(base, "/api/plan-usage")).usage.window.usedPercent, 40);
+    connection.notify("usage/changed", window(5, 1_000));
+    assert.equal((await get(base, "/api/plan-usage")).usage.window.usedPercent, 40, "an older reading never replaces a newer one");
+    connection.replies.set("usage/read", { usage: window(55, 3_000) });
+    const read = await get(base, "/api/plan-usage");
+    assert.equal(read.usage.window.usedPercent, 55);
+    assert.equal(read.usage.weekly.windowDurationMins, null);
+  });
+
+  it("gives Muse the name typed here, and takes the name Muse settles on", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const read = async () => (await get(base, "/api/sessions")).sessions[0];
+
+    await send(base, "/api/sessions/s1", { title: "Ship the sidebar" }, "PATCH");
+    assert.deepEqual(connection.calls.at(-1), { method: "session/rename", params: { sessionId: "s1", name: "Ship the sidebar" } });
+
+    connection.notify("session/nameChanged", { sessionId: "s1", name: "sidebar-v2", viewCursor: "c", sourceRange: RANGE });
+    let session = await read();
+    assert.equal(session.title, "sidebar-v2", "a `/name` in another client is the newest name");
+    assert.equal(session.titleSource, "user", "and a thread the user named stays theirs");
+
+    connection.replies.set("session/rename", new MspTestError("ephemeral", "unsupported"));
+    const renamed = await send(base, "/api/sessions/s1", { title: "Local only" }, "PATCH");
+    assert.equal(renamed.status, 200, "a rename Muse refuses still renames the thread here");
+    assert.equal(renamed.json.session.title, "Local only");
+
+    const renames = connection.calls.filter((c) => c.method === "session/rename").length;
+    await send(base, "/api/sessions/s1", { title: "Local only" }, "PATCH");
+    assert.equal(connection.calls.filter((c) => c.method === "session/rename").length, renames, "an unchanged title is not sent again");
+    session = await read();
+    assert.equal(session.title, "Local only");
+  });
+
   it("spawns one host per workspace under concurrency and respawns after a crash", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });
@@ -598,6 +752,65 @@ describe("slash commands, skills and shell", () => {
     assert.equal(calls[2]?.[4], "muse-core/skills/plan/SKILL.md", "bundled skills resolve inside Muse's data folder");
     const unlisted = await fetch(`${base}/api/slash/skill?cwd=%2Fwork%2Fproj&id=%2Fetc%2Fpasswd`);
     assert.equal(unlisted.status, 404);
+  });
+
+  it("lists a loaded session's skills from Muse, joined to the CLI listing, and refreshes on skill/changed", async () => {
+    const calls: string[][] = [];
+    const exec: ExecFn = async (command, args) => {
+      calls.push([command, ...args]);
+      return { stdout: LIST, exitCode: 0 };
+    };
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    connection.replies.set("skill/list", {
+      skills: [
+        { selector: "plan", displayName: "Plan", description: "Plan the work", source: "bundled" },
+        { selector: "acme:deploy", displayName: "deploy", description: "Ship it", source: "plugin", pluginId: "acme", argumentHint: "<env>" },
+      ],
+    });
+    const { base } = await start(connection, { exec });
+    // No session named: the CLI listing answers, as before.
+    assert.deepEqual((await get(base, "/api/slash?cwd=%2Fwork%2Fproj")).skills.map((s: { id: string }) => s.id), ["bundled:plan", "user:secret"]);
+
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const listed = await get(base, "/api/slash?cwd=%2Fwork%2Fproj&sessionId=s1");
+    assert.deepEqual(
+      listed.skills.map((s: { id: string; name: string }) => [s.id, s.name]),
+      [["bundled:plan", "plan"], ["acme:deploy", "acme:deploy"]],
+      "a skill the CLI also lists keeps its id, so its instructions can still be read",
+    );
+    assert.equal(listed.skills[1].argumentHint, "<env>");
+    assert.equal(listed.skills[1].scope, "plugin");
+    assert.equal(connection.requests.filter((r) => r.method === "skill/list").length, 1);
+
+    const before = calls.length;
+    connection.notify("skill/changed", { sessionId: "s1" });
+    await get(base, "/api/slash?cwd=%2Fwork%2Fproj&sessionId=s1");
+    assert.equal(calls.length, before + 1, "skill/changed drops the cached CLI listing for that workspace");
+
+    connection.replies.set("skill/list", new MspTestError("method not found", "methodNotFound"));
+    const fallback = await get(base, "/api/slash?cwd=%2Fwork%2Fproj&sessionId=s1");
+    assert.deepEqual(fallback.skills.map((s: { id: string }) => s.id), ["bundled:plan", "user:secret"], "an older host falls back to the CLI");
+  });
+
+  it("joins session skills to CLI entries by id, name or plugin selector only", () => {
+    const cli = [
+      { id: "bundled:doctor", name: "doctor", displayName: "doctor", description: "cli", shortDescription: "Short", scope: "bundled", activation: "on" },
+      { id: "deploy", name: "deploy", displayName: "deploy", description: "a user skill", shortDescription: null, scope: "user", activation: "on" },
+      { id: "plugin:acme:lint", name: "plugin:acme:lint", displayName: "lint", description: "", shortDescription: null, scope: "plugin", activation: "on" },
+    ];
+    const merged = mergeSessionSkills(
+      [
+        { selector: "doctor", displayName: "Doctor", description: "", source: "bundled", argumentHint: null, pluginId: null },
+        { selector: "acme:deploy", displayName: "deploy", description: "plugin deploy", source: "plugin", argumentHint: null, pluginId: "acme" },
+        { selector: "acme:lint", displayName: "lint", description: "", source: "plugin", argumentHint: null, pluginId: "acme" },
+      ],
+      cli,
+    );
+    assert.deepEqual(merged.map((s) => s.id), ["bundled:doctor", "acme:deploy", "plugin:acme:lint"]);
+    assert.equal(merged[0]?.shortDescription, "Short");
+    assert.equal(merged[0]?.description, "cli", "an empty session description falls back to the CLI's");
+    assert.equal(merged[1]?.scope, "plugin", "a plugin skill never borrows a same-named user skill");
   });
 
   it("answers a failed skill list with an error instead of failing the request", async () => {

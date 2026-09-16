@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import {
   SessionManager,
   isApprovalMode,
+  isGoalAction,
+  isSubagentAction,
+  isWorkflowChildAction,
+  parseSubscriptionUsage,
   textInput,
   turnInput,
   type CommandConnection,
@@ -224,6 +228,131 @@ describe("SessionManager", () => {
       userInputId: "u1",
       clarification: { format: "text", content: "Use blue for links only" },
     });
+  });
+
+  it("sets the session's standing reasoning effort and renames the session", async () => {
+    const conn = new FakeConnection();
+    const manager = new SessionManager(conn);
+    await manager.setReasoningEffort("s1", "low");
+    assert.deepEqual(lastCall(conn), { method: "session/setReasoningEffort", params: { sessionId: "s1", reasoningEffort: "low" } });
+    conn.reply("session/rename", { commandId: "c1", status: "accepted", name: "tidy-api" });
+    assert.equal(await manager.renameSession("s1", "tidy-api"), "tidy-api");
+    assert.deepEqual(lastCall(conn), { method: "session/rename", params: { sessionId: "s1", name: "tidy-api" } });
+  });
+
+  it("drives goals with the objective only on set and edit", async () => {
+    const conn = new FakeConnection();
+    const manager = new SessionManager(conn);
+    conn.reply("goal/set", { commandId: "c1", status: "accepted", turnId: "t9" });
+    assert.deepEqual(await manager.goal("s1", "set", "  get tests green  "), { turnId: "t9" });
+    assert.deepEqual(lastCall(conn), { method: "goal/set", params: { sessionId: "s1", objective: "get tests green" } });
+    await manager.goal("s1", "edit", "ship it");
+    assert.deepEqual(lastCall(conn).params, { sessionId: "s1", objective: "ship it" });
+    for (const action of ["pause", "resume", "clear"] as const) {
+      // An objective on a bare verb is an unknown field Muse rejects, so it never goes out.
+      assert.deepEqual(await manager.goal("s1", action, "ignored"), { turnId: null });
+      assert.deepEqual(lastCall(conn), { method: `goal/${action}`, params: { sessionId: "s1" } });
+    }
+    await assert.rejects(() => manager.goal("s1", "set", "   "), /objective/);
+    assert.equal(isGoalAction("pause"), true);
+    assert.equal(isGoalAction("finish"), false);
+  });
+
+  it("controls subagents, background tasks and workflow runs", async () => {
+    const conn = new FakeConnection();
+    const manager = new SessionManager(conn);
+    await manager.subagent("s1", "stop", "sa1", { reason: "wrong file" });
+    assert.deepEqual(lastCall(conn), { method: "subagent/stop", params: { sessionId: "s1", subagentId: "sa1", reason: "wrong file" } });
+    await manager.subagent("s1", "sendMessage", "sa1", { body: " check the lockfile " });
+    assert.deepEqual(lastCall(conn).params, { sessionId: "s1", subagentId: "sa1", body: "check the lockfile" });
+    await manager.subagent("s1", "reopen", "sa1", { reason: "not sent", body: "not sent" });
+    assert.deepEqual(lastCall(conn), { method: "subagent/reopen", params: { sessionId: "s1", subagentId: "sa1" } });
+    await assert.rejects(() => manager.subagent("s1", "followupTask", "sa1", { body: "" }), /message/);
+    assert.equal(isSubagentAction("interrupt"), true);
+    assert.equal(isSubagentAction("kill"), false);
+
+    await manager.backgroundTask("s1", "item-7");
+    assert.deepEqual(lastCall(conn), { method: "task/background", params: { sessionId: "s1", taskId: "item-7" } });
+    await manager.stopTask("s1", "item-7");
+    assert.deepEqual(lastCall(conn), { method: "task/stop", params: { sessionId: "s1", taskId: "item-7" } });
+    await manager.stopAllTasks("s1");
+    assert.deepEqual(lastCall(conn), { method: "task/stopAll", params: { sessionId: "s1" } });
+
+    await manager.cancelWorkflow("s1", "run-1");
+    assert.deepEqual(lastCall(conn), { method: "workflow/cancel", params: { sessionId: "s1", workflowRunId: "run-1" } });
+    await manager.controlWorkflowChild("s1", "run-1", "child-a", 2, "retry");
+    assert.deepEqual(lastCall(conn).params, { sessionId: "s1", workflowRunId: "run-1", childId: "child-a", attempt: 2, action: "retry" });
+    assert.equal(isWorkflowChildAction("skip"), true);
+    assert.equal(isWorkflowChildAction("rerun"), false);
+  });
+
+  it("reads usage, session skills and stored output as queries", async () => {
+    const conn = new FakeConnection();
+    const requests: { method: string; params?: Record<string, unknown> }[] = [];
+    const usage = {
+      tier: "high",
+      observedAtMs: 1_700_000_000_000,
+      window: { usedPercent: 42, resetsAtMs: 1_700_000_900_000, windowDurationMins: 300 },
+      weekly: { usedPercent: 18, resetsAtMs: 1_700_400_000_000 },
+    };
+    const replies: Record<string, unknown> = {
+      "usage/read": { usage },
+      "skill/list": {
+        skills: [
+          { selector: "doctor", displayName: "Doctor", description: "Checks the install", source: "bundled" },
+          { selector: "acme:deploy", displayName: "deploy", description: "", source: "plugin", pluginId: "acme", argumentHint: "<env>" },
+          { displayName: "no selector" },
+        ],
+      },
+      "item/readOutput": { content: "line 1\n", encoding: "utf8", mediaType: "text/plain", offsetBytes: 0, byteLen: 7, eof: true },
+    };
+    const queryable: CommandConnection = {
+      command: (method, params) => conn.command(method, params),
+      request: async (method, params) => {
+        requests.push({ method, params });
+        return replies[method];
+      },
+      onNotification: () => {},
+    };
+    const manager = new SessionManager(queryable);
+    assert.deepEqual(await manager.readSubscriptionUsage(), { ...usage, weekly: { ...usage.weekly, windowDurationMins: null } });
+    replies["usage/read"] = {};
+    // No window observed yet is a truthful absence, not an error.
+    assert.equal(await manager.readSubscriptionUsage(), null);
+
+    const skills = await manager.listSessionSkills("s1");
+    assert.deepEqual(skills.map((s) => s.selector), ["doctor", "acme:deploy"]);
+    assert.deepEqual(skills[1], {
+      selector: "acme:deploy",
+      displayName: "deploy",
+      description: "",
+      source: "plugin",
+      argumentHint: "<env>",
+      pluginId: "acme",
+    });
+
+    const range = await manager.readItemOutput("s1", "item-3", "bash-ref", { offsetBytes: 0, lengthBytes: 4096 });
+    assert.equal(range.eof, true);
+    assert.equal(range.content, "line 1\n");
+    assert.deepEqual(
+      requests.map((r) => r.method),
+      ["usage/read", "usage/read", "skill/list", "item/readOutput"],
+    );
+    assert.deepEqual(requests[3]?.params, { sessionId: "s1", itemId: "item-3", outputRef: "bash-ref", offsetBytes: 0, lengthBytes: 4096 });
+    assert.equal(conn.calls.length, 0);
+  });
+
+  it("parses only complete subscription usage", () => {
+    assert.equal(parseSubscriptionUsage(null), null);
+    assert.equal(parseSubscriptionUsage({ tier: "x", observedAtMs: 1, window: { usedPercent: 1 } }), null);
+    assert.equal(
+      parseSubscriptionUsage({
+        observedAtMs: 5,
+        window: { usedPercent: 3, resetsAtMs: 9, windowDurationMins: 300 },
+        weekly: { usedPercent: 1, resetsAtMs: 10 },
+      })?.tier,
+      "unknown",
+    );
   });
 
   it("validates the closed approval mode set", () => {

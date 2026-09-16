@@ -113,7 +113,36 @@ export interface MspItem {
   trigger?: string;
   tokensBefore?: number;
   tokensAfter?: number;
+  /** `subagent`: the durable child id the `subagent/*` controls address. Muse 1.3.0 does not fill it in yet. */
+  subagentId?: string;
+  /** `reminderChild`: the background task this reminder is about. */
+  taskId?: string;
+  /** `workflow`, and a `subagent` a workflow owns: the run the workflow controls address. */
+  workflowRunId?: string;
+  /** `subagent` and `reminderChild`: the child's own session. */
+  childSessionId?: string;
+  /** `toolCall` and `userShell`: where the full output is kept when the view truncated it. */
+  outputRef?: OutputRef;
   [key: string]: unknown;
+}
+
+/** A tool's stored output. Read it through `item/readOutput` by `id`; the uri is only for display. */
+export interface OutputRef {
+  id: string;
+  kind?: string;
+  mediaType?: string;
+  byteLen?: number;
+  availability?: string;
+}
+
+/** One page of stored output. `offsetBytes + byteLen` is where the next page starts. */
+export interface OutputRange {
+  content: string;
+  encoding: string;
+  mediaType: string;
+  offsetBytes: number;
+  byteLen: number;
+  eof: boolean;
 }
 
 export interface ApprovalChoice {
@@ -243,6 +272,8 @@ export interface SkillEntry {
   scope: string;
   /** `on`, or `user-invocable-only` for skills the model never loads by itself. */
   activation: string;
+  /** What the skill expects after its name, when it says. */
+  argumentHint?: string | null;
 }
 
 /** The skills for one workspace; `error` says why the list is empty when loading failed. */
@@ -339,6 +370,27 @@ export interface OutgoingAttachment {
   height?: number;
 }
 
+/** A usage window as a percentage of the plan's allowance, with when it resets. */
+export interface PlanWindow {
+  usedPercent: number;
+  resetsAtMs: number;
+  /** The short rolling window's length; null for the weekly block. */
+  windowDurationMins: number | null;
+}
+
+/** The subscription meter Muse last saw: the rolling window, the weekly cap, and the plan tier. */
+export interface PlanUsage {
+  tier: string;
+  observedAtMs: number;
+  window: PlanWindow;
+  weekly: PlanWindow;
+}
+
+export type GoalAction = "set" | "edit" | "pause" | "resume" | "clear";
+export type SubagentAction = "interrupt" | "stop" | "close" | "resume" | "reopen" | "sendMessage" | "followupTask" | "readResult";
+export type TaskAction = "background" | "stop" | "stopAll";
+export type WorkflowAction = "cancel" | "skip" | "retry";
+
 export interface TranscriptLoad {
   session: SessionSummary | null;
   msp: {
@@ -368,5 +420,6 @@ export type HeliconEvent =
   | { type: "session-status"; sessionId: string; live: LiveView | null }
   | { type: "sessions-changed" }
   | { type: "shell-run"; sessionId: string; run: ShellRun }
+  | { type: "plan-usage"; usage: PlanUsage }
   | { type: "host"; key: string; state: string; message: string }
   | { type: "connection"; state: "open" | "lost" };

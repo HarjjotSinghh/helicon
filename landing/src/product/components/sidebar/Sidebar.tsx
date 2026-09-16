@@ -37,6 +37,7 @@ import { shallowEqual, useApp, useController, useNow } from "../../app/context";
 import { useOverlayDragProps, useTitlebarOverlay } from "../../app/frame";
 import { basename, formatElapsed, relativeTime } from "../../model/format";
 import { statusLabel } from "../../model/goal";
+import { PlanPill } from "../usage/PlanMeter";
 import {
   STATUS_LABEL,
   groupByProject,
@@ -838,6 +839,7 @@ function SidebarFooter() {
           <RefreshCw size={14} className={cn(discovering && "animate-spin")} />
         </IconButton>
       </Tip>
+      <PlanPill />
       <Tip label="Usage and cost" side="top">
         <IconButton label="Usage and cost" onClick={() => controller.navigate({ kind: "usage" })}>
           <ChartColumn size={14} />

@@ -4,6 +4,7 @@ import type {
   EnvironmentStatus,
   ModelOption,
   OutgoingAttachment,
+  PlanUsage,
   ProjectView,
   ReasoningEffort,
   SessionSummary,
@@ -179,6 +180,8 @@ export interface AppState {
   skills: Record<string, SkillsState>;
   /** A composer picker a slash command opened, like `/model`. */
   picker: ComposerPicker | null;
+  /** The subscription window Muse last reported; null until a host has seen one. */
+  planUsage: PlanUsage | null;
 }
 
 /** `confirmFullAccess` is the full-access confirmation, which `/permissions full` must still pass through. */
@@ -213,6 +216,7 @@ export function initialState(prefs: Prefs): AppState {
     bypassAll: false,
     bypassThreads: [],
     hostError: null,
+    planUsage: null,
     draftHandoff: null,
     updates: null,
     skills: {},

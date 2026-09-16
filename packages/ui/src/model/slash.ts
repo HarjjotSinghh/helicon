@@ -48,7 +48,10 @@ export const BUILTIN_COMMANDS: readonly SlashCommand[] = [
   builtin("new", "new", "Start a new thread in this project", { aliases: ["clear"] }),
   builtin("resume", "resume", "Open an earlier thread"),
   builtin("init", "init", "Explore the workspace and create or improve AGENTS.md"),
-  builtin("goal", "goal", "Set a goal Muse keeps working toward across turns", { hint: "<objective>", runsBare: false }),
+  builtin("goal", "goal", "Set a goal Muse keeps working toward across turns, or pause, resume or clear it", {
+    hint: "<objective> | pause | resume | clear",
+    runsBare: false,
+  }),
   builtin("skill", "skill", "Run a skill by name", { hint: "<skill> [request]", runsBare: false }),
 ];
 
@@ -96,7 +99,7 @@ export function slashCommands(skills: readonly SkillEntry[], options: { inThread
     commands.push({
       name,
       aliases: [],
-      hint: "[request]",
+      hint: skill.argumentHint ? skill.argumentHint : "[request]",
       description: skillSummary(skill),
       kind: "skill",
       action: null,

@@ -3,14 +3,19 @@ import type {
   ApprovalMode,
   ApprovalRequest,
   AttachmentView,
+  GoalAction,
   HeliconEvent,
   OutgoingAttachment,
+  OutputRange,
   ReasoningEffort,
   SessionSummary,
   SkillEntry,
+  SubagentAction,
+  TaskAction,
   UserInputAnswer,
   UserInputRequest,
   ViewEvent,
+  WorkflowAction,
 } from "../types.js";
 import { modelDisplayName } from "./format.js";
 import { goalPrompt } from "./goal.js";
@@ -194,6 +199,20 @@ const SKILLS_RETRY_MS = 10_000;
  * Owns app state and every side effect: server calls, the event stream, routing and prefs.
  * Components read state through hooks and call these methods; they never talk to the client.
  */
+const GOAL_FAILURES: Record<GoalAction, string> = {
+  set: "Could not set the goal",
+  edit: "Could not change the goal",
+  pause: "Could not pause the goal",
+  resume: "Could not resume the goal",
+  clear: "Could not clear the goal",
+};
+
+const TASK_FAILURES: Record<TaskAction, string> = {
+  background: "Could not move that to the background",
+  stop: "Could not stop that task",
+  stopAll: "Could not stop the background tasks",
+};
+
 export class HeliconController {
   readonly store: Store<AppState>;
   private readonly pending = new Map<string, ViewEvent[]>();
@@ -345,6 +364,7 @@ export class HeliconController {
       this.applyRoute(hashToRoute(this.platform.readHash()), false);
       void this.discoverAll(true);
       void this.loadModels();
+      void this.loadPlanUsage();
     } catch (error) {
       this.update((s) => ({ ...s, boot: "error", bootError: errorMessage(error) }));
     }
@@ -531,7 +551,13 @@ export class HeliconController {
         this.update((s) => ({ ...s, connection: event.state === "open" ? "open" : "lost" }));
         break;
       case "msp":
+        if (event.method === "skill/changed") {
+          this.refreshSkillsFor(event.sessionId);
+        }
         this.queueEvent(event.sessionId, { method: event.method, params: event.params, at: event.at });
+        break;
+      case "plan-usage":
+        this.takePlanUsage(event.usage);
         break;
       case "session-status": {
         const known = this.state.sessions[event.sessionId];
@@ -1155,8 +1181,47 @@ export class HeliconController {
     }
   }
 
+  /**
+   * The effort for new turns. The open thread takes it at once, as its standing default: that is the only effort
+   * `muse serve` applies, and setting it now means the TUI and any other client see the same level. Auto leaves
+   * the thread where it is.
+   */
   setEffort(effort: ReasoningEffort | null): void {
     this.setPrefs({ effort });
+    const route = this.state.route;
+    const thread = route.kind === "thread" ? this.state.threads[route.sessionId] : undefined;
+    if (effort === null || route.kind !== "thread" || !thread || thread.readOnly) {
+      return;
+    }
+    void this.client.setReasoningEffort(route.sessionId, effort).catch((error: unknown) => {
+      // A thread that is not loaded yet takes the effort with its next turn instead.
+      const kind = errorKind(error);
+      if (kind !== "sessionNotLoaded" && kind !== "sessionStreamMismatch") {
+        this.toast("error", "Could not change the effort for this thread", errorMessage(error));
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------- plan usage
+
+  /** The subscription window Muse last saw, from the server; it also arrives as an event whenever it moves. */
+  async loadPlanUsage(): Promise<void> {
+    try {
+      const usage = await this.client.planUsage();
+      if (usage) {
+        this.takePlanUsage(usage);
+      }
+    } catch {
+      /* the meter is extra: a server without it leaves the usage page as it was */
+    }
+  }
+
+  private takePlanUsage(usage: import("../types.js").PlanUsage): void {
+    const current = this.state.planUsage;
+    if (current && current.observedAtMs > usage.observedAtMs) {
+      return;
+    }
+    this.update((s) => ({ ...s, planUsage: usage }));
   }
 
   // ---------------------------------------------------------------- threads and projects
@@ -1400,10 +1465,27 @@ export class HeliconController {
     return load;
   }
 
+  /** Muse said a thread's skills changed: its workspace's list is stale, and the open composer should see the new one. */
+  private refreshSkillsFor(sessionId: string): void {
+    const cwd = this.state.sessions[sessionId]?.cwd;
+    const current = cwd ? this.state.skills[cwd] : undefined;
+    if (!cwd || !current) {
+      return;
+    }
+    this.setSkills(cwd, { ...current, loadedAt: 0 });
+    void this.loadSkills(cwd);
+  }
+
+  /** The open thread, when it is in `cwd`: Muse's own skill list for it is the one to show. */
+  private skillSession(cwd: string): string | undefined {
+    const route = this.state.route;
+    return route.kind === "thread" && this.state.sessions[route.sessionId]?.cwd === cwd ? route.sessionId : undefined;
+  }
+
   private async fetchSkills(cwd: string, current: SkillsState | undefined): Promise<void> {
     this.setSkills(cwd, { status: "loading", skills: current?.skills ?? [], error: null, loadedAt: current?.loadedAt ?? 0 });
     try {
-      const catalog = await this.client.listSkills(cwd);
+      const catalog = await this.client.listSkills(cwd, this.skillSession(cwd));
       this.setSkills(cwd, {
         status: catalog.error ? "error" : "ready",
         skills: catalog.skills,
@@ -1553,8 +1635,22 @@ export class HeliconController {
           this.toast("info", "Add the goal after /goal", "For example: /goal get the test suite passing");
           return false;
         }
-        // Served sessions have no goal command, so the model sets the goal with its create_goal tool.
-        return this.deliver(goalPrompt(args), { ...options, displayText: typed });
+        const verb = /^(pause|resume|clear)$/i.exec(args.trim())?.[1]?.toLowerCase() as GoalAction | undefined;
+        if (verb) {
+          if (!sessionId) {
+            this.toast("info", `Open a thread to ${verb} its goal`);
+            return false;
+          }
+          return this.goalAction(sessionId, verb);
+        }
+        if (sessionId) {
+          return this.setGoal(sessionId, args, typed, options);
+        }
+        const target = this.newThreadTarget();
+        if (!target) {
+          return false;
+        }
+        return this.startThread(target, typed, (fresh) => this.setGoal(fresh, args, typed, options));
       }
       case "model": {
         if (!args) {
@@ -1626,9 +1722,125 @@ export class HeliconController {
     return this.deliver(turn.text, { ...options, displayText: turn.displayText });
   }
 
-  /** Asks Muse to pick a paused or blocked goal back up; the transcript shows the short form. */
-  continueGoal(sessionId: string, objective: string): Promise<boolean> {
+  /**
+   * Picks a goal back up. A paused goal resumes through Muse's own goal command; a blocked one, which that command
+   * does not cover, gets a prompt asking the model to keep going.
+   */
+  async continueGoal(sessionId: string, objective: string, status?: string): Promise<boolean> {
+    if (status === "paused" && (await this.goalAction(sessionId, "resume", undefined, { quiet: true }))) {
+      return true;
+    }
     return this.sendToThread(sessionId, `Keep working toward the goal: ${objective}`, { displayText: "Keep working on the goal" }, false);
+  }
+
+  /**
+   * Sets the thread's goal through `goal/set`, which also starts work on it when the thread is idle. A host without
+   * the goal commands gets the old route: a prompt asking the model to set it with its own tool.
+   */
+  private async setGoal(sessionId: string, objective: string, typed: string, options: TurnDelivery): Promise<boolean> {
+    const thread = this.state.threads[sessionId];
+    if (thread?.readOnly) {
+      this.toast("info", "This thread is read-only here", thread.readOnlyReason ?? "Another Muse session has it open.");
+      return false;
+    }
+    try {
+      await this.client.goal(sessionId, "set", objective);
+      return true;
+    } catch (error) {
+      if (errorKind(error) === "methodNotFound") {
+        return this.sendToThread(sessionId, goalPrompt(objective), { ...options, displayText: typed }, false);
+      }
+      this.toast("error", "Could not set the goal", errorMessage(error));
+      return false;
+    }
+  }
+
+  /** Pause, resume, clear or edit the thread's goal. `quiet` leaves failures to the caller. */
+  async goalAction(sessionId: string, action: GoalAction, objective?: string, options: { quiet?: boolean } = {}): Promise<boolean> {
+    const key = `goal:${sessionId}`;
+    if (this.state.busy[key]) {
+      return false;
+    }
+    this.setBusy(key, true);
+    try {
+      await this.client.goal(sessionId, action, objective);
+      return true;
+    } catch (error) {
+      if (!options.quiet) {
+        // Muse refuses a verb the goal's current state does not allow, like pausing one that is already blocked.
+        const stale = /invalid_goal_state|missing_goal/.test(errorMessage(error));
+        this.toast(stale ? "info" : "error", GOAL_FAILURES[action], stale ? "The goal changed since this panel last updated. Try again once it catches up." : errorMessage(error));
+      }
+      return false;
+    } finally {
+      this.setBusy(key, false);
+    }
+  }
+
+  // ---------------------------------------------------------------- tasks, subagents and workflows
+
+  /** `background` or `stop` one tool task by its item id, or `stopAll` the thread's background work. */
+  async taskAction(sessionId: string, action: TaskAction, taskId?: string): Promise<boolean> {
+    const key = `task:${sessionId}:${taskId ?? "all"}`;
+    if (this.state.busy[key]) {
+      return false;
+    }
+    this.setBusy(key, true);
+    try {
+      await this.client.task(sessionId, action, taskId);
+      return true;
+    } catch (error) {
+      this.toast("error", TASK_FAILURES[action], errorMessage(error));
+      return false;
+    } finally {
+      this.setBusy(key, false);
+    }
+  }
+
+  async subagentAction(sessionId: string, action: SubagentAction, subagentId: string, body?: string): Promise<boolean> {
+    const key = `subagent:${sessionId}:${subagentId}`;
+    if (this.state.busy[key]) {
+      return false;
+    }
+    this.setBusy(key, true);
+    try {
+      await this.client.subagent(sessionId, action, subagentId, body ? { body } : {});
+      return true;
+    } catch (error) {
+      this.toast("error", "The subagent did not take that", errorMessage(error));
+      return false;
+    } finally {
+      this.setBusy(key, false);
+    }
+  }
+
+  async workflowAction(
+    sessionId: string,
+    action: WorkflowAction,
+    workflowRunId: string,
+    child?: { childId: string; attempt: number },
+  ): Promise<boolean> {
+    const key = `workflow:${sessionId}:${workflowRunId}:${child?.childId ?? "run"}`;
+    if (this.state.busy[key]) {
+      return false;
+    }
+    this.setBusy(key, true);
+    try {
+      await this.client.workflow(sessionId, action, workflowRunId, child);
+      return true;
+    } catch (error) {
+      // A stale attempt means the child moved on since this card last drew; the next view update redraws it.
+      const stale = errorKind(error) === "stale_attempt";
+      this.toast(stale ? "info" : "error", stale ? "That agent already moved on" : "The workflow did not take that", stale ? "Try again once the card updates." : errorMessage(error));
+      return false;
+    } finally {
+      this.setBusy(key, false);
+    }
+  }
+
+  /** One page of a tool's full stored output; the caller keeps asking from `offsetBytes + byteLen` until `eof`. */
+  readOutput(sessionId: string, itemId: string, outputRef: string, offset = 0): Promise<OutputRange> {
+    return this.client.readOutput(sessionId, itemId, outputRef, offset);
   }
 
   /** Hands a `!` command the host could not run to the agent, whose own shell tool can. */

@@ -9,8 +9,12 @@ import {
   HeliconStore,
   SessionManager,
   isApprovalMode,
+  isGoalAction,
   isIfBusy,
   isReasoningEffort,
+  isSubagentAction,
+  isWorkflowChildAction,
+  parseSubscriptionUsage,
   planHostCommand,
   planMuseCli,
   planServe,
@@ -24,12 +28,15 @@ import {
   type CommandConnection,
   type ExecFn,
   type ServeTarget,
+  type ReasoningEffort,
   type SessionRecord,
+  type SessionSkill,
+  type SubscriptionUsage,
   type TurnImage,
 } from "@helicon/daemon";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
-export const HELICON_VERSION = "0.10.1";
+export const HELICON_VERSION = "0.11.0";
 
 export interface HostExit {
   code: number | null;
@@ -490,6 +497,36 @@ export interface SkillView {
   shortDescription: string | null;
   scope: string;
   activation: string;
+  /** What the skill expects after its name, when it says. */
+  argumentHint?: string | null;
+}
+
+/**
+ * The skills Muse reports for a loaded session, joined to the CLI listing. The session's list is the truth about
+ * what can be invoked there; the CLI listing is still where each skill's file lives, so the join keeps its id.
+ * Bundled skills list as `bundled:<name>` in the CLI and plugin skills as `plugin:<selector>`.
+ */
+export function mergeSessionSkills(rows: readonly SessionSkill[], cli: readonly SkillView[]): SkillView[] {
+  const byKey = new Map<string, SkillView>();
+  for (const skill of cli) {
+    byKey.set(skill.id, skill);
+    if (!byKey.has(skill.name)) {
+      byKey.set(skill.name, skill);
+    }
+  }
+  return rows.map((row) => {
+    const match = byKey.get(row.selector) ?? byKey.get(`plugin:${row.selector}`) ?? null;
+    return {
+      id: match?.id ?? row.selector,
+      name: row.selector,
+      displayName: row.displayName,
+      description: row.description || match?.description || "",
+      shortDescription: match?.shortDescription ?? null,
+      scope: match?.scope ?? row.source,
+      activation: match?.activation ?? "on",
+      argumentHint: row.argumentHint,
+    };
+  });
 }
 
 /** One workspace's skills. Where each SKILL.md lives stays on the server; the browser only names skills by id. */
@@ -544,6 +581,9 @@ export function stripFrontmatter(text: string): string {
 
 const SKILL_CACHE_MS = 60_000;
 
+/** One page of a tool's stored output; Muse serves at most 6 MiB a request, and a browser needs far less at once. */
+const OUTPUT_PAGE_BYTES = 1024 * 1024;
+
 /** Attachment limits: enough for a screenshot or a PDF, not enough to wedge the host. */
 const MAX_ATTACHMENTS = 10;
 const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;
@@ -576,6 +616,10 @@ export class HeliconServer {
   private settleTimer: ReturnType<typeof setInterval> | null = null;
   private envCache: { at: number; value: EnvView } | null = null;
   private readonly skillCache = new Map<string, SkillListing>();
+  /** The newest subscription window any host reported; `usage/changed` carries no session, so it lives here. */
+  private planUsage: SubscriptionUsage | null = null;
+  /** The reasoning effort each session is known to be running at, so a turn only re-sets it when it changes. */
+  private readonly effortApplied = new Map<string, ReasoningEffort>();
   private lastHostError: string | null = null;
   private closed = false;
   private readonly options: Required<
@@ -966,7 +1010,7 @@ export class HeliconServer {
       return true;
     }
     if (method === "GET" && path === "/api/slash") {
-      const listing = await this.listSkills(normalizeCwd(url.searchParams.get("cwd") ?? ""));
+      const listing = await this.listSkills(normalizeCwd(url.searchParams.get("cwd") ?? ""), url.searchParams.get("sessionId"));
       this.json(res, 200, { skills: listing.skills, error: listing.error });
       return true;
     }
@@ -1047,7 +1091,26 @@ export class HeliconServer {
       return true;
     }
 
-    const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(?:\/(resume|model|approval-mode|compact|shell|fork))?$/);
+    const outputMatch = path.match(/^\/api\/sessions\/([^/]+)\/output$/);
+    if (method === "GET" && outputMatch) {
+      const sessionId = decodeURIComponent(outputMatch[1] as string);
+      const itemId = url.searchParams.get("itemId");
+      const outputRef = url.searchParams.get("outputRef");
+      if (!itemId || !outputRef) {
+        throw new HttpError(400, "itemId and outputRef are required.");
+      }
+      const offset = Number.parseInt(url.searchParams.get("offset") ?? "0", 10);
+      const length = Number.parseInt(url.searchParams.get("length") ?? String(OUTPUT_PAGE_BYTES), 10);
+      const manager = await this.managerForSession(sessionId);
+      const range = await manager.readItemOutput(sessionId, itemId, outputRef, {
+        offsetBytes: Number.isFinite(offset) && offset > 0 ? offset : 0,
+        lengthBytes: Number.isFinite(length) && length > 0 ? Math.min(length, OUTPUT_PAGE_BYTES) : OUTPUT_PAGE_BYTES,
+      });
+      this.json(res, 200, { output: range });
+      return true;
+    }
+
+    const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(?:\/(resume|model|approval-mode|compact|shell|fork|effort|goal|subagent|tasks|workflow))?$/);
     if (sessionMatch) {
       const sessionId = decodeURIComponent(sessionMatch[1] as string);
       const action = sessionMatch[2];
@@ -1061,6 +1124,9 @@ export class HeliconServer {
         const settled = typeof body["settled"] === "boolean" ? body["settled"] : undefined;
         if (settled === true && this.isBusy(sessionId)) {
           throw new HttpError(409, "Stop the running turn and answer its requests before settling this thread.");
+        }
+        if (title && title !== found.session.title) {
+          await this.renameInMuse(sessionId, title);
         }
         const record = this.store.updateSession(sessionId, {
           ...(title ? { title, titleSource: "user" as const } : {}),
@@ -1111,6 +1177,81 @@ export class HeliconServer {
           this.json(res, 200, { session: await this.forkSession(sessionId, manager) });
           return true;
         }
+        if (action === "effort") {
+          const effort = body["reasoningEffort"];
+          if (!isReasoningEffort(effort)) {
+            throw new HttpError(400, "Unknown reasoningEffort.");
+          }
+          // Set outright, not through the cache: this is the user asking, and a TUI change may not have reached us.
+          await manager.setReasoningEffort(sessionId, effort);
+          this.effortApplied.set(sessionId, effort);
+          this.json(res, 200, { ok: true });
+          return true;
+        }
+        if (action === "goal") {
+          const goalAction = body["action"];
+          if (!isGoalAction(goalAction)) {
+            throw new HttpError(400, "Unknown goal action.");
+          }
+          const objective = str(body["objective"])?.trim();
+          if ((goalAction === "set" || goalAction === "edit") && !objective) {
+            throw new HttpError(400, "An objective is required.");
+          }
+          // Setting or resuming a goal on an idle session wakes a turn, which is activity like any prompt.
+          this.wake(sessionId);
+          const ack = await manager.goal(sessionId, goalAction, objective);
+          this.store.updateSession(sessionId, { activityAt: nowIso() });
+          this.json(res, 200, { turnId: ack.turnId });
+          return true;
+        }
+        if (action === "subagent") {
+          const subagentAction = body["action"];
+          const subagentId = str(body["subagentId"]);
+          if (!isSubagentAction(subagentAction) || !subagentId) {
+            throw new HttpError(400, "A known subagent action and a subagentId are required.");
+          }
+          const text = str(body["body"])?.trim();
+          if ((subagentAction === "sendMessage" || subagentAction === "followupTask") && !text) {
+            throw new HttpError(400, "A message is required.");
+          }
+          await manager.subagent(sessionId, subagentAction, subagentId, { reason: str(body["reason"]) ?? undefined, body: text });
+          this.json(res, 200, { ok: true });
+          return true;
+        }
+        if (action === "tasks") {
+          const taskAction = body["action"];
+          const taskId = str(body["taskId"]);
+          if (taskAction === "stopAll") {
+            await manager.stopAllTasks(sessionId);
+          } else if ((taskAction === "background" || taskAction === "stop") && taskId) {
+            await (taskAction === "background" ? manager.backgroundTask(sessionId, taskId) : manager.stopTask(sessionId, taskId));
+          } else {
+            throw new HttpError(400, "Use background or stop with a taskId, or stopAll.");
+          }
+          this.json(res, 200, { ok: true });
+          return true;
+        }
+        if (action === "workflow") {
+          const workflowAction = body["action"];
+          const workflowRunId = str(body["workflowRunId"]);
+          if (!workflowRunId) {
+            throw new HttpError(400, "workflowRunId is required.");
+          }
+          if (workflowAction === "cancel") {
+            await manager.cancelWorkflow(sessionId, workflowRunId);
+          } else if (isWorkflowChildAction(workflowAction)) {
+            const childId = str(body["childId"]);
+            const attempt = body["attempt"];
+            if (!childId || typeof attempt !== "number" || !Number.isInteger(attempt) || attempt < 1) {
+              throw new HttpError(400, "childId and the child's current attempt are required.");
+            }
+            await manager.controlWorkflowChild(sessionId, workflowRunId, childId, attempt, workflowAction);
+          } else {
+            throw new HttpError(400, "Use cancel, skip or retry.");
+          }
+          this.json(res, 200, { ok: true });
+          return true;
+        }
         const mode = body["mode"];
         if (!isApprovalMode(mode)) {
           throw new HttpError(400, "Unknown mode.");
@@ -1121,6 +1262,10 @@ export class HeliconServer {
       }
     }
 
+    if (method === "GET" && path === "/api/plan-usage") {
+      this.json(res, 200, { usage: await this.readPlanUsage() });
+      return true;
+    }
     if (method === "GET" && path === "/api/usage") {
       const requested = Number.parseInt(url.searchParams.get("days") ?? "30", 10);
       const days = Number.isFinite(requested) ? Math.min(365, Math.max(1, requested)) : 30;
@@ -1158,6 +1303,9 @@ export class HeliconServer {
         throw new HttpError(400, "Unknown reasoningEffort.");
       }
       const manager = await this.managerForSession(sessionId);
+      if (typeof effort === "string") {
+        await this.applyEffort(manager, sessionId, effort);
+      }
       const prepared = await this.prepareAttachments(this.store.findSession(sessionId)?.cwd ?? "", files);
       this.wake(sessionId);
       const ack = await manager.sendTurn(sessionId, prepared.prompt(text), {
@@ -1583,7 +1731,27 @@ export class HeliconServer {
   }
 
   /** A workspace's skills as `muse skills list` reports them, kept for a minute. A failure comes back as `error`, never a throw. */
-  private async listSkills(cwd: string): Promise<SkillListing> {
+  /**
+   * A workspace's skills. With a session that is loaded on a host, Muse's own `skill/list` decides which skills are
+   * there, so it stays right as skills are added or switched off; without one, `muse skills list` stands in.
+   */
+  private async listSkills(cwd: string, sessionId?: string | null): Promise<SkillListing> {
+    const cli = await this.listCliSkills(cwd);
+    const hostKey = sessionId ? this.sessionHosts.get(sessionId) : undefined;
+    const managed = hostKey ? this.hosts.get(hostKey) : undefined;
+    if (!sessionId || !managed) {
+      return cli;
+    }
+    try {
+      const rows = await managed.manager.listSessionSkills(sessionId);
+      return { ...cli, skills: mergeSessionSkills(rows, cli.skills), error: null };
+    } catch {
+      // An older host without skill/list, or a session that just unloaded: the CLI listing still answers.
+      return cli;
+    }
+  }
+
+  private async listCliSkills(cwd: string): Promise<SkillListing> {
     const key = cwd || "__default__";
     const cached = this.skillCache.get(key);
     if (cached && !cached.error && Date.now() - cached.at < SKILL_CACHE_MS) {
@@ -1614,7 +1782,7 @@ export class HeliconServer {
 
   /** A listed skill's instructions, read where Muse keeps them. The path comes from Muse, never from the request. */
   private async skillBody(cwd: string, id: string): Promise<string> {
-    const path = (await this.listSkills(cwd)).paths.get(id);
+    const path = (await this.listCliSkills(cwd)).paths.get(id);
     if (!path) {
       throw new HttpError(404, "Muse does not list that skill for this workspace.");
     }
@@ -2229,6 +2397,7 @@ export class HeliconServer {
         continue;
       }
       this.sessionHosts.delete(sessionId);
+      this.effortApplied.delete(sessionId);
       const live = this.live.get(sessionId);
       if (live && (live.activeTurnId || live.pendingApprovals.size || live.pendingInputs.size)) {
         live.activeTurnId = null;
@@ -2262,6 +2431,10 @@ export class HeliconServer {
 
   private forward(hostKey: string, notification: { method: string; params?: unknown; emittedAtMs?: number }): void {
     const params = asRecord(notification.params) ?? {};
+    if (notification.method === "usage/changed") {
+      this.observeUsage(parseSubscriptionUsage(params));
+      return;
+    }
     const event = toWireEvent(notification.method, params, notification.emittedAtMs);
     if (!event) {
       return;
@@ -2369,11 +2542,100 @@ export class HeliconServer {
         }
         break;
       }
+      case "session/nameChanged": {
+        this.adoptMuseName(sessionId, str(params["name"]));
+        break;
+      }
+      case "session/reasoningEffortChanged": {
+        const effort = params["reasoningEffort"];
+        if (isReasoningEffort(effort)) {
+          this.effortApplied.set(sessionId, effort);
+        }
+        break;
+      }
+      case "skill/changed": {
+        // The next skill list for this session's workspace goes back to Muse instead of the cache.
+        const found = this.store.findSession(sessionId);
+        this.skillCache.delete(found?.cwd || "__default__");
+        break;
+      }
       default:
         break;
     }
     if (changed) {
       this.emitStatus(sessionId);
+    }
+  }
+
+  /**
+   * Gives Muse the name typed here, so the CLI, `/name` addressing and other clients see it too. Only a host that
+   * already has the session loaded is asked; the local title stands either way, since a thread that never loads
+   * still deserves the name the user gave it.
+   */
+  private async renameInMuse(sessionId: string, name: string): Promise<void> {
+    const hostKey = this.sessionHosts.get(sessionId);
+    const managed = hostKey ? this.hosts.get(hostKey) : undefined;
+    if (!managed) {
+      return;
+    }
+    try {
+      await managed.manager.renameSession(sessionId, name);
+    } catch {
+      /* an ephemeral session, or a host without session/rename */
+    }
+  }
+
+  /** A newer subscription window from any host replaces the one held, and every open window hears about it. */
+  private observeUsage(usage: SubscriptionUsage | null): void {
+    if (!usage || (this.planUsage && this.planUsage.observedAtMs > usage.observedAtMs)) {
+      return;
+    }
+    this.planUsage = usage;
+    this.emit("helicon", { type: "plan-usage", usage });
+  }
+
+  /** Asks every running host what it last saw; none is started just for this, since it would have seen nothing. */
+  private async readPlanUsage(): Promise<SubscriptionUsage | null> {
+    await Promise.all(
+      [...this.hosts.values()].map(async (managed) => {
+        try {
+          this.observeUsage(await managed.manager.readSubscriptionUsage());
+        } catch {
+          /* an older host without usage/read */
+        }
+      }),
+    );
+    return this.planUsage;
+  }
+
+  /** Muse named or renamed the session, here or in another client; the newest name wins, and a typed title stays typed. */
+  private adoptMuseName(sessionId: string, name: string | null): void {
+    const title = name?.trim().slice(0, 200);
+    const record = title ? this.store.getSession(sessionId) : null;
+    if (!title || !record || record.title === title) {
+      return;
+    }
+    this.store.updateSession(sessionId, { title, titleSource: record.titleSource === "user" ? "user" : "auto" });
+    this.sessionsChanged();
+  }
+
+  /**
+   * Puts a session on the effort a turn asks for. `muse serve` 1.3.0 drops the effort sent with `turn/start`
+   * (muse-code-sdk#6) but honours the session default, so that is what carries it. A host without the method
+   * leaves the turn's own effort to do what it can; a session that is not loaded fails the turn the same way.
+   */
+  private async applyEffort(manager: SessionManager, sessionId: string, effort: ReasoningEffort): Promise<void> {
+    if (this.effortApplied.get(sessionId) === effort) {
+      return;
+    }
+    try {
+      await manager.setReasoningEffort(sessionId, effort);
+      this.effortApplied.set(sessionId, effort);
+    } catch (error) {
+      const kind = errorInfo(error).kind;
+      if (kind === "sessionNotLoaded" || kind === "sessionStreamMismatch" || kind === "sessionNotFound") {
+        throw error;
+      }
     }
   }
 

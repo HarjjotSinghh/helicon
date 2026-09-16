@@ -145,13 +145,47 @@ class FakeClient implements HeliconClient {
     this.actions.push("fork");
     return { ...SESSION, sessionId: "s2", title: "Probe (fork)" };
   }
-  async listSkills() {
+  async listSkills(_cwd: string, sessionId?: string) {
+    this.skillSessions.push(sessionId);
     return { skills: this.skills, error: null };
   }
   async skillBody(_cwd: string, skillId: string) {
     return `Instructions for ${skillId}.`;
   }
   async openFolder() {}
+  skillSessions: (string | undefined)[] = [];
+  efforts: string[] = [];
+  goalError: Error | null = null;
+  async setReasoningEffort(sessionId: string, effort: string) {
+    this.efforts.push(`${sessionId}:${effort}`);
+  }
+  async goal(sessionId: string, action: string, objective?: string) {
+    if (this.goalError) {
+      throw this.goalError;
+    }
+    this.actions.push(`goal:${sessionId}:${action}${objective ? `:${objective}` : ""}`);
+    return { turnId: action === "set" || action === "resume" ? "t-goal" : null };
+  }
+  async subagent(sessionId: string, action: string, subagentId: string, options?: { body?: string }) {
+    this.actions.push(`subagent:${sessionId}:${action}:${subagentId}${options?.body ? `:${options.body}` : ""}`);
+  }
+  async task(sessionId: string, action: string, taskId?: string) {
+    this.actions.push(`task:${sessionId}:${action}${taskId ? `:${taskId}` : ""}`);
+  }
+  workflowError: Error | null = null;
+  async workflow(sessionId: string, action: string, workflowRunId: string, child?: { childId: string; attempt: number }) {
+    if (this.workflowError) {
+      throw this.workflowError;
+    }
+    this.actions.push(`workflow:${sessionId}:${action}:${workflowRunId}${child ? `:${child.childId}@${child.attempt}` : ""}`);
+  }
+  async readOutput(_sessionId: string, _itemId: string, _outputRef: string, offset = 0) {
+    return { content: offset === 0 ? "first " : "second", encoding: "utf8", mediaType: "text/plain", offsetBytes: offset, byteLen: 6, eof: offset > 0 };
+  }
+  plan: import("../src/types.js").PlanUsage | null = null;
+  async planUsage() {
+    return this.plan;
+  }
   subscribe(handler: EventHandler) {
     this.handler = handler;
     return () => {
@@ -552,18 +586,118 @@ describe("HeliconController", () => {
     stop();
   });
 
-  it("sets a goal through the model, and asks for the objective when it is missing", async () => {
+  it("sets, pauses, resumes and clears goals through Muse's goal commands", async () => {
     const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.send("/goal Ship the release"), true);
+    assert.deepEqual(client.actions.at(-1), "goal:s1:set:Ship the release");
+    assert.equal(client.sent.length, 0, "no prompt goes to the model: the goal command starts the work");
+    assert.equal(await controller.send("/goal pause"), true);
+    assert.equal(client.actions.at(-1), "goal:s1:pause");
+    assert.equal(await controller.send("/goal Clear"), true, "the verbs are not case-sensitive");
+    assert.equal(client.actions.at(-1), "goal:s1:clear");
+
+    assert.equal(await controller.send("/goal"), false);
+    assert.equal(controller.store.get().toasts.at(-1)?.title, "Add the goal after /goal");
+
+    // A paused goal resumes through goal/resume; a blocked one still gets a prompt to keep going.
+    assert.equal(await controller.continueGoal("s1", "Ship the release", "paused"), true);
+    assert.equal(client.actions.at(-1), "goal:s1:resume");
+    assert.equal(await controller.continueGoal("s1", "Ship the release", "blocked"), true);
+    assert.equal(client.sent.at(-1)?.displayText, "Keep working on the goal");
+
+    assert.equal(await controller.goalAction("s1", "edit", "Ship 0.11"), true);
+    assert.equal(client.actions.at(-1), "goal:s1:edit:Ship 0.11");
+    stop();
+  });
+
+  it("falls back to asking the model for a goal on a host without goal commands", async () => {
+    const client = new FakeClient();
+    client.goalError = new HeliconError("no such method", 409, "methodNotFound");
     const { controller, stop } = await started(client);
     assert.equal(await controller.send("/goal Ship the release"), true);
     assert.equal(client.sent.at(-1)?.displayText, "/goal Ship the release");
     assert.match(client.sent.at(-1)?.text ?? "", /create_goal tool\. Objective: Ship the release/);
-    const count = client.sent.length;
-    assert.equal(await controller.send("/goal"), false);
-    assert.equal(client.sent.length, count);
-    assert.equal(controller.store.get().toasts.at(-1)?.title, "Add the goal after /goal");
-    assert.equal(await controller.continueGoal("s1", "Ship the release"), true);
-    assert.equal(client.sent.at(-1)?.displayText, "Keep working on the goal");
+
+    client.goalError = new HeliconError("goal is finished", 409, "goalNotPaused");
+    assert.equal(await controller.goalAction("s1", "pause"), false);
+    assert.equal(controller.store.get().toasts.at(-1)?.title, "Could not pause the goal");
+    stop();
+  });
+
+  it("puts the open thread on the chosen effort, and leaves it be on auto", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.send("/effort low"), true);
+    await settle();
+    assert.deepEqual(client.efforts, ["s1:low"]);
+    controller.setEffort(null);
+    await settle();
+    assert.deepEqual(client.efforts, ["s1:low"], "auto keeps the thread's own level");
+    assert.equal(controller.store.get().prefs.effort, null);
+    stop();
+  });
+
+  it("controls background tasks, subagents and workflow children", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.taskAction("s1", "background", "item-2"), true);
+    assert.equal(await controller.taskAction("s1", "stop", "item-2"), true);
+    assert.equal(await controller.taskAction("s1", "stopAll"), true);
+    assert.equal(await controller.subagentAction("s1", "sendMessage", "sa1", "use pnpm"), true);
+    assert.equal(await controller.workflowAction("s1", "retry", "run-1", { childId: "c1", attempt: 2 }), true);
+    assert.deepEqual(client.actions, [
+      "task:s1:background:item-2",
+      "task:s1:stop:item-2",
+      "task:s1:stopAll",
+      "subagent:s1:sendMessage:sa1:use pnpm",
+      "workflow:s1:retry:run-1:c1@2",
+    ]);
+
+    client.workflowError = new HeliconError("stale", 409, "stale_attempt");
+    assert.equal(await controller.workflowAction("s1", "skip", "run-1", { childId: "c1", attempt: 1 }), false);
+    assert.equal(controller.store.get().toasts.at(-1)?.title, "That agent already moved on");
+    stop();
+  });
+
+  it("keeps the newest plan usage from boot and from the event stream", async () => {
+    const client = new FakeClient();
+    const reading = (percent: number, at: number) => ({
+      tier: "high",
+      observedAtMs: at,
+      window: { usedPercent: percent, resetsAtMs: at + 1, windowDurationMins: 300 },
+      weekly: { usedPercent: 3, resetsAtMs: at + 2, windowDurationMins: null },
+    });
+    client.plan = reading(20, 100);
+    const { controller, stop } = await started(client);
+    assert.equal(controller.store.get().planUsage?.window.usedPercent, 20);
+    client.handler?.({ type: "plan-usage", usage: reading(35, 200) });
+    assert.equal(controller.store.get().planUsage?.window.usedPercent, 35);
+    client.handler?.({ type: "plan-usage", usage: reading(1, 150) });
+    assert.equal(controller.store.get().planUsage?.window.usedPercent, 35, "an older reading does not replace a newer one");
+    stop();
+  });
+
+  it("asks for the open thread's own skills and reloads them when Muse says they changed", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    await controller.loadSkills("/work/app");
+    assert.deepEqual(client.skillSessions, ["s1"]);
+    await controller.loadSkills("/work/app");
+    assert.equal(client.skillSessions.length, 1, "a fresh list is reused");
+    client.handler?.({ type: "msp", sessionId: "s1", method: "skill/changed", params: { sessionId: "s1" }, at: 1 });
+    await settle();
+    assert.equal(client.skillSessions.length, 2);
+    stop();
+  });
+
+  it("reads a tool's stored output page by page", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    const first = await controller.readOutput("s1", "i1", "ref");
+    assert.equal(first.eof, false);
+    const next = await controller.readOutput("s1", "i1", "ref", first.offsetBytes + first.byteLen);
+    assert.equal(next.eof, true);
     stop();
   });
 
@@ -590,10 +724,11 @@ describe("HeliconController", () => {
     assert.equal(client.sent.at(-1)?.text, "pick this up again");
     assert.equal(controller.store.get().route.kind, "thread");
 
-    // A prompt the transcript showed as `/goal …` is expanded again, not sent as the literal command.
+    // A prompt the transcript showed as `/goal …` runs as the goal command again, not as the literal text.
+    const sent = client.sent.length;
     assert.equal(await controller.freshThread("s1", "/goal ship the release"), true);
-    assert.equal(client.sent.at(-1)?.displayText, "/goal ship the release");
-    assert.match(client.sent.at(-1)?.text ?? "", /create_goal tool\. Objective: ship the release/);
+    assert.equal(client.actions.at(-1), "goal:s1:set:ship the release");
+    assert.equal(client.sent.length, sent);
     stop();
   });
 

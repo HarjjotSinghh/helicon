@@ -299,11 +299,11 @@ function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] |
     case "reasoning":
       return <ReasoningRow item={item} />;
     case "toolCall":
-      return <ToolRow item={item} gate={props.gate} answers={props.answers} />;
+      return <ToolRow item={item} gate={props.gate} answers={props.answers} sessionId={props.sessionId} />;
     case "userShell":
       return <ShellRow item={item} sessionId={props.sessionId} />;
     case "subagent":
-      return <SubagentRow item={item} />;
+      return <SubagentRow item={item} sessionId={props.sessionId} />;
     case "workflow":
       return <WorkflowCard item={item} sessionId={props.sessionId} />;
     case "compaction":

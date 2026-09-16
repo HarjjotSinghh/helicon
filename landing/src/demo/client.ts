@@ -8,7 +8,10 @@ import { listedPrice } from "@/product/model/pricing";
 import type {
   ApprovalRequest,
   EnvironmentStatus,
+  GoalAction,
   ModelOption,
+  OutputRange,
+  PlanUsage,
   ProjectView,
   SessionSummary,
   ShellRun,
@@ -621,6 +624,46 @@ export class DemoClient implements HeliconClient {
     return `Instructions for ${skillId}.`;
   }
   async openFolder() {}
+
+  async setReasoningEffort() {}
+
+  /** Goals play back as Muse reports them, so the goal panel shows and reacts in the demo. */
+  async goal(sessionId: string, action: GoalAction, objective?: string) {
+    const entry = this.sessions.get(sessionId);
+    const current = [...(entry?.events ?? [])].reverse().find((e) => e.method === "session/goalChanged")?.params["goal"] as
+      | { objective: string; status: string; percentComplete: number }
+      | null
+      | undefined;
+    if (action === "clear") {
+      this.emit(sessionId, "session/goalChanged", { goal: null });
+      return { turnId: null };
+    }
+    const text = objective ?? current?.objective;
+    if (!text) throw new Error("There is no goal in this thread yet.");
+    const status = action === "pause" ? "paused" : "active";
+    this.emit(sessionId, "session/goalChanged", {
+      goal: { objective: text, status, percentComplete: action === "set" ? 0 : (current?.percentComplete ?? 0) },
+    });
+    return { turnId: null };
+  }
+
+  async subagent() {}
+  async task() {}
+  async workflow() {}
+
+  async readOutput(): Promise<OutputRange> {
+    return { content: "", encoding: "utf8", mediaType: "text/plain", offsetBytes: 0, byteLen: 0, eof: true };
+  }
+
+  /** A plausible mid-afternoon plan meter, so the usage page and sidebar show what the real one looks like. */
+  async planUsage(): Promise<PlanUsage> {
+    return {
+      tier: "high",
+      observedAtMs: this.now - 4 * MIN,
+      window: { usedPercent: 38, resetsAtMs: this.now + 2 * HOUR + 17 * MIN, windowDurationMins: 300 },
+      weekly: { usedPercent: 21, resetsAtMs: this.now + 3 * DAY + 5 * HOUR, windowDurationMins: null },
+    };
+  }
 
   subscribe(handler: EventHandler) {
     this.handlers.add(handler);

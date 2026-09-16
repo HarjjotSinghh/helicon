@@ -400,4 +400,230 @@ export class SessionManager {
       clarification: { format: "text", content },
     });
   }
+
+  /**
+   * The session's standing reasoning effort. On Muse 1.3.0 this is the only knob `muse serve` honours: an effort
+   * sent with `turn/start` is accepted and then dropped before the provider call (muse-code-sdk#6).
+   */
+  async setReasoningEffort(sessionId: string, reasoningEffort: ReasoningEffort): Promise<unknown> {
+    return this.connection.command("session/setReasoningEffort", { sessionId, reasoningEffort });
+  }
+
+  /** Muse's own name for the session, the one `/name` sets and other sessions address it by. */
+  async renameSession(sessionId: string, name: string): Promise<string | null> {
+    const result = await this.connection.command("session/rename", { sessionId, name });
+    return nestedString(result, ["name"]);
+  }
+
+  /** The host's last-observed subscription window; null when it has not seen one yet, which is not an error. */
+  async readSubscriptionUsage(): Promise<SubscriptionUsage | null> {
+    return parseSubscriptionUsage(asRecord(await this.query("usage/read", {}))?.["usage"]);
+  }
+
+  /** Every goal verb answers the same admission ack; `set` and `edit` carry the objective, the rest must not. */
+  async goal(sessionId: string, action: GoalAction, objective?: string): Promise<GoalAck> {
+    const params: Record<string, unknown> = { sessionId };
+    if (action === "set" || action === "edit") {
+      const text = objective?.trim();
+      if (!text) {
+        throw new Error(`goal/${action} needs an objective.`);
+      }
+      params["objective"] = text;
+    }
+    const result = asRecord(await this.connection.command(`goal/${action}`, params));
+    return { turnId: typeof result?.["turnId"] === "string" ? result["turnId"] : null };
+  }
+
+  /** A control on a `subagent` item, addressed by its `subagentId`. `body` is the note or follow-up task text. */
+  async subagent(
+    sessionId: string,
+    action: SubagentAction,
+    subagentId: string,
+    options: { reason?: string; body?: string } = {},
+  ): Promise<unknown> {
+    const params: Record<string, unknown> = { sessionId, subagentId };
+    if (action === "sendMessage" || action === "followupTask") {
+      const body = options.body?.trim();
+      if (!body) {
+        throw new Error(`subagent/${action} needs a message.`);
+      }
+      params["body"] = body;
+    } else if ((action === "stop" || action === "interrupt" || action === "close") && options.reason) {
+      params["reason"] = options.reason;
+    }
+    return this.connection.command(`subagent/${action}`, params);
+  }
+
+  /** A running foreground tool call moved to the background. Its task id is the `toolCall` item's `itemId`. */
+  async backgroundTask(sessionId: string, taskId: string): Promise<unknown> {
+    return this.connection.command("task/background", { sessionId, taskId });
+  }
+
+  async stopTask(sessionId: string, taskId: string): Promise<unknown> {
+    return this.connection.command("task/stop", { sessionId, taskId });
+  }
+
+  /** Stops every background task live in the session at admission. */
+  async stopAllTasks(sessionId: string): Promise<unknown> {
+    return this.connection.command("task/stopAll", { sessionId });
+  }
+
+  /** The session's user-invocable skills as the host resolves them; the session must be loaded. */
+  async listSessionSkills(sessionId: string): Promise<SessionSkill[]> {
+    const result = asRecord(await this.query("skill/list", { sessionId }));
+    const rows = Array.isArray(result?.["skills"]) ? result["skills"] : [];
+    const skills: SessionSkill[] = [];
+    for (const row of rows) {
+      const r = asRecord(row);
+      const selector = typeof r?.["selector"] === "string" ? r["selector"] : null;
+      if (!r || !selector) {
+        continue;
+      }
+      skills.push({
+        selector,
+        displayName: typeof r["displayName"] === "string" && r["displayName"] ? r["displayName"] : selector,
+        description: typeof r["description"] === "string" ? r["description"] : "",
+        source: typeof r["source"] === "string" ? r["source"] : "unknown",
+        argumentHint: typeof r["argumentHint"] === "string" ? r["argumentHint"] : null,
+        pluginId: typeof r["pluginId"] === "string" ? r["pluginId"] : null,
+      });
+    }
+    return skills;
+  }
+
+  async cancelWorkflow(sessionId: string, workflowRunId: string): Promise<unknown> {
+    return this.connection.command("workflow/cancel", { sessionId, workflowRunId });
+  }
+
+  /** Skips or retries one workflow child. `attempt` must be the child's current one, or Muse rejects it as stale. */
+  async controlWorkflowChild(
+    sessionId: string,
+    workflowRunId: string,
+    childId: string,
+    attempt: number,
+    action: WorkflowChildAction,
+  ): Promise<unknown> {
+    return this.connection.command("workflow/childControl", { sessionId, workflowRunId, childId, attempt, action });
+  }
+
+  /** One byte range of a tool's stored output, for output the view truncated. `outputRef` is `outputRef.id`, never its uri. */
+  async readItemOutput(
+    sessionId: string,
+    itemId: string,
+    outputRef: string,
+    options: { offsetBytes?: number; lengthBytes?: number } = {},
+  ): Promise<ItemOutputRange> {
+    const params: Record<string, unknown> = { sessionId, itemId, outputRef };
+    if (options.offsetBytes !== undefined) {
+      params["offsetBytes"] = options.offsetBytes;
+    }
+    if (options.lengthBytes !== undefined) {
+      params["lengthBytes"] = options.lengthBytes;
+    }
+    const r = asRecord(await this.query("item/readOutput", params)) ?? {};
+    return {
+      content: typeof r["content"] === "string" ? r["content"] : "",
+      encoding: typeof r["encoding"] === "string" ? r["encoding"] : "utf8",
+      mediaType: typeof r["mediaType"] === "string" ? r["mediaType"] : "application/octet-stream",
+      offsetBytes: typeof r["offsetBytes"] === "number" ? r["offsetBytes"] : 0,
+      byteLen: typeof r["byteLen"] === "number" ? r["byteLen"] : 0,
+      eof: r["eof"] === true,
+    };
+  }
+}
+
+export type GoalAction = "set" | "edit" | "pause" | "resume" | "clear";
+
+export const GOAL_ACTIONS: readonly GoalAction[] = ["set", "edit", "pause", "resume", "clear"];
+
+export function isGoalAction(value: unknown): value is GoalAction {
+  return typeof value === "string" && (GOAL_ACTIONS as readonly string[]).includes(value);
+}
+
+export interface GoalAck {
+  /** Present when the verb woke a goal-driving turn. */
+  turnId: string | null;
+}
+
+export type SubagentAction = "interrupt" | "stop" | "close" | "resume" | "reopen" | "sendMessage" | "followupTask" | "readResult";
+
+export const SUBAGENT_ACTIONS: readonly SubagentAction[] = [
+  "interrupt",
+  "stop",
+  "close",
+  "resume",
+  "reopen",
+  "sendMessage",
+  "followupTask",
+  "readResult",
+];
+
+export function isSubagentAction(value: unknown): value is SubagentAction {
+  return typeof value === "string" && (SUBAGENT_ACTIONS as readonly string[]).includes(value);
+}
+
+export type WorkflowChildAction = "skip" | "retry";
+
+export function isWorkflowChildAction(value: unknown): value is WorkflowChildAction {
+  return value === "skip" || value === "retry";
+}
+
+export interface SessionSkill {
+  selector: string;
+  displayName: string;
+  description: string;
+  source: string;
+  argumentHint: string | null;
+  pluginId: string | null;
+}
+
+export interface ItemOutputRange {
+  content: string;
+  encoding: string;
+  mediaType: string;
+  offsetBytes: number;
+  byteLen: number;
+  eof: boolean;
+}
+
+/** A usage window as a percentage, with when it resets. */
+export interface UsageWindow {
+  usedPercent: number;
+  resetsAtMs: number;
+  /** Present for the short window (five hours on today's plans); the weekly block has no duration. */
+  windowDurationMins: number | null;
+}
+
+/** The subscription meter Muse last saw: the short rolling window, the weekly cap, and the plan tier. */
+export interface SubscriptionUsage {
+  tier: string;
+  observedAtMs: number;
+  window: UsageWindow;
+  weekly: UsageWindow;
+}
+
+function usageWindow(value: unknown): UsageWindow | null {
+  const r = asRecord(value);
+  if (!r || typeof r["usedPercent"] !== "number" || typeof r["resetsAtMs"] !== "number") {
+    return null;
+  }
+  return {
+    usedPercent: r["usedPercent"],
+    resetsAtMs: r["resetsAtMs"],
+    windowDurationMins: typeof r["windowDurationMins"] === "number" ? r["windowDurationMins"] : null,
+  };
+}
+
+/** A `SubscriptionUsage` from `usage/read` or `usage/changed`; null for anything incomplete. */
+export function parseSubscriptionUsage(value: unknown): SubscriptionUsage | null {
+  const r = asRecord(value);
+  if (!r) {
+    return null;
+  }
+  const window = usageWindow(r["window"]);
+  const weekly = usageWindow(r["weekly"]);
+  if (!window || !weekly || typeof r["observedAtMs"] !== "number") {
+    return null;
+  }
+  return { tier: typeof r["tier"] === "string" ? r["tier"] : "unknown", observedAtMs: r["observedAtMs"], window, weekly };
 }

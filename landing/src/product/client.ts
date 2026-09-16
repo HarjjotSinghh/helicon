@@ -1,16 +1,22 @@
 import type {
   ApprovalMode,
   EnvironmentStatus,
+  GoalAction,
   HeliconEvent,
   IfBusy,
   ModelOption,
   OutgoingAttachment,
+  OutputRange,
+  PlanUsage,
   ProjectView,
   ReasoningEffort,
   SessionSummary,
   SkillCatalog,
+  SubagentAction,
+  TaskAction,
   TranscriptLoad,
   UserInputAnswer,
+  WorkflowAction,
 } from "./types";
 import { listedPrice } from "./model/pricing";
 
@@ -105,10 +111,25 @@ export interface HeliconClient {
   runShellProxy(sessionId: string, command: string): Promise<import("./types").ShellRun>;
   /** Branches a thread into a new one carrying every completed turn. */
   forkSession(sessionId: string): Promise<SessionSummary>;
-  listSkills(cwd: string): Promise<SkillCatalog>;
+  /** With a loaded session, Muse's own list for it; otherwise the workspace's list from the CLI. */
+  listSkills(cwd: string, sessionId?: string): Promise<SkillCatalog>;
   /** The full instructions of a skill, without its frontmatter. */
   skillBody(cwd: string, skillId: string): Promise<string>;
   openFolder(cwd: string, target: "files" | "editor"): Promise<void>;
+  /** The session's standing reasoning effort, which is what Muse applies to its turns. */
+  setReasoningEffort(sessionId: string, effort: ReasoningEffort): Promise<void>;
+  /** `set` and `edit` need the objective. A verb that wakes a turn returns its id. */
+  goal(sessionId: string, action: GoalAction, objective?: string): Promise<{ turnId: string | null }>;
+  /** A control on a `subagent` item. `body` is the message or follow-up task text. */
+  subagent(sessionId: string, action: SubagentAction, subagentId: string, options?: { reason?: string; body?: string }): Promise<void>;
+  /** `background` and `stop` take the tool call's item id; `stopAll` stops every background task in the session. */
+  task(sessionId: string, action: TaskAction, taskId?: string): Promise<void>;
+  /** `cancel` stops the run; `skip` and `retry` act on one child at its current attempt. */
+  workflow(sessionId: string, action: WorkflowAction, workflowRunId: string, child?: { childId: string; attempt: number }): Promise<void>;
+  /** One page of a tool's full stored output, from `offset` bytes in. */
+  readOutput(sessionId: string, itemId: string, outputRef: string, offset?: number): Promise<OutputRange>;
+  /** The subscription window Muse last saw; null until a host has seen one. */
+  planUsage(): Promise<PlanUsage | null>;
   /** Subscribe to server events; returns an unsubscribe function. */
   subscribe(handler: EventHandler): () => void;
 }

@@ -1,4 +1,4 @@
-import { ChevronDown, PanelRightOpen, Workflow } from "lucide-react";
+import { ChevronDown, CircleStop, PanelRightOpen, RotateCcw, SkipForward, Workflow } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import { useApp, useController } from "../../app/context.js";
 import { formatDuration, humanize } from "../../model/format.js";
@@ -6,7 +6,7 @@ import { TERMINAL_FAILURES, workflowView, type WorkflowAgent, type WorkflowView 
 import type { MspItem } from "../../types.js";
 import { Markdown } from "../ui/Markdown.js";
 import { Sheet } from "../ui/overlays.js";
-import { Button, Spinner, cn } from "../ui/primitives.js";
+import { Button, IconButton, Spinner, cn } from "../ui/primitives.js";
 
 type Tone = "running" | "done" | "failed";
 
@@ -102,10 +102,11 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
               {view.failed} of {view.used} {view.failed === 1 ? "agent" : "agents"} did not finish.
             </p>
           ) : null}
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button size="sm" variant="ghost" onClick={() => setDetail(true)}>
               <PanelRightOpen size={13} /> Details
             </Button>
+            {view.running && view.runId && sessionId ? <CancelRun sessionId={sessionId} runId={view.runId} /> : null}
           </div>
         </div>
       ) : null}
@@ -115,14 +116,31 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
         title="Workflow"
         description={view.objective ?? view.label}
       >
-        <Detail view={view} tone={tone} />
+        <Detail view={view} tone={tone} sessionId={sessionId} />
       </Sheet>
     </section>
   );
 });
 
-function Detail(props: { view: WorkflowView; tone: Tone }) {
+/** Cancels the whole run; what it had finished stays in its report. */
+function CancelRun(props: { sessionId: string; runId: string }) {
+  const controller = useController();
+  const readOnly = useApp((s) => s.threads[props.sessionId]?.readOnly ?? true);
+  const busy = useApp((s) => Boolean(s.busy[`workflow:${props.sessionId}:${props.runId}:run`]));
+  if (readOnly) {
+    return null;
+  }
+  return (
+    <Button size="sm" variant="ghost" loading={busy} onClick={() => void controller.workflowAction(props.sessionId, "cancel", props.runId)}>
+      <CircleStop size={13} /> Cancel run
+    </Button>
+  );
+}
+
+function Detail(props: { view: WorkflowView; tone: Tone; sessionId?: string }) {
   const { view } = props;
+  // Skipping or retrying an agent needs the run it belongs to and a thread that is ours to drive.
+  const controls = useApp((s) => (props.sessionId && view.runId && !s.threads[props.sessionId]?.readOnly ? { sessionId: props.sessionId, runId: view.runId } : null), (a, b) => a?.sessionId === b?.sessionId && a?.runId === b?.runId);
   return (
     <div className="flex flex-col gap-5">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:grid-cols-3">
@@ -150,7 +168,7 @@ function Detail(props: { view: WorkflowView; tone: Tone }) {
         {view.agents.length > 0 ? (
           <ul className="mt-1.5 flex flex-col">
             {view.agents.map((agent) => (
-              <AgentRow key={`${agent.id}:${agent.attempt}`} agent={agent} />
+              <AgentRow key={`${agent.id}:${agent.attempt}`} agent={agent} controls={controls} />
             ))}
           </ul>
         ) : (
@@ -182,9 +200,14 @@ function Detail(props: { view: WorkflowView; tone: Tone }) {
   );
 }
 
-function AgentRow(props: { agent: WorkflowAgent }) {
-  const { agent } = props;
+function AgentRow(props: { agent: WorkflowAgent; controls: { sessionId: string; runId: string } | null }) {
+  const controller = useController();
+  const { agent, controls } = props;
   const failed = Boolean(agent.terminal) && agent.terminal !== "completed";
+  const busy = useApp((s) => Boolean(controls && s.busy[`workflow:${controls.sessionId}:${controls.runId}:${agent.id}`]));
+  // The attempt goes along as the child's current one: if it moved on meanwhile, Muse refuses instead of guessing.
+  const act = (action: "skip" | "retry") =>
+    controls && void controller.workflowAction(controls.sessionId, action, controls.runId, { childId: agent.id, attempt: agent.attempt });
   return (
     <li className="flex items-center gap-2.5 border-b border-line py-2 last:border-b-0">
       {agent.terminal ? (
@@ -204,6 +227,16 @@ function AgentRow(props: { agent: WorkflowAgent }) {
       <span className="w-12 shrink-0 text-right text-2xs text-subtle tabular-nums">
         {agent.durationMs === null ? "" : formatDuration(agent.durationMs) || "0s"}
       </span>
+      {controls && !agent.terminal ? (
+        <IconButton size="xs" label={`Skip ${agent.id}`} title="Skip this agent" disabled={busy} onClick={() => act("skip")}>
+          <SkipForward size={12} />
+        </IconButton>
+      ) : null}
+      {controls && failed ? (
+        <IconButton size="xs" label={`Retry ${agent.id}`} title="Run this agent again" disabled={busy} onClick={() => act("retry")}>
+          <RotateCcw size={12} />
+        </IconButton>
+      ) : null}
     </li>
   );
 }

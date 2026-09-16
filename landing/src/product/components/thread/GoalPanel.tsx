@@ -1,4 +1,4 @@
-import { ChevronDown, Pause, Play, Target } from "lucide-react";
+import { ChevronDown, Pause, Play, Square, Target, X } from "lucide-react";
 import { useMemo } from "react";
 import { shallowEqual, useApp, useController, useNow } from "../../app/context";
 import { formatDuration, formatTokens, relativeTime } from "../../model/format";
@@ -95,6 +95,7 @@ function GoalBody(props: { view: GoalView; elapsed: number | null; now: number; 
     }
     return priced ? { cost, currency, complete } : null;
   }, [view, models, controller, props.sessionId]);
+  const busy = useApp((s) => Boolean(s.busy[`goal:${props.sessionId}`]));
   const muse = view.tokensUsed !== null && view.tokensUsed > 0 ? ` Muse's own count at its last goal update: ${formatTokens(view.tokensUsed)}.` : "";
   const lastUpdate = view.lastProgressAt ?? view.endedAt;
   const newGoal = () => {
@@ -154,19 +155,35 @@ function GoalBody(props: { view: GoalView; elapsed: number | null; now: number; 
       ) : null}
       {props.readOnly ? null : (
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          {/* Pausing keeps the goal and stops Muse starting new work on it; stopping only ends the running turn. */}
+          {view.tone === "active" ? (
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void controller.goalAction(props.sessionId, "pause")}>
+              <Pause size={13} /> Pause goal
+            </Button>
+          ) : null}
           {view.tone === "active" && props.running ? (
             <Button size="sm" variant="ghost" onClick={() => void controller.stop(props.sessionId)}>
-              <Pause size={13} /> Stop
+              <Square size={12} /> Stop turn
             </Button>
           ) : null}
           {(view.tone === "paused" || view.tone === "attention") && !props.running ? (
-            <Button size="sm" variant="ghost" onClick={() => void controller.continueGoal(props.sessionId, view.objective)}>
-              <Play size={13} /> Keep going
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => void controller.continueGoal(props.sessionId, view.objective, view.status)}
+            >
+              <Play size={13} /> {view.tone === "paused" ? "Resume goal" : "Keep going"}
             </Button>
           ) : null}
           <Button size="sm" variant="ghost" onClick={newGoal}>
             {view.tone === "active" ? "Change goal" : "New goal"}
           </Button>
+          {view.tone !== "done" && view.tone !== "ended" ? (
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void controller.goalAction(props.sessionId, "clear")}>
+              <X size={13} /> Clear
+            </Button>
+          ) : null}
         </div>
       )}
     </div>
