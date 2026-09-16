@@ -497,6 +497,24 @@ html.motion-ready [data-reveal]:not([data-inview]) {
   }
 }
 
+@keyframes demo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.demo-spinner {
+  color: white;
+  filter: drop-shadow(0 2px 8px rgb(0 0 0 / 0.55));
+  animation: demo-spin 700ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-spinner {
+    animation-duration: 1600ms;
+  }
+}
+
 @keyframes pulse-dot {
   0%,
   100% {
