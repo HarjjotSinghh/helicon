@@ -192,10 +192,10 @@ function ThreadList() {
     setDragging(null);
     setOver(null);
   };
-  const drop = (beforeCwd: string | null) => {
-    if (dragging) {
-      void controller.reorderProjects(dragging, beforeCwd);
-    }
+  // The dragged project comes with the drop rather than from `dragging`: the pointer handlers were made on
+  // pointer-down, before the drag began, so the `dragging` they could see is still null.
+  const drop = (cwd: string, beforeCwd: string | null) => {
+    void controller.reorderProjects(cwd, beforeCwd);
     endDrag();
   };
   const statusGroups = useMemo(() => groupByStatus(entries), [entries]);
@@ -269,7 +269,7 @@ const ProjectSection = memo(function ProjectSection(props: {
   over: string | null;
   onDragStart: (cwd: string) => void;
   onDragOver: (cwd: string) => void;
-  onDrop: (beforeCwd: string | null) => void;
+  onDrop: (cwd: string, beforeCwd: string | null) => void;
   onDragEnd: () => void;
 }) {
   const controller = useController();
@@ -331,9 +331,9 @@ const ProjectSection = memo(function ProjectSection(props: {
             }
             const over = projectUnderPoint(up.clientX, up.clientY);
             if (over === END_DROP) {
-              props.onDrop(null);
+              props.onDrop(cwd, null);
             } else if (over && over !== cwd) {
-              props.onDrop(over);
+              props.onDrop(cwd, over);
             } else {
               props.onDragEnd();
             }
