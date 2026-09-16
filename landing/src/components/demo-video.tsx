@@ -1,6 +1,6 @@
 "use client";
 
-import { CornersIn, CornersOut, Pause, SpeakerHigh, SpeakerSlash } from "@phosphor-icons/react";
+import { CircleNotch, CornersIn, CornersOut, Pause, SpeakerHigh, SpeakerSlash } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { trackEvent } from "@/lib/client-analytics";
 
@@ -52,6 +52,19 @@ export function DemoVideo({
   const [duration, setDuration] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [controls, setControls] = useState(true);
+  const [buffering, setBuffering] = useState(false);
+
+  // iOS Safari rejects play() with an AbortError when it refuses or interrupts the request.
+  // Catch the rejection and return the player to a clean paused state, so it never escapes to
+  // the window and gets filed as an exception.
+  const playSafely = useCallback((node: HTMLVideoElement) => {
+    node.play().catch(() => {
+      node.pause();
+      setPlaying(false);
+      setBuffering(false);
+      setControls(true);
+    });
+  }, []);
 
   const showControls = useCallback((sticky = false) => {
     setControls(true);
@@ -90,10 +103,12 @@ export function DemoVideo({
         if (entry.isIntersecting && entry.intersectionRatio >= 0.45) {
           if (timer) return;
           timer = window.setTimeout(() => {
-            if (userTouched.current || !videoRef.current) return;
-            videoRef.current.muted = true;
+            const video = videoRef.current;
+            if (userTouched.current || !video) return;
+            video.muted = true;
             setMuted(true);
-            void videoRef.current.play();
+            trackEvent("demo_play", { source: "autoplay" });
+            playSafely(video);
           }, 2500);
         } else {
           window.clearTimeout(timer);
@@ -109,7 +124,7 @@ export function DemoVideo({
       io.disconnect();
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [playSafely]);
 
   const togglePlay = useCallback(() => {
     const node = videoRef.current;
@@ -120,11 +135,11 @@ export function DemoVideo({
       trackEvent("demo_play", { source: "user" });
       node.muted = false;
       setMuted(false);
-      void node.play();
+      playSafely(node);
     } else {
       node.pause();
     }
-  }, []);
+  }, [playSafely]);
 
   const toggleMute = useCallback(() => {
     const node = videoRef.current;
@@ -138,15 +153,19 @@ export function DemoVideo({
     const root = rootRef.current;
     const node = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
     if (!root || !node) return;
-    if (document.fullscreenElement) {
-      await document.exitFullscreen();
-      return;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        return;
+      }
+      if (root.requestFullscreen) {
+        await root.requestFullscreen();
+        return;
+      }
+      node.webkitEnterFullscreen?.();
+    } catch {
+      // Safari can reject a fullscreen request; swallow it so the rejection never escapes.
     }
-    if (root.requestFullscreen) {
-      await root.requestFullscreen();
-      return;
-    }
-    node.webkitEnterFullscreen?.();
   }, []);
 
   const seekTo = useCallback((value: number) => {
@@ -203,8 +222,20 @@ export function DemoVideo({
           setPlaying(true);
           showControls();
         }}
+        onPlaying={() => setBuffering(false)}
+        onWaiting={() => {
+          setBuffering(true);
+          trackEvent("demo_stall");
+        }}
+        onError={() => {
+          setPlaying(false);
+          setBuffering(false);
+          setControls(true);
+          trackEvent("demo_error");
+        }}
         onPause={() => {
           setPlaying(false);
+          setBuffering(false);
           setControls(true);
         }}
         onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
@@ -215,7 +246,9 @@ export function DemoVideo({
         }}
         onEnded={() => {
           setPlaying(false);
+          setBuffering(false);
           setControls(true);
+          trackEvent("demo_complete");
         }}
       >
         <source src={src} type="video/mp4" />
@@ -230,6 +263,16 @@ export function DemoVideo({
         >
           <PlayGlyph className="size-7 sm:size-8" />
         </button>
+      ) : null}
+
+      {buffering ? (
+        <div
+          className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+          role="status"
+          aria-label="Buffering"
+        >
+          <CircleNotch weight="bold" className="demo-spinner size-10" />
+        </div>
       ) : null}
 
       <div
