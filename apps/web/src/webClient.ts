@@ -7,6 +7,9 @@ import {
   type DirectoryListing,
   type EnvironmentStatus,
   type EventHandler,
+  type FileContent,
+  type FileEntry,
+  type FileListing,
   type GoalAction,
   type HeliconClient,
   type HeliconEvent,
@@ -342,6 +345,30 @@ export class WebHeliconClient implements HeliconClient {
 
   async planUsage(): Promise<PlanUsage | null> {
     return (await call<{ usage: PlanUsage | null }>("GET", "/api/plan-usage")).usage;
+  }
+
+  listFiles(cwd: string, path: string): Promise<FileListing> {
+    return call<FileListing>("GET", `/api/files/list?cwd=${enc(cwd)}&path=${enc(path)}`);
+  }
+
+  readFile(cwd: string, path: string): Promise<FileContent> {
+    return call<FileContent>("GET", `/api/files/read?cwd=${enc(cwd)}&path=${enc(path)}`);
+  }
+
+  writeFile(cwd: string, path: string, content: string, baseMtimeMs: number | null): Promise<{ path: string; size: number; mtimeMs: number }> {
+    return call("PUT", "/api/files/write", { cwd, path, content, baseMtimeMs });
+  }
+
+  async searchFiles(cwd: string, query: string): Promise<FileEntry[]> {
+    return (await call<{ files: FileEntry[] }>("GET", `/api/files/search?cwd=${enc(cwd)}&q=${enc(query)}`)).files;
+  }
+
+  async openFileExternally(cwd: string, path: string): Promise<void> {
+    await call("POST", "/api/files/open", { cwd, path });
+  }
+
+  fileUrl(cwd: string, path: string): string {
+    return this.assetUrl(`/api/files/raw?cwd=${enc(cwd)}&path=${enc(path)}`);
   }
 
   /**

@@ -5,6 +5,7 @@
  */
 import type { EventHandler, HeliconClient, TurnOptions } from "@/product/client";
 import { listedPrice } from "@/product/model/pricing";
+import { DemoFiles } from "./files";
 import type {
   ApprovalRequest,
   EnvironmentStatus,
@@ -378,6 +379,7 @@ export class DemoClient implements HeliconClient {
   private sessions = new Map<string, Seeded>();
   private timers = new Set<ReturnType<typeof setTimeout>>();
   private readonly now = Date.now();
+  private readonly files = new DemoFiles(this.now);
 
   constructor() {
     for (const entry of seed(this.now)) this.sessions.set(entry.summary.sessionId, entry);
@@ -624,6 +626,25 @@ export class DemoClient implements HeliconClient {
     return `Instructions for ${skillId}.`;
   }
   async openFolder() {}
+
+  async listFiles(cwd: string, path: string) {
+    return this.files.list(cwd, path);
+  }
+  async readFile(cwd: string, path: string) {
+    return this.files.read(cwd, path);
+  }
+  async writeFile(cwd: string, path: string, content: string) {
+    return this.files.write(cwd, path, content);
+  }
+  async searchFiles(cwd: string, query: string) {
+    return this.files.search(cwd, query);
+  }
+  async openFileExternally() {
+    throw new Error("Opening files in other apps is disabled in this demo.");
+  }
+  fileUrl(cwd: string, path: string) {
+    return this.files.url(cwd, path);
+  }
 
   async setReasoningEffort() {}
 

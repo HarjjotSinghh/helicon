@@ -34,6 +34,7 @@ import {
   type SubscriptionUsage,
   type TurnImage,
 } from "@helicon/daemon";
+import { FileError, listFolder, readProjectFile, resolveInRoot, searchProjectFiles, serveProjectFile, writeProjectFile } from "./files.js";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 
 export const HELICON_VERSION = "0.11.1";
@@ -354,6 +355,9 @@ function errorInfo(error: unknown): { status: number; message: string; kind: str
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof PathError) {
     return { status: 400, message, kind: null };
+  }
+  if (error instanceof FileError) {
+    return { status: error.status, message, kind: error.kind };
   }
   if (error instanceof SyntaxError) {
     return { status: 400, message: "Request body is not valid JSON.", kind: null };
@@ -771,8 +775,8 @@ export class HeliconServer {
     res.setHeader("access-control-allow-origin", origin);
     res.setHeader("vary", "Origin");
     res.setHeader("access-control-allow-credentials", "true");
-    res.setHeader("access-control-allow-headers", "authorization, content-type");
-    res.setHeader("access-control-allow-methods", "GET, POST, PATCH, DELETE, OPTIONS");
+    res.setHeader("access-control-allow-headers", "authorization, content-type, range");
+    res.setHeader("access-control-allow-methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS");
     return true;
   }
 
@@ -960,6 +964,9 @@ export class HeliconServer {
       const target = url.searchParams.get("path") ?? "";
       this.json(res, 200, await listDirectory(target, await this.pathContext(target)));
       return true;
+    }
+    if (path.startsWith("/api/files/")) {
+      return this.files(method, path, url, req, res);
     }
     if (method === "POST" && path === "/api/fs/reveal") {
       const body = await this.readBody(req);
@@ -2583,6 +2590,57 @@ export class HeliconServer {
     } catch {
       /* an ephemeral session, or a host without session/rename */
     }
+  }
+
+  /**
+   * The file viewer. Every call names a project folder the user added, never an arbitrary path: the folder is where
+   * reading and writing are confined, and a path that leaves it is refused.
+   */
+  private async files(method: string, path: string, url: URL, req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+    const body = method === "PUT" || method === "POST" ? await this.readBody(req) : {};
+    const cwd = str(body["cwd"]) ?? url.searchParams.get("cwd");
+    if (!cwd || !this.store.getProject(cwd)) {
+      throw new HttpError(404, "Unknown project folder.");
+    }
+    let root: string;
+    try {
+      root = resolveUserPath(cwd, await this.pathContext(cwd)).local;
+    } catch {
+      root = this.localPathFor(cwd);
+    }
+    const target = str(body["path"]) ?? url.searchParams.get("path") ?? "";
+    if (method === "GET" && path === "/api/files/list") {
+      this.json(res, 200, await listFolder(root, cwd, target));
+      return true;
+    }
+    if (method === "GET" && path === "/api/files/read") {
+      this.json(res, 200, await readProjectFile(root, cwd, target));
+      return true;
+    }
+    if ((method === "GET" || method === "HEAD") && path === "/api/files/raw") {
+      await serveProjectFile(req, res, root, cwd, target);
+      return true;
+    }
+    if (method === "GET" && path === "/api/files/search") {
+      this.json(res, 200, { files: await searchProjectFiles(root, url.searchParams.get("q") ?? "") });
+      return true;
+    }
+    if (method === "PUT" && path === "/api/files/write") {
+      const content = body["content"];
+      if (typeof content !== "string") {
+        throw new HttpError(400, "content is required.");
+      }
+      const base = body["baseMtimeMs"];
+      this.json(res, 200, await writeProjectFile(root, cwd, target, content, typeof base === "number" ? base : null));
+      return true;
+    }
+    if (method === "POST" && path === "/api/files/open") {
+      const { abs } = await resolveInRoot(root, target, cwd);
+      await this.opener(abs, "files");
+      this.json(res, 200, { ok: true });
+      return true;
+    }
+    return false;
   }
 
   /** A newer subscription window from any host replaces the one held, and every open window hears about it. */

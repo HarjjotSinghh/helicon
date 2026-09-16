@@ -88,6 +88,28 @@ export interface Prefs {
   updatesPaused: boolean;
   /** Interface zoom as a factor of 1; the desktop shell has no browser chrome to do this. */
   zoom: number;
+  /** The file viewer beside a thread is open. */
+  filesOpen: boolean;
+  filesWidth: number;
+}
+
+export const DEFAULT_FILES_WIDTH = 480;
+export const FILES_WIDTH_MIN = 320;
+export const FILES_WIDTH_MAX = 1200;
+
+/** One thread's file viewer: the files it has open as tabs, which one shows, and whether the tree is up instead. */
+export interface FilePanel {
+  tabs: string[];
+  active: string | null;
+  tree: boolean;
+  /** Lines a link pointed at in the active file, to scroll to and mark. */
+  line: import("./files.js").LineRange | null;
+}
+
+/** An edit not yet saved, with the version of the file it started from. */
+export interface FileDraft {
+  content: string;
+  baseMtimeMs: number | null;
 }
 
 export const DEFAULT_SIDEBAR_WIDTH = 284;
@@ -114,6 +136,8 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     autoUpdate: true,
     updatesPaused: false,
     zoom: 1,
+    filesOpen: false,
+    filesWidth: DEFAULT_FILES_WIDTH,
   };
 }
 
@@ -182,6 +206,14 @@ export interface AppState {
   picker: ComposerPicker | null;
   /** The subscription window Muse last reported; null until a host has seen one. */
   planUsage: PlanUsage | null;
+  /** Each thread's file viewer. */
+  filePanels: Record<string, FilePanel>;
+  /** Unsaved edits, by `fileKey(cwd, path)`. */
+  fileDrafts: Record<string, FileDraft>;
+  /** Bumped when Muse edits a file, so an open view of it reloads. By `fileKey(cwd, path)`. */
+  fileVersions: Record<string, number>;
+  /** Folders open in each project's file tree. */
+  fileTreeOpen: Record<string, string[]>;
 }
 
 /** `confirmFullAccess` is the full-access confirmation, which `/permissions full` must still pass through. */
@@ -217,6 +249,10 @@ export function initialState(prefs: Prefs): AppState {
     bypassThreads: [],
     hostError: null,
     planUsage: null,
+    filePanels: {},
+    fileDrafts: {},
+    fileVersions: {},
+    fileTreeOpen: {},
     draftHandoff: null,
     updates: null,
     skills: {},
@@ -252,5 +288,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     autoUpdate: pick("autoUpdate", (v) => typeof v === "boolean"),
     updatesPaused: pick("updatesPaused", (v) => typeof v === "boolean"),
     zoom: pick("zoom", (v) => typeof v === "number" && Number.isFinite(v) && v >= ZOOM_MIN && v <= ZOOM_MAX),
+    filesOpen: pick("filesOpen", (v) => typeof v === "boolean"),
+    filesWidth: pick("filesWidth", (v) => typeof v === "number" && v >= FILES_WIDTH_MIN && v <= FILES_WIDTH_MAX),
   };
 }

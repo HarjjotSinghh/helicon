@@ -427,6 +427,52 @@
     line-height: 1.6;
     tab-size: 2;
   }
+
+  /* File viewer source: one block per line, numbered with a counter so copying the code leaves the numbers behind. */
+  .file-code {
+    counter-reset: line;
+    font-size: 12.5px;
+    line-height: 1.6;
+    tab-size: 2;
+  }
+  .file-code .sh__line {
+    display: block;
+    min-height: 1.6em;
+    padding-inline-end: 1rem;
+    white-space: pre;
+  }
+  .file-code.wrap .sh__line {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    padding-inline-start: 3.5rem;
+    text-indent: -3.5rem;
+  }
+  .file-code .sh__line::before {
+    counter-increment: line;
+    content: counter(line);
+    display: inline-block;
+    width: 3.5rem;
+    padding-inline-end: 1rem;
+    text-align: right;
+    text-indent: 0;
+    color: var(--fg-subtle);
+    opacity: 0.65;
+    user-select: none;
+  }
+  .file-code .sh__line[data-marked] {
+    background: color-mix(in oklch, var(--accent) 14%, transparent);
+  }
+  .file-code .sh__line[data-marked]::before {
+    color: var(--accent-text);
+    opacity: 1;
+  }
+
+  /* Behind transparent images, so their edges read against either theme. */
+  .file-checker {
+    background-color: var(--bg);
+    background-image: conic-gradient(var(--bg-sunken) 25%, transparent 0 50%, var(--bg-sunken) 0 75%, transparent 0);
+    background-size: 16px 16px;
+  }
 }
 
 @keyframes helicon-spin {

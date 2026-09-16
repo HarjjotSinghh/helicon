@@ -19,7 +19,8 @@ import { formatCost } from "../../model/pricing";
 import { stuckThread } from "../../model/errors";
 import type { ThreadState } from "../../model/store";
 import type { AttachmentView, MspItem, OutgoingAttachment, ShellRun, UserInputAnswer } from "../../types";
-import { CodeBlock } from "../ui/Markdown";
+import { CodeBlock, FileLinksContext, type FileLinks } from "../ui/Markdown";
+import { fileTarget } from "../../model/files";
 import { SentAttachments, refetchAttachments, toOutgoing, toPreview } from "../composer/attachments";
 import { CopyButton } from "../ui/Markdown";
 import { Tip } from "../ui/overlays";
@@ -73,6 +74,23 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
   const answers = useMemo(() => answerMap(fold), [fold.settled]);
   const speeds = useMemo(() => turnSpeeds(fold), [fold.meta.calls, fold.turns, fold.activeTurnId]);
   const models = useApp((s) => s.models);
+  const controller = useController();
+  const cwd = useApp((s) => s.sessions[props.sessionId]?.cwd ?? null);
+  // Paths Muse mentions in a reply open in the file viewer rather than a browser tab.
+  const links = useMemo<FileLinks | null>(
+    () =>
+      cwd
+        ? {
+            resolve: (href) => fileTarget(href, cwd),
+            open: (target) => controller.openFile(props.sessionId, target.path, target.line),
+            imageUrl: (src) => {
+              const target = fileTarget(src, cwd);
+              return target ? controller.fileUrl(cwd, target.path) : null;
+            },
+          }
+        : null,
+    [controller, cwd, props.sessionId],
+  );
   const costs = useMemo(() => turnCosts(fold, models), [fold.meta.calls, models]);
   const echoes = fold.echoes.filter((e) => e.disposition !== "queued");
   // Files the server kept for this thread, grouped by the turn they were sent with.
@@ -127,50 +145,52 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
 
   const empty = turns.length === 0 && echoes.length === 0;
   return (
-    <div className="relative min-h-0 flex-1">
-      <div ref={scrollRef} className="h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-        <div ref={contentRef} className="mx-auto flex w-full max-w-[776px] flex-col gap-8 px-4 pt-8 pb-10 @min-[520px]:px-6">
-          {thread.truncated ? (
-            <p className="text-center text-xs text-subtle">Earlier turns are not shown. Open the session in Muse to see the full history.</p>
-          ) : null}
-          {thread.load === "loading" && empty ? <TranscriptSkeleton /> : null}
-          {timeline.map((entry) =>
-            entry.kind === "turn" ? (
-              <TurnBlock
-                key={entry.turn.key}
-                turn={entry.turn}
-                gates={gates}
-                answers={answers}
-                attachments={attachmentsByTurn}
-                sessionId={props.sessionId}
-                isLast={entry.index === turns.length - 1}
-                readOnly={thread.readOnly}
-                speed={entry.turn.turnId ? (speeds[entry.turn.turnId] ?? null) : null}
-                cost={entry.turn.turnId ? (costs[entry.turn.turnId] ?? null) : null}
-              />
-            ) : (
-              <ShellRunRow key={entry.run.id} run={entry.run} sessionId={props.sessionId} />
-            ),
-          )}
-          {echoes.map((echo) => (
-            <PendingPrompt key={echo.localId} echo={echo} />
-          ))}
-          {thread.load === "error" ? <LoadError sessionId={props.sessionId} message={thread.error} /> : null}
-          {empty && thread.load === "ready" ? <EmptyThread /> : null}
+    <FileLinksContext.Provider value={links}>
+      <div className="relative min-h-0 flex-1">
+        <div ref={scrollRef} className="h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]">
+          <div ref={contentRef} className="mx-auto flex w-full max-w-[776px] flex-col gap-8 px-4 pt-8 pb-10 @min-[520px]:px-6">
+            {thread.truncated ? (
+              <p className="text-center text-xs text-subtle">Earlier turns are not shown. Open the session in Muse to see the full history.</p>
+            ) : null}
+            {thread.load === "loading" && empty ? <TranscriptSkeleton /> : null}
+            {timeline.map((entry) =>
+              entry.kind === "turn" ? (
+                <TurnBlock
+                  key={entry.turn.key}
+                  turn={entry.turn}
+                  gates={gates}
+                  answers={answers}
+                  attachments={attachmentsByTurn}
+                  sessionId={props.sessionId}
+                  isLast={entry.index === turns.length - 1}
+                  readOnly={thread.readOnly}
+                  speed={entry.turn.turnId ? (speeds[entry.turn.turnId] ?? null) : null}
+                  cost={entry.turn.turnId ? (costs[entry.turn.turnId] ?? null) : null}
+                />
+              ) : (
+                <ShellRunRow key={entry.run.id} run={entry.run} sessionId={props.sessionId} />
+              ),
+            )}
+            {echoes.map((echo) => (
+              <PendingPrompt key={echo.localId} echo={echo} />
+            ))}
+            {thread.load === "error" ? <LoadError sessionId={props.sessionId} message={thread.error} /> : null}
+            {empty && thread.load === "ready" ? <EmptyThread /> : null}
+          </div>
         </div>
+        {!isAtBottom && !empty ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
+            <button
+              type="button"
+              onClick={() => void scrollToBottom()}
+              className="enter-up pointer-events-auto inline-flex h-8 items-center gap-1.5 rounded-full bg-raised px-3 text-xs font-medium text-muted shadow-pop hover:text-fg"
+            >
+              <ArrowDown size={13} /> Latest
+            </button>
+          </div>
+        ) : null}
       </div>
-      {!isAtBottom && !empty ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
-          <button
-            type="button"
-            onClick={() => void scrollToBottom()}
-            className="enter-up pointer-events-auto inline-flex h-8 items-center gap-1.5 rounded-full bg-raised px-3 text-xs font-medium text-muted shadow-pop hover:text-fg"
-          >
-            <ArrowDown size={13} /> Latest
-          </button>
-        </div>
-      ) : null}
-    </div>
+    </FileLinksContext.Provider>
   );
 }
 
@@ -416,7 +436,7 @@ function WorkLog(props: { turn: TurnView; gates: GateMap; answers: AnswerMap; se
           ))}
         </div>
       </Collapse>
-      <DiffChips entries={turn.entries} className="mt-2" />
+      <DiffChips entries={turn.entries} className="mt-2" sessionId={props.sessionId} />
     </div>
   );
 }

@@ -713,6 +713,120 @@ describe("HeliconServer", () => {
   });
 });
 
+describe("file viewer", () => {
+  async function project() {
+    const { mkdtemp, mkdir, writeFile, symlink } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const root = await mkdtemp(join(tmpdir(), "helicon-files-"));
+    const outside = await mkdtemp(join(tmpdir(), "helicon-outside-"));
+    await mkdir(join(root, "docs"));
+    await mkdir(join(root, "node_modules", "pkg"), { recursive: true });
+    await writeFile(join(root, "README.md"), "# Title\n\nBody\n");
+    await writeFile(join(root, "docs", "guide.md"), "guide");
+    await writeFile(join(root, "docs", "page.html"), "<script>alert(1)</script>");
+    await writeFile(join(root, "icon.svg"), "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>");
+    await writeFile(join(root, "clip.mp4"), Buffer.from("0123456789"));
+    await writeFile(join(root, "blob.bin"), Buffer.from([1, 0, 2, 0]));
+    await writeFile(join(root, "node_modules", "pkg", "guide.md"), "vendored");
+    await writeFile(join(outside, "secret.txt"), "secret");
+    await symlink(join(outside, "secret.txt"), join(root, "escape.txt"));
+    const connection = new FakeConnection();
+    const { base } = await start(connection, { platform: process.platform });
+    const added = await send(base, "/api/projects", { cwd: root });
+    const cwd = added.json.project.cwd as string;
+    const q = (path: string) => `cwd=${encodeURIComponent(cwd)}&path=${encodeURIComponent(path)}`;
+    return { base, root, cwd, q };
+  }
+
+  it("lists folders first and reads text, markdown and media descriptions", async () => {
+    const { base, root, q } = await project();
+    const listing = await get(base, `/api/files/list?${q("")}`);
+    assert.deepEqual(
+      listing.entries.map((e: { name: string; kind: string }) => `${e.kind}:${e.name}`).slice(0, 2),
+      ["dir:docs", "dir:node_modules"],
+    );
+    assert.ok(listing.entries.some((e: { name: string }) => e.name === "README.md"));
+    const nested = await get(base, `/api/files/list?${q("docs")}`);
+    assert.deepEqual(nested.entries.map((e: { path: string }) => e.path), ["docs/guide.md", "docs/page.html"]);
+
+    const readme = await get(base, `/api/files/read?${q("README.md")}`);
+    assert.equal(readme.kind, "markdown");
+    assert.equal(readme.content, "# Title\n\nBody\n");
+    // An agent names files by absolute path; that resolves inside the project too.
+    const absolute = await get(base, `/api/files/read?${q(`${root}/docs/guide.md`)}`);
+    assert.equal(absolute.path, "docs/guide.md");
+    assert.equal((await get(base, `/api/files/read?${q("clip.mp4")}`)).kind, "video");
+    const binary = await get(base, `/api/files/read?${q("blob.bin")}`);
+    assert.equal(binary.kind, "binary");
+    assert.equal(binary.content, undefined);
+  });
+
+  it("refuses paths outside the project, through .. or a symlink, and unknown projects", async () => {
+    const { base, q, cwd } = await project();
+    assert.equal((await fetch(`${base}/api/files/read?${q("../../etc/passwd")}`)).status, 403);
+    assert.equal((await fetch(`${base}/api/files/read?${q("escape.txt")}`)).status, 403, "a symlink out of the project is refused");
+    assert.equal((await fetch(`${base}/api/files/raw?${q("escape.txt")}`)).status, 403);
+    assert.equal((await fetch(`${base}/api/files/read?${q("/etc/passwd")}`)).status, 404, "an absolute path elsewhere resolves inside the project, where it is not");
+    assert.equal((await fetch(`${base}/api/files/list?cwd=${encodeURIComponent("/etc")}&path=`)).status, 404);
+    const write = await fetch(`${base}/api/files/write`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cwd, path: "../evil.md", content: "x", baseMtimeMs: null }),
+    });
+    assert.equal(write.status, 403);
+  });
+
+  it("never serves a file as a page that can script this origin, and serves video in ranges", async () => {
+    const { base, q } = await project();
+    const html = await fetch(`${base}/api/files/raw?${q("docs/page.html")}`);
+    assert.equal(html.headers.get("content-type"), "text/plain; charset=utf-8");
+    assert.match(html.headers.get("content-security-policy") ?? "", /sandbox/);
+    const svg = await fetch(`${base}/api/files/raw?${q("icon.svg")}`);
+    assert.equal(svg.headers.get("content-type"), "image/svg+xml");
+    assert.match(svg.headers.get("content-security-policy") ?? "", /sandbox/);
+    assert.equal(svg.headers.get("x-content-type-options"), "nosniff");
+
+    const part = await fetch(`${base}/api/files/raw?${q("clip.mp4")}`, { headers: { range: "bytes=2-5" } });
+    assert.equal(part.status, 206);
+    assert.equal(part.headers.get("content-range"), "bytes 2-5/10");
+    assert.equal(await part.text(), "2345");
+    const tail = await fetch(`${base}/api/files/raw?${q("clip.mp4")}`, { headers: { range: "bytes=-3" } });
+    assert.equal(await tail.text(), "789");
+  });
+
+  it("saves an edit, and refuses one made against a file that changed on disk", async () => {
+    const { base, root, cwd, q } = await project();
+    const { writeFile, readFile, utimes } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const opened = await get(base, `/api/files/read?${q("README.md")}`);
+    const put = (content: string, baseMtimeMs: number | null) =>
+      fetch(`${base}/api/files/write`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cwd, path: "README.md", content, baseMtimeMs }),
+      });
+    const saved = await put("# Edited\n", opened.mtimeMs);
+    assert.equal(saved.status, 200);
+    assert.equal(await readFile(join(root, "README.md"), "utf8"), "# Edited\n");
+    const after = (await saved.json()) as { mtimeMs: number };
+
+    // Something else writes the file: the stale save is refused and the other change survives.
+    await writeFile(join(root, "README.md"), "# Agent\n");
+    await utimes(join(root, "README.md"), new Date(), new Date(after.mtimeMs + 5000));
+    const stale = await put("# Mine\n", after.mtimeMs);
+    assert.equal(stale.status, 409);
+    assert.equal(((await stale.json()) as { kind: string }).kind, "fileChanged");
+    assert.equal(await readFile(join(root, "README.md"), "utf8"), "# Agent\n");
+  });
+
+  it("finds files by path words, skipping generated folders", async () => {
+    const { base, cwd } = await project();
+    const found = await get(base, `/api/files/search?cwd=${encodeURIComponent(cwd)}&q=guide`);
+    assert.deepEqual(found.files.map((f: { path: string }) => f.path), ["docs/guide.md"], "node_modules is not searched");
+  });
+});
+
 describe("slash commands, skills and shell", () => {
   const LIST = JSON.stringify({
     diagnostics: [],

@@ -1,5 +1,6 @@
 import { Check, Copy } from "lucide-react";
-import { Children, isValidElement, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Children, createContext, isValidElement, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { looksLikeFilePath, type FileTarget } from "../../model/files.js";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { highlight } from "sugar-high";
@@ -145,12 +146,81 @@ function textOf(node: ReactNode): string {
   return "";
 }
 
-const COMPONENTS: Components = {
-  a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noreferrer noopener">
-      {children}
+/**
+ * Where paths in rendered markdown lead. Inside a thread they open in the file viewer; inside a previewed file they
+ * resolve from that file's folder, and relative images load from the project. Without it, markdown renders as before.
+ */
+export interface FileLinks {
+  resolve(href: string): FileTarget | null;
+  open(target: FileTarget): void;
+  /** A URL for a project image a preview embeds; null leaves the source as written. */
+  imageUrl?(src: string): string | null;
+}
+
+export const FileLinksContext = createContext<FileLinks | null>(null);
+
+function MarkdownLink(props: { href?: string; children?: ReactNode }) {
+  const links = useContext(FileLinksContext);
+  const target = links && props.href ? links.resolve(props.href) : null;
+  if (links && target) {
+    return (
+      <a
+        href={props.href}
+        title={`Open ${target.path}`}
+        onClick={(event) => {
+          event.preventDefault();
+          links.open(target);
+        }}
+      >
+        {props.children}
+      </a>
+    );
+  }
+  return (
+    <a href={props.href} target="_blank" rel="noreferrer noopener">
+      {props.children}
     </a>
-  ),
+  );
+}
+
+/** Inline code naming a file, like `src/app.ts:12`, opens it; any other inline code is left alone. */
+function InlineCode(props: { className?: string; children?: ReactNode }) {
+  const links = useContext(FileLinksContext);
+  const text = typeof props.children === "string" ? props.children : null;
+  const target = links && text && !props.className && looksLikeFilePath(text) ? links.resolve(text) : null;
+  if (links && target) {
+    return (
+      <code
+        role="link"
+        tabIndex={0}
+        title={`Open ${target.path}`}
+        className="cursor-pointer decoration-[color-mix(in_oklch,var(--accent-text)_45%,transparent)] underline-offset-2 hover:text-accent-text hover:underline"
+        onClick={() => links.open(target)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            links.open(target);
+          }
+        }}
+      >
+        {text}
+      </code>
+    );
+  }
+  return <code className={props.className}>{props.children}</code>;
+}
+
+function MarkdownImage(props: { src?: string | Blob; alt?: string }) {
+  const links = useContext(FileLinksContext);
+  const raw = typeof props.src === "string" ? props.src : undefined;
+  const src = raw && links?.imageUrl ? (links.imageUrl(raw) ?? raw) : raw;
+  return <img src={src} alt={props.alt ?? ""} loading="lazy" className="max-w-full rounded-lg" />;
+}
+
+const COMPONENTS: Components = {
+  a: ({ href, children }) => <MarkdownLink href={href}>{children}</MarkdownLink>,
+  code: ({ className, children }) => <InlineCode className={className}>{children}</InlineCode>,
+  img: ({ src, alt }) => <MarkdownImage src={src} alt={alt} />,
   pre: ({ children }) => {
     const child = Children.toArray(children)[0];
     if (isValidElement<{ className?: string; children?: ReactNode }>(child)) {

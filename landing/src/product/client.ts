@@ -1,6 +1,9 @@
 import type {
   ApprovalMode,
   EnvironmentStatus,
+  FileContent,
+  FileEntry,
+  FileListing,
   GoalAction,
   HeliconEvent,
   IfBusy,
@@ -130,6 +133,18 @@ export interface HeliconClient {
   readOutput(sessionId: string, itemId: string, outputRef: string, offset?: number): Promise<OutputRange>;
   /** The subscription window Muse last saw; null until a host has seen one. */
   planUsage(): Promise<PlanUsage | null>;
+  /** One folder of a project, folders first. `path` is relative to the project; "" is its root. */
+  listFiles(cwd: string, path: string): Promise<FileListing>;
+  /** A project file: text inline, media described. `path` may also be absolute inside the project. */
+  readFile(cwd: string, path: string): Promise<FileContent>;
+  /** Saves text back. Refused with kind `fileChanged` when the file moved on since `baseMtimeMs`. */
+  writeFile(cwd: string, path: string, content: string, baseMtimeMs: number | null): Promise<{ path: string; size: number; mtimeMs: number }>;
+  /** Files whose path contains every word of `query`. */
+  searchFiles(cwd: string, query: string): Promise<FileEntry[]>;
+  /** Opens a project file in the OS's default app. */
+  openFileExternally(cwd: string, path: string): Promise<void>;
+  /** Where the browser loads a project file's bytes from, for images, video, audio and PDFs. */
+  fileUrl(cwd: string, path: string): string;
   /** Subscribe to server events; returns an unsubscribe function. */
   subscribe(handler: EventHandler): () => void;
 }

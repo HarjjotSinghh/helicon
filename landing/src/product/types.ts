@@ -386,6 +386,38 @@ export interface PlanUsage {
   weekly: PlanWindow;
 }
 
+/** What the file viewer does with a file: text and markdown come inline, media is loaded from its own URL. */
+export type FileKind = "text" | "markdown" | "image" | "video" | "audio" | "pdf" | "binary";
+
+export interface FileEntry {
+  name: string;
+  /** Relative to the project folder, with forward slashes. */
+  path: string;
+  kind: "dir" | "file";
+  size: number;
+  mtimeMs: number;
+}
+
+export interface FileListing {
+  path: string;
+  entries: FileEntry[];
+  truncated: boolean;
+}
+
+export interface FileContent {
+  path: string;
+  name: string;
+  size: number;
+  /** When it was last written; a save sends it back, so an edit made meanwhile is not overwritten. */
+  mtimeMs: number;
+  kind: FileKind;
+  mediaType: string;
+  /** Text and markdown only. */
+  content?: string;
+  /** Text too large to send whole; `content` is its start. */
+  truncated: boolean;
+}
+
 export type GoalAction = "set" | "edit" | "pause" | "resume" | "clear";
 export type SubagentAction = "interrupt" | "stop" | "close" | "resume" | "reopen" | "sendMessage" | "followupTask" | "readResult";
 export type TaskAction = "background" | "stop" | "stopAll";

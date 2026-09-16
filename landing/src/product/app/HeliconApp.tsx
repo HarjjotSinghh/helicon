@@ -147,6 +147,9 @@ function GlobalShortcuts() {
       } else if (mod && !event.shiftKey && key === "b") {
         event.preventDefault();
         controller.toggleSidebar();
+      } else if (mod && event.shiftKey && !event.altKey && key === "e") {
+        event.preventDefault();
+        controller.toggleFiles();
       } else if (event.altKey && !mod && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
         const state = controller.store.get();
         const ordered = Object.values(state.sessions).sort((a, b) => (a.activityAt < b.activityAt ? 1 : -1));

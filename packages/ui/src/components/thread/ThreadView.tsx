@@ -1,4 +1,4 @@
-import { Archive, CircleStop, Code, Copy, Ellipsis, Folder, FolderOpen, GitBranch, Lock, Minimize2, Pencil, Square, SquarePen } from "lucide-react";
+import { Archive, CircleStop, Code, Copy, Ellipsis, Folder, FolderOpen, FolderTree, GitBranch, Lock, Minimize2, Pencil, Square, SquarePen } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { CaptionSpacer, useOverlayDragProps } from "../../app/frame.js";
@@ -12,21 +12,28 @@ import { ApprovalPanel, PlanPanel, QuestionPanel, QueuedList, ReadOnlyNotice } f
 import { GoalPanel } from "./GoalPanel.js";
 import { revealLabel } from "../sidebar/Sidebar.js";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tip } from "../ui/overlays.js";
-import { Button, IconButton, Spinner } from "../ui/primitives.js";
+import { Button, IconButton, MOD, Spinner } from "../ui/primitives.js";
+import { FilesPanel } from "../files/FilesPanel.js";
 import { Transcript } from "./Transcript.js";
 
 export function ThreadView(props: { sessionId: string }) {
   const session = useApp((s) => s.sessions[props.sessionId] ?? null);
   const thread = useApp((s) => s.threads[props.sessionId] ?? null);
+  const filesOpen = useApp((s) => s.prefs.filesOpen);
   if (!session) {
     return <MissingThread />;
   }
   const running = thread ? thread.fold.activeTurnId !== null : Boolean(session.live?.activeTurnId);
   return (
-    <div className="@container flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+    <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
       <ThreadHeader session={session} thread={thread} running={running} />
-      {thread ? <Transcript sessionId={props.sessionId} thread={thread} /> : <div className="min-h-0 flex-1" />}
-      <Dock session={session} thread={thread} running={running} />
+      <div className="flex min-h-0 flex-1">
+        <div className="@container flex min-w-0 flex-1 flex-col">
+          {thread ? <Transcript sessionId={props.sessionId} thread={thread} /> : <div className="min-h-0 flex-1" />}
+          <Dock session={session} thread={thread} running={running} />
+        </div>
+        {filesOpen ? <FilesPanel sessionId={props.sessionId} cwd={session.cwd} /> : null}
+      </div>
     </div>
   );
 }
@@ -41,8 +48,9 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
   const now = useNow(1000, props.running && startedAt !== undefined);
   const drag = useOverlayDragProps();
   const noDrag = useOverlayDragProps("off");
+  const filesOpen = useApp((s) => s.prefs.filesOpen);
   return (
-    <header data-drag-region {...drag} className="flex h-12 shrink-0 items-center gap-1.5 overflow-hidden border-b border-line px-3">
+    <header data-drag-region {...drag} className="@container flex h-12 shrink-0 items-center gap-1.5 overflow-hidden border-b border-line px-3">
       <TrafficLightSpacer />
       <SidebarToggle />
       <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
@@ -101,6 +109,11 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
           </IconButton>
         </Tip>
       ) : null}
+      <Tip label={filesOpen ? "Hide files" : "Show files"} shortcut={[MOD, "Shift", "E"]}>
+        <IconButton label={filesOpen ? "Hide files" : "Show files"} active={filesOpen} onClick={() => controller.toggleFiles()}>
+          <FolderTree size={15} />
+        </IconButton>
+      </Tip>
       <span className="@max-[360px]:hidden">
         <Tip label="Open in VS Code">
           <IconButton label="Open in VS Code" onClick={() => void controller.openFolder(session.cwd, "editor")}>

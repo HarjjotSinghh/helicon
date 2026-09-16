@@ -186,6 +186,30 @@ class FakeClient implements HeliconClient {
   async planUsage() {
     return this.plan;
   }
+  writes: { path: string; content: string; baseMtimeMs: number | null }[] = [];
+  writeError: Error | null = null;
+  async listFiles(_cwd: string, path: string) {
+    return { path, entries: [], truncated: false };
+  }
+  async readFile(_cwd: string, path: string) {
+    return { path, name: path, size: 3, mtimeMs: 100, kind: "markdown" as const, mediaType: "text/markdown", content: "# a", truncated: false };
+  }
+  async writeFile(_cwd: string, path: string, content: string, baseMtimeMs: number | null) {
+    if (this.writeError) {
+      const error = this.writeError;
+      this.writeError = null;
+      throw error;
+    }
+    this.writes.push({ path, content, baseMtimeMs });
+    return { path, size: content.length, mtimeMs: 200 };
+  }
+  async searchFiles() {
+    return [];
+  }
+  async openFileExternally() {}
+  fileUrl(cwd: string, path: string) {
+    return `/raw?${cwd}&${path}`;
+  }
   subscribe(handler: EventHandler) {
     this.handler = handler;
     return () => {
@@ -688,6 +712,81 @@ describe("HeliconController", () => {
     client.handler?.({ type: "msp", sessionId: "s1", method: "skill/changed", params: { sessionId: "s1" }, at: 1 });
     await settle();
     assert.equal(client.skillSessions.length, 2);
+    stop();
+  });
+
+  it("opens files from paths in replies as tabs, and closes back to the tree", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    const panel = () => controller.store.get().filePanels["s1"];
+    assert.equal(controller.store.get().prefs.filesOpen, false);
+
+    assert.equal(controller.openFile("s1", "/work/app/src/app.js:4-5"), true);
+    assert.equal(controller.store.get().prefs.filesOpen, true, "opening a file shows the viewer");
+    assert.deepEqual(panel(), { tabs: ["src/app.js"], active: "src/app.js", tree: false, line: { start: 4, end: 5 } });
+    controller.openFile("s1", "README.md");
+    controller.openFile("s1", "src/app.js");
+    assert.deepEqual(panel()?.tabs, ["src/app.js", "README.md"], "an open file is not opened twice");
+    assert.equal(panel()?.active, "src/app.js");
+
+    controller.closeFile("s1", "src/app.js");
+    assert.deepEqual(panel(), { tabs: ["README.md"], active: "README.md", tree: false, line: null });
+    controller.closeFile("s1", "README.md");
+    assert.deepEqual(panel(), { tabs: [], active: null, tree: true, line: null });
+    assert.equal(controller.openFile("s1", "https://helicon.sh"), false, "a web link is not a file");
+    controller.toggleFiles();
+    assert.equal(controller.store.get().prefs.filesOpen, false);
+    stop();
+  });
+
+  it("saves a draft against the version it was opened at, and offers to overwrite a file that changed", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    const key = "/work/app\nREADME.md";
+    controller.setFileDraft("/work/app", "README.md", "# edited", 100);
+    controller.setFileDraft("/work/app", "README.md", "# edited more", 999);
+    assert.deepEqual(controller.store.get().fileDrafts[key], { content: "# edited more", baseMtimeMs: 100 }, "the base is where editing began");
+
+    assert.equal(await controller.saveFile("/work/app", "README.md"), 200);
+    assert.deepEqual(client.writes.at(-1), { path: "README.md", content: "# edited more", baseMtimeMs: 100 });
+    assert.equal(controller.store.get().fileDrafts[key], undefined);
+    assert.equal(controller.store.get().fileVersions[key], 1, "a view of the file reloads after a save");
+
+    controller.setFileDraft("/work/app", "README.md", "# mine", 200);
+    client.writeError = new HeliconError("changed", 409, "fileChanged");
+    assert.equal(await controller.saveFile("/work/app", "README.md"), null);
+    const toast = controller.store.get().toasts.at(-1);
+    assert.equal(toast?.title, "This file changed on disk");
+    assert.ok(controller.store.get().fileDrafts[key], "the edit is kept when the save is refused");
+    toast?.action?.run();
+    await settle();
+    assert.deepEqual(client.writes.at(-1), { path: "README.md", content: "# mine", baseMtimeMs: null }, "overwrite skips the version check");
+    stop();
+  });
+
+  it("reloads an open file when Muse edits it", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.handler?.({
+      type: "msp",
+      sessionId: "s1",
+      method: "item/completed",
+      params: {
+        sessionId: "s1",
+        item: {
+          itemId: "e1",
+          kind: "toolCall",
+          status: "completed",
+          revision: 2,
+          tool: "edit",
+          args: JSON.stringify({ path: "/work/app/src/app.js", old_string: "a", new_string: "b" }),
+        },
+      },
+      at: 1,
+    });
+    await settle();
+    controller.flush();
+    assert.equal(controller.store.get().fileVersions["/work/app\nsrc/app.js"], 1);
     stop();
   });
 

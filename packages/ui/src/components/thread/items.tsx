@@ -5,6 +5,7 @@ import {
   CircleAlert,
   CircleStop,
   FilePen,
+  FileSearch,
   FilePlus,
   FileText,
   FolderTree,
@@ -21,6 +22,7 @@ import {
 import { Popover } from "radix-ui";
 import { memo, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp, useController } from "../../app/context.js";
+import { fileTarget } from "../../model/files.js";
 import {
   basename,
   describeTool,
@@ -39,9 +41,9 @@ import {
 } from "../../model/format.js";
 import type { MspItem, OutputRef, UserInputAnswer } from "../../types.js";
 import { CodeBlock, Markdown, highlightCode, languageFromPath } from "../ui/Markdown.js";
-import { Button, Shimmer, Spinner, cn } from "../ui/primitives.js";
+import { Button, IconButton, Shimmer, Spinner, cn } from "../ui/primitives.js";
 import { Collapse } from "../ui/sourced.js";
-import { FLOATING } from "../ui/overlays.js";
+import { FLOATING, Tip } from "../ui/overlays.js";
 
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, "g");
 const TERMINAL_FAILURES = new Set(["failed", "rejected", "cancelled", "timedOut"]);
@@ -255,6 +257,23 @@ function storedOutput(item: MspItem, sessionId: string | undefined): StoredOutpu
  * Moving a running tool call to the background, or stopping one that already runs there. Muse names the task by
  * the tool call's own item id. Hidden on threads another client holds, where Muse would refuse the command.
  */
+/** Opens a file a tool touched in the file viewer beside the thread. */
+function OpenFileAction(props: { sessionId: string; path: string }) {
+  const controller = useController();
+  const cwd = useApp((s) => s.sessions[props.sessionId]?.cwd ?? null);
+  const target = cwd ? fileTarget(props.path, cwd) : null;
+  if (!target) {
+    return null;
+  }
+  return (
+    <Tip label="Open in files">
+      <IconButton size="sm" label={`Open ${target.path}`} onClick={() => controller.openFile(props.sessionId, target.path, target.line)}>
+        <FileSearch size={13} />
+      </IconButton>
+    </Tip>
+  );
+}
+
 function TaskActions(props: { item: MspItem; sessionId: string }) {
   const controller = useController();
   const { item, sessionId } = props;
@@ -366,7 +385,7 @@ interface FileChanges {
  * via Beautiful UI ToolChips file-diff chips (beautifului.dev), MIT (c) 2026 Shane Levine.
  * Adapted: Radix Popover for keyboard access instead of a hand-positioned portal.
  */
-export function DiffChips(props: { entries: MspItem[]; className?: string }) {
+export function DiffChips(props: { entries: MspItem[]; className?: string; sessionId?: string }) {
   const files = useMemo(() => {
     const byPath = new Map<string, FileChanges>();
     for (const item of props.entries) {
@@ -393,13 +412,16 @@ export function DiffChips(props: { entries: MspItem[]; className?: string }) {
   return (
     <div className={cn("flex max-w-full flex-wrap gap-1.5", props.className)} aria-label="Files changed">
       {files.map((file) => (
-        <DiffChip key={file.path} file={file} />
+        <DiffChip key={file.path} file={file} sessionId={props.sessionId} />
       ))}
     </div>
   );
 }
 
-function DiffChip(props: { file: FileChanges }) {
+function DiffChip(props: { file: FileChanges; sessionId?: string }) {
+  const controller = useController();
+  const cwd = useApp((s) => (props.sessionId ? (s.sessions[props.sessionId]?.cwd ?? null) : null));
+  const target = cwd ? fileTarget(props.file.path, cwd) : null;
   const [open, setOpen] = useState(false);
   const timer = useRef<number | null>(null);
   const show = () => {
@@ -437,6 +459,22 @@ function DiffChip(props: { file: FileChanges }) {
           onOpenAutoFocus={(event) => event.preventDefault()}
           className="pop z-[var(--z-dropdown)] flex max-h-[60vh] w-[min(560px,calc(100dvw-32px))] flex-col gap-2 overflow-y-auto rounded-xl bg-raised p-2 shadow-pop outline-none"
         >
+          {target && props.sessionId ? (
+            <div className="flex items-center justify-between gap-2 px-1">
+              <span className="min-w-0 truncate font-mono text-2xs text-subtle">{target.path}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 shrink-0 px-2 text-xs"
+                onClick={() => {
+                  setOpen(false);
+                  controller.openFile(props.sessionId!, target.path);
+                }}
+              >
+                <FileSearch size={12} /> Open file
+              </Button>
+            </div>
+          ) : null}
           <FileDiffCard diffs={props.file.diffs} />
         </Popover.Content>
       </Popover.Portal>
@@ -565,7 +603,13 @@ export const ToolRow = memo(function ToolRow(props: { item: MspItem; gate?: Gate
       trailing={trailing}
       body={body.length > 0 ? body : undefined}
       preview={tail ? <p className="truncate font-mono text-2xs text-subtle">{tail}</p> : undefined}
-      actions={props.sessionId && running && !props.gate ? <TaskActions item={item} sessionId={props.sessionId} /> : undefined}
+      actions={
+        props.sessionId && running && !props.gate ? (
+          <TaskActions item={item} sessionId={props.sessionId} />
+        ) : props.sessionId && !running && (d.kind === "read" || d.kind === "edit" || d.kind === "write") && d.subject ? (
+          <OpenFileAction sessionId={props.sessionId} path={d.subject.split("\n")[0]!} />
+        ) : undefined
+      }
     />
   );
 });

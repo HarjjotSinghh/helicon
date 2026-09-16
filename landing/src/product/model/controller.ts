@@ -17,7 +17,8 @@ import type {
   ViewEvent,
   WorkflowAction,
 } from "../types";
-import { modelDisplayName } from "./format";
+import { describeTool, modelDisplayName } from "./format";
+import { fileKey, fileTarget, type LineRange } from "./files";
 import { goalPrompt } from "./goal";
 import {
   INIT_PROMPT,
@@ -42,6 +43,8 @@ import {
   type ThreadFold,
 } from "./fold";
 import {
+  FILES_WIDTH_MAX,
+  FILES_WIDTH_MIN,
   Store,
   ZOOM_MAX,
   ZOOM_MIN,
@@ -52,6 +55,7 @@ import {
   type AppState,
   type CodeTheme,
   type ComposerPicker,
+  type FilePanel,
   type GroupBy,
   type Prefs,
   type Route,
@@ -632,9 +636,41 @@ export class HeliconController {
       return { ...s, threads };
     });
     this.autoAllow(batches.map(([id]) => id));
+    this.noteEditedFiles(batches);
     const route = this.state.route;
     if (route.kind === "thread" && batches.some(([id]) => id === route.sessionId)) {
       this.markSeen(route.sessionId);
+    }
+  }
+
+  /** Files Muse just wrote or edited, so a view of one reloads instead of showing what was there before. */
+  private noteEditedFiles(batches: [string, ViewEvent[]][]): void {
+    const touched: string[] = [];
+    for (const [sessionId, events] of batches) {
+      const cwd = this.state.sessions[sessionId]?.cwd;
+      if (!cwd) {
+        continue;
+      }
+      for (const event of events) {
+        const item = event.method === "item/completed" ? (event.params["item"] as import("../types").MspItem | undefined) : undefined;
+        if (!item || item.kind !== "toolCall" || item.status !== "completed") {
+          continue;
+        }
+        const tool = describeTool(item);
+        const target = (tool.kind === "edit" || tool.kind === "write") && tool.subject ? fileTarget(tool.subject, cwd) : null;
+        if (target) {
+          touched.push(fileKey(cwd, target.path));
+        }
+      }
+    }
+    if (touched.length > 0) {
+      this.update((s) => {
+        const fileVersions = { ...s.fileVersions };
+        for (const key of touched) {
+          fileVersions[key] = (fileVersions[key] ?? 0) + 1;
+        }
+        return { ...s, fileVersions };
+      });
     }
   }
 
@@ -2016,6 +2052,154 @@ export class HeliconController {
 
   toggleSidebar(): void {
     this.setPrefs({ sidebarCollapsed: !this.state.prefs.sidebarCollapsed });
+  }
+
+  // ---------------------------------------------------------------- files
+
+  /** Shows or hides the file viewer beside threads; it keeps each thread's open files either way. */
+  toggleFiles(open?: boolean): void {
+    this.setPrefs({ filesOpen: open ?? !this.state.prefs.filesOpen });
+  }
+
+  setFilesWidth(width: number): void {
+    this.setPrefs({ filesWidth: Math.round(Math.min(FILES_WIDTH_MAX, Math.max(FILES_WIDTH_MIN, width))) });
+  }
+
+  private patchPanel(sessionId: string, fn: (panel: FilePanel) => FilePanel): void {
+    this.update((s) => {
+      const current = s.filePanels[sessionId] ?? { tabs: [], active: null, tree: true, line: null };
+      return { ...s, filePanels: { ...s.filePanels, [sessionId]: fn(current) } };
+    });
+  }
+
+  /**
+   * Opens a file in a thread's viewer, from the tree or from a path a reply named, and shows the viewer. A path with
+   * a line (`app.ts:12`) scrolls there. Returns false when the thread's project is unknown.
+   */
+  openFile(sessionId: string, raw: string, line: LineRange | null = null): boolean {
+    const cwd = this.state.sessions[sessionId]?.cwd;
+    const target = cwd ? fileTarget(raw, cwd) : null;
+    if (!cwd || !target || !target.path) {
+      return false;
+    }
+    this.patchPanel(sessionId, (panel) => ({
+      tabs: panel.tabs.includes(target.path) ? panel.tabs : [...panel.tabs, target.path],
+      active: target.path,
+      tree: false,
+      line: line ?? target.line,
+    }));
+    if (!this.state.prefs.filesOpen) {
+      this.setPrefs({ filesOpen: true });
+    }
+    return true;
+  }
+
+  showFileTree(sessionId: string, tree: boolean): void {
+    this.patchPanel(sessionId, (panel) => ({ ...panel, tree: tree || panel.active === null }));
+  }
+
+  activateFile(sessionId: string, path: string): void {
+    this.patchPanel(sessionId, (panel) => (panel.tabs.includes(path) ? { ...panel, active: path, tree: false, line: null } : panel));
+  }
+
+  /** Closes a tab, discarding its unsaved edit; the view asks first when there is one. */
+  closeFile(sessionId: string, path: string): void {
+    const cwd = this.state.sessions[sessionId]?.cwd;
+    if (cwd) {
+      this.setFileDraft(cwd, path, null);
+    }
+    this.patchPanel(sessionId, (panel) => {
+      const index = panel.tabs.indexOf(path);
+      const tabs = panel.tabs.filter((tab) => tab !== path);
+      // The neighbour to the left takes over, as in an editor; closing the last tab shows the tree.
+      const active = panel.active !== path ? panel.active : (tabs[Math.max(0, index - 1)] ?? null);
+      return { tabs, active, tree: active === null ? true : panel.tree, line: panel.active === path ? null : panel.line };
+    });
+  }
+
+  /** Keeps an unsaved edit across tab switches; null drops it. */
+  setFileDraft(cwd: string, path: string, content: string | null, baseMtimeMs: number | null = null): void {
+    const key = fileKey(cwd, path);
+    this.update((s) => {
+      const fileDrafts = { ...s.fileDrafts };
+      if (content === null) {
+        delete fileDrafts[key];
+      } else {
+        fileDrafts[key] = { content, baseMtimeMs: fileDrafts[key]?.baseMtimeMs ?? baseMtimeMs };
+      }
+      return { ...s, fileDrafts };
+    });
+  }
+
+  /**
+   * Saves a file's unsaved edit. When the file changed on disk since it was opened, nothing is written and the user
+   * chooses: the toast's action overwrites, or reloading the file shows the other change. Returns the new write time.
+   */
+  async saveFile(cwd: string, path: string, overwrite = false): Promise<number | null> {
+    const key = fileKey(cwd, path);
+    const draft = this.state.fileDrafts[key];
+    if (!draft || this.state.busy[`save:${key}`]) {
+      return null;
+    }
+    this.setBusy(`save:${key}`, true);
+    try {
+      const saved = await this.client.writeFile(cwd, path, draft.content, overwrite ? null : draft.baseMtimeMs);
+      // Only a draft still holding what was sent is done; typing during the save keeps the newer text as unsaved.
+      this.update((s) => {
+        const fileDrafts = { ...s.fileDrafts };
+        if (fileDrafts[key]?.content === draft.content) {
+          delete fileDrafts[key];
+        } else if (fileDrafts[key]) {
+          fileDrafts[key] = { ...fileDrafts[key], baseMtimeMs: saved.mtimeMs };
+        }
+        return { ...s, fileDrafts, fileVersions: { ...s.fileVersions, [key]: (s.fileVersions[key] ?? 0) + 1 } };
+      });
+      return saved.mtimeMs;
+    } catch (error) {
+      if (errorKind(error) === "fileChanged") {
+        this.toast("error", "This file changed on disk", "Something else saved it since you opened it. Reload to see that change, or overwrite it with yours.", {
+          label: "Overwrite",
+          run: () => void this.saveFile(cwd, path, true),
+        });
+      } else {
+        this.toast("error", "Could not save the file", errorMessage(error));
+      }
+      return null;
+    } finally {
+      this.setBusy(`save:${key}`, false);
+    }
+  }
+
+  toggleTreeFolder(cwd: string, path: string): void {
+    this.update((s) => {
+      const open = s.fileTreeOpen[cwd] ?? [];
+      const next = open.includes(path) ? open.filter((p) => p !== path) : [...open, path];
+      return { ...s, fileTreeOpen: { ...s.fileTreeOpen, [cwd]: next } };
+    });
+  }
+
+  listFiles(cwd: string, path: string) {
+    return this.client.listFiles(cwd, path);
+  }
+
+  readFile(cwd: string, path: string) {
+    return this.client.readFile(cwd, path);
+  }
+
+  searchFiles(cwd: string, query: string) {
+    return this.client.searchFiles(cwd, query);
+  }
+
+  fileUrl(cwd: string, path: string): string {
+    return this.client.fileUrl(cwd, path);
+  }
+
+  async openFileExternally(cwd: string, path: string): Promise<void> {
+    try {
+      await this.client.openFileExternally(cwd, path);
+    } catch (error) {
+      this.toast("error", "Could not open the file", errorMessage(error));
+    }
   }
 
   setSidebarWidth(width: number): void {
