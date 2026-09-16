@@ -3,12 +3,14 @@ import { createRoot } from "react-dom/client";
 import { HeliconApp } from "@helicon/ui";
 import { Connect } from "./Connect.js";
 import { desktopFrame, titlebarOverlay, bindDesktopZoom } from "./frame.js";
+import { bindDesktopLinks } from "./links.js";
 import { appNotifier } from "./notifier.js";
 import { desktopUpdater } from "./updater.js";
 import { WebHeliconClient } from "./webClient.js";
 import "./theme.css";
 
 bindDesktopZoom();
+bindDesktopLinks();
 
 const root = document.getElementById("root");
 if (!root) {
