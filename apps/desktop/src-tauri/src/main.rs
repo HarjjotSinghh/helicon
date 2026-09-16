@@ -497,11 +497,22 @@ fn install_zoom_menu(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Web and mail links that belong in the user's browser or mail app. Helicon's own local server, the inline
+/// splash and error pages, and Tauri's internal schemes stay in the window.
+fn is_external_link(url: &Url) -> bool {
+    match url.scheme() {
+        "mailto" => true,
+        "http" | "https" => !matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]" | "ipc.localhost" | "tauri.localhost")),
+        _ => false,
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(ServerChild(Arc::new(Mutex::new(None))))
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -512,7 +523,22 @@ fn main() {
                 .inner_size(1280.0, 820.0)
                 .min_inner_size(880.0, 560.0)
                 // Native file-drop consumes HTML5 DnD (sidebar reorder, composer attach) on Windows.
-                .disable_drag_drop_handler();
+                .disable_drag_drop_handler()
+                // A link meant for the browser (`target="_blank"`, or one that would navigate the app away)
+                // opens in the user's default browser instead of doing nothing or replacing Helicon.
+                .on_new_window(|url, _features| {
+                    if is_external_link(&url) {
+                        let _ = tauri_plugin_opener::open_url(url.as_str(), None::<&str>);
+                    }
+                    tauri::webview::NewWindowResponse::Deny
+                })
+                .on_navigation(|url| {
+                    if is_external_link(url) {
+                        let _ = tauri_plugin_opener::open_url(url.as_str(), None::<&str>);
+                        return false;
+                    }
+                    true
+                });
             if CUSTOM_FRAME {
                 builder = builder.decorations(false).initialization_script(FRAME_SCRIPT);
             }
@@ -572,6 +598,18 @@ mod tests {
     use super::{latest_nvm_node, prepend_to_path, select_probe_path, well_known_nodes_in};
     use std::net::TcpListener;
     use std::path::{Path, PathBuf};
+
+    #[test]
+    fn sends_only_outside_links_to_the_browser() {
+        let external = |u: &str| super::is_external_link(&u.parse::<tauri::Url>().unwrap());
+        assert!(external("https://github.com/HarjjotSinghh/helicon/pull/90"));
+        assert!(external("mailto:hi@helicon.sh"));
+        assert!(!external("http://127.0.0.1:52314/threads/abc"));
+        assert!(!external("http://localhost:5173/"));
+        assert!(!external("http://ipc.localhost/plugin"));
+        assert!(!external("tauri://localhost/"));
+        assert!(!external("data:text/html,hi"));
+    }
 
     #[test]
     fn strips_windows_verbatim_prefixes() {
