@@ -122,7 +122,8 @@ export function refreshNativeMuse(muse: NativeMuse, env: NodeJS.ProcessEnv = pro
       detached: true,
       stdio: "ignore",
       windowsHide: true,
-      env: { ...env, MUSE_INTERNAL_UPDATE: "1", MUSE_LOGIN: "0" },
+      // A PSModulePath inherited from PowerShell 7 hides Windows PowerShell's own modules, and the update needs them.
+      env: { ...env, PSModulePath: undefined, MUSE_INTERNAL_UPDATE: "1", MUSE_LOGIN: "0" },
     });
     child.on("error", () => undefined);
     child.unref();
