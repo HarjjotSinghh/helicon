@@ -206,7 +206,7 @@ export function SettingsPage() {
         <Section title="Thread titles">
           <Row
             label="Generate titles"
-            description="Name new threads with one cheap model call instead of echoing the first prompt. Off keeps the echo."
+            description="Name new threads with one cheap model call instead of echoing the first prompt, and rename up to 30 recent threads that still echo. The calls run on your Muse Code plan. Off keeps the echo and makes no calls at all."
           >
             {titleSettings ? (
               <Toggle

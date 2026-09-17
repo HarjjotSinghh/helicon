@@ -100,6 +100,7 @@ export function SettingsPage() {
   const controller = useController();
   const prefs = useApp((s) => s.prefs);
   const models = useApp((s) => s.models);
+  const titleSettings = useApp((s) => s.titleSettings);
   const env = useApp((s) => s.env);
   const updates = useApp((s) => s.updates);
   const bypassAll = useApp((s) => s.bypassAll);
@@ -115,7 +116,7 @@ export function SettingsPage() {
       {collapsed ? <TopBar /> : null}
       <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
       <header {...drag} className="mx-auto flex w-full max-w-[720px] shrink-0 items-center gap-3 px-4 pt-8 pb-1 @min-[520px]:px-6">
-        <Button size="sm" variant="ghost" onClick={() => controller.navigate({ kind: "home" })}>
+        <Button size="sm" variant="ghost" onClick={() => controller.goBack()}>
           <ArrowLeft size={14} /> Back
         </Button>
         <div className="min-w-0 flex-1">
@@ -200,6 +201,43 @@ export function SettingsPage() {
           <Row label="Group by" description="How the sidebar arranges threads.">
             <Pick value={prefs.groupBy} options={GROUPS} onChange={(value) => controller.setGroupBy(value)} />
           </Row>
+        </Section>
+
+        <Section title="Thread titles">
+          <Row
+            label="Generate titles"
+            description="Name new threads with one cheap model call instead of echoing the first prompt, and rename up to 30 recent threads that still echo. The calls run on your Muse Code plan. Off keeps the echo and makes no calls at all."
+          >
+            {titleSettings ? (
+              <Toggle
+                checked={titleSettings.enabled}
+                label="Generate titles"
+                onChange={(on) => void controller.setTitleEnabled(on)}
+              />
+            ) : (
+              <p className="text-xs text-subtle">Loading…</p>
+            )}
+          </Row>
+          {titleSettings?.enabled ? (
+            <Row label="Title model" description="Which model writes the titles. Muse default lets the CLI choose.">
+              {models.length === 0 ? (
+                <p className="text-xs text-subtle">No models loaded</p>
+              ) : (
+                <Pick<string | null>
+                  value={titleSettings.modelId}
+                  options={[
+                    { value: null, label: "Muse default" },
+                    ...models.map((model) => ({
+                      value: model.modelId as string | null,
+                      label: model.contributor ? `${modelDisplayName(model.modelId)} · Contributor` : modelDisplayName(model.modelId),
+                      hint: model.contributor ? "Contributor tier: prompts and outputs may be used for product improvement." : undefined,
+                    })),
+                  ]}
+                  onChange={(value) => void controller.setTitleModel(value)}
+                />
+              )}
+            </Row>
+          ) : null}
         </Section>
 
         <Section title="Approvals">

@@ -17,6 +17,7 @@ import type {
   SkillCatalog,
   SubagentAction,
   TaskAction,
+  TitleSettings,
   TranscriptLoad,
   UserInputAnswer,
   WorkflowAction,
@@ -104,6 +105,8 @@ export interface HeliconClient {
   cancelUserInput(sessionId: string, userInputId: string): Promise<void>;
   clarifyUserInput(sessionId: string, userInputId: string, content: string): Promise<void>;
   listModels(sessionId?: string): Promise<ModelOption[]>;
+  getTitleSettings(): Promise<TitleSettings>;
+  setTitleSettings(patch: { enabled?: boolean; modelId?: string | null }): Promise<TitleSettings>;
   setSessionModel(sessionId: string, modelId: string): Promise<void>;
   setApprovalMode(sessionId: string, mode: ApprovalMode): Promise<void>;
   /** `noop` when Muse had nothing to summarize; `reason` is its snake_case explanation. */
@@ -147,6 +150,15 @@ export interface HeliconClient {
   fileUrl(cwd: string, path: string): string;
   /** Subscribe to server events; returns an unsubscribe function. */
   subscribe(handler: EventHandler): () => void;
+}
+
+/** Parse the title-settings endpoint; malformed answers fall back to on with no model. */
+export function parseTitleSettings(value: unknown): TitleSettings {
+  const r = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  return {
+    enabled: typeof r["enabled"] === "boolean" ? r["enabled"] : true,
+    modelId: typeof r["modelId"] === "string" && r["modelId"].trim() ? r["modelId"] : null,
+  };
 }
 
 /** Parse a raw `model/list` result into picker options. */

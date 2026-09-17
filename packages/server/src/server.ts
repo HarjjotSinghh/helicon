@@ -166,7 +166,9 @@ type SseSink = (event: string, data: unknown) => void;
 const MAX_HISTORY_PAGES = 4;
 const HISTORY_PAGE_SIZE = 1000;
 const DISCOVER_LIMIT = 200;
-const TITLE_BACKFILL_LIMIT = 60;
+/** Echo-titled threads one discovery may hand to the titler. Each is a model call on the user's plan, so it is a
+ * handful of recent threads rather than a whole history. */
+const TITLE_BACKFILL_LIMIT = 30;
 const ENV_CACHE_MS = 30_000;
 const CLONE_TIMEOUT_MS = 10 * 60_000;
 const AUTO_SETTLE_SWEEP_MS = 60_000;
