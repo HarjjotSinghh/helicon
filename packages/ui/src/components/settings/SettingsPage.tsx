@@ -100,6 +100,7 @@ export function SettingsPage() {
   const controller = useController();
   const prefs = useApp((s) => s.prefs);
   const models = useApp((s) => s.models);
+  const titleSettings = useApp((s) => s.titleSettings);
   const env = useApp((s) => s.env);
   const updates = useApp((s) => s.updates);
   const bypassAll = useApp((s) => s.bypassAll);
@@ -200,6 +201,43 @@ export function SettingsPage() {
           <Row label="Group by" description="How the sidebar arranges threads.">
             <Pick value={prefs.groupBy} options={GROUPS} onChange={(value) => controller.setGroupBy(value)} />
           </Row>
+        </Section>
+
+        <Section title="Thread titles">
+          <Row
+            label="Generate titles"
+            description="Name new threads with one cheap model call instead of echoing the first prompt. Off keeps the echo."
+          >
+            {titleSettings ? (
+              <Toggle
+                checked={titleSettings.enabled}
+                label="Generate titles"
+                onChange={(on) => void controller.setTitleEnabled(on)}
+              />
+            ) : (
+              <p className="text-xs text-subtle">Loading…</p>
+            )}
+          </Row>
+          {titleSettings?.enabled ? (
+            <Row label="Title model" description="Which model writes the titles. Muse default lets the CLI choose.">
+              {models.length === 0 ? (
+                <p className="text-xs text-subtle">No models loaded</p>
+              ) : (
+                <Pick<string | null>
+                  value={titleSettings.modelId}
+                  options={[
+                    { value: null, label: "Muse default" },
+                    ...models.map((model) => ({
+                      value: model.modelId as string | null,
+                      label: model.contributor ? `${modelDisplayName(model.modelId)} · Contributor` : modelDisplayName(model.modelId),
+                      hint: model.contributor ? "Contributor tier: prompts and outputs may be used for product improvement." : undefined,
+                    })),
+                  ]}
+                  onChange={(value) => void controller.setTitleModel(value)}
+                />
+              )}
+            </Row>
+          ) : null}
         </Section>
 
         <Section title="Approvals">

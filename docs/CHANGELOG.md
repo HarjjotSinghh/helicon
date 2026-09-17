@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Threads get a short generated title.** The first prompt still names a thread instantly, then one cheap `muse exec` call replaces the echo with a concise title and pushes it back to Muse, so the CLI shows the same name. A typed title or a name Muse chose itself is never touched, and anything that fails leaves the echo in place. Settings has a switch for it, with a model choice when it is on.
+
 ## 0.12.6
 
 ### New
