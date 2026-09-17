@@ -13,9 +13,16 @@ export function trackHref(
 ) {
   const { event, properties } = classifyCta(href);
   if (!event) return;
-  posthog.capture(event, {
-    ...properties,
-    placement: extra.placement,
-    ...(extra.label ? { cta_label: extra.label } : {}),
-  });
+  // Same-tab links (the installer downloads) unload the page right after the
+  // click, so a normal XHR capture is dropped before it reaches PostHog. Send
+  // the event with the beacon transport, which survives the navigation.
+  posthog.capture(
+    event,
+    {
+      ...properties,
+      placement: extra.placement,
+      ...(extra.label ? { cta_label: extra.label } : {}),
+    },
+    { transport: "sendBeacon" },
+  );
 }
