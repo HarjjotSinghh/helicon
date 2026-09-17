@@ -87,7 +87,7 @@ export function Architecture({ extra }: { extra: string | null }) {
           </div>
           <div className="mt-5 max-w-[56ch] space-y-4 text-[15px] leading-relaxed text-muted sm:text-[17px]">
             <p>
-              A local daemon spawns one <Code>muse serve</Code> host per workspace and speaks the Muse
+              A local daemon spawns one <Code>muse serve</Code> host per workspace and speaks the Muse Code
               Session Protocol through Meta&apos;s official MIT <Code>@muse-code/sdk</Code>.
             </p>
             <p>
@@ -100,7 +100,7 @@ export function Architecture({ extra }: { extra: string | null }) {
             {[
               { icon: Key, text: "Auth from muse login" },
               { icon: Database, text: "Local SQLite" },
-              { icon: WindowsLogo, text: "Windows: native Muse, or WSL2 with path translation" },
+              { icon: WindowsLogo, text: "Windows: native Muse Code, or WSL2 with path translation" },
             ].map(({ icon: Icon, text }) => (
               <li
                 key={text}

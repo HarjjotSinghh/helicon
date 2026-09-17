@@ -207,7 +207,7 @@ function PalettePreview() {
   const rows = [
     { icon: NotePencil, label: "New thread", keys: ["⌘", "⇧", "O"], active: true },
     { icon: SidebarSimple, label: "Toggle sidebar", keys: ["⌘", "B"] },
-    { icon: ArrowsClockwise, label: "Refresh threads from Muse" },
+    { icon: ArrowsClockwise, label: "Refresh threads from Muse Code" },
     { icon: Sun, label: "Use light theme" },
   ];
   return (

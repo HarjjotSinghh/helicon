@@ -43,7 +43,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
       audience,
       headline: "Muse Code on Windows,",
       headlineContinue: "with a real UI.",
-      lead: "Signed installer. Your existing Muse plan. No second bill.",
+      lead: "Signed installer. Your existing Muse Code plan. No second bill.",
       body: "A free, open-source Windows app for the muse CLI, with every project, session and diff in one window.",
       ctas: [
         { label: "Download for Windows", href: installerPath("windows", "hero"), kind: "primary" },
@@ -52,12 +52,12 @@ export function getPageCopy(os: VisitorOs): PageCopy {
       headerCta: "Download",
       headerHref: installerPath("windows", "header"),
       closingTitle: "Muse Code on Windows, without the WSL terminal juggling.",
-      closingBody: "Free, MIT licensed, and running on the Muse subscription you already have for Muse Code.",
+      closingBody: "Free, MIT licensed, and running on the Muse Code subscription you already have.",
       featuresTitle: "Seven agents, one window, on Windows",
       featuresBody:
         "Parallel subagents and a replayable event log are wasted in a terminal. Projects, diffs, approvals and cost sit side by side.",
       howExtra:
-        "On Windows the daemon reaches Muse through a WSL2 sidecar, with path translation both ways, so Windows paths and Ubuntu paths stay in sync.",
+        "On Windows the daemon runs Muse Code natively, with WSL2 and path translation still there for anyone who prefers it.",
       compareBody:
         "Muse Code has no native Windows build. Helicon is the signed desktop app for that gap. It is not the only GUI, and it is not official.",
       faqIntro: "WSL, billing, credentials, and whether any of this is official. Straight answers.",
@@ -77,7 +77,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
       headerCta: "Download",
       headerHref: installerPath("macos", "header"),
       closingTitle: "Bring your threads out of the terminal.",
-      closingBody: "Free, MIT licensed, and running on the Muse subscription you already have for Muse Code.",
+      closingBody: "Free, MIT licensed, and running on the Muse Code subscription you already have.",
       featuresTitle: "Everything a session needs, in one window",
       featuresBody:
         "Projects, threads, diffs, approvals and cost live side by side, so you stop hunting through terminal tabs.",
@@ -100,7 +100,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
     headerCta: "Download",
     headerHref: "#install",
     closingTitle: "Bring your threads out of the terminal.",
-    closingBody: "Free, MIT licensed, and running on the Muse subscription you already have for Muse Code.",
+    closingBody: "Free, MIT licensed, and running on the Muse Code subscription you already have.",
     featuresTitle: "Everything a session needs, in one window",
     featuresBody:
       "Projects, threads, diffs, approvals and cost live side by side, so you stop hunting through terminal tabs.",

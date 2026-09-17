@@ -78,8 +78,9 @@ export function SiteFooter() {
             <span className="font-headline text-[15px] font-semibold text-fg sm:text-[17px]">Helicon</span>
           </div>
           <p className="mt-4 text-[14px] leading-relaxed text-subtle">
-            An unofficial, community-built project. Not made, sponsored or endorsed by Meta. Muse Code is
-            Meta&apos;s. MIT licensed.
+            An unofficial, community-built project. Not made, sponsored or endorsed by Meta. A client for the Muse
+            Code CLI, unrelated to the Muse assistant app for Mac. &ldquo;Muse&rdquo; and &ldquo;Muse Code&rdquo; are
+            Meta&apos;s trademarks, used here only to say what Helicon works with. MIT licensed.
           </p>
           <p className="mt-3 text-[14px] leading-relaxed text-subtle">
             Made with{" "}

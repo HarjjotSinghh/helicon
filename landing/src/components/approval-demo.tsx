@@ -49,7 +49,7 @@ export function ApprovalDemo() {
           <div className="min-w-0" aria-live="polite">
             <p className="font-medium text-fg">
               {phase === "waiting"
-                ? "Muse wants to run a shell command"
+                ? "Muse Code wants to run a shell command"
                 : phase === "running"
                   ? "Allowed once, running"
                   : phase === "passed"

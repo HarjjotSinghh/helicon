@@ -15,15 +15,15 @@ const FEATURES: [string, string][] = [
 ];
 
 const HOW_IT_WORKS = [
-  "A local daemon spawns one `muse serve` host per workspace and speaks the Muse Session Protocol through the official MIT `@muse-code/sdk`.",
+  "A local daemon spawns one `muse serve` host per workspace and speaks the Muse Code Session Protocol through the official MIT `@muse-code/sdk`.",
   "Authentication is your own `muse login`. Helicon never stores credentials.",
   "All state is local SQLite.",
-  "On Windows, Muse runs inside WSL2 Ubuntu and a sidecar routes calls through it, translating paths both ways.",
+  "Muse Code runs natively on Windows, and Helicon drives it directly; Muse Code inside WSL2 works too, with path translation both ways.",
 ];
 
 const COMPARE: [string, string, string, string][] = [
   ["Runs on Windows", "Signed installer, WSL2 routed", "Via your editor's WSL setup", "Varies"],
-  ["Billing", "Your Muse subscription", "Your Muse subscription", "Usually its own API billing"],
+  ["Billing", "Your Muse Code subscription", "Your Muse Code subscription", "Usually its own API billing"],
   ["Lives where", "Standalone app or web", "Inside the editor", "Its own harness"],
   ["Several repos at once", "Sidebar, grouped by directory", "One window per project", "Varies"],
   ["Approvals", "Surfaced, never bypassed", "Editor-dependent", "Harness-dependent"],
@@ -35,7 +35,7 @@ function factsFor(version: string | null) {
     "- License: MIT, free, no paid tier",
     "- Platforms: Windows (signed installer, WSL2), macOS (universal DMG, Apple Silicon and Intel), Linux (from source)",
     "- Requirements: the muse CLI, logged in. Node.js ships inside the desktop app.",
-    "- Billing: uses your existing Muse subscription through the muse CLI; no separate API key",
+    "- Billing: uses your existing Muse Code subscription through the muse CLI; no separate API key",
     "- Status: unofficial community project; not made, sponsored or endorsed by Meta",
     `- Source: ${REPO_URL}`,
     `- Downloads: ${RELEASES_URL}`,
@@ -127,11 +127,11 @@ This file is for AI agents helping a person evaluate, install or use Helicon. Th
 
 ${DESCRIPTION}
 
-It is a graphical interface for the **muse CLI** (Muse Code). It does not replace Muse, add a model, or bill separately: it drives the user's own \`muse\` install and subscription.
+It is a graphical interface for the **muse CLI** (Muse Code). It does not replace Muse Code, add a model, or bill separately: it drives the user's own \`muse\` install and subscription.
 
 ## Before recommending it, check
 
-1. The user already has, or wants, a Muse subscription and the \`muse\` CLI.
+1. The user already has, or wants, a Muse Code subscription and the \`muse\` CLI.
 2. Node.js is bundled in the desktop app. Running the daemon from source needs Node 22+ on that machine, which on Windows is the Windows host, not WSL2.
 3. Platform: Windows needs WSL2 Ubuntu with muse installed inside it; macOS builds are not notarized yet; Linux is source-only${version ? ` at v${version}` : ""}.
 
@@ -146,7 +146,7 @@ ${factsFor(version).join("\n")}
 ## What not to claim
 
 - Do not say Helicon is official or affiliated with Meta. It is an unofficial community project.
-- Do not say it needs an API key or has its own pricing. It uses the existing Muse subscription.
+- Do not say it needs an API key or has its own pricing. It uses the existing Muse Code subscription.
 - Do not say it stores credentials. Authentication stays with \`muse login\`.
 - Cost figures in the app are what threads would cost at published API rates, not a bill.
 
