@@ -9,7 +9,7 @@ export function StarCount({ stars, className }: { stars: number | null; classNam
       className={`inline-flex items-center gap-1 text-[13px] font-medium tabular-nums ${className ?? "text-muted"}`}
       title={`${stars.toLocaleString()} stars on GitHub`}
     >
-      <Star weight="fill" aria-hidden="true" className="size-3.5 text-[#e3b341]" />
+      <Star weight="fill" aria-hidden="true" className="size-3.5" />
       {formatStars(stars)}
       <span className="sr-only">stars on GitHub</span>
     </span>

@@ -63,7 +63,8 @@ jobs:
           bundle=apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage
           image=$(ls "$bundle"/*.AppImage)
           echo "Built $image"
-          # --appimage-extract needs no FUSE, so it works on a runner.
+          # --appimage-extract writes squashfs-root into the working directory, so the path has to survive the cd.
+          image=$(realpath "$image")
           (cd "$bundle" && "$image" --appimage-extract >/dev/null)
           root="$bundle/squashfs-root"
           test -x "$root/usr/bin/helicon" || { echo "no helicon binary in the bundle"; exit 1; }

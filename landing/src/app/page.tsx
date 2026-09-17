@@ -73,7 +73,7 @@ export default async function Page() {
         Skip to content
       </a>
       <div className="page-frame relative mx-auto min-h-dvh w-full max-w-[1200px] border-line bg-bg max-[360px]:border-x-0 min-[361px]:w-[calc(100%-1rem)] min-[361px]:border-x sm:w-[calc(100%-3rem)] pb-[env(safe-area-inset-bottom)]">
-        <SiteHeader copy={copy} stars={stars} />
+        <SiteHeader copy={copy} />
         <main id="main" className="relative z-0">
           <Hero copy={copy} version={version} notesUrl={release?.notesUrl ?? ""} stars={stars} />
           <Rule />
@@ -92,7 +92,7 @@ export default async function Page() {
           <ClosingCta copy={copy} stars={stars} />
           <Rule />
         </main>
-        <SiteFooter stars={stars} />
+        <SiteFooter />
       </div>
       <StructuredData version={version} />
     </>

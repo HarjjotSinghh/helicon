@@ -13,7 +13,6 @@ import { Logo, buttonClass } from "./ui";
 import { ThemeToggle } from "./theme-toggle";
 import { CtaRow } from "./cta-row";
 import { TrackedLink } from "./tracked-link";
-import { StarCount } from "./star-count";
 
 export function ClosingCta({ copy, stars = null }: { copy: PageCopy; stars?: number | null }) {
   const primary = closingCta(copy);
@@ -69,7 +68,7 @@ const groups = [
   },
 ];
 
-export function SiteFooter({ stars = null }: { stars?: number | null } = {}) {
+export function SiteFooter() {
   return (
     <footer>
       <div className="grid gap-10 px-5 py-12 sm:px-8 md:grid-cols-[1fr_auto] lg:px-12">
@@ -118,7 +117,6 @@ export function SiteFooter({ stars = null }: { stars?: number | null } = {}) {
                     >
                       <Icon aria-hidden="true" className="text-subtle" />
                       {label}
-                      {href === REPO_URL ? <StarCount stars={stars} className="text-subtle" /> : null}
                       {external ? (
                         <ArrowUpRight
                           aria-hidden="true"
