@@ -23,7 +23,9 @@ jobs:
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "No WINGET_TOKEN secret, so nothing is submitted. See packaging/winget/README.md."
           fi
-      - uses: vedantmgoyal9/winget-releaser@main
+      # Pinned to a commit: this step is handed a token that can push to our forks, so a moved tag must not
+      # change what runs. Bump it deliberately, the way the release workflow pins tauri-action.
+      - uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
         if: steps.token.outputs.ready == 'true'
         with:
           identifier: HarjjotSinghh.Helicon

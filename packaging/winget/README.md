@@ -42,6 +42,9 @@ its template. It does nothing until `WINGET_TOKEN` exists.
 
 ## Notes
 
+- The publishing action is pinned to a commit, not a tag, because it is handed a token that can push to our forks.
+  Bump it deliberately.
+
 - Our installer is Tauri's NSIS bundle. It installs per user, so no elevation and `Scope: user`.
 - `InstallerType: nsis` is what tells winget the silent switch is `/S`; do not hand-write `InstallerSwitches`.
 - The identifier is `HarjjotSinghh.Helicon`, which must match the folder path under `manifests/h/`.
