@@ -21,16 +21,13 @@
 
 ### Shared on X
 
-> "harjot here built a pretty sick unofficial muse code app for windows!"
-> — [Alexandr Wang](https://x.com/alexandr_wang), Chief AI Officer, Meta
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/social-proof-dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/social-proof-light.png" />
+  <img alt="Posts about Helicon from Alexandr Wang, Cosmo Du and Michael Douglas" src="docs/assets/social-proof-light.png" />
+</picture>
 
-> "Super impressive community-made desktop app for Muse Code. Well done, Harjot!"
-> — [Michael Douglas](https://x.com/mjdouglas), Muse Code, Meta
-
-> "really impressive desktop app by @harjjotsinghh built on github.com/meta-models/muse-code-sdk"
-> — [Cosmo Du](https://x.com/Answeror), Muse Code, Meta
-
-Shared in September 2026. Helicon is an unofficial community project: Meta has not endorsed it, and it is not affiliated with Meta.
+The posts: [Alexandr Wang](https://x.com/alexandr_wang/status/2100590733627715684) · [Cosmo Du](https://x.com/Answeror/status/2100457921113170092) · [Michael Douglas](https://x.com/mjdouglas/status/2100399865562059121). Helicon is an unofficial community project: Meta has not endorsed it, and it is not affiliated with Meta.
 
 **Sidebar-first:** all projects grouped by working directory, each with its tasks and sessions - resume anything, including sessions started from the `muse` terminal TUI.
 
