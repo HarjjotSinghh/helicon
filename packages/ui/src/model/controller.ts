@@ -230,6 +230,8 @@ export class HeliconController {
   private refreshing: Promise<void> | null = null;
   private refreshQueued = false;
   private toastSeq = 0;
+  /** The main route Back leaves the settings/usage pages for; cleared once back on a main route. */
+  private returnRoute: Route | null = null;
 
   private updates: UpdateManager | null = null;
   private notifications: NotificationManager | null = null;
@@ -455,6 +457,11 @@ export class HeliconController {
     this.applyRoute(route, true);
   }
 
+  /** Leaves the settings/usage pages for wherever the user was before opening them. */
+  goBack(): void {
+    this.navigate(this.returnRoute ?? { kind: "home" });
+  }
+
   openThread(sessionId: string): void {
     this.navigate({ kind: "thread", sessionId });
   }
@@ -473,6 +480,15 @@ export class HeliconController {
     }
     if (route.kind === "thread" && this.state.sessionsLoaded && !this.state.sessions[route.sessionId]) {
       route = { kind: "home" };
+    }
+    const overlay = route.kind === "usage" || route.kind === "settings";
+    const wasOverlay = previous.kind === "usage" || previous.kind === "settings";
+    if (overlay) {
+      if (!wasOverlay) {
+        this.returnRoute = previous;
+      }
+    } else {
+      this.returnRoute = null;
     }
     this.update((s) => ({ ...s, route }));
     if (push) {
