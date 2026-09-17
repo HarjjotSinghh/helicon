@@ -269,6 +269,16 @@ export interface TitleSettings {
   modelId: string | null;
 }
 
+/** A custom Muse model endpoint the server can send model calls to; its API key never leaves the server. */
+export interface EndpointSummary {
+  id: string;
+  name: string;
+  baseUrl: string;
+  defaultModel: string | null;
+  hasApiKey: boolean;
+  models: string[];
+}
+
 /** A skill Muse can load in a workspace, from `muse skills list`. Skills switched off are left out. */
 export interface SkillEntry {
   id: string;

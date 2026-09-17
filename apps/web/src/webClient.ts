@@ -6,6 +6,7 @@ import {
   type ApprovalMode,
   type AttachmentView,
   type DirectoryListing,
+  type EndpointSummary,
   type EnvironmentStatus,
   type EventHandler,
   type FileContent,
@@ -355,6 +356,28 @@ export class WebHeliconClient implements HeliconClient {
 
   async planUsage(): Promise<PlanUsage | null> {
     return (await call<{ usage: PlanUsage | null }>("GET", "/api/plan-usage")).usage;
+  }
+
+  async endpoints(): Promise<{ endpoints: EndpointSummary[]; activeEndpointId: string | null }> {
+    return call("GET", "/api/endpoints");
+  }
+
+  async saveEndpoint(
+    input: { id?: string; name: string; baseUrl: string; apiKey?: string; defaultModel?: string | null },
+  ): Promise<EndpointSummary> {
+    return (await call<{ endpoint: EndpointSummary }>("PUT", "/api/endpoints", input)).endpoint;
+  }
+
+  async deleteEndpoint(id: string): Promise<void> {
+    await call("DELETE", `/api/endpoints?id=${enc(id)}`);
+  }
+
+  async activateEndpoint(id: string | null): Promise<void> {
+    await call("POST", "/api/endpoints/activate", { id });
+  }
+
+  async refreshEndpointModels(id: string): Promise<string[]> {
+    return (await call<{ models: string[] }>("POST", "/api/endpoints/refresh-models", { id })).models;
   }
 
   listFiles(cwd: string, path: string): Promise<FileListing> {

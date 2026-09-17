@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { extname, join, normalize, posix, resolve, sep, win32 } from "node:path";
 import {
   HeliconMspHost,
@@ -41,6 +41,13 @@ import {
   type TurnImage,
 } from "@helicon/daemon";
 import { FileError, listFolder, readProjectFile, resolveInRoot, searchProjectFiles, serveProjectFile, writeProjectFile } from "./files.js";
+import {
+  bundledModelRows,
+  catalogModelIds,
+  fetchEndpointModels,
+  normalizeCatalogRows,
+  writeEndpointHome,
+} from "./endpoints.js";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 import { buildThreadTitlePrompt, deriveTitle, parseExecTitle, sanitizeThreadTitle } from "./threadTitles.js";
 
@@ -76,6 +83,8 @@ export interface ServerOptions {
   port?: number;
   host?: string;
   dataDir?: string;
+  /** Where each custom endpoint's isolated Muse home is written; an `endpoints/` folder next to the data dir by default. */
+  endpointsDir?: string;
   staticDir?: string | null;
   token?: string | null;
   /** Browser origins allowed to reach this daemon from another site. Empty means same-origin only. */
@@ -213,6 +222,19 @@ function isWindowsAbs(path: string): boolean {
 
 function isWslAbs(path: string): boolean {
   return path.startsWith("/");
+}
+
+/** An endpoint address worth writing into Muse's settings: http(s), and nothing a header could hide in. */
+function isHttpUrl(value: string): boolean {
+  if (/\s/.test(value)) {
+    return false;
+  }
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function nowIso(): string {
@@ -632,10 +654,13 @@ export class HeliconServer {
     };
 
   constructor(options: ServerOptions = {}) {
+    const dataDir = options.dataDir ?? ":memory:";
     this.options = {
       port: options.port ?? 3127,
       host: options.host ?? "127.0.0.1",
-      dataDir: options.dataDir ?? ":memory:",
+      dataDir,
+      // An in-memory data dir has no folder to sit next to, so endpoint homes land in the temp dir.
+      endpointsDir: options.endpointsDir ?? (dataDir === ":memory:" ? join(tmpdir(), "helicon-endpoints") : join(dataDir, "endpoints")),
       staticDir: options.staticDir ? resolve(options.staticDir) : null,
       token: options.token ?? null,
       allowOrigins: options.allowOrigins ?? [],
@@ -1426,6 +1451,98 @@ export class HeliconServer {
       const sessionId = url.searchParams.get("sessionId") ?? undefined;
       const manager = sessionId ? await this.managerForSession(sessionId) : (await this.hostFor("")).manager;
       this.json(res, 200, { models: await manager.listModels(sessionId) });
+      return true;
+    }
+
+    if (method === "GET" && path === "/api/endpoints") {
+      const activeEndpointId = this.store.getActiveEndpointId();
+      this.json(res, 200, {
+        endpoints: this.store.listEndpoints().map((endpoint) => ({
+          id: endpoint.id,
+          name: endpoint.name,
+          baseUrl: endpoint.baseUrl,
+          defaultModel: endpoint.defaultModel,
+          hasApiKey: endpoint.apiKey !== null,
+          models: catalogModelIds(endpoint.modelsJson),
+        })),
+        activeEndpointId,
+      });
+      return true;
+    }
+
+    if (method === "PUT" && path === "/api/endpoints") {
+      const body = await this.readBody(req);
+      const name = str(body["name"])?.trim() ?? "";
+      const baseUrl = str(body["baseUrl"])?.trim() ?? "";
+      if (!name) {
+        throw new HttpError(400, "name is required.");
+      }
+      if (!isHttpUrl(baseUrl)) {
+        throw new HttpError(400, "baseUrl must be an http(s) URL.");
+      }
+      const id = str(body["id"]) ?? randomUUID();
+      const existing = this.store.getEndpoint(id);
+      // An absent apiKey keeps the stored one; an empty string is how the UI clears it.
+      const apiKey = body["apiKey"] === undefined ? (existing?.apiKey ?? null) : str(body["apiKey"]);
+      const defaultModel = str(body["defaultModel"]);
+      const modelsJson =
+        existing && catalogModelIds(existing.modelsJson).length > 0 ? existing.modelsJson : JSON.stringify(bundledModelRows());
+      const saved = this.store.upsertEndpoint({ id, name, baseUrl, apiKey, defaultModel, modelsJson });
+      this.json(res, 200, {
+        endpoint: {
+          id: saved.id,
+          name: saved.name,
+          baseUrl: saved.baseUrl,
+          defaultModel: saved.defaultModel,
+          hasApiKey: saved.apiKey !== null,
+          models: catalogModelIds(saved.modelsJson),
+        },
+      });
+      return true;
+    }
+
+    if (method === "DELETE" && path === "/api/endpoints") {
+      const id = url.searchParams.get("id");
+      if (!id) {
+        throw new HttpError(400, "id is required.");
+      }
+      this.store.deleteEndpoint(id);
+      this.json(res, 200, { ok: true });
+      return true;
+    }
+
+    if (method === "POST" && path === "/api/endpoints/activate") {
+      const body = await this.readBody(req);
+      const id = body["id"] === null ? null : str(body["id"]);
+      if (body["id"] !== null && !id) {
+        throw new HttpError(400, "id must be an endpoint id or null.");
+      }
+      if (id && !this.store.getEndpoint(id)) {
+        throw new HttpError(404, "Unknown endpoint.");
+      }
+      this.store.setActiveEndpointId(id);
+      await this.teardownHosts();
+      this.json(res, 200, { ok: true, activeEndpointId: id });
+      return true;
+    }
+
+    if (method === "POST" && path === "/api/endpoints/refresh-models") {
+      const body = await this.readBody(req);
+      const id = str(body["id"]);
+      if (!id) {
+        throw new HttpError(400, "id is required.");
+      }
+      const endpoint = this.store.getEndpoint(id);
+      if (!endpoint) {
+        throw new HttpError(404, "Unknown endpoint.");
+      }
+      const fetched = await fetchEndpointModels(endpoint.baseUrl, endpoint.apiKey);
+      if (!fetched) {
+        throw new HttpError(502, `Could not fetch the model list from ${endpoint.baseUrl}.`);
+      }
+      const rows = normalizeCatalogRows(fetched, endpoint.defaultModel);
+      this.store.upsertEndpoint({ ...endpoint, modelsJson: JSON.stringify(rows) });
+      this.json(res, 200, { models: rows.map((row) => row.model_id) });
       return true;
     }
 
@@ -2590,15 +2707,17 @@ export class HeliconServer {
     return managed;
   }
 
-  private hostExited(managed: ManagedHost, exit: HostExit): void {
+  private hostExited(managed: ManagedHost, exit: HostExit, state: "exited" | "stopped" = "exited"): void {
     if (this.hosts.get(managed.key) !== managed) {
       return;
     }
     this.hosts.delete(managed.key);
     const detail = managed.handle.recentStderr?.trim();
     const message = `The Muse host exited (${exit.code ?? exit.signal ?? "unknown"}).${detail ? ` ${detail}` : ""}`;
-    this.lastHostError = message;
-    this.emit("helicon", { type: "host", key: managed.key, state: "exited", message });
+    if (state === "exited") {
+      this.lastHostError = message;
+    }
+    this.emit("helicon", { type: "host", key: managed.key, state, message });
     for (const [sessionId, key] of this.sessionHosts) {
       if (key !== managed.key) {
         continue;
@@ -2619,8 +2738,14 @@ export class HeliconServer {
   }
 
   private async serveTargetFor(cwd: string): Promise<ServeTarget> {
+    const endpointEnv = this.endpointSpawnEnv();
     if (this.options.platform !== "win32") {
-      return { command: this.options.musePath ?? "muse", args: ["serve"], cwd: cwd || process.cwd() };
+      return {
+        command: this.options.musePath ?? "muse",
+        args: ["serve"],
+        cwd: cwd || process.cwd(),
+        ...(endpointEnv ? { env: { ...process.env, ...endpointEnv } } : {}),
+      };
     }
     const runtime = await this.museRuntime();
     let musePath = this.options.musePath ?? null;
@@ -2633,12 +2758,16 @@ export class HeliconServer {
         throw new HttpError(503, "Muse for Windows is not installed. Install it from PowerShell: irm https://dev.meta.ai/install.ps1 | iex");
       }
       const releaseInfo = this.releaseInfoFor(musePath);
+      const extra = { ...(releaseInfo ? { MUSE_RELEASE_INFO: releaseInfo } : {}), ...endpointEnv };
       return {
         command: musePath,
         args: ["serve"],
         cwd: this.spawnCwdFor(cwd) || process.cwd(),
-        ...(releaseInfo ? { env: { ...process.env, MUSE_RELEASE_INFO: releaseInfo } } : {}),
+        ...(Object.keys(extra).length > 0 ? { env: { ...process.env, ...extra } } : {}),
       };
+    }
+    if (endpointEnv) {
+      throw new HttpError(503, "Custom model endpoints are not supported in the WSL runtime yet.");
     }
     const plan = planServe({
       platform: "win32",
@@ -2647,6 +2776,38 @@ export class HeliconServer {
       cwd: this.spawnCwdFor(cwd),
     });
     return { command: plan.command, args: plan.args, cwd: plan.cwd };
+  }
+
+  /** Env that points a `muse serve` at the active custom endpoint's isolated Muse home; null when none is active. */
+  private endpointSpawnEnv(): Record<string, string | undefined> | null {
+    const activeId = this.store.getActiveEndpointId();
+    const endpoint = activeId ? this.store.getEndpoint(activeId) : null;
+    if (!endpoint) {
+      return null;
+    }
+    const home = writeEndpointHome(join(this.options.endpointsDir, endpoint.id), endpoint);
+    return {
+      XDG_CONFIG_HOME: home.configHome,
+      XDG_DATA_HOME: home.dataHome,
+      ...(endpoint.apiKey ? { META_API_KEY: endpoint.apiKey } : {}),
+    };
+  }
+
+  /** Stops every running host so the next use respawns with the endpoint that is now active. */
+  private async teardownHosts(): Promise<void> {
+    for (const pending of this.starting.values()) {
+      await pending.catch(() => undefined);
+    }
+    for (const managed of [...this.hosts.values()]) {
+      try {
+        await managed.handle.close();
+      } catch {
+        /* best effort */
+      }
+      this.hostExited(managed, { code: null, signal: null }, "stopped");
+    }
+    this.hosts.clear();
+    this.starting.clear();
   }
 
   /** The launcher's release details for a binary in its install folder, as the launcher itself would pass them. */

@@ -1,6 +1,7 @@
 import type {
   ApprovalMode,
   AttachmentView,
+  EndpointSummary,
   EnvironmentStatus,
   ModelOption,
   OutgoingAttachment,
@@ -193,6 +194,9 @@ export interface AppState {
   models: ModelOption[];
   /** Server-owned thread-title switch and model; null until the first boot load answers. */
   titleSettings: TitleSettings | null;
+  /** Custom Muse model endpoints, and the active one; null means the user's own Muse login. */
+  endpoints: EndpointSummary[];
+  activeEndpointId: string | null;
   prefs: Prefs;
   toasts: Toast[];
   paletteOpen: boolean;
@@ -253,6 +257,8 @@ export function initialState(prefs: Prefs): AppState {
     threads: {},
     models: [],
     titleSettings: null,
+    endpoints: [],
+    activeEndpointId: null,
     prefs,
     toasts: [],
     paletteOpen: false,

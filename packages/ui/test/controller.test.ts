@@ -207,6 +207,17 @@ class FakeClient implements HeliconClient {
   async planUsage() {
     return this.plan;
   }
+  async endpoints() {
+    return { endpoints: [], activeEndpointId: null };
+  }
+  async saveEndpoint() {
+    return { id: "e1", name: "Gateway", baseUrl: "https://gateway/v1", defaultModel: null, hasApiKey: false, models: [] };
+  }
+  async deleteEndpoint() {}
+  async activateEndpoint() {}
+  async refreshEndpointModels() {
+    return [];
+  }
   writes: { path: string; content: string; baseMtimeMs: number | null }[] = [];
   writeError: Error | null = null;
   async listFiles(_cwd: string, path: string) {

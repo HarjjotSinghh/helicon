@@ -71,6 +71,28 @@ export interface SessionPatch {
   unsettledAt?: string | null;
 }
 
+/** A custom Muse endpoint: where model calls go instead of Meta's own service. */
+export interface EndpointRecord {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string | null;
+  defaultModel: string | null;
+  /** Catalog rows as a JSON array, in the shape Muse's model-catalog cache keeps. */
+  modelsJson: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertEndpointInput {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string | null;
+  defaultModel: string | null;
+  modelsJson: string;
+}
+
 export const PLACEHOLDER_TITLE = "New thread";
 
 /** Server-owned thread-title generation: the switch and the model, kept where the worker can read them. */
@@ -161,6 +183,20 @@ CREATE TABLE IF NOT EXISTS usage (
   at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS endpoints (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  base_url TEXT NOT NULL,
+  api_key TEXT,
+  default_model TEXT,
+  models_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
@@ -670,6 +706,55 @@ export class HeliconStore {
       .run(status, nowIso(), id);
   }
 
+  listEndpoints(): EndpointRecord[] {
+    const rows = this.db.prepare(`SELECT * FROM endpoints ORDER BY created_at, name`).all() as Row[];
+    return rows.map((row) => this.toEndpoint(row));
+  }
+
+  getEndpoint(id: string): EndpointRecord | null {
+    const row = this.db.prepare(`SELECT * FROM endpoints WHERE id = ?`).get(id) as Row | undefined;
+    return row ? this.toEndpoint(row) : null;
+  }
+
+  upsertEndpoint(input: UpsertEndpointInput): EndpointRecord {
+    const now = nowIso();
+    this.db
+      .prepare(
+        `INSERT INTO endpoints (id, name, base_url, api_key, default_model, models_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, base_url = excluded.base_url,
+           api_key = excluded.api_key, default_model = excluded.default_model, models_json = excluded.models_json,
+           updated_at = excluded.updated_at`,
+      )
+      .run(input.id, input.name, input.baseUrl, input.apiKey, input.defaultModel, input.modelsJson, now, now);
+    return this.getEndpoint(input.id) as EndpointRecord;
+  }
+
+  deleteEndpoint(id: string): void {
+    this.db.prepare(`DELETE FROM endpoints WHERE id = ?`).run(id);
+    if (this.getActiveEndpointId() === id) {
+      this.setActiveEndpointId(null);
+    }
+  }
+
+  getActiveEndpointId(): string | null {
+    const row = this.db.prepare(`SELECT value FROM app_settings WHERE key = 'activeEndpointId'`).get() as Row | undefined;
+    return row ? String(row["value"]) : null;
+  }
+
+  setActiveEndpointId(id: string | null): void {
+    if (id === null) {
+      this.db.prepare(`DELETE FROM app_settings WHERE key = 'activeEndpointId'`).run();
+      return;
+    }
+    this.db
+      .prepare(
+        `INSERT INTO app_settings (key, value) VALUES ('activeEndpointId', ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      )
+      .run(id);
+  }
+
   close(): void {
     this.db.close();
   }
@@ -703,6 +788,19 @@ export class HeliconStore {
       createdAt: String(row["created_at"]),
       updatedAt: String(row["updated_at"]),
       activityAt: String(row["activity_at"] ?? row["created_at"]),
+    };
+  }
+
+  private toEndpoint(row: Row): EndpointRecord {
+    return {
+      id: String(row["id"]),
+      name: String(row["name"]),
+      baseUrl: String(row["base_url"]),
+      apiKey: row["api_key"] === null || row["api_key"] === undefined ? null : String(row["api_key"]),
+      defaultModel: row["default_model"] === null || row["default_model"] === undefined ? null : String(row["default_model"]),
+      modelsJson: String(row["models_json"] ?? "[]"),
+      createdAt: String(row["created_at"]),
+      updatedAt: String(row["updated_at"]),
     };
   }
 

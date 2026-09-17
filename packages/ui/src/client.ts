@@ -1,5 +1,6 @@
 import type {
   ApprovalMode,
+  EndpointSummary,
   EnvironmentStatus,
   FileContent,
   FileEntry,
@@ -136,6 +137,15 @@ export interface HeliconClient {
   readOutput(sessionId: string, itemId: string, outputRef: string, offset?: number): Promise<OutputRange>;
   /** The subscription window Muse last saw; null until a host has seen one. */
   planUsage(): Promise<PlanUsage | null>;
+  /** The custom Muse model endpoints, and the active one; null is the user's own Muse login. */
+  endpoints(): Promise<{ endpoints: EndpointSummary[]; activeEndpointId: string | null }>;
+  /** `apiKey` absent keeps the stored key; an empty string clears it. New endpoints get a bundled model list. */
+  saveEndpoint(input: { id?: string; name: string; baseUrl: string; apiKey?: string; defaultModel?: string | null }): Promise<EndpointSummary>;
+  deleteEndpoint(id: string): Promise<void>;
+  /** Routes model calls at an endpoint; null sends them back to the user's own Muse login. */
+  activateEndpoint(id: string | null): Promise<void>;
+  /** Re-reads the endpoint's own `/models`; the endpoint's entry in `endpoints()` carries the result. */
+  refreshEndpointModels(id: string): Promise<string[]>;
   /** One folder of a project, folders first. `path` is relative to the project; "" is its root. */
   listFiles(cwd: string, path: string): Promise<FileListing>;
   /** A project file: text inline, media described. `path` may also be absolute inside the project. */

@@ -1,11 +1,11 @@
-import { ArrowDownToLine, ArrowLeft, Minus, Plus, RefreshCw, RotateCw } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft, Minus, Pencil, Plus, RefreshCw, RotateCw, Trash2 } from "lucide-react";
 import { Switch } from "radix-ui";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { useOverlayDragProps } from "../../app/frame.js";
 import { modelDisplayName } from "../../model/format.js";
 import { CODE_THEMES, ZOOM_MAX, ZOOM_MIN, type CodeTheme, type GroupBy, type ThemePref } from "../../model/store.js";
-import type { ApprovalMode, ReasoningEffort } from "../../types.js";
+import type { ApprovalMode, EndpointSummary, ReasoningEffort } from "../../types.js";
 import { LEVELS, MODES } from "../composer/Composer.js";
 import { CODE_THEME_LABELS, updateSummary } from "../sidebar/Sidebar.js";
 import { Modal } from "../ui/overlays.js";
@@ -95,6 +95,13 @@ const GROUPS: readonly { value: GroupBy; label: string }[] = [
   { value: "status", label: "Status" },
 ];
 
+type EndpointForm = { id: string | null; name: string; baseUrl: string; apiKey: string; defaultModel: string };
+
+const BLANK_ENDPOINT_FORM: EndpointForm = { id: null, name: "", baseUrl: "", apiKey: "", defaultModel: "" };
+
+const FIELD =
+  "h-9 w-full rounded-lg bg-sunken px-3 text-sm text-fg shadow-[0_0_0_1px_var(--border)] outline-none placeholder:text-subtle focus-visible:shadow-[0_0_0_1px_var(--accent)]";
+
 /** Everything Helicon lets you set, in one place: the menus around the app are shortcuts into this. */
 export function SettingsPage() {
   const controller = useController();
@@ -105,11 +112,46 @@ export function SettingsPage() {
   const updates = useApp((s) => s.updates);
   const bypassAll = useApp((s) => s.bypassAll);
   const armedThreads = useApp((s) => s.bypassThreads.length);
+  const endpoints = useApp((s) => s.endpoints);
+  const activeEndpointId = useApp((s) => s.activeEndpointId);
   const [confirmBypass, setConfirmBypass] = useState(false);
+  const [endpointForm, setEndpointForm] = useState<EndpointForm | null>(null);
+  const [deleteEndpointId, setDeleteEndpointId] = useState<string | null>(null);
   const now = useNow(60_000);
   const busy = updates?.status === "checking" || updates?.status === "downloading" || updates?.status === "installing";
   const drag = useOverlayDragProps();
   const collapsed = useApp((s) => s.prefs.sidebarCollapsed);
+
+  useEffect(() => {
+    void controller.loadEndpoints();
+  }, [controller]);
+
+  const openEndpointForm = (endpoint: EndpointSummary | null) =>
+    setEndpointForm(
+      endpoint
+        ? { id: endpoint.id, name: endpoint.name, baseUrl: endpoint.baseUrl, apiKey: "", defaultModel: endpoint.defaultModel ?? "" }
+        : { ...BLANK_ENDPOINT_FORM },
+    );
+
+  const saveEndpointForm = async (): Promise<void> => {
+    if (!endpointForm) {
+      return;
+    }
+    const saved = await controller.saveEndpoint({
+      ...(endpointForm.id ? { id: endpointForm.id } : {}),
+      name: endpointForm.name.trim(),
+      baseUrl: endpointForm.baseUrl.trim(),
+      // A blank key on an edit keeps the stored one: only a key the user typed is sent.
+      ...(endpointForm.apiKey.trim() ? { apiKey: endpointForm.apiKey.trim() } : {}),
+      defaultModel: endpointForm.defaultModel.trim() || null,
+    });
+    if (saved) {
+      setEndpointForm(null);
+    }
+  };
+
+  const editing = endpointForm?.id ? (endpoints.find((endpoint) => endpoint.id === endpointForm.id) ?? null) : null;
+  const deleting = endpoints.find((endpoint) => endpoint.id === deleteEndpointId) ?? null;
 
   return (
     <div className="@container flex h-full min-w-0 flex-col">
@@ -194,6 +236,49 @@ export function SettingsPage() {
               ]}
               onChange={(value) => controller.setEffort(value)}
             />
+          </Row>
+        </Section>
+
+        <Section title="Model endpoints">
+          <Row
+            label="Active endpoint"
+            description="Where Muse sends its model calls. Applying one stops the running Muse hosts; they start again against the new endpoint on the next use."
+          >
+            <Pick<string | null>
+              value={activeEndpointId}
+              options={[
+                { value: null, label: "Muse — your own login" },
+                ...endpoints.map((endpoint) => ({ value: endpoint.id, label: endpoint.name, hint: endpoint.baseUrl })),
+              ]}
+              onChange={(value) => void controller.activateEndpoint(value)}
+            />
+          </Row>
+          {endpoints.map((endpoint) => (
+            <Row
+              key={endpoint.id}
+              label={endpoint.name}
+              description={`${endpoint.baseUrl}${endpoint.hasApiKey ? " · API key saved" : ""}`}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => openEndpointForm(endpoint)}>
+                  <Pencil size={13} /> Edit
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => void controller.refreshEndpointModels(endpoint.id)}>
+                  <RefreshCw size={13} /> Refresh models
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => setDeleteEndpointId(endpoint.id)}>
+                  <Trash2 size={13} /> Delete
+                </Button>
+              </div>
+            </Row>
+          ))}
+          <Row
+            label="Add an endpoint"
+            description="An OpenAI-compatible gateway serving muse models. Its API key is kept by the Helicon server and never sent here."
+          >
+            <Button size="sm" variant="secondary" onClick={() => openEndpointForm(null)}>
+              <Plus size={13} /> Add endpoint
+            </Button>
           </Row>
         </Section>
 
@@ -340,6 +425,121 @@ export function SettingsPage() {
             }}
           >
             Answer them for me
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={endpointForm !== null}
+        onOpenChange={(open) => (open ? undefined : setEndpointForm(null))}
+        title={endpointForm?.id ? "Edit endpoint" : "Add endpoint"}
+        description="Muse sends its model calls to this OpenAI-compatible endpoint."
+      >
+        {endpointForm ? (
+          <form
+            className="mt-4 flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveEndpointForm();
+            }}
+          >
+            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">
+              Name
+              <input
+                autoFocus
+                value={endpointForm.name}
+                spellCheck={false}
+                autoComplete="off"
+                onChange={(event) => setEndpointForm({ ...endpointForm, name: event.currentTarget.value })}
+                placeholder="Zen gateway"
+                className={FIELD}
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">
+              Base URL
+              <input
+                value={endpointForm.baseUrl}
+                spellCheck={false}
+                autoComplete="off"
+                onChange={(event) => setEndpointForm({ ...endpointForm, baseUrl: event.currentTarget.value })}
+                placeholder="https://opencode.ai/zen/v1"
+                className={FIELD}
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">
+              API key
+              <input
+                type="password"
+                value={endpointForm.apiKey}
+                autoComplete="new-password"
+                onChange={(event) => setEndpointForm({ ...endpointForm, apiKey: event.currentTarget.value })}
+                placeholder={editing?.hasApiKey ? "API key saved — leave blank to keep it" : "Optional"}
+                className={FIELD}
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">
+              Default model
+              {editing && editing.models.length > 0 ? (
+                <select
+                  value={endpointForm.defaultModel}
+                  onChange={(event) => setEndpointForm({ ...endpointForm, defaultModel: event.currentTarget.value })}
+                  className={FIELD}
+                >
+                  <option value="">None</option>
+                  {/* A saved default the refreshed list dropped stays offered, so editing cannot quietly change it. */}
+                  {[...new Set([...editing.models, endpointForm.defaultModel].filter(Boolean))].map((modelId) => (
+                    <option key={modelId} value={modelId}>
+                      {modelId}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={endpointForm.defaultModel}
+                  spellCheck={false}
+                  autoComplete="off"
+                  onChange={(event) => setEndpointForm({ ...endpointForm, defaultModel: event.currentTarget.value })}
+                  placeholder="muse-spark-1.3"
+                  className={FIELD}
+                />
+              )}
+            </label>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setEndpointForm(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" type="submit" disabled={!endpointForm.name.trim() || !endpointForm.baseUrl.trim()}>
+                Save
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={deleteEndpointId !== null}
+        onOpenChange={(open) => (open ? undefined : setDeleteEndpointId(null))}
+        title="Delete this endpoint?"
+        description={
+          deleting
+            ? `“${deleting.name}” and its saved API key are removed. If it was the active endpoint, model calls go back to your own Muse login.`
+            : undefined
+        }
+      >
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setDeleteEndpointId(null)}>
+            Keep it
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              if (deleteEndpointId) {
+                void controller.deleteEndpoint(deleteEndpointId);
+              }
+              setDeleteEndpointId(null);
+            }}
+          >
+            Delete
           </Button>
         </div>
       </Modal>

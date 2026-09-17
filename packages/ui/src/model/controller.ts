@@ -1336,6 +1336,63 @@ export class HeliconController {
     this.update((s) => ({ ...s, planUsage: usage }));
   }
 
+  // ---------------------------------------------------------------- model endpoints
+
+  /** The custom Muse endpoints and the active one, for the Settings page. */
+  async loadEndpoints(): Promise<void> {
+    try {
+      const { endpoints, activeEndpointId } = await this.client.endpoints();
+      this.update((s) => ({ ...s, endpoints, activeEndpointId }));
+    } catch (error) {
+      this.toast("error", "Could not load the model endpoints", errorMessage(error));
+    }
+  }
+
+  /** Saves an endpoint and reloads the list. `apiKey` absent keeps the stored key; the form omits it when blank. */
+  async saveEndpoint(input: { id?: string; name: string; baseUrl: string; apiKey?: string; defaultModel?: string | null }): Promise<boolean> {
+    try {
+      await this.client.saveEndpoint(input);
+      await this.loadEndpoints();
+      return true;
+    } catch (error) {
+      this.toast("error", "Could not save the endpoint", errorMessage(error));
+      return false;
+    }
+  }
+
+  async deleteEndpoint(id: string): Promise<void> {
+    try {
+      await this.client.deleteEndpoint(id);
+      await this.loadEndpoints();
+    } catch (error) {
+      this.toast("error", "Could not delete the endpoint", errorMessage(error));
+    }
+  }
+
+  /** Sends model calls at an endpoint, or back to the user's own Muse login with `null`. */
+  async activateEndpoint(id: string | null): Promise<void> {
+    try {
+      await this.client.activateEndpoint(id);
+      await this.loadEndpoints();
+      // The server tears down the running Muse hosts, so the lists they fed are stale: reload them,
+      // and the model picker repopulates against the new endpoint on its next use.
+      void this.refresh();
+      void this.loadModels();
+      this.toast("success", "Model endpoint applied", "New threads use it.");
+    } catch (error) {
+      this.toast("error", "Could not apply the model endpoint", errorMessage(error));
+    }
+  }
+
+  async refreshEndpointModels(id: string): Promise<void> {
+    try {
+      await this.client.refreshEndpointModels(id);
+      await this.loadEndpoints();
+    } catch (error) {
+      this.toast("error", "Could not refresh the model list", errorMessage(error));
+    }
+  }
+
   // ---------------------------------------------------------------- threads and projects
 
   async rename(sessionId: string, title: string): Promise<void> {
