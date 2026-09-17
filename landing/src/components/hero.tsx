@@ -21,7 +21,17 @@ const windowsFacts = [
   { icon: Database, title: "Native on Windows", body: "No WSL needed, WSL2 still works" },
 ];
 
-export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: string | null; notesUrl: string }) {
+export function Hero({
+  copy,
+  version,
+  notesUrl,
+  stars = null,
+}: {
+  copy: PageCopy;
+  version: string | null;
+  notesUrl: string;
+  stars?: number | null;
+}) {
   const shown = copy.audience === "windows" ? windowsFacts : facts;
   const badge = version ? `v${version}` : "Latest";
   return (
@@ -71,7 +81,7 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
             </p>
           </div>
           <div>
-            <CtaRow placement="hero" ctas={copy.ctas} />
+            <CtaRow placement="hero" ctas={copy.ctas} stars={stars} />
             <p className="mt-3 text-[13px] leading-snug text-muted">
               Unofficial community project. Not affiliated with Meta.
             </p>

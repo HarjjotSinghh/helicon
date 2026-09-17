@@ -64,6 +64,30 @@ export const latestRelease = cache(async (): Promise<LatestRelease | null> => {
   }
 });
 
+/**
+ * The repository's star count, refreshed every five minutes. GitHub has no push feed for this, so a poll on the
+ * server is as live as it gets without a websocket nobody would notice. Null when GitHub is unreachable or
+ * rate-limits us, and every caller then renders the link with no count rather than a zero.
+ */
+export const repoStars = cache(async (): Promise<number | null> => {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repoPath}`, {
+      headers: await githubHeaders(),
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { stargazers_count?: number };
+    return typeof body.stargazers_count === "number" ? body.stargazers_count : null;
+  } catch {
+    return null;
+  }
+});
+
+/** GitHub's own rounding: 1200 reads as 1.2k, the way the star button shows it. */
+export function formatStars(count: number): string {
+  return count >= 1000 ? `${(count / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(count);
+}
+
 export async function latestInstaller(kind: InstallerKind): Promise<ReleaseAsset | null> {
   const release = await latestRelease();
   if (!release) return null;

@@ -13,6 +13,7 @@ import { MobileNav } from "./mobile-nav";
 import { ThemeToggle } from "./theme-toggle";
 import { Logo, Rule, buttonClass } from "./ui";
 import { TrackedLink } from "./tracked-link";
+import { StarCount } from "./star-count";
 
 const links = [
   { href: "#demo", label: "Demo", icon: MonitorPlay },
@@ -22,7 +23,7 @@ const links = [
   { href: "#faq", label: "FAQ", icon: Question },
 ];
 
-export function SiteHeader({ copy }: { copy: PageCopy }) {
+export function SiteHeader({ copy, stars = null }: { copy: PageCopy; stars?: number | null }) {
   return (
     <header className="sticky top-0 z-[210] isolate bg-bg/85 pt-[env(safe-area-inset-top)] backdrop-blur-md backdrop-saturate-150 supports-[not(backdrop-filter:blur(1px))]:bg-bg">
       <div className="relative flex h-14 items-center gap-3 px-4 sm:h-16 sm:gap-4 sm:px-8 lg:px-12">
@@ -56,11 +57,12 @@ export function SiteHeader({ copy }: { copy: PageCopy }) {
             eventLabel="GitHub"
             target="_blank"
             rel="noopener noreferrer"
-            className={buttonClass("ghost", "icon", "max-sm:hidden")}
+            className={buttonClass("ghost", "sm", "gap-1.5 max-sm:hidden")}
             aria-label="Helicon on GitHub"
             title="Helicon on GitHub"
           >
             <GitHubLogo aria-hidden="true" />
+            <StarCount stars={stars} className="text-muted" />
           </TrackedLink>
           <TrackedLink
             href={copy.headerHref}

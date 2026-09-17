@@ -99,7 +99,17 @@ function Metric({ icon, value, className }: { icon: ReactNode; value: string; cl
 
 function PostCard({ post }: { post: Post }) {
   return (
-    <article className="flex flex-col gap-3 bg-bg px-5 py-6 sm:px-8">
+    <article className="relative flex flex-col gap-3 bg-bg px-5 py-6 transition-colors duration-150 hover:bg-sunken sm:px-8">
+      <TrackedLink
+        href={post.url}
+        placement="shared_by"
+        eventLabel={post.name}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute inset-0 rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+      >
+        <span className="sr-only">Read {post.name}&rsquo;s post on X</span>
+      </TrackedLink>
       <header className="flex items-center gap-3">
         {/* Local copies: the cards keep working whether or not X serves the images. */}
         <Image
@@ -110,17 +120,10 @@ function PostCard({ post }: { post: Post }) {
           className="size-11 shrink-0 rounded-full bg-sunken object-cover"
         />
         <div className="min-w-0">
-          <TrackedLink
-            href={post.url}
-            placement="shared_by"
-            eventLabel={post.name}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[15px] font-semibold text-fg underline-offset-4 hover:underline"
-          >
+          <span className="flex items-center gap-1 text-[15px] font-semibold text-fg">
             <span className="truncate">{post.name}</span>
             <Verified />
-          </TrackedLink>
+          </span>
           <span className="block truncate text-[14px] text-subtle">
             @{post.handle} · {post.role}
           </span>
@@ -129,16 +132,9 @@ function PostCard({ post }: { post: Post }) {
 
       <p className="text-[15px] leading-[1.5] text-fg sm:text-[17px]">{post.body}</p>
 
-      <TrackedLink
-        href={post.url}
-        placement="shared_by_time"
-        eventLabel={`${post.name} post`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-[13px] text-subtle underline-offset-4 hover:underline"
-      >
+      <p className="text-[13px] text-subtle">
         {post.at} · <span className="font-semibold text-muted tabular-nums">{post.views}</span> Views
-      </TrackedLink>
+      </p>
 
       <footer className="mt-auto flex items-center gap-5 border-t border-line pt-3">
         <Metric icon={<ChatCircle aria-hidden="true" className="size-[18px]" />} value={post.replies} />
@@ -158,16 +154,12 @@ function PostCard({ post }: { post: Post }) {
 
 export function SharedBy() {
   return (
-    <section aria-labelledby="shared-by-note" className="bg-bg">
+    <section aria-label="What people at Meta said about Helicon" className="bg-bg">
       <CellGrid className="lg:grid-cols-3">
         {POSTS.map((post) => (
           <PostCard key={post.handle} post={post} />
         ))}
       </CellGrid>
-      <p id="shared-by-note" className="px-5 pt-4 pb-6 text-[13px] leading-snug text-muted sm:px-8">
-        Shared on X in September 2026, with each post&rsquo;s numbers as they stood on 18 September. Helicon is an
-        unofficial community project: Meta has not endorsed it, and it is not affiliated with Meta.
-      </p>
     </section>
   );
 }

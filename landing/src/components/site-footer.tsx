@@ -13,8 +13,9 @@ import { Logo, buttonClass } from "./ui";
 import { ThemeToggle } from "./theme-toggle";
 import { CtaRow } from "./cta-row";
 import { TrackedLink } from "./tracked-link";
+import { StarCount } from "./star-count";
 
-export function ClosingCta({ copy }: { copy: PageCopy }) {
+export function ClosingCta({ copy, stars = null }: { copy: PageCopy; stars?: number | null }) {
   const primary = closingCta(copy);
   return (
     <section aria-labelledby="cta-title">
@@ -40,6 +41,7 @@ export function ClosingCta({ copy }: { copy: PageCopy }) {
           <CtaRow
             placement="closing"
             ctas={[primary, { label: "View source", href: REPO_URL, kind: "outline", external: true }]}
+            stars={stars}
             className="flex w-full max-w-sm flex-col gap-3 sm:max-w-none sm:w-auto sm:flex-row sm:flex-wrap sm:justify-center"
           />
         </div>
@@ -67,7 +69,7 @@ const groups = [
   },
 ];
 
-export function SiteFooter() {
+export function SiteFooter({ stars = null }: { stars?: number | null } = {}) {
   return (
     <footer>
       <div className="grid gap-10 px-5 py-12 sm:px-8 md:grid-cols-[1fr_auto] lg:px-12">
@@ -116,6 +118,7 @@ export function SiteFooter() {
                     >
                       <Icon aria-hidden="true" className="text-subtle" />
                       {label}
+                      {href === REPO_URL ? <StarCount stars={stars} className="text-subtle" /> : null}
                       {external ? (
                         <ArrowUpRight
                           aria-hidden="true"

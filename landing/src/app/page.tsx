@@ -12,7 +12,7 @@ import { DemoApp } from "@/demo/demo-app";
 import { Rule } from "@/components/ui";
 import { StructuredData } from "@/components/structured-data";
 import { getPageCopy } from "@/lib/copy";
-import { latestRelease } from "@/lib/github-release";
+import { latestRelease, repoStars } from "@/lib/github-release";
 import { getVisitorOs } from "@/lib/visitor";
 
 const shots: TourShot[] = [
@@ -61,7 +61,7 @@ const shots: TourShot[] = [
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const [os, release] = await Promise.all([getVisitorOs(), latestRelease()]);
+  const [os, release, stars] = await Promise.all([getVisitorOs(), latestRelease(), repoStars()]);
   const copy = getPageCopy(os);
   const version = release?.version ?? null;
   return (
@@ -73,9 +73,9 @@ export default async function Page() {
         Skip to content
       </a>
       <div className="page-frame relative mx-auto min-h-dvh w-full max-w-[1200px] border-line bg-bg max-[360px]:border-x-0 min-[361px]:w-[calc(100%-1rem)] min-[361px]:border-x sm:w-[calc(100%-3rem)] pb-[env(safe-area-inset-bottom)]">
-        <SiteHeader copy={copy} />
+        <SiteHeader copy={copy} stars={stars} />
         <main id="main" className="relative z-0">
-          <Hero copy={copy} version={version} notesUrl={release?.notesUrl ?? ""} />
+          <Hero copy={copy} version={version} notesUrl={release?.notesUrl ?? ""} stars={stars} />
           <Rule />
           <Features title={copy.featuresTitle} body={copy.featuresBody} />
           <Rule />
@@ -89,10 +89,10 @@ export default async function Page() {
           <Rule />
           <Faq audience={copy.audience} intro={copy.faqIntro} />
           <Rule />
-          <ClosingCta copy={copy} />
+          <ClosingCta copy={copy} stars={stars} />
           <Rule />
         </main>
-        <SiteFooter />
+        <SiteFooter stars={stars} />
       </div>
       <StructuredData version={version} />
     </>
