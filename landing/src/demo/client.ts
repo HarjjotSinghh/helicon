@@ -627,6 +627,16 @@ export class DemoClient implements HeliconClient {
   }
   async openFolder() {}
 
+  /** The demo makes no model calls, so the switch just remembers what the visitor picked. */
+  private titleSettings = { enabled: true, modelId: null as string | null };
+  async getTitleSettings() {
+    return this.titleSettings;
+  }
+  async setTitleSettings(patch: { enabled?: boolean; modelId?: string | null }) {
+    this.titleSettings = { ...this.titleSettings, ...patch };
+    return this.titleSettings;
+  }
+
   async listFiles(cwd: string, path: string) {
     return this.files.list(cwd, path);
   }
