@@ -81,3 +81,39 @@ jobs:
           retryAttempts: 3
           # One universal binary for Apple Silicon and Intel; the macOS bundles come from tauri.macos.conf.json.
           args: --target universal-apple-darwin
+
+  desktop-linux:
+    permissions:
+      contents: write
+    needs: desktop-macos
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Tauri Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: npm ci
+      - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
+      # Pinned to a commit: this step holds the updater signing key, so a moved tag must not change what runs.
+      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        env:
+          # Which Node.js sidecar beforeBuildCommand bundles (apps/desktop/scripts/fetch-node.mjs).
+          HELICON_NODE_TARGET: x86_64-unknown-linux-gnu
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the installer for the in-app updater, which also publishes latest.json.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Helicon ${{ github.ref_name }}"
+          releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (Muse for Windows natively, or inside WSL2). macOS builds are not Apple-notarized yet, so the first launch needs a right-click, then Open."
+          releaseDraft: false
+          # A full release, so the updater's releases/latest/download/latest.json always points at it.
+          prerelease: false
+          # GitHub sometimes refuses a large asset upload ("Error saving asset"); retrying saves a manual job rerun.
+          retryAttempts: 3
+          args: --target x86_64-unknown-linux-gnu

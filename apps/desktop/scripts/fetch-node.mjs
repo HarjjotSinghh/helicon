@@ -19,11 +19,14 @@ const DISTS = {
   "x86_64-pc-windows-msvc": { name: `node-${NODE_VERSION}-win-x64`, ext: "zip", member: "node.exe" },
   "aarch64-apple-darwin": { name: `node-${NODE_VERSION}-darwin-arm64`, ext: "tar.gz", member: "bin/node" },
   "x86_64-apple-darwin": { name: `node-${NODE_VERSION}-darwin-x64`, ext: "tar.gz", member: "bin/node" },
+  "x86_64-unknown-linux-gnu": { name: `node-${NODE_VERSION}-linux-x64`, ext: "tar.gz", member: "bin/node" },
+  "aarch64-unknown-linux-gnu": { name: `node-${NODE_VERSION}-linux-arm64`, ext: "tar.gz", member: "bin/node" },
 };
 
 function hostTriple() {
   if (process.platform === "win32") return "x86_64-pc-windows-msvc";
   if (process.platform === "darwin") return process.arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin";
+  if (process.platform === "linux") return process.arch === "arm64" ? "aarch64-unknown-linux-gnu" : "x86_64-unknown-linux-gnu";
   return null;
 }
 
@@ -65,7 +68,7 @@ async function nodeFor(triple) {
     if (actual !== expected) throw new Error(`checksum mismatch for ${file}: got ${actual}, want ${expected}`);
     await writeFile(archive, bytes);
   }
-  // bsdtar reads zip as well as tar.gz, and ships with both Windows 10+ and macOS.
+  // bsdtar reads zip as well as tar.gz, and ships with Windows 10+ and macOS; Linux uses GNU tar for tar.gz.
   execFileSync("tar", ["-xf", archive, "-C", cacheDir, `${dist.name}/${dist.member}`], { stdio: "inherit" });
   return extracted;
 }
