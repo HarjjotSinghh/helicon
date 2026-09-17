@@ -174,9 +174,9 @@ back to asking GitHub, as it always did.
 
 ## Custom model endpoints
 
-Settings → **Model endpoints** can send Muse's model calls somewhere other than your Muse login: any OpenAI-compatible endpoint that serves muse models over the Responses API, such as a gateway subscription. Give it a name, the base URL (for example `https://opencode.ai/zen/v1`) and its API key, and make it the active endpoint. The key is kept by your Helicon server in its local database and never sent to the UI; your Muse login is still never stored.
+Settings → **Model endpoints** can send Muse's model calls somewhere other than your Muse login: any OpenAI-compatible endpoint that serves muse models over the Responses API, such as a gateway subscription. Give it a name, the base URL (for example `https://opencode.ai/zen/v1`) and its API key. The key is kept by your Helicon server in its local database and never sent to the UI; your Muse login is still never stored.
 
-An active endpoint runs Muse in its own isolated home: model calls go to the endpoint, the model list comes from it ("Refresh models" reads its `/models`), and its threads live separately from your terminal Muse's. Switching back to *Muse — your own login* restores exactly the previous behaviour. Not available in the Windows WSL runtime yet.
+Each endpoint runs Muse in its own isolated home, so its threads live separately from your terminal Muse's. The model picker lists every provider at once — your login and each endpoint — and a thread keeps the provider it was created on; to move, start a new thread. **Default provider** in Settings picks where new threads start, and each provider remembers the model you last chose for it. "Refresh models" reads an endpoint's `/models`. Not available in the Windows WSL runtime yet.
 
 ## Legal
 

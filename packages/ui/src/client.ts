@@ -85,7 +85,7 @@ export interface HeliconClient {
   usage(days?: number): Promise<import("./types.js").UsageReport>;
   listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]>;
   discover(cwd?: string): Promise<void>;
-  startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string }): Promise<SessionSummary>;
+  startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string; endpointId?: string | null }): Promise<SessionSummary>;
   loadTranscript(sessionId: string): Promise<TranscriptLoad>;
   /**
    * A server path the browser loads by itself, like an attachment's bytes, returned with whatever the
@@ -197,6 +197,8 @@ export function parseModelList(value: unknown): ModelOption[] {
       // Muse's catalog carries no prices today, so the published table stands in when it lists none.
       cost: parseCost(r["cost"]) ?? listedPrice(modelId),
       contributor: /contributor/i.test(modelId) || /product improvement/i.test(description ?? ""),
+      providerId: typeof r["providerId"] === "string" ? r["providerId"] : null,
+      providerName: typeof r["providerName"] === "string" ? r["providerName"] : null,
     });
   }
   return options;

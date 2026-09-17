@@ -44,6 +44,7 @@ import { FileError, listFolder, readProjectFile, resolveInRoot, searchProjectFil
 import {
   bundledModelRows,
   catalogModelIds,
+  endpointCatalog,
   fetchEndpointModels,
   normalizeCatalogRows,
   writeEndpointHome,
@@ -1081,10 +1082,18 @@ export class HeliconServer {
       if (mode !== undefined && mode !== null && !isApprovalMode(mode)) {
         throw new HttpError(400, "Unknown approvalMode.");
       }
+      // The provider a new thread runs on: an explicit id, `null` for the user's own Muse login, or
+      // absent for the default the Settings page sets.
+      const requested = body["endpointId"];
+      const endpointId = requested === undefined ? this.store.getActiveEndpointId() : requested === null ? null : str(requested);
+      if (endpointId && !this.store.getEndpoint(endpointId)) {
+        throw new HttpError(404, "Unknown model endpoint.");
+      }
       const session = await this.startSession(
         normalizeCwd(raw),
         mode === undefined || mode === null ? undefined : (mode as ApprovalMode),
         str(body["modelId"]) ?? undefined,
+        endpointId,
       );
       this.json(res, 200, { session });
       return true;
@@ -1449,8 +1458,7 @@ export class HeliconServer {
 
     if (method === "GET" && path === "/api/models") {
       const sessionId = url.searchParams.get("sessionId") ?? undefined;
-      const manager = sessionId ? await this.managerForSession(sessionId) : (await this.hostFor("")).manager;
-      this.json(res, 200, { models: await manager.listModels(sessionId) });
+      this.json(res, 200, { models: await this.listAllModels(sessionId) });
       return true;
     }
 
@@ -1521,7 +1529,6 @@ export class HeliconServer {
         throw new HttpError(404, "Unknown endpoint.");
       }
       this.store.setActiveEndpointId(id);
-      await this.teardownHosts();
       this.json(res, 200, { ok: true, activeEndpointId: id });
       return true;
     }
@@ -1722,6 +1729,7 @@ export class HeliconServer {
       titleSource: record.titleSource,
       turnCount: record.turnCount,
       modelId: record.modelId,
+      endpointId: record.endpointId,
       origin: record.origin,
       archived: record.archived,
       createdAt: record.createdAt,
@@ -2033,6 +2041,7 @@ export class HeliconServer {
       title: `${found.session.title} (fork)`,
       titleSource: "auto",
       modelId: raw ? str(raw["modelId"]) : found.session.modelId,
+      endpointId: found.session.endpointId,
       turnCount: num(raw?.["turnCount"]),
       createdAt: normalizeIso(raw?.["createdAt"]),
     });
@@ -2045,10 +2054,15 @@ export class HeliconServer {
     return this.summary(record, found.cwd);
   }
 
-  private async startSession(cwd: string, approvalMode?: ApprovalMode, modelId?: string): Promise<Record<string, unknown>> {
+  private async startSession(
+    cwd: string,
+    approvalMode?: ApprovalMode,
+    modelId?: string,
+    endpointId: string | null = null,
+  ): Promise<Record<string, unknown>> {
     const project = this.store.upsertProject(cwd);
     this.store.setHidden(cwd, false);
-    const host = await this.hostFor(cwd);
+    const host = await this.hostFor(cwd, endpointId);
     const started = await host.manager.startSession({
       workspaceRoot: this.hostPathFor(cwd),
       approvalMode,
@@ -2060,6 +2074,7 @@ export class HeliconServer {
       projectId: project.id,
       origin: "helicon",
       modelId: raw ? str(raw["modelId"]) : null,
+      endpointId,
       createdAt: normalizeIso(raw?.["createdAt"]),
     });
     this.sessionHosts.set(started.sessionId, host.key);
@@ -2322,7 +2337,7 @@ export class HeliconServer {
     // A goal change can land while this load is in flight; history must not then write the older goal back.
     const goalSeqAtStart = this.liveFor(sessionId).goalSeq;
     const found = this.store.findSession(sessionId);
-    const host = await this.hostFor(found?.cwd ?? "");
+    const host = await this.hostForSession(sessionId);
     const manager = host.manager;
     let readOnly = false;
     let readOnlyReason: string | null = null;
@@ -2440,8 +2455,29 @@ export class HeliconServer {
     };
   }
 
+  /** Discovers threads from every provider: the user's own Muse login and each configured endpoint. */
   private async discover(cwd?: string): Promise<Record<string, unknown>[]> {
-    const host = await this.hostFor(cwd ?? "");
+    const providers: (string | null)[] = [null, ...this.store.listEndpoints().map((endpoint) => endpoint.id)];
+    const views: Record<string, unknown>[] = [];
+    for (const endpointId of providers) {
+      let host: ManagedHost;
+      try {
+        host = await this.hostFor(cwd ?? "", endpointId);
+      } catch {
+        /* a provider that cannot start hides only its own threads */
+        continue;
+      }
+      try {
+        views.push(...(await this.discoverFrom(host, endpointId, cwd)));
+      } catch {
+        /* a provider that cannot answer keeps the others' threads */
+      }
+    }
+    this.sessionsChanged();
+    return views;
+  }
+
+  private async discoverFrom(host: ManagedHost, endpointId: string | null, cwd?: string): Promise<Record<string, unknown>[]> {
     const remote: unknown[] = [];
     let cursor: string | null = null;
     do {
@@ -2488,6 +2524,7 @@ export class HeliconServer {
         titleSource: title ? "auto" : undefined,
         turnCount: num(session["turnCount"]),
         modelId: str(session["modelId"]),
+        endpointId,
         createdAt: normalizeIso(session["createdAt"]),
         activityAt: normalizeIso(session["updatedAt"]),
       });
@@ -2521,7 +2558,6 @@ export class HeliconServer {
       }
       views.push(this.summary(current, project.cwd));
     }
-    this.sessionsChanged();
     return views;
   }
 
@@ -2549,7 +2585,7 @@ export class HeliconServer {
         if (current.titleSource !== "placeholder" && !this.titleUpgradePending.has(sessionId)) {
           continue;
         }
-        const host = await this.hostFor("");
+        const host = await this.hostForSession(sessionId);
         const page = await host.manager.pageView(sessionId, { direction: "forward", limit: 30 });
         if (this.closed) {
           return;
@@ -2645,19 +2681,89 @@ export class HeliconServer {
     this.sessionsChanged();
   }
 
-  private async managerForSession(sessionId: string): Promise<SessionManager> {
+  /**
+   * The host that holds a session. Threads remember their provider, so a session opened after a
+   * restart goes back to the home it was created in. A thread recorded before providers existed has
+   * no endpoint: ask each home which one knows it, then remember the first that does.
+   */
+  private async hostForSession(sessionId: string): Promise<ManagedHost> {
     const key = this.sessionHosts.get(sessionId);
     const loaded = key ? this.hosts.get(key) : undefined;
     if (loaded) {
-      return loaded.manager;
+      return loaded;
     }
     const found = this.store.findSession(sessionId);
-    return (await this.hostFor(found?.cwd ?? "")).manager;
+    const cwd = found?.cwd ?? "";
+    const recorded = found?.session.endpointId ?? null;
+    if (found && recorded === null) {
+      for (const providerId of [null, ...this.store.listEndpoints().map((endpoint) => endpoint.id)]) {
+        try {
+          const host = await this.hostFor(cwd, providerId);
+          await host.manager.readSession(sessionId, true);
+          this.sessionHosts.set(sessionId, host.key);
+          if (providerId !== null) {
+            this.store.updateSession(sessionId, { endpointId: providerId });
+          }
+          return host;
+        } catch {
+          /* not this home; try the next */
+        }
+      }
+    }
+    return this.hostFor(cwd, recorded);
   }
 
-  private async hostFor(cwd: string): Promise<ManagedHost> {
+  private async managerForSession(sessionId: string): Promise<SessionManager> {
+    return (await this.hostForSession(sessionId)).manager;
+  }
+
+  /**
+   * Every provider's models, each row tagged with the provider it runs on, so one picker can offer
+   * both. The own login asks its running Muse; an endpoint's list is its stored catalog, which is
+   * what its isolated home serves, so it is there even before that home starts.
+   */
+  private async listAllModels(sessionId?: string): Promise<Record<string, unknown>[]> {
+    const models: Record<string, unknown>[] = [];
+    try {
+      const host = await this.hostFor("", null);
+      const listing = asRecord(await host.manager.listModels(sessionId));
+      const rows = listing?.["models"];
+      for (const row of Array.isArray(rows) ? rows : []) {
+        const record = asRecord(row);
+        if (record) {
+          models.push({ ...record, providerId: null, providerName: null });
+        }
+      }
+    } catch {
+      /* the login's list needs its host; endpoints below do not */
+    }
+    for (const endpoint of this.store.listEndpoints()) {
+      for (const row of endpointCatalog(endpoint)) {
+        models.push({
+          modelId: row.model_id,
+          displayLabel: row.display_label,
+          description: row.description,
+          isDefault: row.is_default,
+          isActive: false,
+          contextLimit: row.context_limit,
+          outputLimit: row.output_limit,
+          cost: row.cost,
+          providerId: endpoint.id,
+          providerName: endpoint.name,
+        });
+      }
+    }
+    return models;
+  }
+
+  /**
+   * The host for a workspace under a provider. A host serves one provider only — its `muse serve`
+   * runs against that endpoint's isolated Muse home — so the same folder gets a host per provider.
+   * `endpointId` null is the user's own Muse login.
+   */
+  private async hostFor(cwd: string, endpointId: string | null = null): Promise<ManagedHost> {
     await this.museRuntime();
-    const key = this.hostPathFor(cwd) || "__default__";
+    const key = this.hostKeyFor(cwd, endpointId);
     const existing = this.hosts.get(key);
     if (existing) {
       return existing;
@@ -2669,7 +2775,7 @@ export class HeliconServer {
     if (this.closed) {
       throw new HttpError(503, "Helicon is shutting down.");
     }
-    const startup = this.spawnHost(key, cwd);
+    const startup = this.spawnHost(key, cwd, endpointId);
     this.starting.set(key, startup);
     try {
       return await startup;
@@ -2678,8 +2784,13 @@ export class HeliconServer {
     }
   }
 
-  private async spawnHost(key: string, cwd: string): Promise<ManagedHost> {
-    const target = await this.serveTargetFor(cwd);
+  /** The key a host is stored under: one provider, one workspace. */
+  private hostKeyFor(cwd: string, endpointId: string | null): string {
+    return `${endpointId ?? "own"}\u0000${this.hostPathFor(cwd) || "__default__"}`;
+  }
+
+  private async spawnHost(key: string, cwd: string, endpointId: string | null): Promise<ManagedHost> {
+    const target = await this.serveTargetFor(cwd, endpointId);
     const handle = this.options.hostFactory(target);
     let started: { fingerprintWarning?: unknown; initializeResult?: unknown } | null;
     try {
@@ -2737,8 +2848,8 @@ export class HeliconServer {
     }
   }
 
-  private async serveTargetFor(cwd: string): Promise<ServeTarget> {
-    const endpointEnv = this.endpointSpawnEnv();
+  private async serveTargetFor(cwd: string, endpointId: string | null): Promise<ServeTarget> {
+    const endpointEnv = this.endpointSpawnEnv(endpointId);
     if (this.options.platform !== "win32") {
       return {
         command: this.options.musePath ?? "muse",
@@ -2778,10 +2889,9 @@ export class HeliconServer {
     return { command: plan.command, args: plan.args, cwd: plan.cwd };
   }
 
-  /** Env that points a `muse serve` at the active custom endpoint's isolated Muse home; null when none is active. */
-  private endpointSpawnEnv(): Record<string, string | undefined> | null {
-    const activeId = this.store.getActiveEndpointId();
-    const endpoint = activeId ? this.store.getEndpoint(activeId) : null;
+  /** Env that points a `muse serve` at that provider's isolated Muse home; null for the user's own login. */
+  private endpointSpawnEnv(endpointId: string | null): Record<string, string | undefined> | null {
+    const endpoint = endpointId ? this.store.getEndpoint(endpointId) : null;
     if (!endpoint) {
       return null;
     }
@@ -2791,23 +2901,6 @@ export class HeliconServer {
       XDG_DATA_HOME: home.dataHome,
       ...(endpoint.apiKey ? { META_API_KEY: endpoint.apiKey } : {}),
     };
-  }
-
-  /** Stops every running host so the next use respawns with the endpoint that is now active. */
-  private async teardownHosts(): Promise<void> {
-    for (const pending of this.starting.values()) {
-      await pending.catch(() => undefined);
-    }
-    for (const managed of [...this.hosts.values()]) {
-      try {
-        await managed.handle.close();
-      } catch {
-        /* best effort */
-      }
-      this.hostExited(managed, { code: null, signal: null }, "stopped");
-    }
-    this.hosts.clear();
-    this.starting.clear();
   }
 
   /** The launcher's release details for a binary in its install folder, as the launcher itself would pass them. */

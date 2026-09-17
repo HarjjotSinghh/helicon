@@ -217,11 +217,12 @@ export class WebHeliconClient implements HeliconClient {
     await call("POST", "/api/discover", cwd ? { cwd } : {});
   }
 
-  async startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string }): Promise<SessionSummary> {
+  async startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string; endpointId?: string | null }): Promise<SessionSummary> {
     const result = await call<{ session: SessionSummary }>("POST", "/api/sessions", {
       cwd,
       approvalMode: options?.approvalMode,
       modelId: options?.modelId,
+      endpointId: options?.endpointId,
     });
     return result.session;
   }

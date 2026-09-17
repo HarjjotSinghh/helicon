@@ -15,6 +15,7 @@ import {
   SquareTerminal,
 } from "lucide-react";
 import {
+  Fragment,
   forwardRef,
   useCallback,
   useEffect,
@@ -33,12 +34,13 @@ import { Popover, Slider, Switch } from "radix-ui";
 import { shallowEqual, useApp, useController } from "../../app/context.js";
 import { useSampled } from "../../app/sampled.js";
 import { basename, formatDuration, formatSpeed, formatTokens, modelDisplayName } from "../../model/format.js";
+import { isOpenCodeGoEndpoint, providerKey, providerLabel } from "../../model/providers.js";
 import { matchSlash, parseSlash, resolveSlash, slashCommands, type SlashCommand } from "../../model/slash.js";
 import type { SkillsState } from "../../model/store.js";
 import { lastTurnSpeed, streamingSpeed } from "../../model/usage.js";
-import type { ApprovalMode, ReasoningEffort } from "../../types.js";
+import type { ApprovalMode, EndpointSummary, ModelOption, ReasoningEffort } from "../../types.js";
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuOption, MenuRadioGroup, MenuSeparator, MenuTrigger, Modal, Tip, FLOATING } from "../ui/overlays.js";
-import { Button, IconButton, MOD, Spinner, cn } from "../ui/primitives.js";
+import { Button, IconButton, MOD, OpenCodeGoMark, Spinner, cn } from "../ui/primitives.js";
 import { PixelFlow } from "../ui/PixelFlow.js";
 import { ContextMeter } from "./ContextPanel.js";
 import { SlashMenu, slashOptionId, type SlashMenuState } from "./SlashMenu.js";
@@ -517,23 +519,69 @@ function ContributorBadge(props: { tip?: boolean }) {
 /** Which way a composer menu opens: away from the screen edge the composer sits against. */
 type PickerSide = "top" | "bottom";
 
+/** One provider's slice of the picker, keyed by endpoint id ("own" for the user's Muse login). */
+type ProviderSection = { key: string; endpointId: string | null; name: string; go: boolean; models: ModelOption[] };
+
+/** Groups the models by provider, the thread's own provider first, then the login, then the endpoints. */
+function groupByProvider(
+  models: readonly ModelOption[],
+  endpoints: readonly EndpointSummary[],
+  selectedEndpointId: string | null,
+): ProviderSection[] {
+  const sections = new Map<string, ProviderSection>();
+  const ensure = (endpointId: string | null): ProviderSection => {
+    const key = providerKey(endpointId);
+    const existing = sections.get(key);
+    if (existing) {
+      return existing;
+    }
+    const endpoint = endpointId ? endpoints.find((entry) => entry.id === endpointId) : null;
+    const section: ProviderSection = {
+      key,
+      endpointId,
+      name: providerLabel(endpointId, endpoints),
+      go: Boolean(endpoint && isOpenCodeGoEndpoint(endpoint.baseUrl)),
+      models: [],
+    };
+    sections.set(key, section);
+    return section;
+  };
+  for (const model of models) {
+    ensure(model.providerId).models.push(model);
+  }
+  // The thread's own provider is always listed, even when it has no models right now.
+  ensure(selectedEndpointId);
+  const order = [providerKey(selectedEndpointId), providerKey(null), ...endpoints.map((endpoint) => endpoint.id)];
+  return [...new Set(order)]
+    .map((key) => sections.get(key))
+    .filter((section): section is ProviderSection => section !== undefined);
+}
+
 function ModelPicker(props: { sessionId: string | null; side: PickerSide }) {
   const controller = useController();
   const open = useApp((s) => s.picker === "model");
   const models = useApp((s) => s.models);
+  const endpoints = useApp((s) => s.endpoints);
+  const activeEndpointId = useApp((s) => s.activeEndpointId);
+  const threadEndpointId = useApp((s) => (props.sessionId ? (s.sessions[props.sessionId]?.endpointId ?? null) : null));
   const sessionModel = useApp((s) =>
     props.sessionId ? (s.threads[props.sessionId]?.fold.meta.modelId ?? s.sessions[props.sessionId]?.modelId ?? null) : null,
   );
-  const preferred = useApp((s) => s.prefs.defaultModelId);
-  const current = props.sessionId ? sessionModel : (preferred ?? models.find((m) => m.isDefault)?.modelId ?? null);
-  const model = models.find((m) => m.modelId === current);
+  // A thread is locked to the provider it was created on; a new thread uses the default.
+  const providerId = props.sessionId ? threadEndpointId : activeEndpointId;
+  const key = providerKey(providerId);
+  const preferred = useApp((s) => s.prefs.modelByProvider[key] ?? (key === "own" ? s.prefs.defaultModelId : null) ?? null);
+  const current = props.sessionId ? sessionModel : (preferred ?? models.find((m) => providerKey(m.providerId) === key && m.isDefault)?.modelId ?? null);
+  const model = models.find((m) => m.modelId === current && providerKey(m.providerId) === key);
   const contributor = model?.contributor ?? /contributor/i.test(current ?? "");
+  const sections = useMemo(() => groupByProvider(models, endpoints, providerId), [models, endpoints, providerId]);
+  const selected = sections.find((section) => section.key === key);
   return (
     <Menu open={open} onOpenChange={(next) => (next ? controller.setPicker("model") : controller.closePicker("model"))}>
       <MenuTrigger asChild>
         <ToolbarTrigger
-          aria-label={`Model: ${modelDisplayName(current)}`}
-          icon={<Cpu size={13} />}
+          aria-label={`Model: ${modelDisplayName(current)}${providerId ? ` · ${providerLabel(providerId, endpoints)}` : ""}`}
+          icon={selected?.go ? <OpenCodeGoMark title={selected.name} /> : <Cpu size={13} />}
           label={
             <>
               <span className="truncate">{modelDisplayName(current)}</span>
@@ -551,22 +599,48 @@ function ModelPicker(props: { sessionId: string | null; side: PickerSide }) {
         {models.length === 0 ? (
           <p className="px-2 pb-2 text-xs text-muted">The model list loads once Muse is running.</p>
         ) : (
-          <MenuRadioGroup value={current ?? ""} onValueChange={(value) => void controller.setModel(value)}>
-            {models.map((m) => (
-              <MenuOption
-                key={m.modelId}
-                value={m.modelId}
-                label={modelDisplayName(m.modelId)}
-                badge={m.contributor ? <ContributorBadge /> : null}
-                description={
-                  m.contributor
-                    ? "Prompts and outputs may be used to improve Meta's products."
-                    : m.contextLimit
-                      ? `${formatTokens(m.contextLimit)} token context`
-                      : undefined
-                }
-              />
-            ))}
+          <MenuRadioGroup
+            value={`${key}:${current ?? ""}`}
+            onValueChange={(value) => {
+              const at = value.indexOf(":");
+              const endpointId = value.slice(0, at);
+              void controller.setModel(value.slice(at + 1), endpointId === "own" ? null : endpointId);
+            }}
+          >
+            {sections.map((section) => {
+              const locked = Boolean(props.sessionId) && section.key !== key;
+              return (
+                <Fragment key={section.key}>
+                  <MenuLabel>
+                    <span className="flex items-center gap-1.5">
+                      {section.go ? <OpenCodeGoMark title={section.name} /> : null}
+                      <span className="truncate">{section.name}</span>
+                    </span>
+                  </MenuLabel>
+                  {section.models.length === 0 ? (
+                    <p className="px-2 pb-1 text-xs text-muted">No models from this provider right now.</p>
+                  ) : (
+                    section.models.map((option) => (
+                      <MenuOption
+                        key={`${section.key}:${option.modelId}`}
+                        value={`${section.key}:${option.modelId}`}
+                        disabled={locked}
+                        label={modelDisplayName(option.modelId)}
+                        badge={option.contributor ? <ContributorBadge /> : null}
+                        description={
+                          option.contributor
+                            ? "Prompts and outputs may be used to improve Meta's products."
+                            : option.contextLimit
+                              ? `${formatTokens(option.contextLimit)} token context`
+                              : undefined
+                        }
+                      />
+                    ))
+                  )}
+                  {locked ? <p className="px-2 pb-1 text-xs text-muted">Start a new thread to use {section.name}.</p> : null}
+                </Fragment>
+              );
+            })}
           </MenuRadioGroup>
         )}
       </MenuContent>

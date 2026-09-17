@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { useOverlayDragProps } from "../../app/frame.js";
 import { modelDisplayName } from "../../model/format.js";
+import { providerKey } from "../../model/providers.js";
 import { CODE_THEMES, ZOOM_MAX, ZOOM_MIN, type CodeTheme, type GroupBy, type ThemePref } from "../../model/store.js";
 import type { ApprovalMode, EndpointSummary, ReasoningEffort } from "../../types.js";
 import { LEVELS, MODES } from "../composer/Composer.js";
@@ -114,6 +115,7 @@ export function SettingsPage() {
   const armedThreads = useApp((s) => s.bypassThreads.length);
   const endpoints = useApp((s) => s.endpoints);
   const activeEndpointId = useApp((s) => s.activeEndpointId);
+  const providerModels = models.filter((model) => model.providerId === activeEndpointId);
   const [confirmBypass, setConfirmBypass] = useState(false);
   const [endpointForm, setEndpointForm] = useState<EndpointForm | null>(null);
   const [deleteEndpointId, setDeleteEndpointId] = useState<string | null>(null);
@@ -213,20 +215,20 @@ export function SettingsPage() {
         </Section>
 
         <Section title="New threads">
-          <Row label="Model" description="What a new thread starts on. Changing it here leaves running threads alone.">
-            {models.length === 0 ? (
+          <Row label="Model" description="What a new thread on the default provider starts on. Changing it here leaves running threads alone.">
+            {providerModels.length === 0 ? (
               <p className="text-xs text-subtle">No models loaded</p>
             ) : (
               <Pick
-                value={prefs.defaultModelId}
-                options={models.map((model) => ({
+                value={prefs.modelByProvider[providerKey(activeEndpointId)] ?? (activeEndpointId === null ? prefs.defaultModelId : null)}
+                options={providerModels.map((model) => ({
                   value: model.modelId,
                   // The contributor variants share a display name, so without this the list offers the same
                   // word twice and there is no way to tell which button is which.
                   label: model.contributor ? `${modelDisplayName(model.modelId)} · Contributor` : modelDisplayName(model.modelId),
                   hint: model.contributor ? "Contributor tier: prompts and outputs may be used for product improvement." : undefined,
                 }))}
-                onChange={(value) => void controller.setModel(value as string)}
+                onChange={(value) => void controller.setModel(value as string, activeEndpointId)}
               />
             )}
           </Row>
@@ -251,8 +253,8 @@ export function SettingsPage() {
 
         <Section title="Model endpoints">
           <Row
-            label="Active endpoint"
-            description="Where Muse sends its model calls. Applying one stops the running Muse hosts; they start again against the new endpoint on the next use."
+            label="Default provider"
+            description="Where new threads send their model calls. A running thread keeps the provider it was created with."
           >
             <Pick<string | null>
               value={activeEndpointId}

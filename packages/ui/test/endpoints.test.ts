@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { HeliconClient } from "../src/client.js";
 import { HeliconController, type Platform } from "../src/model/controller.js";
-import type { EndpointSummary } from "../src/types.js";
+import type { EndpointSummary, SessionSummary } from "../src/types.js";
 
 const ENDPOINT: EndpointSummary = {
   id: "e1",
@@ -14,6 +14,27 @@ const ENDPOINT: EndpointSummary = {
 };
 
 type SaveInput = { id?: string; name: string; baseUrl: string; apiKey?: string; defaultModel?: string | null };
+
+/** A session summary for the provider tests; the endpoint decides which home serves it. */
+function session(id: string, endpointId: string | null): SessionSummary {
+  return {
+    sessionId: id,
+    cwd: "/work/app",
+    title: id,
+    titleSource: "auto",
+    turnCount: 0,
+    modelId: null,
+    endpointId,
+    origin: "helicon",
+    archived: false,
+    createdAt: "2026-09-17T00:00:00.000Z",
+    activityAt: "2026-09-17T00:00:00.000Z",
+    settled: false,
+    settledAt: null,
+    unsettledAt: null,
+    live: null,
+  };
+}
 
 function platform(): Platform {
   return {
@@ -39,6 +60,8 @@ class FakeClient {
   refreshed: string[] = [];
   projectLists = 0;
   modelLists = 0;
+  modelSwitches: { sessionId: string; modelId: string }[] = [];
+  starts: { cwd: string; approvalMode?: string; modelId?: string; endpointId?: string | null }[] = [];
 
   async listProjects() {
     this.projectLists += 1;
@@ -88,6 +111,16 @@ class FakeClient {
     }
     return endpoint ? [...endpoint.models] : [];
   }
+  async startSession(cwd: string, options?: { approvalMode?: string; modelId?: string; endpointId?: string | null }) {
+    this.starts.push({ cwd, ...options });
+    return session("s-new", options?.endpointId ?? null);
+  }
+  async sendTurn() {
+    return { turnId: "t1" };
+  }
+  async setSessionModel(sessionId: string, modelId: string) {
+    this.modelSwitches.push({ sessionId, modelId });
+  }
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 15));
@@ -129,7 +162,7 @@ describe("endpoint management", () => {
     assert.equal(controller.store.get().endpoints.some((endpoint) => endpoint.id === "e-new" && endpoint.hasApiKey), true);
   });
 
-  it("activating null after a delete reports the calls in order and lands back on Muse's own login", async () => {
+  it("activating null after a delete lands back on Muse's own login without touching the lists", async () => {
     const fake = new FakeClient();
     const controller = started(fake);
     await controller.loadEndpoints();
@@ -141,9 +174,9 @@ describe("endpoint management", () => {
     assert.deepEqual(fake.activated, [null]);
     assert.deepEqual(state.endpoints, []);
     assert.equal(state.activeEndpointId, null);
-    // The apply also reloads what the torn-down hosts fed: the lists and the model picker.
-    assert.equal(fake.projectLists, 1);
-    assert.equal(fake.modelLists, 1);
+    // The default provider is only a default now: running threads keep their homes, so nothing reloads.
+    assert.equal(fake.projectLists, 0);
+    assert.equal(fake.modelLists, 0);
   });
 
   it("refreshEndpointModels updates that endpoint's models in state", async () => {
@@ -154,5 +187,44 @@ describe("endpoint management", () => {
     const state = controller.store.get();
     assert.deepEqual(fake.refreshed, ["e1"]);
     assert.deepEqual(state.endpoints[0]?.models, ["muse-fw-9", "muse-spark-1.3"]);
+  });
+});
+
+describe("provider-aware model choice", () => {
+  it("starts a new thread on the default provider with the model remembered for it", async () => {
+    const fake = new FakeClient();
+    const controller = started(fake);
+    await controller.loadEndpoints();
+    await controller.setModel("muse-fw-9", "e1");
+    controller.store.set((s) => ({ ...s, prefs: { ...s.prefs, lastProject: "/work/app" } }));
+
+    await controller.send("hello");
+
+    assert.deepEqual(fake.starts, [{ cwd: "/work/app", approvalMode: "onRequest", modelId: "muse-fw-9", endpointId: "e1" }]);
+  });
+
+  it("moves the default provider when a new thread's pick comes from another one", async () => {
+    const fake = new FakeClient();
+    const controller = started(fake);
+    await controller.loadEndpoints();
+
+    await controller.setModel("muse-spark-1.3", null);
+
+    assert.deepEqual(fake.activated, [null]);
+    assert.equal(controller.store.get().activeEndpointId, null);
+    assert.equal(controller.store.get().prefs.modelByProvider["own"], "muse-spark-1.3");
+  });
+
+  it("keeps an open thread on its own provider", async () => {
+    const fake = new FakeClient();
+    const controller = started(fake);
+    await controller.loadEndpoints();
+    controller.store.set((s) => ({ ...s, route: { kind: "thread", sessionId: "s1" }, sessions: { s1: session("s1", "e1") } }));
+
+    await controller.setModel("muse-fw-9", "e1");
+    assert.deepEqual(fake.modelSwitches, [{ sessionId: "s1", modelId: "muse-fw-9" }]);
+
+    await controller.setModel("muse-spark-1.3", null);
+    assert.equal(fake.modelSwitches.length, 1, "another provider's model never goes to the thread");
   });
 });

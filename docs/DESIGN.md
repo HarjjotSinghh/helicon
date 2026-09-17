@@ -73,4 +73,5 @@ Borrowed from open-source registries (all MIT) and adapted to these tokens; each
 | Menus, dialogs, tooltips, popovers | [Radix UI](https://www.radix-ui.com) |
 | Command palette | [cmdk](https://cmdk.paco.me) |
 | Icons | [Lucide](https://lucide.dev) |
+| OpenCode Go provider mark | [OpenCode](https://github.com/anomalyco/opencode/blob/dev/packages/ui/src/assets/icons/provider/opencode-go.svg) (MIT) |
 | Scroll anchoring | [use-stick-to-bottom](https://github.com/stackblitz-labs/use-stick-to-bottom) |

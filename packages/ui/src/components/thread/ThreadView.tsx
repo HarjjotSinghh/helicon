@@ -1,8 +1,9 @@
-import { Archive, CircleStop, Code, Copy, Ellipsis, Folder, FolderOpen, FolderTree, PanelBottomOpen, GitBranch, Lock, Minimize2, Pencil, Square, SquarePen } from "lucide-react";
+import { Archive, CircleStop, Code, Copy, Ellipsis, Folder, FolderOpen, FolderTree, PanelBottomOpen, GitBranch, Lock, Minimize2, Pencil, Server, Square, SquarePen } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { CaptionSpacer, useOverlayDragProps } from "../../app/frame.js";
 import { basename, formatDuration } from "../../model/format.js";
+import { isOpenCodeGoEndpoint } from "../../model/providers.js";
 import { backgroundTasks } from "../../model/plan.js";
 import { goalView } from "../../model/goal.js";
 import type { ThreadState } from "../../model/store.js";
@@ -14,7 +15,7 @@ import { ApprovalPanel, CloseCard, PlanPanel, QuestionPanel, QueuedList, ReadOnl
 import { GoalPanel } from "./GoalPanel.js";
 import { revealLabel } from "../sidebar/Sidebar.js";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tip } from "../ui/overlays.js";
-import { Button, IconButton, MOD, Spinner } from "../ui/primitives.js";
+import { Button, IconButton, MOD, OpenCodeGoMark, Spinner } from "../ui/primitives.js";
 import { FilesPanel } from "../files/FilesPanel.js";
 import { Transcript } from "./Transcript.js";
 
@@ -80,6 +81,7 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
         <span className="hidden min-w-0 shrink @min-[420px]:flex">
           <ProjectChip cwd={session.cwd} />
         </span>
+        <ProviderChip endpointId={session.endpointId} />
         {fold?.meta.branch ? (
           <span className="hidden min-w-0 items-center gap-1 text-xs text-subtle lg:flex">
             <GitBranch size={12} className="shrink-0" />
@@ -182,6 +184,23 @@ function ProjectChip(props: { cwd: string }) {
         </MenuItem>
       </MenuContent>
     </Menu>
+  );
+}
+
+/** Which provider a thread runs on; only shown for custom endpoints, where it is not obvious. */
+function ProviderChip(props: { endpointId: string | null }) {
+  const endpoint = useApp((s) => (props.endpointId ? (s.endpoints.find((entry) => entry.id === props.endpointId) ?? null) : null));
+  if (!endpoint) {
+    return null;
+  }
+  return (
+    <span
+      className="hidden min-w-0 items-center gap-1 text-xs text-subtle @min-[560px]:flex"
+      title={`Model calls go to ${endpoint.name} at ${endpoint.baseUrl}`}
+    >
+      {isOpenCodeGoEndpoint(endpoint.baseUrl) ? <OpenCodeGoMark title={endpoint.name} /> : <Server size={12} className="shrink-0" />}
+      <span className="truncate">{endpoint.name}</span>
+    </span>
   );
 }
 

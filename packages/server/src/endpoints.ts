@@ -87,6 +87,11 @@ export function catalogModelIds(modelsJson: string): string[] {
   return parseCatalog(modelsJson).map((row) => row.model_id);
 }
 
+/** The rows an endpoint's home serves: the stored catalog, with exactly one default marked. */
+export function endpointCatalog(endpoint: Pick<EndpointRecord, "modelsJson" | "defaultModel">): CatalogRow[] {
+  return normalizeCatalogRows(parseCatalog(endpoint.modelsJson), endpoint.defaultModel);
+}
+
 /**
  * Writes the isolated Muse home for an endpoint: settings that redirect every model call, plus a
  * freshly dated catalog cache so `model/list` answers from it. The gateway serves no catalog of its

@@ -21,6 +21,8 @@ const PRICED: ModelOption = {
   outputLimit: null,
   cost: { input: 2, output: 8, cached: 0.5, currency: "USD" },
   contributor: false,
+  providerId: null,
+  providerName: null,
 };
 
 describe("context and session usage", () => {

@@ -373,6 +373,7 @@ export class HeliconController {
       void this.discoverAll(true);
       void this.loadModels();
       void this.loadTitleSettings();
+      void this.loadEndpoints(true);
       void this.loadPlanUsage();
     } catch (error) {
       this.update((s) => ({ ...s, boot: "error", bootError: errorMessage(error) }));
@@ -786,6 +787,17 @@ export class HeliconController {
     this.update((s) => ({ ...s, draftHandoff: { key: sessionId, text } }));
   }
 
+  /** What a new thread on this provider starts on: the last pick for it, then the old default, then Muse's. */
+  private preferredModel(endpointId: string | null): string | null {
+    const key = endpointId ?? "own";
+    return (
+      this.state.prefs.modelByProvider[key] ??
+      (key === "own" ? this.state.prefs.defaultModelId : null) ??
+      this.state.models.find((model) => model.providerId === endpointId && model.isDefault)?.modelId ??
+      null
+    );
+  }
+
   /** Starts a thread in `cwd` and runs its first action there; what the user typed goes to its composer if that fails. */
   private async startThread(
     cwd: string,
@@ -798,15 +810,18 @@ export class HeliconController {
     }
     this.setBusy("start", true);
     try {
-      const { defaultMode, defaultModelId } = this.state.prefs;
+      const { defaultMode } = this.state.prefs;
+      const endpointId = this.state.activeEndpointId;
+      const modelId = this.preferredModel(endpointId);
       const session = await this.client.startSession(cwd, {
         approvalMode: defaultMode,
-        modelId: defaultModelId ?? undefined,
+        modelId: modelId ?? undefined,
+        endpointId,
       });
       const base = emptyFold();
       const fold: ThreadFold = {
         ...base,
-        meta: { ...base.meta, modelId: session.modelId ?? defaultModelId, approvalMode: defaultMode },
+        meta: { ...base.meta, modelId: session.modelId ?? modelId, approvalMode: defaultMode },
       };
       this.update((s) => ({
         ...s,
@@ -1218,8 +1233,13 @@ export class HeliconController {
 
   // ---------------------------------------------------------------- composer settings
 
-  async setModel(modelId: string): Promise<void> {
-    const model = this.state.models.find((m) => m.modelId === modelId);
+  /**
+   * Picks the model for the open thread, or for new threads when none is open. The provider decides
+   * which home serves it: an open thread keeps its own, and on a new thread the pick also moves the
+   * default provider so the next thread starts where the user looked.
+   */
+  async setModel(modelId: string, endpointId: string | null): Promise<void> {
+    const model = this.state.models.find((m) => m.modelId === modelId && m.providerId === endpointId);
     if (model?.contributor && !this.state.prefs.contributorAck) {
       this.setPrefs({ contributorAck: true });
       this.toast(
@@ -1228,9 +1248,22 @@ export class HeliconController {
         model.description ?? "Prompts and outputs on contributor models may be used for product improvement.",
       );
     }
-    this.setPrefs({ defaultModelId: modelId });
+    const key = endpointId ?? "own";
+    const modelByProvider = { ...this.state.prefs.modelByProvider, [key]: modelId };
+    this.setPrefs({
+      modelByProvider,
+      ...(endpointId === this.state.activeEndpointId ? { defaultModelId: modelId } : {}),
+    });
     const route = this.state.route;
     if (route.kind !== "thread") {
+      if (endpointId !== this.state.activeEndpointId) {
+        await this.setDefaultEndpoint(endpointId);
+      }
+      return;
+    }
+    const session = this.state.sessions[route.sessionId];
+    if (session && session.endpointId !== endpointId) {
+      // An open thread cannot change home; the picker disables the other providers, this is the backstop.
       return;
     }
     const previous = this.state.threads[route.sessionId]?.fold.meta.modelId ?? null;
@@ -1240,6 +1273,19 @@ export class HeliconController {
     } catch (error) {
       this.patchMeta(route.sessionId, { modelId: previous });
       this.toast("error", "Could not switch models", errorMessage(error));
+    }
+  }
+
+  /** Where new threads start; running threads keep the provider they were created on. */
+  async setDefaultEndpoint(endpointId: string | null): Promise<void> {
+    if (this.state.activeEndpointId === endpointId) {
+      return;
+    }
+    try {
+      await this.client.activateEndpoint(endpointId);
+      this.update((s) => ({ ...s, activeEndpointId: endpointId }));
+    } catch (error) {
+      this.toast("error", "Could not change the default provider", errorMessage(error));
     }
   }
 
@@ -1338,13 +1384,15 @@ export class HeliconController {
 
   // ---------------------------------------------------------------- model endpoints
 
-  /** The custom Muse endpoints and the active one, for the Settings page. */
-  async loadEndpoints(): Promise<void> {
+  /** The custom Muse endpoints and the active one, for the Settings page and the model picker. `silent` is for boot, where an older server must not toast on every start. */
+  async loadEndpoints(silent = false): Promise<void> {
     try {
       const { endpoints, activeEndpointId } = await this.client.endpoints();
       this.update((s) => ({ ...s, endpoints, activeEndpointId }));
     } catch (error) {
-      this.toast("error", "Could not load the model endpoints", errorMessage(error));
+      if (!silent) {
+        this.toast("error", "Could not load the model endpoints", errorMessage(error));
+      }
     }
   }
 
@@ -1369,18 +1417,12 @@ export class HeliconController {
     }
   }
 
-  /** Sends model calls at an endpoint, or back to the user's own Muse login with `null`. */
+  /** Where new threads start: an endpoint, or the user's own Muse login with `null`. */
   async activateEndpoint(id: string | null): Promise<void> {
-    try {
-      await this.client.activateEndpoint(id);
-      await this.loadEndpoints();
-      // The server tears down the running Muse hosts, so the lists they fed are stale: reload them,
-      // and the model picker repopulates against the new endpoint on its next use.
-      void this.refresh();
-      void this.loadModels();
-      this.toast("success", "Model endpoint applied", "New threads use it.");
-    } catch (error) {
-      this.toast("error", "Could not apply the model endpoint", errorMessage(error));
+    const changed = this.state.activeEndpointId !== id;
+    await this.setDefaultEndpoint(id);
+    if (changed && this.state.activeEndpointId === id) {
+      this.toast("success", "Default provider set", "New threads start there; running threads keep theirs.");
     }
   }
 
@@ -1826,12 +1868,24 @@ export class HeliconController {
           this.setPicker("model");
           return true;
         }
-        const model = findModel(this.state.models, args, modelDisplayName);
+        const route = this.state.route;
+        const providerId =
+          route.kind === "thread" ? (this.state.sessions[route.sessionId]?.endpointId ?? null) : this.state.activeEndpointId;
+        const model =
+          findModel(
+            this.state.models.filter((m) => m.providerId === providerId),
+            args,
+            modelDisplayName,
+          ) ?? findModel(this.state.models, args, modelDisplayName);
         if (!model) {
           this.toast("info", `No model named ${args}`, "Type /model to pick from the list.");
           return false;
         }
-        await this.setModel(model.modelId);
+        if (route.kind === "thread" && model.providerId !== providerId) {
+          this.toast("info", `${modelDisplayName(model.modelId)} runs on another provider`, "Start a new thread to use it.");
+          return false;
+        }
+        await this.setModel(model.modelId, model.providerId);
         return true;
       }
       case "effort": {

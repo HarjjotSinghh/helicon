@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HeliconServer } from "../src/server.js";
 import { bundledModelRows, fetchEndpointModels, writeEndpointHome, type CatalogRow, type EndpointRecord } from "../src/endpoints.js";
-import type { ServeTarget } from "@helicon/daemon";
+import { HeliconStore, type ServeTarget } from "@helicon/daemon";
 
 function endpoint(overrides: Partial<EndpointRecord> = {}): EndpointRecord {
   return {
@@ -139,9 +139,11 @@ describe("fetchEndpointModels", () => {
 
 class FakeConnection {
   replies = new Map<string, unknown>();
+  calls: { method: string; params: Record<string, unknown> }[] = [];
   handler: ((n: { method: string; params?: unknown }) => void) | null = null;
 
   async command(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    this.calls.push({ method, params });
     const reply = this.replies.get(method);
     if (reply instanceof Error) {
       throw reply;
@@ -158,9 +160,11 @@ class FakeConnection {
   }
 }
 
-function fakeFactory(connection: FakeConnection, targets: ServeTarget[]) {
+/** One connection for every host, or one per host chosen from its ServeTarget. */
+function fakeFactory(connections: FakeConnection | ((target: ServeTarget) => FakeConnection), targets: ServeTarget[]) {
   return (target: ServeTarget) => {
     targets.push(target);
+    const connection = connections instanceof FakeConnection ? connections : connections(target);
     return {
       start: async () => {
         await new Promise((resolve) => setTimeout(resolve, 5));
@@ -173,7 +177,7 @@ function fakeFactory(connection: FakeConnection, targets: ServeTarget[]) {
 }
 
 async function start(
-  connection: FakeConnection,
+  connection: FakeConnection | ((target: ServeTarget) => FakeConnection),
   targets: ServeTarget[],
   extra: Partial<ConstructorParameters<typeof HeliconServer>[0]> = {},
 ) {
@@ -190,7 +194,7 @@ async function start(
   });
   after(() => server.close());
   const bound = await server.listen();
-  return { base: `http://127.0.0.1:${bound.port}`, endpointsDir };
+  return { base: `http://127.0.0.1:${bound.port}`, endpointsDir, dataDir };
 }
 
 async function send(base: string, path: string, body?: unknown, method = "POST"): Promise<{ status: number; json: any }> {
@@ -207,7 +211,7 @@ async function get(base: string, path: string): Promise<any> {
 }
 
 describe("custom endpoints API", () => {
-  it("round-trips an endpoint, and spawns hosts inside its isolated Muse home", async () => {
+  it("round-trips an endpoint, and spawns a host per provider", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });
     const targets: ServeTarget[] = [];
@@ -230,17 +234,14 @@ describe("custom endpoints API", () => {
     assert.equal(listed.endpoints[0].hasApiKey, true);
     assert.deepEqual(listed.endpoints[0].models, ["muse-spark-1.3", "muse-spark-1.2", "muse-spark-1.3-contributor-free"]);
 
+    // No provider asked for: the thread runs on the user's own login, with no custom env.
     await send(base, "/api/sessions", { cwd: "/work/proj" });
-    assert.equal(targets[0]?.env, undefined, "no endpoint active means no custom env");
+    assert.equal(targets[0]?.env, undefined, "the own login needs no custom env");
 
-    const activated = await send(base, "/api/endpoints/activate", { id });
-    assert.equal(activated.status, 200);
-    listed = await get(base, "/api/endpoints");
-    assert.equal(listed.activeEndpointId, id);
-
-    await send(base, "/api/sessions", { cwd: "/work/other" });
+    // An explicit provider spawns inside that endpoint's isolated Muse home.
+    await send(base, "/api/sessions", { cwd: "/work/other", endpointId: id });
     const env = targets[1]?.env;
-    assert.ok(env, "the respawn carries the endpoint's env");
+    assert.ok(env, "the endpoint's host carries its env");
     assert.equal(env["XDG_CONFIG_HOME"], join(endpointsDir, id, "config"));
     assert.equal(env["XDG_DATA_HOME"], join(endpointsDir, id, "data"));
     assert.equal(env["META_API_KEY"], "secret-key");
@@ -249,15 +250,90 @@ describe("custom endpoints API", () => {
       endpoint_transport: { base_url: "https://zen.example/muse" },
     });
 
+    // Provider and workspace both key a host, so the same folder can run under both at once.
+    await send(base, "/api/sessions", { cwd: "/work/proj", endpointId: id });
+    assert.equal(targets.length, 3, "the same folder under another provider is its own host");
+    assert.equal(targets[2]?.env?.["META_API_KEY"], "secret-key");
+
+    // Activating an endpoint sets the default for threads that do not name a provider.
+    const activated = await send(base, "/api/endpoints/activate", { id });
+    assert.equal(activated.status, 200);
+    listed = await get(base, "/api/endpoints");
+    assert.equal(listed.activeEndpointId, id);
+
+    await send(base, "/api/sessions", { cwd: "/work/third" });
+    assert.equal(targets[3]?.env?.["XDG_CONFIG_HOME"], join(endpointsDir, id, "config"), "absent means the active endpoint");
+
+    // An explicit null overrides the default for one thread: back to the own login.
+    await send(base, "/api/sessions", { cwd: "/work/third", endpointId: null });
+    assert.equal(targets.length, 5, "the own-login host for the same folder is its own spawn");
+    assert.equal(targets[4]?.env, undefined);
+
+    // With nothing active, an absent provider means the user's own login again.
+    await send(base, "/api/endpoints/activate", { id: null });
+    await send(base, "/api/sessions", { cwd: "/work/fourth" });
+    assert.equal(targets[5]?.env, undefined, "deactivating goes back to spawning exactly as before");
+
     // An absent apiKey keeps the stored one; an empty string is how the UI clears it.
     const kept = await send(base, "/api/endpoints", { id, name: "Zen", baseUrl: "https://zen.example/muse" }, "PUT");
     assert.equal(kept.json.endpoint.hasApiKey, true);
     const cleared = await send(base, "/api/endpoints", { id, name: "Zen", baseUrl: "https://zen.example/muse", apiKey: "" }, "PUT");
     assert.equal(cleared.json.endpoint.hasApiKey, false);
+  });
 
-    await send(base, "/api/endpoints/activate", { id: null });
-    await send(base, "/api/sessions", { cwd: "/work/third" });
-    assert.equal(targets[2]?.env, undefined, "deactivating goes back to spawning exactly as before");
+  it("lists every provider's models and records the provider a thread starts on", async () => {
+    const own = new FakeConnection();
+    own.replies.set("model/list", { models: [{ modelId: "muse-own" }], profileId: "tbh", providerId: "meta", source: "provider_catalog" });
+    const zen = new FakeConnection();
+    zen.replies.set("session/start", { session: { sessionId: "s-go" } });
+    const targets: ServeTarget[] = [];
+    const { base } = await start((target) => (target.env ? zen : own), targets);
+
+    const created = await send(base, "/api/endpoints", { name: "Zen", baseUrl: "https://zen.example" }, "PUT");
+    const id = created.json.endpoint.id as string;
+
+    const listed = await get(base, "/api/models");
+    assert.deepEqual(
+      listed.models.map((row: any) => [row.modelId, row.providerId, row.providerName]),
+      [
+        ["muse-own", null, null],
+        ["muse-spark-1.3", id, "Zen"],
+        ["muse-spark-1.2", id, "Zen"],
+        ["muse-spark-1.3-contributor-free", id, "Zen"],
+      ],
+    );
+    assert.equal(zen.calls.some((c) => c.method === "model/list"), false, "an endpoint's list comes from its stored catalog");
+    assert.equal(listed.models[1].isDefault, true, "exactly one default per endpoint");
+
+    const started = await send(base, "/api/sessions", { cwd: "/work/proj", endpointId: id });
+    assert.equal(started.json.session.endpointId, id);
+    const sessions = await get(base, "/api/sessions");
+    assert.equal(sessions.sessions.find((s: any) => s.sessionId === "s-go")?.endpointId, id);
+    assert.equal(zen.calls.filter((c) => c.method === "session/start").length, 1, "the start went to the endpoint's host");
+    assert.equal(own.calls.some((c) => c.method === "session/start"), false);
+  });
+
+  it("adopts a thread recorded before providers existed, and remembers the home that has it", async () => {
+    const own = new FakeConnection();
+    own.replies.set("session/read", new Error("no such session"));
+    const zen = new FakeConnection();
+    zen.replies.set("session/read", { session: { sessionId: "s-legacy" } });
+    const targets: ServeTarget[] = [];
+    const { base, dataDir } = await start((target) => (target.env ? zen : own), targets);
+    const created = await send(base, "/api/endpoints", { name: "Zen", baseUrl: "https://zen.example" }, "PUT");
+    const id = created.json.endpoint.id as string;
+
+    // A row from before the provider column existed: no endpoint, and the app has never served it this run.
+    const store = new HeliconStore(join(dataDir, "helicon.db"));
+    store.recordSession({ id: "s-legacy", projectId: store.upsertProject("/work/proj").id, origin: "tui" });
+    store.close();
+
+    await send(base, "/api/sessions/s-legacy/model", { model: { modelId: "muse-go" } });
+    assert.equal(own.calls.some((c) => c.method === "session/read"), true, "the own login is asked first");
+    assert.equal(zen.calls.some((c) => c.method === "session/setModel"), true, "the thread is served by the home that has it");
+    assert.equal(own.calls.some((c) => c.method === "session/setModel"), false);
+    const sessions = await get(base, "/api/sessions");
+    assert.equal(sessions.sessions.find((s: any) => s.sessionId === "s-legacy")?.endpointId, id, "the adopted provider is recorded");
   });
 
   it("deleting the active endpoint clears the active setting", async () => {
@@ -291,10 +367,9 @@ describe("custom endpoints API", () => {
     const targets: ServeTarget[] = [];
     const { base } = await start(connection, targets, { platform: "win32", musePath: "/home/dev/.local/bin/muse" });
     const created = await send(base, "/api/endpoints", { name: "Zen", baseUrl: "https://zen.example" }, "PUT");
-    await send(base, "/api/endpoints/activate", { id: created.json.endpoint.id });
-    const refused = await send(base, "/api/sessions", { cwd: "D:\\work\\proj" });
+    const refused = await send(base, "/api/sessions", { cwd: "D:\\work\\proj", endpointId: created.json.endpoint.id });
     assert.equal(refused.status, 503);
     assert.match(refused.json.error, /WSL runtime/);
-    assert.equal(targets.length, 0, "nothing is spawned in WSL with an endpoint active");
+    assert.equal(targets.length, 0, "nothing is spawned in WSL for a custom endpoint");
   });
 });

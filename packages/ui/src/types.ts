@@ -42,6 +42,8 @@ export interface SessionSummary {
   titleSource: "placeholder" | "auto" | "user";
   turnCount: number;
   modelId: string | null;
+  /** The custom endpoint this thread runs on; null is the user's own Muse login. */
+  endpointId: string | null;
   origin: string;
   archived: boolean;
   createdAt: string;
@@ -261,6 +263,10 @@ export interface ModelOption {
   cost: { input: number; output: number; cached: number; currency: string | null } | null;
   /** Contributor-tier models may use prompts and outputs for product improvement. */
   contributor: boolean;
+  /** The custom endpoint this model is served by; null is the user's own Muse login. */
+  providerId: string | null;
+  /** The endpoint's name for the picker's group label; null for the user's own login. */
+  providerName: string | null;
 }
 
 /** Server-owned thread-title generation: the switch, and the model when one is chosen. */

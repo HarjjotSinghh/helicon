@@ -86,6 +86,8 @@ export interface Prefs {
   baseline: string;
   defaultMode: ApprovalMode;
   defaultModelId: string | null;
+  /** The model remembered per provider, keyed by endpoint id or "own"; what a new thread starts on. */
+  modelByProvider: Record<string, string>;
   effort: ReasoningEffort | null;
   /** The last project a new thread was started in. */
   lastProject: string | null;
@@ -143,6 +145,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     baseline: now,
     defaultMode: "onRequest",
     defaultModelId: null,
+    modelByProvider: {},
     effort: null,
     lastProject: null,
     contributorAck: false,
@@ -310,6 +313,10 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     codeTheme: pick("codeTheme", (v) => CODE_THEMES.includes(v as CodeTheme)),
     defaultMode: pick("defaultMode", (v) => v === "onRequest" || v === "promptUnmatched" || v === "denyUnmatched" || v === "allowAll"),
     defaultModelId: pick("defaultModelId", (v) => v === null || typeof v === "string"),
+    modelByProvider: pick(
+      "modelByProvider",
+      (v) => typeof v === "object" && v !== null && !Array.isArray(v) && Object.values(v).every((entry) => typeof entry === "string"),
+    ),
     effort: pick("effort", (v) => v === null || ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"].includes(v as string)),
     lastProject: pick("lastProject", (v) => v === null || typeof v === "string"),
     contributorAck: pick("contributorAck", (v) => typeof v === "boolean"),

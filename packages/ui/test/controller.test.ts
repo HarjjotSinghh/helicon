@@ -14,6 +14,7 @@ const SESSION: SessionSummary = {
   titleSource: "auto",
   turnCount: 3,
   modelId: "muse-spark-1.3",
+  endpointId: null,
   origin: "helicon",
   archived: false,
   createdAt: "2026-09-11T00:00:00.000Z",

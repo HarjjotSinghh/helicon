@@ -139,3 +139,17 @@ export function Logo(props: { size?: number; className?: string }) {
     </svg>
   );
 }
+
+/**
+ * The OpenCode Go provider mark, so a model served through the OpenCode gateway is recognizable
+ * at a glance. Path from the OpenCode UI's provider icons (anomalyco/opencode, MIT).
+ */
+export function OpenCodeGoMark(props: { size?: number; className?: string; title?: string }) {
+  const size = props.size ?? 13;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden="true" focusable="false">
+      {props.title ? <title>{props.title}</title> : null}
+      <path d="M19.4004 21H5V3H19.4004V6.59961H8.59961V17.4004H15.7998V13.7998H12.2002V10.2002H19.4004V21Z" fill="currentColor" />
+    </svg>
+  );
+}

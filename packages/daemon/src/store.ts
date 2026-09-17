@@ -25,6 +25,8 @@ export interface SessionRecord {
   status: string;
   turnCount: number;
   modelId: string | null;
+  /** The custom model endpoint the thread runs on; NULL is the user's own Muse login. */
+  endpointId: string | null;
   origin: string;
   archived: boolean;
   createdAt: string;
@@ -52,6 +54,8 @@ export interface RecordSessionInput {
   title?: string;
   titleSource?: TitleSource;
   modelId?: string | null;
+  /** Set the thread's provider when it is known; NULL means the user's own login. Omitted leaves it as is. */
+  endpointId?: string | null;
   origin?: string;
   turnCount?: number;
   createdAt?: string;
@@ -63,6 +67,7 @@ export interface SessionPatch {
   titleSource?: TitleSource;
   archived?: boolean;
   modelId?: string | null;
+  endpointId?: string | null;
   turnCount?: number;
   activityAt?: string;
   status?: string;
@@ -133,6 +138,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   status TEXT NOT NULL DEFAULT 'active',
   turn_count INTEGER NOT NULL DEFAULT 0,
   model_id TEXT,
+  endpoint_id TEXT,
   origin TEXT NOT NULL DEFAULT 'helicon',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -222,6 +228,8 @@ const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: "sessions", column: "settled_override", ddl: "ALTER TABLE sessions ADD COLUMN settled_override TEXT" },
   { table: "sessions", column: "settled_at", ddl: "ALTER TABLE sessions ADD COLUMN settled_at TEXT" },
   { table: "sessions", column: "unsettled_at", ddl: "ALTER TABLE sessions ADD COLUMN unsettled_at TEXT" },
+  // Which custom model endpoint the thread runs on; NULL is the user's own Muse login.
+  { table: "sessions", column: "endpoint_id", ddl: "ALTER TABLE sessions ADD COLUMN endpoint_id TEXT" },
 ];
 
 type Row = Record<string, string | number | null>;
@@ -556,9 +564,9 @@ export class HeliconStore {
       const titleSource = input.titleSource ?? (input.title ? "auto" : "placeholder");
       this.db
         .prepare(
-          `INSERT INTO sessions (id, project_id, title, title_source, status, turn_count, model_id, origin,
+          `INSERT INTO sessions (id, project_id, title, title_source, status, turn_count, model_id, endpoint_id, origin,
              archived, created_at, updated_at, activity_at)
-           VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 0, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, 0, ?, ?, ?)`,
         )
         .run(
           input.id,
@@ -567,6 +575,7 @@ export class HeliconStore {
           titleSource,
           input.turnCount ?? 0,
           input.modelId ?? null,
+          input.endpointId ?? null,
           input.origin ?? "helicon",
           input.createdAt ?? now,
           now,
@@ -584,6 +593,10 @@ export class HeliconStore {
     }
     if (input.modelId !== undefined && input.modelId !== null) {
       patch.modelId = input.modelId;
+    }
+    // A thread found in a provider's home after the fact learns its provider here; a known one is never cleared.
+    if (input.endpointId !== undefined && input.endpointId !== null && existing.endpointId === null) {
+      patch.endpointId = input.endpointId;
     }
     if (input.turnCount !== undefined && input.turnCount > existing.turnCount) {
       patch.turnCount = input.turnCount;
@@ -639,6 +652,10 @@ export class HeliconStore {
     if (patch.modelId !== undefined) {
       sets.push("model_id = ?");
       values.push(patch.modelId);
+    }
+    if (patch.endpointId !== undefined) {
+      sets.push("endpoint_id = ?");
+      values.push(patch.endpointId);
     }
     if (patch.turnCount !== undefined) {
       sets.push("turn_count = ?");
@@ -814,6 +831,7 @@ export class HeliconStore {
       status: String(row["status"]),
       turnCount: Number(row["turn_count"]),
       modelId: row["model_id"] === null ? null : String(row["model_id"]),
+      endpointId: row["endpoint_id"] === null || row["endpoint_id"] === undefined ? null : String(row["endpoint_id"]),
       origin: String(row["origin"]),
       archived: Number(row["archived"] ?? 0) === 1,
       createdAt: String(row["created_at"]),
