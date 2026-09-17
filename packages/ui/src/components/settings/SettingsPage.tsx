@@ -9,6 +9,7 @@ import type { ApprovalMode, ReasoningEffort } from "../../types.js";
 import { LEVELS, MODES } from "../composer/Composer.js";
 import { CODE_THEME_LABELS, updateSummary } from "../sidebar/Sidebar.js";
 import { Modal } from "../ui/overlays.js";
+import { TopBar } from "../chrome.js";
 import { Button, IconButton, MOD, cn } from "../ui/primitives.js";
 
 /** A row's control: one choice out of a few. Scrolls sideways when the row is too narrow to wrap. */
@@ -107,9 +108,12 @@ export function SettingsPage() {
   const now = useNow(60_000);
   const busy = updates?.status === "checking" || updates?.status === "downloading" || updates?.status === "installing";
   const drag = useOverlayDragProps();
+  const collapsed = useApp((s) => s.prefs.sidebarCollapsed);
 
   return (
-    <div className="@container flex h-full min-w-0 flex-col overflow-x-hidden overflow-y-auto">
+    <div className="@container flex h-full min-w-0 flex-col">
+      {collapsed ? <TopBar /> : null}
+      <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
       <header {...drag} className="mx-auto flex w-full max-w-[720px] shrink-0 items-center gap-3 px-4 pt-8 pb-1 @min-[520px]:px-6">
         <Button size="sm" variant="ghost" onClick={() => controller.navigate({ kind: "home" })}>
           <ArrowLeft size={14} /> Back
@@ -277,6 +281,7 @@ export function SettingsPage() {
           <Fact label="Muse" value={env?.musePath ?? (env?.museFound ? "Found" : "Not found")} />
           <Fact label="Sessions" value={env?.persistent ? "Kept on disk" : "In memory only"} />
         </Section>
+      </div>
       </div>
 
       <Modal
