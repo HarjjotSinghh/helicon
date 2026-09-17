@@ -263,6 +263,12 @@ export interface ModelOption {
   contributor: boolean;
 }
 
+/** Server-owned thread-title generation: the switch, and the model when one is chosen. */
+export interface TitleSettings {
+  enabled: boolean;
+  modelId: string | null;
+}
+
 /** A skill Muse can load in a workspace, from `muse skills list`. Skills switched off are left out. */
 export interface SkillEntry {
   id: string;

@@ -112,6 +112,23 @@ class FakeClient implements HeliconClient {
   async listModels() {
     return [];
   }
+  titleSettings = { enabled: true, modelId: null as string | null };
+  titleError: Error | null = null;
+  async getTitleSettings() {
+    return { ...this.titleSettings };
+  }
+  async setTitleSettings(patch: { enabled?: boolean; modelId?: string | null }) {
+    if (this.titleError) {
+      const error = this.titleError;
+      this.titleError = null;
+      throw error;
+    }
+    this.titleSettings = {
+      enabled: patch.enabled ?? this.titleSettings.enabled,
+      modelId: patch.modelId !== undefined ? patch.modelId : this.titleSettings.modelId,
+    };
+    return { ...this.titleSettings };
+  }
   async setSessionModel() {}
   async setApprovalMode() {}
   async setProjectOrder(cwds: string[]) {
@@ -256,6 +273,25 @@ describe("HeliconController", () => {
     assert.deepEqual(state.route, { kind: "thread", sessionId: "s1" });
     assert.equal(state.threads["s1"]?.load, "ready");
     assert.equal(buildTurns(state.threads["s1"]!.fold).length, 3);
+    stop();
+  });
+
+  it("loads the thread-title switch at boot and flips it with rollback", async () => {
+    const client = new FakeClient();
+    client.titleSettings = { enabled: false, modelId: "m1" };
+    const { controller, stop } = await started(client);
+    assert.deepEqual(controller.store.get().titleSettings, { enabled: false, modelId: "m1" });
+
+    await controller.setTitleEnabled(true);
+    assert.deepEqual(controller.store.get().titleSettings, { enabled: true, modelId: "m1" });
+
+    await controller.setTitleModel(null);
+    assert.deepEqual(controller.store.get().titleSettings, { enabled: true, modelId: null });
+
+    client.titleError = new Error("daemon away");
+    await controller.setTitleEnabled(false);
+    assert.deepEqual(controller.store.get().titleSettings, { enabled: true, modelId: null }, "a failed flip rolls back");
+    assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /Could not change thread titles/);
     stop();
   });
 
