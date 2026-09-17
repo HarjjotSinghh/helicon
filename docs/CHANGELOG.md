@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.12.6
+
+### New
+
+- **Linux builds.** Releases now carry an x86_64 AppImage, which runs on most distributions and updates itself from then on. Thanks to [@orkuhh](https://github.com/orkuhh) ([#23](https://github.com/HarjjotSinghh/helicon/pull/23)), who also added Ubuntu to CI. A `.deb` will follow: Tauri's Debian bundler would install the bundled Node.js as `/usr/bin/node`, which collides with Debian's own `nodejs` package.
+
+### Fixed
+
+- **A collapsed sidebar can be reopened from Usage and Settings** ([#24](https://github.com/HarjjotSinghh/helicon/pull/24), thanks [@orkuhh](https://github.com/orkuhh)). Those pages draw their own header and had no toggle, so the only ways back were the Back button and Cmd/Ctrl+B.
+
+### Changed
+
+- **Plan usage says how old its numbers are** ([#26](https://github.com/HarjjotSinghh/helicon/issues/26)). Muse reports your plan's allowance with a model call and at no other time, so each row now carries the reading's age, and the card says plainly that the numbers only move when you send a prompt from a thread here. Work done in the terminal counts against the plan without ever reaching this card.
+
 ## 0.12.5
 
 Same app as 0.12.4. GitHub refused the macOS update package on every upload attempt for that release, so macOS could not update itself to it; the release job now retries uploads. Windows users on 0.12.4 lose nothing by updating.
