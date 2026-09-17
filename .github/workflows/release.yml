@@ -34,6 +34,8 @@ jobs:
           releaseDraft: false
           # A full release, so the updater's releases/latest/download/latest.json always points at it.
           prerelease: false
+          # GitHub sometimes refuses a large asset upload ("Error saving asset"); retrying saves a manual job rerun.
+          retryAttempts: 3
           args: --target x86_64-pc-windows-msvc
 
   desktop-macos:
@@ -72,5 +74,7 @@ jobs:
           releaseDraft: false
           # A full release, so the updater's releases/latest/download/latest.json always points at it.
           prerelease: false
+          # GitHub sometimes refuses a large asset upload ("Error saving asset"); retrying saves a manual job rerun.
+          retryAttempts: 3
           # One universal binary for Apple Silicon and Intel; the macOS bundles come from tauri.macos.conf.json.
           args: --target universal-apple-darwin
