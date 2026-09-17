@@ -90,7 +90,7 @@ macOS: download the DMG from the [latest release](https://github.com/HarjjotSing
 
 Helicon bundles its own Node.js, so you only need the `muse` CLI with `muse login` done once, however you installed it. Helicon uses the login you already have and never stores credentials of its own.
 
-Linux: download the AppImage or the .deb from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest). Both are x86_64; the AppImage runs on most distributions (it needs FUSE, `libfuse2`, on some of them) and updates itself from then on, while the .deb installs on Debian and Ubuntu and updates when you install a newer one.
+Linux: download the AppImage (x86_64) from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest). It runs on most distributions (it needs FUSE, `libfuse2`, on some of them) and updates itself from then on. Before the first launch, make it executable and run it (`chmod +x Helicon_*.AppImage`, then `./Helicon_*.AppImage`), or right-click it in your file manager and allow executing it as a program.
 
 Helicon bundles its own Node.js, so you only need the `muse` CLI with `muse login` done once, however you installed it. Helicon uses the login you already have and never stores credentials of its own.
 
