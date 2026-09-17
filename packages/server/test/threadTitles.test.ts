@@ -97,13 +97,18 @@ describe("sanitizeThreadTitle", () => {
     assert.equal(sanitizeThreadTitle('{"title": "Fix login redirect"}', "fallback"), "Fix login redirect");
   });
 
-  it("caps a long answer like any derived title", () => {
-    const title = sanitizeThreadTitle(
-      "Refactor the session manager so that queries never mint command ids and paging works for long threads",
-      "fallback",
+  it("rejects answers outside 3–8 words in favor of the prompt", () => {
+    assert.equal(
+      sanitizeThreadTitle("Fix login", "Repair the broken login redirect"),
+      "Repair the broken login redirect",
     );
-    assert.ok(title && title.length <= 75);
-    assert.match(title, /\.\.\.$/);
+    assert.equal(
+      sanitizeThreadTitle(
+        "Refactor the session manager so that queries never mint command ids and paging works for long threads",
+        "Add dark mode",
+      ),
+      "Add dark mode",
+    );
   });
 
   it("falls back to the opening prompt on empty or placeholder answers", () => {
@@ -115,5 +120,6 @@ describe("sanitizeThreadTitle", () => {
   it("returns null when neither answer nor prompt yields a title", () => {
     assert.equal(sanitizeThreadTitle("", "   "), null);
     assert.equal(sanitizeThreadTitle("New thread", "New thread"), null);
+    assert.equal(sanitizeThreadTitle("Fix login", "Do it"), null);
   });
 });

@@ -776,9 +776,14 @@ describe("HeliconServer", () => {
   it("upgrades an echo title with one muse exec call, and pushes the name back", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const calls: string[][] = [];
     const exec: ExecFn = async (command, args) => {
       calls.push([command, ...args]);
+      await gate;
       return {
         stdout: JSON.stringify({ payload_type: "run.terminal.completed", payload: { kind: "run_terminal", terminal: "completed", text: "Fix login redirect" } }),
         exitCode: 0,
@@ -791,7 +796,9 @@ describe("HeliconServer", () => {
       sessionId: "s1",
       item: { itemId: "i1", kind: "userMessage", revision: 1, status: "completed", text: "please fix the login redirect bug in the web app when sessions expire" },
     });
+    await waitFor(() => calls.length > 0, "the title call to start");
     assert.equal(await titleOf(), "please fix the login redirect bug in the web app when sessions expire");
+    release();
     await waitFor(async () => (await titleOf()) === "Fix login redirect", "the upgraded title");
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.[0], "muse");
@@ -1270,7 +1277,7 @@ describe("slash commands, skills and shell", () => {
     const exec: ExecFn = async (command, args) => {
       calls.push([command, ...args]);
       return {
-        stdout: JSON.stringify({ payload_type: "run.terminal.completed", payload: { kind: "run_terminal", terminal: "completed", text: "Fix updater" } }),
+        stdout: JSON.stringify({ payload_type: "run.terminal.completed", payload: { kind: "run_terminal", terminal: "completed", text: "Fix the updater" } }),
         exitCode: 0,
       };
     };
@@ -1281,11 +1288,60 @@ describe("slash commands, skills and shell", () => {
       sessionId: "s1",
       item: { itemId: "i1", kind: "userMessage", revision: 1, status: "completed", text: "fix the updater please" },
     });
-    await waitFor(async () => (await titleOf()) === "Fix updater", "the upgraded title");
+    await waitFor(async () => (await titleOf()) === "Fix the updater", "the upgraded title");
     await send(base, "/api/discover", {});
     await new Promise((r) => setTimeout(r, 50));
-    assert.equal(await titleOf(), "Fix updater", "the echo is a fallback, never an update");
+    assert.equal(await titleOf(), "Fix the updater", "the echo is a fallback, never an update");
     assert.equal(calls.length, 1, "and no second model call is spent");
+  });
+
+  it("never upgrades a thread Muse named itself", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const calls: string[][] = [];
+    const exec: ExecFn = async (command, args) => {
+      calls.push([command, ...args]);
+      return {
+        stdout: JSON.stringify({ payload_type: "run.terminal.completed", payload: { kind: "run_terminal", terminal: "completed", text: "Fix the updater" } }),
+        exitCode: 0,
+      };
+    };
+    const { base } = await start(connection, { exec });
+    await send(base, "/api/title-settings", { enabled: false }, "PATCH");
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const titleOf = async () => (await get(base, "/api/sessions")).sessions[0].title;
+    connection.notify("item/completed", {
+      sessionId: "s1",
+      item: { itemId: "i1", kind: "userMessage", revision: 1, status: "completed", text: "fix the updater please" },
+    });
+    connection.notify("session/nameChanged", { sessionId: "s1", name: "Muse One", viewCursor: "c", sourceRange: RANGE });
+    assert.equal(await titleOf(), "Muse One");
+    await send(base, "/api/title-settings", { enabled: true }, "PATCH");
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(await titleOf(), "Muse One", "a live rename cancels the owed attempt");
+    assert.equal(calls.length, 0);
+
+    const second = new FakeConnection();
+    second.replies.set("session/start", { session: { sessionId: "s1" } });
+    second.replies.set("session/list", {
+      sessions: [{ sessionId: "s1", workspaceRoot: "/work/proj", title: "fix the updater please" }],
+      nextCursor: null,
+    });
+    const { base: base2 } = await start(second, { exec });
+    await send(base2, "/api/title-settings", { enabled: false }, "PATCH");
+    await send(base2, "/api/sessions", { cwd: "/work/proj" });
+    await send(base2, "/api/discover", {});
+    second.replies.set("session/list", {
+      sessions: [{ sessionId: "s1", workspaceRoot: "/work/proj", name: "Muse Two", title: "fix the updater please" }],
+      nextCursor: null,
+    });
+    await send(base2, "/api/discover", {});
+    const titleOf2 = async () => (await get(base2, "/api/sessions")).sessions[0].title;
+    assert.equal(await titleOf2(), "Muse Two");
+    await send(base2, "/api/title-settings", { enabled: true }, "PATCH");
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(await titleOf2(), "Muse Two", "a discovered name cancels the owed attempt");
+    assert.equal(calls.length, 0);
   });
 
   it("keeps each session's goal in its live view for the sidebar", async () => {

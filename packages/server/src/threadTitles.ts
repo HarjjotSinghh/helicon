@@ -117,11 +117,20 @@ export function parseExecTitle(stdout: string): string | null {
   return deltas ? deltas : null;
 }
 
+/** A derived title only counts when it honors the prompt's 3–8 words. */
+function acceptTitle(candidate: string | null): string | null {
+  if (!candidate || candidate === PLACEHOLDER_TITLE) {
+    return null;
+  }
+  const words = candidate.split(/\s+/).filter(Boolean).length;
+  return words >= 3 && words <= 8 ? candidate : null;
+}
+
 /**
  * A model answer into a sidebar title: unwrap JSON, drop a `Title:` label and
- * surrounding quotes, then cap like any other derived title. A placeholder
- * echo or an empty answer falls back to the opening prompt, else null keeps
- * whatever the session already shows.
+ * surrounding quotes, then cap like any other derived title. An out-of-range
+ * answer falls back to the opening prompt, and null keeps whatever the
+ * session already shows.
  */
 export function sanitizeThreadTitle(raw: string, fallbackText: string): string | null {
   let text = raw.trim();
@@ -141,10 +150,5 @@ export function sanitizeThreadTitle(raw: string, fallbackText: string): string |
     .trim()
     .replace(/^['"`]+|['"`]+$/g, "")
     .trim();
-  const title = deriveTitle(text);
-  if (title && title !== PLACEHOLDER_TITLE) {
-    return title;
-  }
-  const fallback = deriveTitle(fallbackText);
-  return fallback && fallback !== PLACEHOLDER_TITLE ? fallback : null;
+  return acceptTitle(deriveTitle(text)) ?? acceptTitle(deriveTitle(fallbackText));
 }

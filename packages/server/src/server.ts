@@ -2385,6 +2385,10 @@ export class HeliconServer {
         this.wake(sessionId);
         current = this.store.getSession(sessionId) ?? stored;
       }
+      if (mspName) {
+        // A Muse-selected name is never upgraded, even if an echo here owed an attempt.
+        this.titleUpgradePending.delete(sessionId);
+      }
       // A stored echo still owes one LLM attempt; anything Muse named, the user typed, with a call
       // already in flight, or a past upgrade already replaced no longer qualifies, even across restarts.
       const needsUpgrade =
@@ -2886,6 +2890,8 @@ export class HeliconServer {
     if (!title || !record || record.title === title) {
       return;
     }
+    // A Muse-selected name is never upgraded, even if an echo here owed an attempt.
+    this.titleUpgradePending.delete(sessionId);
     this.store.updateSession(sessionId, { title, titleSource: record.titleSource === "user" ? "user" : "auto" });
     this.sessionsChanged();
   }

@@ -114,10 +114,14 @@ class FakeClient implements HeliconClient {
   }
   titleSettings = { enabled: true, modelId: null as string | null };
   titleError: Error | null = null;
+  titleGate: Promise<void> | null = null;
   async getTitleSettings() {
     return { ...this.titleSettings };
   }
   async setTitleSettings(patch: { enabled?: boolean; modelId?: string | null }) {
+    if (this.titleGate) {
+      await this.titleGate;
+    }
     if (this.titleError) {
       const error = this.titleError;
       this.titleError = null;
@@ -292,6 +296,22 @@ describe("HeliconController", () => {
     await controller.setTitleEnabled(false);
     assert.deepEqual(controller.store.get().titleSettings, { enabled: true, modelId: null }, "a failed flip rolls back");
     assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /Could not change thread titles/);
+    stop();
+  });
+
+  it("discards a stale title switch that resolves after a newer one", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    let release!: () => void;
+    client.titleGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const first = controller.setTitleEnabled(false);
+    client.titleGate = null;
+    await controller.setTitleEnabled(true);
+    release();
+    await first;
+    assert.deepEqual(controller.store.get().titleSettings, { enabled: true, modelId: null });
     stop();
   });
 
