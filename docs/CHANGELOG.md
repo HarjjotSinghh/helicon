@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.5
+
+Same app as 0.12.4. GitHub refused the macOS update package on every upload attempt for that release, so macOS could not update itself to it; the release job now retries uploads. Windows users on 0.12.4 lose nothing by updating.
+
 ## 0.12.4
 
 ### Fixed
