@@ -21,10 +21,28 @@ export interface PlanView {
   observedAtMs: number;
   /** True once the reading is old enough that the real meter has likely moved on. */
   stale: boolean;
+  /** How long ago Muse reported this, ready to read: "just now", "4m", "2h". */
+  age: string;
 }
 
-/** A reading older than this is shown with its age, since the plan's windows keep moving without it. */
+/** Past this the reading is called out as old, though its age is shown from the first minute either way. */
 const STALE_MS = 30 * 60 * 1000;
+
+const MINUTE_MS = 60 * 1000;
+
+/** The reading's age, short enough to sit beside the number itself. */
+export function planAge(observedAtMs: number, now: number): string {
+  const ms = Math.max(0, now - observedAtMs);
+  if (ms < MINUTE_MS) {
+    return "just now";
+  }
+  const minutes = Math.floor(ms / MINUTE_MS);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  return hours < 48 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
+}
 
 function tone(percent: number): PlanTone {
   return percent >= 90 ? "danger" : percent >= 70 ? "warn" : "ok";
@@ -67,6 +85,7 @@ export function planView(usage: PlanUsage | null, now: number): PlanView | null 
     rows: [row("window", windowLabel(usage.window), usage.window, now), row("weekly", "Weekly", usage.weekly, now)],
     observedAtMs: usage.observedAtMs,
     stale: now - usage.observedAtMs > STALE_MS,
+    age: planAge(usage.observedAtMs, now),
   };
 }
 

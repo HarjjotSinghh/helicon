@@ -55,7 +55,7 @@ export function PlanMeter() {
         <h2 className="text-sm font-medium text-fg">Plan usage</h2>
         {view.tier ? <span className="rounded-md bg-active px-1.5 py-px text-2xs font-medium text-muted">{view.tier}</span> : null}
         <span className="flex-1" />
-        <span className="text-2xs text-subtle">{updatedLabel(view, now)}</span>
+        <span className={cn("text-2xs", view.stale ? "text-warn-text" : "text-subtle")}>{updatedLabel(view, now)}</span>
       </div>
       <div className="mt-3 grid gap-3 @min-[520px]:grid-cols-2">
         {view.rows.map((row) => (
@@ -64,6 +64,7 @@ export function PlanMeter() {
               <span className="text-muted">{row.label}</span>
               <span className="flex-1" />
               <span className={cn("font-medium tabular-nums", TEXT[row.tone])}>{row.percent}% used</span>
+              <span className="shrink-0 text-2xs text-subtle">{view.age === "just now" ? "just now" : `${view.age} ago`}</span>
             </div>
             <div
               role="progressbar"
@@ -79,16 +80,21 @@ export function PlanMeter() {
           </div>
         ))}
       </div>
+      <p className="mt-2.5 text-2xs leading-4 text-pretty text-subtle">
+        These come from Muse with each model call, so they only move when you send a prompt from a thread here. Work
+        done in the terminal counts against your plan without showing up in this card.
+      </p>
     </section>
   );
 }
 
+/**
+ * Muse reports these numbers with a model call and at no other time, so the reading is always a point in the past.
+ * The age therefore sits beside each percentage as well as here, and this line says where the numbers come from.
+ */
 function updatedLabel(view: PlanView, now: number): string {
   const age = relativeTime(new Date(view.observedAtMs).toISOString(), now);
-  if (age === "now") {
-    return "Updated just now";
-  }
-  return `${view.stale ? "Last reported" : "Updated"} ${age} ago`;
+  return age === "now" ? "Muse reported this just now" : `Muse reported this ${age} ago`;
 }
 
 /** The rolling window's percentage, small enough for the sidebar footer; it opens the usage page. */

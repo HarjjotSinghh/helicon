@@ -7,6 +7,7 @@ import { costOf, formatCost, listedPrice, type TokenPrice } from "../../model/pr
 import { fillUsageDays, rangeLabel, USAGE_RANGES } from "../../model/usage-range";
 import type { ModelOption, UsageBucket, UsageReport, UsageThread } from "../../types";
 import { Button, Spinner, cn } from "../ui/primitives";
+import { TopBar } from "../chrome";
 import { PlanMeter } from "./PlanMeter";
 import { Tip } from "../ui/overlays";
 
@@ -56,10 +57,13 @@ export function UsagePage() {
   }, [controller, days]);
 
   const view = useMemo(() => (report ? summarize(report, models) : null), [report, models]);
+  const collapsed = useApp((s) => s.prefs.sidebarCollapsed);
   const drag = useOverlayDragProps();
 
   return (
-    <div className="@container flex h-full min-w-0 flex-col overflow-x-hidden overflow-y-auto">
+    <div className="@container flex h-full min-w-0 flex-col">
+      {collapsed ? <TopBar /> : null}
+      <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
       <header {...drag} className="mx-auto flex w-full max-w-[980px] shrink-0 flex-wrap items-center gap-3 px-4 pt-6 pb-4 @min-[520px]:px-6 sm:pt-8">
         <Button size="sm" variant="ghost" onClick={() => controller.navigate({ kind: "home" })}>
           <ArrowLeft size={14} /> Back
@@ -109,6 +113,7 @@ export function UsagePage() {
             </p>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

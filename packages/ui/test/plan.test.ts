@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { emptyFold, type ThreadFold } from "../src/model/fold.js";
-import { backgroundTasks, formatReset, planView } from "../src/model/plan.js";
+import { backgroundTasks, formatReset, planAge, planView } from "../src/model/plan.js";
 import type { MspItem } from "../src/types.js";
 
 const NOW = 1_800_000_000_000;
@@ -27,6 +27,25 @@ describe("plan meter", () => {
       { key: "weekly", label: "Weekly", percent: 94, tone: "danger", resets: "Reset" },
     ]);
     assert.equal(view?.stale, false);
+  });
+
+  it("carries how old the reading is, from the first minute", () => {
+    // Muse only reports this with a model call, so a percentage on its own says nothing about now.
+    const at = (ms: number) =>
+      planView(
+        {
+          tier: "high_usage",
+          observedAtMs: NOW - ms,
+          window: { usedPercent: 0, resetsAtMs: NOW + 60_000, windowDurationMins: 300 },
+          weekly: { usedPercent: 1, resetsAtMs: NOW + 60_000, windowDurationMins: null },
+        },
+        NOW,
+      )?.age;
+    assert.equal(at(5_000), "just now");
+    assert.equal(at(4 * 60_000), "4m");
+    assert.equal(at(3 * 60 * 60_000), "3h");
+    assert.equal(at(3 * 24 * 60 * 60_000), "3d");
+    assert.equal(planAge(NOW, NOW), "just now");
   });
 
   it("clamps odd percentages and marks an old reading as stale", () => {
