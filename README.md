@@ -19,6 +19,19 @@
 
 > **Helicon** - home of the Muses. An open-source desktop + web ADE for Meta's **Muse Code CLI** (`muse`), in the spirit of the Claude Code desktop app and the Codex / ChatGPT desktop app.
 
+### Shared on X
+
+> "harjot here built a pretty sick unofficial muse code app for windows!"
+> — [Alexandr Wang](https://x.com/alexandr_wang), Chief AI Officer, Meta
+
+> "Super impressive community-made desktop app for Muse Code. Well done, Harjot!"
+> — [Michael Douglas](https://x.com/mjdouglas), Muse Code, Meta
+
+> "really impressive desktop app by @harjjotsinghh built on github.com/meta-models/muse-code-sdk"
+> — [Cosmo Du](https://x.com/Answeror), Muse Code, Meta
+
+Shared in September 2026. Helicon is an unofficial community project: Meta has not endorsed it, and it is not affiliated with Meta.
+
 **Sidebar-first:** all projects grouped by working directory, each with its tasks and sessions - resume anything, including sessions started from the `muse` terminal TUI.
 
 [![Helicon walkthrough: open a CLI thread, send a fix, then usage](docs/assets/demo.gif)](https://helicon.sh)

@@ -4,6 +4,7 @@ import type { PageCopy } from "@/lib/copy";
 import { DemoVideo } from "./demo-video";
 import { CtaRow } from "./cta-row";
 import { TrackedLink } from "./tracked-link";
+import { SharedBy } from "./shared-by";
 import { CellGrid, Rule, bandX } from "./ui";
 
 const facts = [
@@ -77,6 +78,10 @@ export function Hero({ copy, version, notesUrl }: { copy: PageCopy; version: str
           </div>
         </div>
       </div>
+
+      <Rule />
+
+      <SharedBy />
 
       <Rule />
 
