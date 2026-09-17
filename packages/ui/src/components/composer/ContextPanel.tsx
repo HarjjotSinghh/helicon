@@ -51,17 +51,20 @@ export function ContextMeter(props: { sessionId: string }) {
     return null;
   }
   const fill = Math.min(1, usage.usedTokens / usage.windowTokens);
-  const percent = fill < 0.01 ? "<1%" : `${Math.round(fill * 100)}%`;
+  const percent = usage.usedTokens === 0 ? "0%" : fill < 0.01 ? "<1%" : `${Math.round(fill * 100)}%`;
   const tone = usage.pressure === "blocked" ? "text-danger" : usage.pressure === "warning" ? "text-warn" : "text-accent-text";
   const radius = 6;
   const circumference = 2 * Math.PI * radius;
+  const tip = usage.windowEstimated
+    ? `${formatTokens(usage.usedTokens)} of ≈${formatTokens(usage.windowTokens)} tokens in context (window from published specs)`
+    : `${formatTokens(usage.usedTokens)} of ${formatTokens(usage.windowTokens)} tokens in context`;
   return (
     <Popover.Root>
-      <Tip label={`${formatTokens(usage.usedTokens)} of ${formatTokens(usage.windowTokens)} tokens in context`}>
+      <Tip label={tip}>
         <Popover.Trigger asChild>
           <button
             type="button"
-            aria-label={`Context window ${percent} used`}
+            aria-label={`Context window ${percent} used${usage.windowEstimated ? ", estimated window" : ""}`}
             className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-1.5 text-2xs text-subtle tabular-nums transition-colors hover:bg-hover hover:text-fg data-[state=open]:bg-hover data-[state=open]:text-fg"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="-rotate-90">
@@ -121,7 +124,8 @@ function ContextPanel(props: { sessionId: string }) {
           <span className="text-sm text-muted">Context window</span>
           <span className="flex-1" />
           <span className="text-xs text-muted tabular-nums">
-            {formatTokens(breakdown.used)} / {formatTokens(breakdown.window)} ({share(breakdown.used, breakdown.window)})
+            {formatTokens(breakdown.used)} / {breakdown.windowEstimated ? "≈" : ""}
+            {formatTokens(breakdown.window)} ({share(breakdown.used, breakdown.window)})
           </span>
           <ChevronDown size={14} className={cn("shrink-0 text-subtle transition-transform duration-150 ease-out", expanded && "rotate-180")} />
         </button>
@@ -206,6 +210,7 @@ function Breakdown(props: { breakdown: ContextBreakdown; usage: SessionUsage }) 
       ) : null}
       <p className="mt-2.5 text-2xs leading-4 text-subtle">
         Muse reports the total. The split marked ≈ is estimated from this thread&apos;s text.
+        {breakdown.windowEstimated ? " The window is from Meta's published specs." : ""}
       </p>
     </div>
   );

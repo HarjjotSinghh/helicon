@@ -233,6 +233,8 @@ export interface ContextUsage {
   usedTokens: number;
   windowTokens?: number;
   pressure: string;
+  /** True when the window came from the published table, not from Muse. */
+  windowEstimated?: boolean;
 }
 
 export interface TokenTotals {
