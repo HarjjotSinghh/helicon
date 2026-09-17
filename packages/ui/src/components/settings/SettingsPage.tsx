@@ -200,6 +200,16 @@ export function SettingsPage() {
               </IconButton>
             </div>
           </Row>
+          <Row
+            label="Session statistics"
+            description="Telemetry pills above the composer: turns, speed and token usage for the open thread."
+          >
+            <Toggle
+              checked={prefs.showTelemetry}
+              label="Session statistics"
+              onChange={(on) => controller.setPrefs({ showTelemetry: on })}
+            />
+          </Row>
         </Section>
 
         <Section title="New threads">

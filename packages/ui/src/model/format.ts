@@ -37,10 +37,10 @@ export function formatDuration(ms: number | null | undefined): string {
   if (ms === null || ms === undefined || !Number.isFinite(ms)) {
     return "";
   }
-  const total = Math.max(0, Math.round(ms / 1000));
-  if (total < 1) {
-    return "under 1s";
+  if (ms < 1000) {
+    return `${Math.max(0, Math.round(ms))}ms`;
   }
+  const total = Math.round(ms / 1000);
   if (total < 60) {
     return `${total}s`;
   }
@@ -77,6 +77,12 @@ export function formatSpeed(tokensPerSecond: number): string {
   return `${tokensPerSecond < 10 ? tokensPerSecond.toFixed(1) : Math.round(tokensPerSecond)} tok/s`;
 }
 
+/** Session-average speed for the telemetry pills: one decimal below 100, a whole number from there up. */
+export function formatTokensPerSecond(tokensPerSecond: number): string {
+  const value = tokensPerSecond < 100 ? tokensPerSecond.toFixed(1).replace(/\.0$/, "") : String(Math.round(tokensPerSecond));
+  return `${value} tok/s`;
+}
+
 /** A running timer as T3 Code shows it: `42s`, then `7m`, then `1h 7m`. */
 export function formatElapsed(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
@@ -103,6 +109,28 @@ export function formatTokens(value: number | null | undefined): string {
   }
   const m = value / 1_000_000;
   return `${m < 10 ? m.toFixed(1).replace(/\.0$/, "") : Math.round(m)}M`;
+}
+
+/** An exact token count with thousands separators, for the usage dialog. */
+export function formatExactTokens(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "0";
+  }
+  return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+/**
+ * Compact tokens for the telemetry pills: like formatTokens but with one decimal into the tens of
+ * thousands, so a session at 18,400 tokens reads `18.4k` rather than `18k`.
+ */
+export function formatCompactTokens(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "0";
+  }
+  if (value >= 1000 && value < 100_000) {
+    return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  }
+  return formatTokens(value);
 }
 
 export function basename(path: string): string {
