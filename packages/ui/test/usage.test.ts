@@ -208,6 +208,19 @@ describe("context window fallback", () => {
     assert.equal(usage?.windowEstimated, false);
   });
 
+  it("rejects non-positive windows from every source", () => {
+    const live = emptyFold();
+    live.meta.modelId = "muse-spark-1.3-contributor";
+    live.meta.contextUsage = { usedTokens: 100, windowTokens: -50, pressure: "normal" };
+    assert.equal(contextUsageOf(live, [NULL_CATALOG])?.windowTokens, 1_048_576, "a negative live window falls through to the table");
+    const calls = applyEvents(emptyFold(), [
+      tokenUsage("v:1", { modelId: "muse-spark-1.3-contributor", promptTokens: 100, totalTokens: 110, usage: { outputTokens: 10 } }),
+    ]);
+    const negative = contextUsageOf(calls, [{ ...NULL_CATALOG, contextLimit: -7 }]);
+    assert.equal(negative?.windowTokens, 1_048_576);
+    assert.equal(negative?.windowEstimated, true);
+  });
+
   it("computes pressure from the fill when Muse sends none", () => {
     const used = (promptTokens: number): ViewEvent[] => [
       tokenUsage("v:1", { modelId: "muse-spark-1.3-contributor", promptTokens, totalTokens: promptTokens + 10, usage: { outputTokens: 10 } }),

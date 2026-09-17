@@ -68,7 +68,7 @@ function inContext(fold: ThreadFold): { items: MspItem[]; summary: MspItem | nul
 
 /** Client-side pressure over a fallback window; a live level from Muse always wins. */
 function pressureFor(used: number, window: number | undefined): string {
-  if (!window) {
+  if (window === undefined || window <= 0) {
     return "normal";
   }
   const fill = used / window;
@@ -91,7 +91,7 @@ function pressureFor(used: number, window: number | undefined): string {
  */
 export function contextUsageOf(fold: ThreadFold, models: readonly ModelOption[]): ContextUsage | null {
   const live = fold.meta.contextUsage;
-  if (live?.windowTokens) {
+  if (live?.windowTokens !== undefined && live.windowTokens > 0) {
     return live;
   }
   const calls = Object.values(fold.meta.calls);
@@ -99,7 +99,9 @@ export function contextUsageOf(fold: ThreadFold, models: readonly ModelOption[])
   const modelId = last?.modelId ?? fold.meta.modelId;
   const catalog = modelId ? (models.find((m) => m.modelId === modelId)?.contextLimit ?? null) : null;
   const listed = listedContextLimit(modelId);
-  const window = catalog ?? listed ?? undefined;
+  const catalogWindow = catalog !== null && catalog > 0 ? catalog : null;
+  const listedWindow = listed !== null && listed > 0 ? listed : null;
+  const window = catalogWindow ?? listedWindow ?? undefined;
   const used = live?.usedTokens ?? (last ? last.promptTokens + last.outputTokens : 0);
   if (!live && !last && window === undefined) {
     return null;
@@ -108,7 +110,7 @@ export function contextUsageOf(fold: ThreadFold, models: readonly ModelOption[])
     usedTokens: used,
     windowTokens: window,
     pressure: live?.pressure ?? pressureFor(used, window),
-    windowEstimated: catalog === null && listed !== null,
+    windowEstimated: catalogWindow === null && listedWindow !== null,
   };
 }
 
