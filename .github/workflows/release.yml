@@ -3,8 +3,8 @@ name: Release
 on:
   push:
     tags: ["v*"]
-  # Rebuilds and republishes an existing tag: `gh workflow run release.yml --ref vX.Y.Z`. A rerun reuses the workflow
-  # file the tag was pushed with; this picks up the current one.
+  # Rebuilds and republishes an existing tag: `gh workflow run release.yml --ref vX.Y.Z`. It runs the workflow file as
+  # it is at that tag, so it works for tags made after this line was added.
   workflow_dispatch:
 
 jobs:
