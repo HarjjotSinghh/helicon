@@ -161,6 +161,17 @@ Two things fail closed deliberately:
 
 Browsers only accept cross-site cookies over HTTPS, so a daemon reached from another origin needs TLS or a tunnel in front of it. On the same machine none of this applies: `#/connect` with an empty address uses the server that served the page, and no token is needed unless one was set.
 
+## What leaves your machine
+
+Your code, prompts, threads and files stay where they are: Helicon talks to the `muse` CLI on your own computer, with
+your own login, and keeps its state in SQLite beside it. There is no account and no analytics in the app.
+
+The one request that does go out is the update check. The desktop app asks `helicon.sh` whether a newer version exists,
+which is how it updates itself, and that request tells us an install is alive: the platform, the version it is on, and a
+hash of the IP it came from, salted per week so two weeks of logs cannot be joined together. It is how we count roughly
+how many installs are in use, since downloads and stars say nothing about that. If the site is unreachable the app falls
+back to asking GitHub, as it always did.
+
 ## Legal
 
 - Wrapper clients are the intended path (Meta ships an MIT SDK for building MSP clients). This repo builds on that, and on the open-source CLI client.

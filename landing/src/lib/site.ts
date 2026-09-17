@@ -86,9 +86,10 @@ export const FAQS: [string, string][] = [
   ["Does it see sessions I started in the terminal?", "Yes. Sessions started in the terminal TUI show up in the sidebar with full history, and you can resume them."],
   ["Why does macOS warn me on first launch?", "The macOS builds are not Apple-notarized yet. Right-click the app and choose Open the first time."],
   ["Can I run it against a remote machine?", "Yes. The same UI ships as a web app that can point at a daemon running elsewhere."],
-  ["How does it work on Windows?", "Muse has no native Windows build, so it runs inside WSL2 Ubuntu. Helicon ships a signed installer with a sidecar that routes through WSL2 and translates paths both ways."],
+  ["How does it work on Windows?", "Muse runs natively on Windows now, and Helicon runs it directly: your own Windows paths, PowerShell for shell commands, no WSL. Muse inside WSL2 still works, and Helicon uses it when native Muse is not installed."],
   ["What does the cost view actually show?", "What each thread would have cost at Meta's published per-token rates. It is not a bill, just the meter reading, so you can see what your subscription did."],
   ["Can I drive it without a mouse?", "Yes. Command palette, slash commands, and a model and reasoning-effort picker cover everything, with full keyboard operation throughout."],
-  ["What do I need installed?", "Just the muse CLI, logged in with your own muse login; on Windows that lives inside WSL2 Ubuntu. The desktop app ships its own Node.js. Running from source or hosting the web app needs Node 22+ yourself."],
+  ["What do I need installed?", "Just the muse CLI, logged in with your own muse login. The desktop app ships its own Node.js. Running from source or hosting the web app needs Node 22+ yourself."],
+  ["Does Helicon phone home?", "Only to check for updates. The desktop app asks helicon.sh whether a newer version exists, and that request tells us an install is alive: the platform, the version, and a weekly hash of the IP it came from. Nothing about your code, prompts, threads or files ever leaves your machine, and there is no account."],
   ["Is it really free?", "Yes. MIT licensed, no paid tier, source on GitHub. It uses your existing Muse subscription, so there is no second bill."],
 ];
