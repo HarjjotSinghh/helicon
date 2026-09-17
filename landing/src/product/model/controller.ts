@@ -1708,7 +1708,7 @@ export class HeliconController {
         }
         const effort = parseEffort(args);
         if (effort === undefined) {
-          this.toast("info", `Unknown effort level: ${args}`, "Use off, minimal, low, medium, high, xhigh, max, ultra or auto.");
+          this.toast("info", `Unknown effort level: ${args}`, "Use off, minimal, low, medium, high, xhigh, max or auto.");
           return false;
         }
         this.setEffort(effort);

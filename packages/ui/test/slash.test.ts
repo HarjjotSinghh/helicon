@@ -85,6 +85,8 @@ describe("slash commands", () => {
     assert.equal(parseEffort("Off"), "none");
     assert.equal(parseEffort("auto"), null);
     assert.equal(parseEffort("extra high"), "xhigh");
+    // Muse sends Ultra to the model as Max, so the word maps there.
+    assert.equal(parseEffort("ultra"), "max");
     assert.equal(parseEffort("loud"), undefined);
     assert.equal(parseMode("full"), "allowAll");
     assert.equal(parseMode("Ask first"), "onRequest");
@@ -107,5 +109,13 @@ describe("slash commands", () => {
   it("summarizes a long model-facing description to its first sentence", () => {
     assert.equal(skillSummary(skill("plan")), "Does plan things.");
     assert.equal(skillSummary(skill("x", { shortDescription: "Import a session" })), "Import a session");
+  });
+});
+
+describe("saved Ultra effort", () => {
+  it("carries on as Max, now that Ultra is out of the picker", async () => {
+    const { defaultPrefs, revivePrefs } = await import("../src/model/store.js");
+    assert.equal(revivePrefs({ effort: "ultra" }, defaultPrefs()).effort, "max");
+    assert.equal(revivePrefs({ effort: "xhigh" }, defaultPrefs()).effort, "xhigh");
   });
 });

@@ -582,8 +582,8 @@ export const LEVELS: { value: ReasoningEffort; label: string; description: strin
   { value: "medium", label: "Medium", description: "Balanced speed and depth" },
   { value: "high", label: "High", description: "Thinks harder problems through" },
   { value: "xhigh", label: "Extra high", description: "Deep reasoning for tricky work" },
-  { value: "max", label: "Max", description: "Longer still, for work that needs it" },
-  { value: "ultra", label: "Ultra", description: "The slowest and most thorough" },
+  // No Ultra: Muse Code 1.3.0 sends "ultra" to the model as "max", and the CLI stopped offering it.
+  { value: "max", label: "Max", description: "The slowest and most thorough" },
 ];
 const TOP = LEVELS.length - 1;
 // Where the slider rests while Auto is on and nothing was picked yet: Medium.

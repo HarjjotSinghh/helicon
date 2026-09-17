@@ -271,7 +271,11 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
   if (!raw || typeof raw !== "object") {
     return fallback;
   }
-  const r = raw as Record<string, unknown>;
+  const r = { ...(raw as Record<string, unknown>) };
+  // Ultra left the picker (Muse runs it as Max), so a saved Ultra carries on as Max.
+  if (r["effort"] === "ultra") {
+    r["effort"] = "max";
+  }
   const pick = <K extends keyof Prefs>(key: K, valid: (v: unknown) => boolean): Prefs[K] =>
     valid(r[key]) ? (r[key] as Prefs[K]) : fallback[key];
   return {

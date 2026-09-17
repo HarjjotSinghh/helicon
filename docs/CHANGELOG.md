@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.3
+
+### Changed
+
+- **Ultra is gone from the effort picker.** Checked against a real `muse serve` 1.3.0: picking Ultra sends `max` to the model, so it was Max under another name, and the Muse CLI no longer offers it either. Max is now the top of the scale. A thread or setting left on Ultra carries on as Max, and `/effort ultra` still works and means Max.
+
 ## 0.12.2
 
 ### Fixed
