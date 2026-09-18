@@ -2899,6 +2899,9 @@ export class HeliconServer {
     return {
       XDG_CONFIG_HOME: home.configHome,
       XDG_DATA_HOME: home.dataHome,
+      // OpenCode's Go gateway drops requests with no x-opencode-session; hosts are pooled per
+      // workspace, so the stable endpoint id stands in for one. Unknown headers are harmless elsewhere.
+      MUSE_CUSTOM_HEADERS: `x-opencode-session: ${endpoint.id}`,
       ...(endpoint.apiKey ? { META_API_KEY: endpoint.apiKey } : {}),
     };
   }

@@ -45,7 +45,8 @@ function catalogRowFor(modelId: string): CatalogRow {
     roles: [],
     context_limit: 1_000_000,
     output_limit: 128_000,
-    description: modelId.includes("contributor") ? CONTRIBUTOR_FREE_DESCRIPTION : null,
+    // Only "-free" ids are the training-for-credits tier; paid gateways also serve contributor ids.
+    description: modelId.includes("contributor-free") ? CONTRIBUTOR_FREE_DESCRIPTION : null,
     cost: null,
     reasoning_effort_variants: [],
     supports_video: false,
@@ -111,7 +112,15 @@ export function writeEndpointHome(root: string, endpoint: EndpointRecord): { con
     cacheDir,
     `${Buffer.from(PROVIDER_ID, "utf8").toString("hex")}__p${Buffer.from(PROFILE_ID, "utf8").toString("hex")}.json`,
   );
-  writeFileSync(settingsPath, JSON.stringify({ schema_version: 1, endpoint_transport: { base_url: endpoint.baseUrl } }));
+  // Muse withholds the bearer credential from any base_url other than Meta's front door unless
+  // the settings also pin auth; without the pin it sends requests with no Authorization at all.
+  writeFileSync(
+    settingsPath,
+    JSON.stringify({
+      schema_version: 1,
+      endpoint_transport: { base_url: endpoint.baseUrl, auth: "bearer" },
+    }),
+  );
   writeFileSync(
     cachePath,
     JSON.stringify({ schema_version: 1, provider_id: PROVIDER_ID, profile_id: PROFILE_ID, source: "provider_catalog", rows }),

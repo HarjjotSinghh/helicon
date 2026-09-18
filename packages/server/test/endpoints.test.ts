@@ -54,7 +54,7 @@ describe("endpoint homes", () => {
     assert.ok(existsSync(cachePath(home.dataHome)));
     assert.deepEqual(JSON.parse(readFileSync(settingsPath, "utf8")), {
       schema_version: 1,
-      endpoint_transport: { base_url: "https://zen.example/muse" },
+      endpoint_transport: { base_url: "https://zen.example/muse", auth: "bearer" },
     });
 
     const cache = readCache(home.dataHome);
@@ -245,9 +245,10 @@ describe("custom endpoints API", () => {
     assert.equal(env["XDG_CONFIG_HOME"], join(endpointsDir, id, "config"));
     assert.equal(env["XDG_DATA_HOME"], join(endpointsDir, id, "data"));
     assert.equal(env["META_API_KEY"], "secret-key");
+    assert.equal(env["MUSE_CUSTOM_HEADERS"], `x-opencode-session: ${id}`);
     assert.deepEqual(JSON.parse(readFileSync(join(endpointsDir, id, "config", "muse", "settings.json"), "utf8")), {
       schema_version: 1,
-      endpoint_transport: { base_url: "https://zen.example/muse" },
+      endpoint_transport: { base_url: "https://zen.example/muse", auth: "bearer" },
     });
 
     // Provider and workspace both key a host, so the same folder can run under both at once.
