@@ -1299,6 +1299,28 @@ export class HeliconServer {
       this.json(res, 200, next);
       return true;
     }
+    if (method === "GET" && path === "/api/sandbox-settings") {
+      this.json(res, 200, this.store.getSandboxSettings());
+      return true;
+    }
+    if (method === "PATCH" && path === "/api/sandbox-settings") {
+      const body = await this.readBody(req);
+      const patch: { disabled?: boolean } = {};
+      if ("disabled" in body) {
+        if (typeof body["disabled"] !== "boolean") {
+          throw new HttpError(400, "disabled must be a boolean.");
+        }
+        patch.disabled = body["disabled"];
+      }
+      const wasDisabled = this.store.getSandboxSettings().disabled;
+      const next = this.store.setSandboxSettings(patch);
+      if (wasDisabled !== next.disabled) {
+        // Posture is fixed at spawn, so live hosts restart; closing can outlast this request.
+        void this.restartHosts();
+      }
+      this.json(res, 200, next);
+      return true;
+    }
     if (method === "GET" && path === "/api/usage") {
       const requested = Number.parseInt(url.searchParams.get("days") ?? "30", 10);
       const days = Number.isFinite(requested) ? Math.min(365, Math.max(1, requested)) : 30;
@@ -2594,11 +2616,19 @@ export class HeliconServer {
     if (this.hosts.get(managed.key) !== managed) {
       return;
     }
-    this.hosts.delete(managed.key);
     const detail = managed.handle.recentStderr?.trim();
     const message = `The Muse host exited (${exit.code ?? exit.signal ?? "unknown"}).${detail ? ` ${detail}` : ""}`;
     this.lastHostError = message;
     this.emit("helicon", { type: "host", key: managed.key, state: "exited", message });
+    this.forgetHost(managed, message);
+  }
+
+  /**
+   * Drops a host gone for any reason. Its sessions resume lazily on their next touch, but anything
+   * in flight is over, so live turns fail with the given message instead of hanging as running.
+   */
+  private forgetHost(managed: ManagedHost, lastError: string): void {
+    this.hosts.delete(managed.key);
     for (const [sessionId, key] of this.sessionHosts) {
       if (key !== managed.key) {
         continue;
@@ -2612,15 +2642,38 @@ export class HeliconServer {
         live.pendingApprovals.clear();
         live.pendingInputs.clear();
         live.lastTerminal = "failed";
-        live.lastError = message;
+        live.lastError = lastError;
         this.emitStatus(sessionId);
       }
     }
   }
 
+  /**
+   * Closes every live host so the next use respawns it with the current sandbox posture. Never
+   * throws: closing is best effort, and a host that refuses to die is dropped the same way.
+   */
+  private async restartHosts(): Promise<void> {
+    for (const pending of this.starting.values()) {
+      await pending.catch(() => undefined);
+    }
+    for (const managed of [...this.hosts.values()]) {
+      try {
+        await managed.handle.close();
+      } catch {
+        /* best effort */
+      }
+      const message = "The Muse host restarted to apply the new sandbox setting.";
+      this.forgetHost(managed, message);
+      this.emit("helicon", { type: "host", key: managed.key, state: "restarted", message });
+    }
+  }
+
   private async serveTargetFor(cwd: string): Promise<ServeTarget> {
+    // Sandbox posture is fixed at spawn: every host carries the setting as it stands now.
+    const sandboxDisabled = this.store.getSandboxSettings().disabled;
+    const serveArgs = sandboxDisabled ? ["serve", "--disable-sandbox"] : ["serve"];
     if (this.options.platform !== "win32") {
-      return { command: this.options.musePath ?? "muse", args: ["serve"], cwd: cwd || process.cwd() };
+      return { command: this.options.musePath ?? "muse", args: serveArgs, cwd: cwd || process.cwd() };
     }
     const runtime = await this.museRuntime();
     let musePath = this.options.musePath ?? null;
@@ -2635,7 +2688,7 @@ export class HeliconServer {
       const releaseInfo = this.releaseInfoFor(musePath);
       return {
         command: musePath,
-        args: ["serve"],
+        args: serveArgs,
         cwd: this.spawnCwdFor(cwd) || process.cwd(),
         ...(releaseInfo ? { env: { ...process.env, MUSE_RELEASE_INFO: releaseInfo } } : {}),
       };
@@ -2645,6 +2698,7 @@ export class HeliconServer {
       distro: this.options.distro ?? "Ubuntu",
       musePath,
       cwd: this.spawnCwdFor(cwd),
+      sandboxDisabled,
     });
     return { command: plan.command, args: plan.args, cwd: plan.cwd };
   }

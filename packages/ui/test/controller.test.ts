@@ -133,6 +133,20 @@ class FakeClient implements HeliconClient {
     };
     return { ...this.titleSettings };
   }
+  sandboxSettings = { disabled: false };
+  sandboxError: Error | null = null;
+  async getSandboxSettings() {
+    return { ...this.sandboxSettings };
+  }
+  async setSandboxSettings(patch: { disabled?: boolean }) {
+    if (this.sandboxError) {
+      const error = this.sandboxError;
+      this.sandboxError = null;
+      throw error;
+    }
+    this.sandboxSettings = { disabled: patch.disabled ?? this.sandboxSettings.disabled };
+    return { ...this.sandboxSettings };
+  }
   async setSessionModel() {}
   async setApprovalMode() {}
   async setProjectOrder(cwds: string[]) {
@@ -296,6 +310,33 @@ describe("HeliconController", () => {
     await controller.setTitleEnabled(false);
     assert.deepEqual(controller.store.get().titleSettings, { enabled: true, modelId: null }, "a failed flip rolls back");
     assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /Could not change thread titles/);
+    stop();
+  });
+
+  it("loads the sandbox switch at boot and flips it with rollback", async () => {
+    const client = new FakeClient();
+    client.sandboxSettings = { disabled: true };
+    const { controller, stop } = await started(client);
+    assert.deepEqual(controller.store.get().sandboxSettings, { disabled: true });
+
+    await controller.setSandboxDisabled(false);
+    assert.deepEqual(controller.store.get().sandboxSettings, { disabled: false });
+
+    client.sandboxError = new Error("daemon away");
+    await controller.setSandboxDisabled(true);
+    assert.deepEqual(controller.store.get().sandboxSettings, { disabled: false }, "a failed flip rolls back");
+    assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /Could not change the sandbox setting/);
+    stop();
+  });
+
+  it("clears the host error and toasts when hosts restart for the sandbox switch", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.handler?.({ type: "host", key: "k", state: "failed", message: "boom" });
+    assert.equal(controller.store.get().hostError, "boom");
+    client.handler?.({ type: "host", key: "k", state: "restarted", message: "The Muse host restarted." });
+    assert.equal(controller.store.get().hostError, null);
+    assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /Muse hosts restarted/);
     stop();
   });
 

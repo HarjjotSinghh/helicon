@@ -269,6 +269,11 @@ export interface TitleSettings {
   modelId: string | null;
 }
 
+/** Server-owned Muse sandbox posture: whether hosts spawn with `--disable-sandbox`. */
+export interface SandboxSettings {
+  disabled: boolean;
+}
+
 /** A skill Muse can load in a workspace, from `muse skills list`. Skills switched off are left out. */
 export interface SkillEntry {
   id: string;

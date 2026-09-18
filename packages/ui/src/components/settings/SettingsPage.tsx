@@ -101,11 +101,13 @@ export function SettingsPage() {
   const prefs = useApp((s) => s.prefs);
   const models = useApp((s) => s.models);
   const titleSettings = useApp((s) => s.titleSettings);
+  const sandboxSettings = useApp((s) => s.sandboxSettings);
   const env = useApp((s) => s.env);
   const updates = useApp((s) => s.updates);
   const bypassAll = useApp((s) => s.bypassAll);
   const armedThreads = useApp((s) => s.bypassThreads.length);
   const [confirmBypass, setConfirmBypass] = useState(false);
+  const [confirmSandbox, setConfirmSandbox] = useState(false);
   const now = useNow(60_000);
   const busy = updates?.status === "checking" || updates?.status === "downloading" || updates?.status === "installing";
   const drag = useOverlayDragProps();
@@ -121,7 +123,7 @@ export function SettingsPage() {
         </Button>
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold text-fg">Settings</h1>
-          <p className="text-xs text-muted">Kept on this device. Nothing here changes a thread that is already running.</p>
+          <p className="text-xs text-muted">Kept on this device. Most settings leave running threads alone; the sandbox switch restarts Muse hosts at once.</p>
         </div>
       </header>
 
@@ -274,6 +276,23 @@ export function SettingsPage() {
           ) : null}
         </Section>
 
+        <Section title="Sandbox">
+          <Row
+            label="Disable sandboxing"
+            description="Muse's shells run sandboxed: filesystem and network access is confined. Switching this off lifts that confinement for every thread, and restarts the running Muse hosts, interrupting their turns."
+          >
+            {sandboxSettings ? (
+              <Toggle
+                checked={sandboxSettings.disabled}
+                label="Disable sandboxing"
+                onChange={(on) => (on ? setConfirmSandbox(true) : void controller.setSandboxDisabled(false))}
+              />
+            ) : (
+              <p className="text-xs text-subtle">Loading…</p>
+            )}
+          </Row>
+        </Section>
+
         <Section title="Notifications">
           <Row
             label="Tell me when a thread needs me"
@@ -355,6 +374,28 @@ export function SettingsPage() {
             }}
           >
             Answer them for me
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={confirmSandbox}
+        onOpenChange={setConfirmSandbox}
+        title="Disable Muse's sandbox?"
+        description="Every thread's shells will run without filesystem or network confinement, and the running Muse hosts restart, interrupting their turns. Only do this in a disposable environment."
+      >
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setConfirmSandbox(false)}>
+            Keep the sandbox
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setConfirmSandbox(false);
+              void controller.setSandboxDisabled(true);
+            }}
+          >
+            Disable sandboxing
           </Button>
         </div>
       </Modal>
