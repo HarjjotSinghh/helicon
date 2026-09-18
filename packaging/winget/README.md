@@ -47,5 +47,6 @@ its template. It does nothing until `WINGET_TOKEN` exists.
   Bump it deliberately.
 
 - Our installer is Tauri's NSIS bundle. It installs per user, so no elevation and `Scope: user`.
-- `InstallerType: nsis` is what tells winget the silent switch is `/S`; do not hand-write `InstallerSwitches`.
+- `InstallerType: nullsoft` is what tells winget the silent switch is `/S`; do not hand-write `InstallerSwitches`.
+  winget has no `nsis` value, and `ReleaseNotesUrl` belongs to the locale manifest, not the installer one.
 - The identifier is `HarjjotSinghh.Helicon`, which must match the folder path under `manifests/h/`.
