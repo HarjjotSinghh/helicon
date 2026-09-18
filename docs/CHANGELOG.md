@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Custom model endpoints.** Settings → **Model endpoints** can send Muse's model calls somewhere other than your Muse login: any OpenAI-compatible gateway that serves Muse models over the Responses API. Give it a name, a base URL and its API key; the key is kept by your Helicon server in its local database and never sent to the UI. Each endpoint runs Muse in its own isolated home, so its threads stay apart from your terminal Muse's. Not available in the Windows WSL runtime yet.
+- **Every provider in one model picker.** The picker groups models by provider — your own login and each endpoint — and a thread keeps the provider it was created on, so a model switch never crosses Muse homes; to move, start a new thread. **Default provider** in Settings picks where new threads start, each provider remembers the model you last chose for it, and **Refresh models** reads an endpoint's own `/models`. Threads from every provider are discovered and listed, and the OpenCode Go mark or the thread header's chip shows which home serves a thread.
+- **Session statistics above the composer.** Two pills — on by default, switchable in Settings under **Session statistics** — summarize the open thread: turns, steps, request-average speed and model time, plus exact token counts with the cache split and a per-model breakdown. Every number comes from the thread it is shown in; nothing leaves your machine.
+
 ## 0.13.0
 
 ### New
