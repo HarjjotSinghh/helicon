@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
 
 PackageIdentifier: HarjjotSinghh.Helicon
-PackageVersion: 0.12.6
+PackageVersion: 0.13.0
 Platform:
 - Windows.Desktop
 MinimumOSVersion: 10.0.17763.0
@@ -16,7 +16,7 @@ UpgradeBehavior: install
 ReleaseNotesUrl: https://github.com/HarjjotSinghh/helicon/releases/latest
 Installers:
 - Architecture: x64
-  InstallerUrl: https://github.com/HarjjotSinghh/helicon/releases/download/v0.12.6/Helicon_0.12.6_x64-setup.exe
-  InstallerSha256: 56E319E3A7156F8513275FD3212AA432F1FBCCB5EF8DA6D82C2352CD3168F6F8
+  InstallerUrl: https://github.com/HarjjotSinghh/helicon/releases/download/v0.13.0/Helicon_0.13.0_x64-setup.exe
+  InstallerSha256: EA08A6136FCD593021D19019BD3B532AF85762B675E097F64E21E8B6FE22306A
 ManifestType: installer
 ManifestVersion: 1.12.0
