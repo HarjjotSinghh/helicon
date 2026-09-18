@@ -95,7 +95,7 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - name: Install Tauri Linux dependencies
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev squashfs-tools
       - run: npm ci
       - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
       # Pinned to a commit: this step holds the updater signing key, so a moved tag must not change what runs.
@@ -117,3 +117,37 @@ jobs:
           # GitHub sometimes refuses a large asset upload ("Error saving asset"); retrying saves a manual job rerun.
           retryAttempts: 3
           args: --target x86_64-unknown-linux-gnu
+      # linuxdeploy bundles Ubuntu 22.04's libwayland-*. Newer host Mesa fails EGL init
+      # against the stale copy, so WebKitGTK aborts with EGL_BAD_ALLOC before the window
+      # opens (tauri-apps/tauri#15665). Repack without those libraries so the AppImage
+      # uses the host ones, then re-sign and republish it.
+      - name: Strip bundled Wayland libraries from AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          cd "$work"
+          gh release download "${{ github.ref_name }}" --pattern "*.AppImage" --clobber
+          appimage=(Helicon_*_amd64.AppImage)
+          "./${appimage[0]}" --appimage-extract
+          rm -f squashfs-root/usr/lib/libwayland-client.so.0 squashfs-root/usr/lib/libwayland-cursor.so.0 \
+            squashfs-root/usr/lib/libwayland-egl.so.1 squashfs-root/usr/lib/libwayland-server.so.0
+          curl -sSL --fail -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run squashfs-root "${appimage[0]}"
+          "${{ github.workspace }}/node_modules/.bin/tauri" signer sign "${appimage[0]}"
+          gh release download "${{ github.ref_name }}" --pattern "latest.json" --clobber
+          SIG_FILE="${appimage[0]}.sig" node -e '
+            const fs = require("fs");
+            const latest = JSON.parse(fs.readFileSync("latest.json", "utf8"));
+            const signature = fs.readFileSync(process.env.SIG_FILE, "utf8").trim();
+            for (const platform of ["linux-x86_64", "linux-x86_64-appimage"]) {
+              latest.platforms[platform].signature = signature;
+            }
+            fs.writeFileSync("latest.json", JSON.stringify(latest, null, 2));
+          '
+          gh release upload "${{ github.ref_name }}" "${appimage[0]}" "${appimage[0]}.sig" latest.json --clobber
