@@ -1,12 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.13.2
 
 ### New
 
 - **Custom model endpoints.** Settings → **Model endpoints** can send Muse's model calls somewhere other than your Muse login: any OpenAI-compatible gateway that serves Muse models over the Responses API. Give it a name, a base URL and its API key; the key is kept by your Helicon server in its local database and never sent to the UI. Each endpoint runs Muse in its own isolated home, so its threads stay apart from your terminal Muse's. Not available in the Windows WSL runtime yet.
 - **Every provider in one model picker.** The picker groups models by provider — your own login and each endpoint — and a thread keeps the provider it was created on, so a model switch never crosses Muse homes; to move, start a new thread. **Default provider** in Settings picks where new threads start, each provider remembers the model you last chose for it, and **Refresh models** reads an endpoint's own `/models`. Threads from every provider are discovered and listed, and the OpenCode Go mark or the thread header's chip shows which home serves a thread.
 - **Session statistics above the composer.** Two pills — on by default, switchable in Settings under **Session statistics** — summarize the open thread: turns, steps, request-average speed and model time, plus exact token counts with the cache split and a per-model breakdown. Every number comes from the thread it is shown in; nothing leaves your machine.
+
+### Fixed
+
+- **Endpoint settings keep credentials and threads with their provider** ([#31](https://github.com/HarjjotSinghh/helicon/pull/31)). A custom endpoint never inherits the own login's API key, endpoint IDs stay inside their managed home, and API keys require HTTPS except for local proxies. Saved sessions keep their endpoint configuration; edits require affected work to be idle, then refresh its hosts. A delayed model refresh cannot undo a newer edit or restore a deleted endpoint.
+- **Provider choices stay current.** Adding, editing or refreshing an endpoint updates the model picker immediately. Each provider keeps its own model preference, delayed requests cannot restore an older provider choice, and title generation only offers models its own-login runner can use. A saved API key can be explicitly cleared in Settings.
+- **Long threads keep their full token totals.** Session statistics use cumulative token counts and label incomplete call history as partial. Cache hits use the provider's cache-read counter without double counting or exceeding the prompt size.
 
 ## 0.13.1
 

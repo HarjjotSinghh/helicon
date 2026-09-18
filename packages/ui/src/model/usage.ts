@@ -437,6 +437,11 @@ export interface TelemetryModelUsage {
 
 /** Live per-thread totals for the telemetry pills above the composer. */
 export interface SessionTelemetry {
+  /** Call-derived details cover only the loaded history. */
+  partial: boolean;
+  /** Cumulative tokens when available, otherwise the loaded calls' sum. */
+  totalTokens: number;
+  totalsComplete: boolean;
   /** Turns the fold knows about, including the one still running. */
   turns: number;
   /** Model calls the session made. */
@@ -450,6 +455,8 @@ export interface SessionTelemetry {
   promptTokens: number;
   outputTokens: number;
   cachedTokens: number;
+  /** Uncached input in the loaded calls, using the same cache convention as cacheHitPct. */
+  uncachedTokens: number;
   cacheWriteTokens: number;
   reasoningTokens: number;
   /** Share of prompt tokens served from cache, rounded 0–100; null before any prompt tokens. */
@@ -462,7 +469,7 @@ export interface SessionTelemetry {
  * the fold's own, so a thread mid-turn is counted too; speed and time only cover the calls that
  * reported a duration, the way turnSpeed measures but across the whole session.
  */
-export function sessionTelemetry(fold: ThreadFold): SessionTelemetry {
+export function sessionTelemetry(fold: ThreadFold, truncated = false): SessionTelemetry {
   const calls = Object.values(fold.meta.calls);
   let timedCalls = 0;
   let durationMs = 0;
@@ -476,7 +483,7 @@ export function sessionTelemetry(fold: ThreadFold): SessionTelemetry {
   for (const call of calls) {
     promptTokens += call.promptTokens;
     outputTokens += call.outputTokens;
-    cachedTokens += call.cachedTokens;
+    cachedTokens += cacheReads(call);
     cacheWriteTokens += call.cacheWriteTokens;
     reasoningTokens += call.reasoningTokens;
     if (call.durationMs !== null) {
@@ -490,15 +497,21 @@ export function sessionTelemetry(fold: ThreadFold): SessionTelemetry {
     entry.outputTokens += call.outputTokens;
     byModel.set(id, entry);
   }
+  const totals = fold.meta.tokenTotals;
+  const partial = truncated || Boolean(totals && (totals.promptTokens > promptTokens || totals.outputTokens > outputTokens));
   return {
+    partial,
+    totalTokens: totals?.totalTokens ?? promptTokens + outputTokens,
+    totalsComplete: totals !== null || !partial,
     turns: Object.keys(fold.turns).length,
     steps: calls.length,
     timedCalls,
     durationMs,
     tokensPerSecond: timedCalls > 0 && durationMs > 0 ? (timedOutput / durationMs) * 1000 : null,
-    promptTokens,
-    outputTokens,
+    promptTokens: totals?.promptTokens ?? promptTokens,
+    outputTokens: totals?.outputTokens ?? outputTokens,
     cachedTokens,
+    uncachedTokens: Math.max(0, promptTokens - cachedTokens),
     cacheWriteTokens,
     reasoningTokens,
     cacheHitPct: promptTokens > 0 ? Math.round((cachedTokens / promptTokens) * 100) : null,
@@ -509,12 +522,12 @@ export function sessionTelemetry(fold: ThreadFold): SessionTelemetry {
 /** The time pill's label: `3 turns · 8 steps · 62 tok/s`, the speed left off when nothing timed. */
 export function timePillLabel(t: SessionTelemetry): string {
   const speed = t.tokensPerSecond === null ? "" : ` · ${formatTokensPerSecond(t.tokensPerSecond)}`;
-  return `${t.turns} turns · ${t.steps} steps${speed}`;
+  return `${t.partial ? "Partial · " : ""}${t.turns} turns · ${t.steps} steps${speed}`;
 }
 
 /** The usage pill's label: `252K tok · Cache hit 87%`, the cache left off before any prompt tokens. */
 export function usagePillLabel(t: SessionTelemetry): string {
-  const total = formatCompactTokens(t.promptTokens + t.outputTokens).toUpperCase();
-  const hit = t.cacheHitPct === null ? "" : ` · Cache hit ${t.cacheHitPct}%`;
-  return `${total} tok${hit}`;
+  const total = formatCompactTokens(t.totalTokens).toUpperCase();
+  const hit = t.partial || t.cacheHitPct === null ? "" : ` · Cache hit ${t.cacheHitPct}%`;
+  return `${total}${t.totalsComplete ? "" : "+"} tok${hit}`;
 }

@@ -165,4 +165,24 @@ describe("HeliconStore", () => {
     assert.deepEqual(store.getTitleSettings(), { enabled: false, modelId: "m1" });
     assert.deepEqual(store.setTitleSettings({ enabled: true, modelId: null }), { enabled: true, modelId: null });
   });
+
+  it("counts archived endpoint references and guards catalog refreshes by the full snapshot", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/p");
+    const endpoint = store.upsertEndpoint({
+      id: "zen-1",
+      name: "Zen",
+      baseUrl: "https://zen.example",
+      apiKey: null,
+      defaultModel: null,
+      modelsJson: "[]",
+    });
+    store.recordSession({ id: "s1", projectId: project.id, endpointId: endpoint.id });
+    store.updateSession("s1", { archived: true });
+    assert.equal(store.countSessionsForEndpoint(endpoint.id), 1);
+    assert.equal(store.updateEndpointModelsIfUnchanged({ ...endpoint, name: "changed elsewhere" }, "[]"), null);
+    const refreshed = store.updateEndpointModelsIfUnchanged(endpoint, '[{"model_id":"muse-new"}]');
+    assert.deepEqual(refreshed && JSON.parse(refreshed.modelsJson), [{ model_id: "muse-new" }]);
+  });
 });

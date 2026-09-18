@@ -178,6 +178,8 @@ Settings → **Model endpoints** can send Muse's model calls somewhere other tha
 
 Each endpoint runs Muse in its own isolated home, so its threads live separately from your terminal Muse's. The model picker lists every provider at once — your login and each endpoint — and a thread keeps the provider it was created on; to move, start a new thread. **Default provider** in Settings picks where new threads start, and each provider remembers the model you last chose for it. "Refresh models" reads an endpoint's `/models`. Not available in the Windows WSL runtime yet.
 
+API keys require HTTPS, except when connecting to a local proxy at `localhost`, `127.0.0.1` or `::1`. A custom endpoint without a saved key never uses the own login's API key. Settings can clear a saved key explicitly. Endpoint changes require its work to be idle, and an endpoint cannot be deleted while saved threads still depend on its configuration.
+
 ## Legal
 
 - Wrapper clients are the intended path (Meta ships an MIT SDK for building MSP clients). This repo builds on that, and on the open-source CLI client.

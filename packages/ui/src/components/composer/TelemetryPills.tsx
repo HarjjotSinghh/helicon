@@ -22,13 +22,14 @@ type TelemetryDialog = "time" | "usage" | null;
 export function TelemetryPills(props: { sessionId: string }) {
   const enabled = useApp((s) => s.prefs.showTelemetry);
   const fold = useApp((s) => s.threads[props.sessionId]?.fold ?? null);
-  const telemetry = useMemo(() => (fold ? sessionTelemetry(fold) : null), [fold]);
+  const truncated = useApp((s) => s.threads[props.sessionId]?.truncated ?? false);
+  const telemetry = useMemo(() => (fold ? sessionTelemetry(fold, truncated) : null), [fold, truncated]);
   const [open, setOpen] = useState<TelemetryDialog>(null);
   if (!enabled || !telemetry || !fold) {
     return null;
   }
-  // A brand-new thread has nothing to count: no turns, no calls, nothing running.
-  if (telemetry.turns === 0 && telemetry.steps === 0 && !fold.activeTurnId) {
+  // A resumed thread may report cumulative usage even when its call history is unavailable.
+  if (telemetry.turns === 0 && telemetry.steps === 0 && telemetry.totalTokens === 0 && !fold.activeTurnId) {
     return null;
   }
   return (
@@ -106,7 +107,11 @@ function TimingPanel(props: { telemetry: SessionTelemetry }) {
           {t.timedCalls > 0 ? formatDuration(t.durationMs) : "—"} <span className="font-normal text-subtle">of model time</span>
         </p>
         <p className="mt-0.5 text-xs text-muted">
-          {t.timedCalls === t.steps ? "Every model call reported how long it took." : "Some calls did not report how long they took."}
+          {t.partial
+            ? "Partial history: timing, turns and steps cover the loaded calls only."
+            : t.timedCalls === t.steps
+              ? "Every model call reported how long it took."
+              : "Some calls did not report how long they took."}
         </p>
       </div>
       <dl className="flex flex-col gap-1 text-xs">
@@ -122,24 +127,31 @@ function TimingPanel(props: { telemetry: SessionTelemetry }) {
 /** Exact token counts, with the cache split and the same per-model totals as the timing panel. */
 function UsagePanel(props: { telemetry: SessionTelemetry }) {
   const t = props.telemetry;
-  const uncached = Math.max(0, t.promptTokens - t.cachedTokens);
   return (
     <div className="flex flex-col gap-3 p-3.5">
       <div>
         <p className="text-sm font-semibold text-fg">
-          {formatExactTokens(t.promptTokens + t.outputTokens)} <span className="font-normal text-subtle">tokens</span>
+          {formatExactTokens(t.totalTokens)}{t.totalsComplete ? "" : "+"} <span className="font-normal text-subtle">tokens</span>
         </p>
-        <p className="mt-0.5 text-xs text-muted">Exact counts over every model call in this thread.</p>
+        <p className="mt-0.5 text-xs text-muted">
+          {t.partial
+            ? t.totalsComplete
+              ? "Session token totals are complete. Cache, reasoning and model details cover loaded calls only."
+              : "Partial history: token counts and details cover loaded calls only."
+            : "Exact counts over every model call in this thread."}
+        </p>
       </div>
       <dl className="flex flex-col gap-1 text-xs">
         <Row label="Output" value={formatExactTokens(t.outputTokens)} />
         {t.reasoningTokens > 0 ? (
-          <div className="pl-2 text-2xs text-subtle tabular-nums">includes {formatExactTokens(t.reasoningTokens)} reasoning</div>
+          <div className="pl-2 text-2xs text-subtle tabular-nums">
+            {t.partial ? "loaded calls include " : "includes "}{formatExactTokens(t.reasoningTokens)} reasoning
+          </div>
         ) : null}
-        <Row label="Uncached input" value={formatExactTokens(uncached)} />
-        <Row label="Cached input" value={formatExactTokens(t.cachedTokens)} />
-        {t.cacheWriteTokens > 0 ? <Row label="Cache write" value={formatExactTokens(t.cacheWriteTokens)} /> : null}
-        <Row label="Cache hit" value={t.cacheHitPct === null ? "—" : `${t.cacheHitPct}%`} />
+        <Row label={t.partial ? "Loaded uncached input" : "Uncached input"} value={formatExactTokens(t.uncachedTokens)} />
+        <Row label={t.partial ? "Loaded cached input" : "Cached input"} value={formatExactTokens(t.cachedTokens)} />
+        {t.cacheWriteTokens > 0 ? <Row label={t.partial ? "Loaded cache write" : "Cache write"} value={formatExactTokens(t.cacheWriteTokens)} /> : null}
+        <Row label={t.partial ? "Loaded cache hit" : "Cache hit"} value={t.cacheHitPct === null ? "—" : `${t.cacheHitPct}%`} />
       </dl>
       <ModelBreakdown models={t.models} />
     </div>

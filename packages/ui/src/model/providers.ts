@@ -1,9 +1,23 @@
+import type { ModelOption } from "../types.js";
+
 /** Provider identity for an endpoint, from where it points rather than what it is called. */
 
 const OPENCODE_GO_HOST = "opencode.ai";
 
 /** The user's own Muse login, which is not an endpoint. */
 export const OWN_PROVIDER = "own";
+
+/** Models the own-login title runner can use, with duplicate ids collapsed. */
+export function ownProviderModels(models: readonly ModelOption[]): ModelOption[] {
+  const seen = new Set<string>();
+  return models.filter((model) => {
+    if (model.providerId !== null || seen.has(model.modelId)) {
+      return false;
+    }
+    seen.add(model.modelId);
+    return true;
+  });
+}
 
 /** One key per provider for state and preferences: "own", or the endpoint's id. */
 export function providerKey(endpointId: string | null | undefined): string {

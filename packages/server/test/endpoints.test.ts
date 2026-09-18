@@ -1,5 +1,6 @@
 import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
+import { createServer as createHttpServer } from "node:http";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -64,6 +65,12 @@ describe("endpoint homes", () => {
     // Muse treats a freshly written cache as current instead of refetching from the gateway.
     assert.ok(Date.now() - statSync(settingsPath).mtimeMs < 60_000);
     assert.ok(Date.now() - statSync(cachePath(home.dataHome)).mtimeMs < 60_000);
+  });
+
+  it("rejects unsafe endpoint ids before writing a managed home", async () => {
+    const root = await mkdtemp(join(tmpdir(), "helicon-home-"));
+    assert.throws(() => writeEndpointHome(root, endpoint({ id: "../escape" })), /endpoint id/i);
+    assert.throws(() => writeEndpointHome(root, endpoint({ id: "own" })), /endpoint id/i);
   });
 
   it("prefers the endpoint's default model when it is among the rows", async () => {
@@ -141,9 +148,12 @@ class FakeConnection {
   replies = new Map<string, unknown>();
   calls: { method: string; params: Record<string, unknown> }[] = [];
   handler: ((n: { method: string; params?: unknown }) => void) | null = null;
+  beforeReply: ((method: string) => Promise<void>) | null = null;
+  onClose: (() => void) | null = null;
 
   async command(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     this.calls.push({ method, params });
+    await this.beforeReply?.(method);
     const reply = this.replies.get(method);
     if (reply instanceof Error) {
       throw reply;
@@ -171,7 +181,10 @@ function fakeFactory(connections: FakeConnection | ((target: ServeTarget) => Fak
         return { initializeResult: { serverInfo: { name: "muse", version: "1.1.1" } } };
       },
       connection: connection as never,
-      close: async () => ({ code: 0, signal: null }),
+      close: async () => {
+        connection.onClose?.();
+        return { code: 0, signal: null };
+      },
     };
   };
 }
@@ -282,6 +295,145 @@ describe("custom endpoints API", () => {
     assert.equal(cleared.json.endpoint.hasApiKey, false);
   });
 
+  it("does not inherit the process credential for a keyless endpoint", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s-keyless" } });
+    const targets: ServeTarget[] = [];
+    const { base } = await start(connection, targets);
+    const previous = process.env["META_API_KEY"];
+    process.env["META_API_KEY"] = "ambient-secret";
+    try {
+      const created = await send(base, "/api/endpoints", { name: "Keyless", baseUrl: "https://zen.example" }, "PUT");
+      assert.equal(created.status, 200);
+      await send(base, "/api/sessions", { cwd: "/work/keyless", endpointId: created.json.endpoint.id });
+      assert.equal(targets.at(-1)?.env?.["META_API_KEY"], undefined);
+    } finally {
+      if (previous === undefined) delete process.env["META_API_KEY"];
+      else process.env["META_API_KEY"] = previous;
+    }
+  });
+
+  it("uses the updated endpoint home after an idle endpoint edit", async () => {
+    const targets: ServeTarget[] = [];
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s-edit" } });
+    const { base } = await start(connection, targets);
+    const created = await send(base, "/api/endpoints", { name: "Zen", baseUrl: "https://old.example", apiKey: "old-key" }, "PUT");
+    const id = created.json.endpoint.id as string;
+    await send(base, "/api/sessions", { cwd: "/work/edit", endpointId: id });
+    const saved = await send(base, "/api/endpoints", { id, name: "Zen", baseUrl: "https://new.example", apiKey: "new-key" }, "PUT");
+    assert.equal(saved.status, 200);
+    await send(base, "/api/sessions", { cwd: "/work/edit", endpointId: id });
+    assert.equal(targets.length, 2, "the old idle host was invalidated");
+    assert.equal(targets.at(-1)?.env?.["META_API_KEY"], "new-key");
+  });
+
+  it("ignores late notifications from an invalidated endpoint host", async () => {
+    const targets: ServeTarget[] = [];
+    const connections: FakeConnection[] = [];
+    const { base } = await start(
+      (target) => {
+        const connection = new FakeConnection();
+        connection.replies.set("session/start", { session: { sessionId: connections.length === 0 ? "s-old" : "s-new" } });
+        connections.push(connection);
+        return connection;
+      },
+      targets,
+    );
+    const created = await send(base, "/api/endpoints", { name: "Zen", baseUrl: "https://old.example" }, "PUT");
+    const id = created.json.endpoint.id as string;
+    await send(base, "/api/sessions", { cwd: "/work/late", endpointId: id });
+    await send(base, "/api/endpoints", { id, name: "Zen", baseUrl: "https://new.example" }, "PUT");
+    await send(base, "/api/sessions", { cwd: "/work/late", endpointId: id });
+    connections[0]?.handler?.({ method: "turn/started", params: { sessionId: "s-new", turnId: "late" } });
+    const edited = await send(base, "/api/endpoints", { id, name: "Zen", baseUrl: "https://newer.example" }, "PUT");
+    assert.equal(edited.status, 200, "a retired host cannot make the current session appear busy");
+  });
+
+  it("refuses endpoint edits while a turn is running", async () => {
+    const targets: ServeTarget[] = [];
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s-busy" } });
+    const { base } = await start(connection, targets);
+    const created = await send(base, "/api/endpoints", { name: "Zen", baseUrl: "https://old.example" }, "PUT");
+    const id = created.json.endpoint.id as string;
+    await send(base, "/api/sessions", { cwd: "/work/busy", endpointId: id });
+    connection.handler?.({ method: "turn/started", params: { sessionId: "s-busy", turnId: "t1" } });
+    const edited = await send(base, "/api/endpoints", { id, name: "Zen", baseUrl: "https://new.example" }, "PUT");
+    assert.equal(edited.status, 409);
+    assert.equal(targets.length, 1, "a running turn keeps its host alive");
+  });
+
+  it("refuses endpoint edits while a turn request is still in flight", async () => {
+    let requested!: () => void;
+    let release!: () => void;
+    const requestedPromise = new Promise<void>((resolve) => (requested = resolve));
+    const releasePromise = new Promise<void>((resolve) => (release = resolve));
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s-in-flight" } });
+    connection.replies.set("turn/start", { turnId: "t-in-flight", status: "running", disposition: "started" });
+    connection.beforeReply = async (method) => {
+      if (method === "turn/start") {
+        requested();
+        await releasePromise;
+      }
+    };
+    const targets: ServeTarget[] = [];
+    const { base } = await start(connection, targets);
+    const created = await send(base, "/api/endpoints", { name: "Zen", baseUrl: "https://old.example" }, "PUT");
+    const id = created.json.endpoint.id as string;
+    await send(base, "/api/sessions", { cwd: "/work/in-flight", endpointId: id });
+    const turn = send(base, "/api/turns", { sessionId: "s-in-flight", text: "wait" });
+    await requestedPromise;
+    assert.equal((await send(base, "/api/endpoints", { id, name: "Zen", baseUrl: "https://new.example" }, "PUT")).status, 409);
+    release();
+    assert.equal((await turn).status, 200);
+  });
+
+  it("does not resurrect an endpoint deleted during model refresh", async () => {
+    let requested!: () => void;
+    let release!: () => void;
+    const requestedPromise = new Promise<void>((resolve) => (requested = resolve));
+    const releasePromise = new Promise<void>((resolve) => (release = resolve));
+    const gateway = createHttpServer(async (_req, res) => {
+      requested();
+      await releasePromise;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ data: [{ id: "muse-new" }] }));
+    });
+    await new Promise<void>((resolve) => gateway.listen(0, "127.0.0.1", resolve));
+    const address = gateway.address();
+    assert.equal(typeof address, "object");
+    const baseUrl = `http://127.0.0.1:${(address as { port: number }).port}`;
+    try {
+      const { base } = await start(new FakeConnection(), []);
+      const created = await send(base, "/api/endpoints", { name: "Local", baseUrl }, "PUT");
+      const id = created.json.endpoint.id as string;
+      const refreshing = send(base, "/api/endpoints/refresh-models", { id });
+      await requestedPromise;
+      assert.equal((await send(base, `/api/endpoints?id=${encodeURIComponent(id)}`, undefined, "DELETE")).status, 200);
+      release();
+      assert.equal((await refreshing).status, 409);
+      assert.deepEqual((await get(base, "/api/endpoints")).endpoints, []);
+    } finally {
+      await new Promise<void>((resolve) => gateway.close(() => resolve()));
+    }
+  });
+
+  it("requires HTTPS for keyed remote endpoints but permits keyed loopback HTTP", async () => {
+    const targets: ServeTarget[] = [];
+    const { base } = await start(new FakeConnection(), targets);
+    assert.equal((await send(base, "/api/endpoints", { name: "Remote", baseUrl: "http://gateway.example", apiKey: "secret" }, "PUT")).status, 400);
+    assert.equal((await send(base, "/api/endpoints", { name: "Local", baseUrl: "http://127.0.0.1:8080", apiKey: "secret" }, "PUT")).status, 200);
+    assert.equal((await send(base, "/api/endpoints", { name: "Keyless", baseUrl: "http://gateway.example" }, "PUT")).status, 200);
+  });
+
+  it("rejects traversal and the own-login sentinel through the API", async () => {
+    const { base } = await start(new FakeConnection(), []);
+    assert.equal((await send(base, "/api/endpoints", { id: "../escape", name: "Bad", baseUrl: "https://zen.example" }, "PUT")).status, 400);
+    assert.equal((await send(base, "/api/endpoints", { id: "own", name: "Bad", baseUrl: "https://zen.example" }, "PUT")).status, 400);
+  });
+
   it("lists every provider's models and records the provider a thread starts on", async () => {
     const own = new FakeConnection();
     own.replies.set("model/list", { models: [{ modelId: "muse-own" }], profileId: "tbh", providerId: "meta", source: "provider_catalog" });
@@ -312,6 +464,10 @@ describe("custom endpoints API", () => {
     assert.equal(sessions.sessions.find((s: any) => s.sessionId === "s-go")?.endpointId, id);
     assert.equal(zen.calls.filter((c) => c.method === "session/start").length, 1, "the start went to the endpoint's host");
     assert.equal(own.calls.some((c) => c.method === "session/start"), false);
+    const ownModelListsBeforeScoped = own.calls.filter((call) => call.method === "model/list").length;
+    await get(base, `/api/models?sessionId=${encodeURIComponent("s-go")}`);
+    const ownList = own.calls.filter((call) => call.method === "model/list").at(ownModelListsBeforeScoped);
+    assert.deepEqual(ownList?.params, {}, "a custom session must not be sent to the own-login host");
   });
 
   it("adopts a thread recorded before providers existed, and remembers the home that has it", async () => {
@@ -353,6 +509,48 @@ describe("custom endpoints API", () => {
     assert.equal(listed.activeEndpointId, null);
   });
 
+  it("refuses deletion while an archived session still references the endpoint", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s-archived" } });
+    const targets: ServeTarget[] = [];
+    const { base, dataDir } = await start(connection, targets);
+    const created = await send(base, "/api/endpoints", { name: "Zen", baseUrl: "https://zen.example" }, "PUT");
+    const id = created.json.endpoint.id as string;
+    await send(base, "/api/sessions", { cwd: "/work/archive", endpointId: id });
+    const store = new HeliconStore(join(dataDir, "helicon.db"));
+    store.updateSession("s-archived", { archived: true });
+    store.close();
+    const removed = await send(base, `/api/endpoints?id=${encodeURIComponent(id)}`, undefined, "DELETE");
+    assert.equal(removed.status, 409);
+    assert.ok((await get(base, "/api/endpoints")).endpoints.some((item: any) => item.id === id));
+  });
+
+  it("fails explicitly when a persisted session names a missing endpoint", async () => {
+    const targets: ServeTarget[] = [];
+    const { base, dataDir } = await start(new FakeConnection(), targets);
+    const store = new HeliconStore(join(dataDir, "helicon.db"));
+    const project = store.upsertProject("/work/missing-provider");
+    store.recordSession({ id: "s-missing-provider", projectId: project.id, endpointId: "gone" });
+    store.close();
+    const result = await send(base, "/api/sessions/s-missing-provider/model", { model: { modelId: "muse-go" } });
+    assert.equal(result.status, 404);
+    assert.equal(targets.length, 0, "unknown providers never fall back to own login");
+  });
+
+  it("refuses a persisted endpoint id that cannot name a managed home", async () => {
+    const targets: ServeTarget[] = [];
+    const { base, dataDir } = await start(new FakeConnection(), targets);
+    const store = new HeliconStore(join(dataDir, "helicon.db"));
+    const endpointId = "../escape";
+    store.upsertEndpoint({ id: endpointId, name: "Bad", baseUrl: "https://zen.example", apiKey: null, defaultModel: null, modelsJson: "[]" });
+    const project = store.upsertProject("/work/malformed");
+    store.recordSession({ id: "s-malformed", projectId: project.id, endpointId });
+    store.close();
+    const result = await send(base, "/api/sessions/s-malformed/model", { model: { modelId: "muse-go" } });
+    assert.equal(result.status, 409);
+    assert.equal(targets.length, 0);
+  });
+
   it("refuses unknown endpoints and a bad activate body", async () => {
     const connection = new FakeConnection();
     const targets: ServeTarget[] = [];
@@ -372,5 +570,21 @@ describe("custom endpoints API", () => {
     assert.equal(refused.status, 503);
     assert.match(refused.json.error, /WSL runtime/);
     assert.equal(targets.length, 0, "nothing is spawned in WSL for a custom endpoint");
+  });
+
+  it("passes keyless endpoint isolation through native Windows spawning", async () => {
+    const previous = process.env["META_API_KEY"];
+    process.env["META_API_KEY"] = "ambient-secret";
+    try {
+      const targets: ServeTarget[] = [];
+      const { base } = await start(new FakeConnection(), targets, { platform: "win32", musePath: "C:\\Muse\\muse.exe", runtime: "native" });
+      const created = await send(base, "/api/endpoints", { name: "Zen", baseUrl: "https://zen.example" }, "PUT");
+      await send(base, "/api/sessions", { cwd: "C:\\work\\proj", endpointId: created.json.endpoint.id });
+      assert.equal(targets.at(-1)?.env?.["META_API_KEY"], undefined);
+      assert.equal(targets.at(-1)?.env?.["XDG_CONFIG_HOME"]?.includes("config"), true);
+    } finally {
+      if (previous === undefined) delete process.env["META_API_KEY"];
+      else process.env["META_API_KEY"] = previous;
+    }
   });
 });

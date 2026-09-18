@@ -3,7 +3,22 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { OpenCodeGoMark } from "../src/components/ui/primitives.js";
-import { isOpenCodeGoEndpoint } from "../src/model/providers.js";
+import { isOpenCodeGoEndpoint, ownProviderModels } from "../src/model/providers.js";
+import type { ModelOption } from "../src/types.js";
+
+const model = (modelId: string, providerId: string | null): ModelOption => ({
+  modelId,
+  displayLabel: modelId,
+  description: null,
+  isDefault: false,
+  isActive: false,
+  contextLimit: null,
+  outputLimit: null,
+  cost: null,
+  contributor: false,
+  providerId,
+  providerName: providerId,
+});
 
 describe("isOpenCodeGoEndpoint", () => {
   it("matches the OpenCode host, its subdomains, case and ports alike", () => {
@@ -21,6 +36,19 @@ describe("isOpenCodeGoEndpoint", () => {
     assert.equal(isOpenCodeGoEndpoint(""), false);
     assert.equal(isOpenCodeGoEndpoint(null), false);
     assert.equal(isOpenCodeGoEndpoint(undefined), false);
+  });
+});
+
+describe("provider model choices", () => {
+  it("keeps title choices to unique own-login models", () => {
+    assert.deepEqual(
+      ownProviderModels([
+        model("muse-spark", null),
+        model("muse-spark", null),
+        model("gateway-only", "gateway"),
+      ]).map((entry) => entry.modelId),
+      ["muse-spark"],
+    );
   });
 });
 

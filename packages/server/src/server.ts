@@ -33,6 +33,7 @@ import {
   type AttachmentRecord,
   type CommandConnection,
   type ExecFn,
+  type EndpointRecord,
   type ServeTarget,
   type ReasoningEffort,
   type SessionRecord,
@@ -46,13 +47,16 @@ import {
   catalogModelIds,
   endpointCatalog,
   fetchEndpointModels,
+  isAllowedEndpointTransport,
+  isSafeEndpointId,
+  managedEndpointRoot,
   normalizeCatalogRows,
   writeEndpointHome,
 } from "./endpoints.js";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 import { buildThreadTitlePrompt, deriveTitle, parseExecTitle, sanitizeThreadTitle } from "./threadTitles.js";
 
-export const HELICON_VERSION = "0.13.1";
+export const HELICON_VERSION = "0.13.2";
 
 export interface HostExit {
   code: number | null;
@@ -620,6 +624,9 @@ export class HeliconServer {
   private readonly store: HeliconStore;
   private readonly hosts = new Map<string, ManagedHost>();
   private readonly starting = new Map<string, Promise<ManagedHost>>();
+  private readonly endpointInvalidations = new Map<string, Promise<void>>();
+  private readonly endpointOperations = new Map<string, number>();
+  private readonly invalidatedHosts = new WeakSet<HostHandle>();
   private readonly fingerprints = new Map<string, unknown>();
   private readonly sinks = new Set<SseSink>();
   private readonly live = new Map<string, LiveState>();
@@ -1086,6 +1093,9 @@ export class HeliconServer {
       // absent for the default the Settings page sets.
       const requested = body["endpointId"];
       const endpointId = requested === undefined ? this.store.getActiveEndpointId() : requested === null ? null : str(requested);
+      if (endpointId && !isSafeEndpointId(endpointId)) {
+        throw new HttpError(400, "endpointId must be a safe endpoint id and cannot be 'own'.");
+      }
       if (endpointId && !this.store.getEndpoint(endpointId)) {
         throw new HttpError(404, "Unknown model endpoint.");
       }
@@ -1489,13 +1499,40 @@ export class HeliconServer {
         throw new HttpError(400, "baseUrl must be an http(s) URL.");
       }
       const id = str(body["id"]) ?? randomUUID();
+      if (!isSafeEndpointId(id)) {
+        throw new HttpError(400, "id must be a safe endpoint id and cannot be 'own'.");
+      }
       const existing = this.store.getEndpoint(id);
       // An absent apiKey keeps the stored one; an empty string is how the UI clears it.
       const apiKey = body["apiKey"] === undefined ? (existing?.apiKey ?? null) : str(body["apiKey"]);
+      if (!isAllowedEndpointTransport(baseUrl, apiKey)) {
+        throw new HttpError(400, "API keys require HTTPS except for localhost, 127.0.0.1, or ::1.");
+      }
       const defaultModel = str(body["defaultModel"]);
       const modelsJson =
         existing && catalogModelIds(existing.modelsJson).length > 0 ? existing.modelsJson : JSON.stringify(bundledModelRows());
-      const saved = this.store.upsertEndpoint({ id, name, baseUrl, apiKey, defaultModel, modelsJson });
+      const changed =
+        !existing ||
+        existing.name !== name ||
+        existing.baseUrl !== baseUrl ||
+        existing.apiKey !== apiKey ||
+        existing.defaultModel !== defaultModel ||
+        existing.modelsJson !== modelsJson;
+      if (existing && changed) {
+        this.reserveEndpointChange(id);
+      }
+      let saved: EndpointRecord;
+      try {
+        saved = this.store.upsertEndpoint({ id, name, baseUrl, apiKey, defaultModel, modelsJson });
+        if (existing && changed) {
+          await this.invalidateEndpointHosts(id);
+        }
+      } catch (error) {
+        if (existing && changed) {
+          this.cancelEndpointChange(id);
+        }
+        throw error;
+      }
       this.json(res, 200, {
         endpoint: {
           id: saved.id,
@@ -1514,7 +1551,23 @@ export class HeliconServer {
       if (!id) {
         throw new HttpError(400, "id is required.");
       }
-      this.store.deleteEndpoint(id);
+      if (!isSafeEndpointId(id)) {
+        throw new HttpError(400, "id must be a safe endpoint id and cannot be 'own'.");
+      }
+      if (!this.store.getEndpoint(id)) {
+        throw new HttpError(404, "Unknown endpoint.");
+      }
+      if (this.store.countSessionsForEndpoint(id) > 0) {
+        throw new HttpError(409, "This endpoint is still referenced by saved sessions.");
+      }
+      this.reserveEndpointChange(id);
+      try {
+        this.store.deleteEndpoint(id);
+        await this.invalidateEndpointHosts(id);
+      } catch (error) {
+        this.cancelEndpointChange(id);
+        throw error;
+      }
       this.json(res, 200, { ok: true });
       return true;
     }
@@ -1524,6 +1577,9 @@ export class HeliconServer {
       const id = body["id"] === null ? null : str(body["id"]);
       if (body["id"] !== null && !id) {
         throw new HttpError(400, "id must be an endpoint id or null.");
+      }
+      if (id && !isSafeEndpointId(id)) {
+        throw new HttpError(400, "id must be a safe endpoint id and cannot be 'own'.");
       }
       if (id && !this.store.getEndpoint(id)) {
         throw new HttpError(404, "Unknown endpoint.");
@@ -1539,16 +1595,32 @@ export class HeliconServer {
       if (!id) {
         throw new HttpError(400, "id is required.");
       }
+      if (!isSafeEndpointId(id)) {
+        throw new HttpError(400, "id must be a safe endpoint id and cannot be 'own'.");
+      }
       const endpoint = this.store.getEndpoint(id);
       if (!endpoint) {
         throw new HttpError(404, "Unknown endpoint.");
+      }
+      if (!isAllowedEndpointTransport(endpoint.baseUrl, endpoint.apiKey)) {
+        throw new HttpError(400, "API keys require HTTPS except for localhost, 127.0.0.1, or ::1.");
       }
       const fetched = await fetchEndpointModels(endpoint.baseUrl, endpoint.apiKey);
       if (!fetched) {
         throw new HttpError(502, `Could not fetch the model list from ${endpoint.baseUrl}.`);
       }
       const rows = normalizeCatalogRows(fetched, endpoint.defaultModel);
-      this.store.upsertEndpoint({ ...endpoint, modelsJson: JSON.stringify(rows) });
+      this.reserveEndpointChange(id);
+      try {
+        const updated = this.store.updateEndpointModelsIfUnchanged(endpoint, JSON.stringify(rows));
+        if (!updated) {
+          throw new HttpError(409, "The endpoint changed while its models were refreshing; try again.");
+        }
+        await this.invalidateEndpointHosts(id);
+      } catch (error) {
+        this.cancelEndpointChange(id);
+        throw error;
+      }
       this.json(res, 200, { models: rows.map((row) => row.model_id) });
       return true;
     }
@@ -1744,6 +1816,72 @@ export class HeliconServer {
   private isBusy(sessionId: string): boolean {
     const live = this.live.get(sessionId);
     return Boolean(live && (live.activeTurnId || live.pendingApprovals.size > 0 || live.pendingInputs.size > 0));
+  }
+
+  private reserveEndpointChange(endpointId: string): void {
+    if (this.endpointInvalidations.has(endpointId)) {
+      throw new HttpError(409, "The endpoint is already changing; try again shortly.");
+    }
+    if ((this.endpointOperations.get(endpointId) ?? 0) > 0) {
+      throw new HttpError(409, "The endpoint is starting a session; try again when it is idle.");
+    }
+    const prefix = `${endpointId}\u0000`;
+    if ([...this.starting.keys()].some((key) => key.startsWith(prefix))) {
+      throw new HttpError(409, "The endpoint is starting a host; try again when it is idle.");
+    }
+    for (const [sessionId, key] of this.sessionHosts) {
+      if (key.startsWith(prefix) && this.isBusy(sessionId)) {
+        throw new HttpError(409, "The endpoint has a running turn; wait for it to finish before changing it.");
+      }
+    }
+    let resolveGate!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      resolveGate = resolve;
+    });
+    this.endpointInvalidations.set(endpointId, gate);
+    this.endpointChangeResolvers.set(endpointId, resolveGate);
+  }
+
+  private readonly endpointChangeResolvers = new Map<string, () => void>();
+
+  private cancelEndpointChange(endpointId: string): void {
+    this.endpointChangeResolvers.get(endpointId)?.();
+    this.endpointChangeResolvers.delete(endpointId);
+    this.endpointInvalidations.delete(endpointId);
+  }
+
+  private async trackedEndpointCall<T>(endpointId: string, handle: HostHandle, call: () => Promise<T>): Promise<T> {
+    if (this.endpointInvalidations.has(endpointId) || this.invalidatedHosts.has(handle)) {
+      throw new HttpError(409, "The endpoint is changing; retry this operation shortly.");
+    }
+    this.endpointOperations.set(endpointId, (this.endpointOperations.get(endpointId) ?? 0) + 1);
+    try {
+      return await call();
+    } finally {
+      const remaining = (this.endpointOperations.get(endpointId) ?? 1) - 1;
+      if (remaining > 0) this.endpointOperations.set(endpointId, remaining);
+      else this.endpointOperations.delete(endpointId);
+    }
+  }
+
+  private async invalidateEndpointHosts(endpointId: string): Promise<void> {
+    const prefix = `${endpointId}\u0000`;
+    const closingHosts: Promise<unknown>[] = [];
+    for (const [key, managed] of this.hosts) {
+      if (!key.startsWith(prefix)) {
+        continue;
+      }
+      this.invalidatedHosts.add(managed.handle);
+      this.hostExited(managed, { code: null, signal: null }, "stopped");
+      closingHosts.push(managed.handle.close().catch(() => undefined));
+    }
+    try {
+      await Promise.all(closingHosts);
+    } finally {
+      this.endpointChangeResolvers.get(endpointId)?.();
+      this.endpointChangeResolvers.delete(endpointId);
+      this.endpointInvalidations.delete(endpointId);
+    }
   }
 
   /** New activity wakes a settled thread, and lifts a manual "keep active" so auto-settle can apply again. */
@@ -2062,25 +2200,36 @@ export class HeliconServer {
   ): Promise<Record<string, unknown>> {
     const project = this.store.upsertProject(cwd);
     this.store.setHidden(cwd, false);
-    const host = await this.hostFor(cwd, endpointId);
-    const started = await host.manager.startSession({
-      workspaceRoot: this.hostPathFor(cwd),
-      approvalMode,
-      modelId,
-    });
-    const raw = asRecord(asRecord(started.raw)?.["session"]);
-    const record = this.store.recordSession({
-      id: started.sessionId,
-      projectId: project.id,
-      origin: "helicon",
-      modelId: raw ? str(raw["modelId"]) : null,
-      endpointId,
-      createdAt: normalizeIso(raw?.["createdAt"]),
-    });
-    this.sessionHosts.set(started.sessionId, host.key);
-    this.liveFor(started.sessionId);
-    this.sessionsChanged();
-    return this.summary(record, cwd);
+    if (endpointId) {
+      this.endpointOperations.set(endpointId, (this.endpointOperations.get(endpointId) ?? 0) + 1);
+    }
+    try {
+      const host = await this.hostFor(cwd, endpointId);
+      const started = await host.manager.startSession({
+        workspaceRoot: this.hostPathFor(cwd),
+        approvalMode,
+        modelId,
+      });
+      const raw = asRecord(asRecord(started.raw)?.["session"]);
+      const record = this.store.recordSession({
+        id: started.sessionId,
+        projectId: project.id,
+        origin: "helicon",
+        modelId: raw ? str(raw["modelId"]) : null,
+        endpointId,
+        createdAt: normalizeIso(raw?.["createdAt"]),
+      });
+      this.sessionHosts.set(started.sessionId, host.key);
+      this.liveFor(started.sessionId);
+      this.sessionsChanged();
+      return this.summary(record, cwd);
+    } finally {
+      if (endpointId) {
+        const remaining = (this.endpointOperations.get(endpointId) ?? 1) - 1;
+        if (remaining > 0) this.endpointOperations.set(endpointId, remaining);
+        else this.endpointOperations.delete(endpointId);
+      }
+    }
   }
 
   /**
@@ -2688,13 +2837,16 @@ export class HeliconServer {
    */
   private async hostForSession(sessionId: string): Promise<ManagedHost> {
     const key = this.sessionHosts.get(sessionId);
+    const found = this.store.findSession(sessionId);
+    const recorded = found?.session.endpointId ?? null;
+    if (recorded !== null) {
+      await this.endpointInvalidations.get(recorded);
+    }
     const loaded = key ? this.hosts.get(key) : undefined;
     if (loaded) {
       return loaded;
     }
-    const found = this.store.findSession(sessionId);
     const cwd = found?.cwd ?? "";
-    const recorded = found?.session.endpointId ?? null;
     if (found && recorded === null) {
       for (const providerId of [null, ...this.store.listEndpoints().map((endpoint) => endpoint.id)]) {
         try {
@@ -2710,6 +2862,9 @@ export class HeliconServer {
         }
       }
     }
+    if (recorded !== null && !this.store.getEndpoint(recorded)) {
+      throw new HttpError(404, "This session's model endpoint is no longer configured.");
+    }
     return this.hostFor(cwd, recorded);
   }
 
@@ -2724,9 +2879,11 @@ export class HeliconServer {
    */
   private async listAllModels(sessionId?: string): Promise<Record<string, unknown>[]> {
     const models: Record<string, unknown>[] = [];
+    const sessionProvider = sessionId ? this.store.getSession(sessionId)?.endpointId ?? null : null;
+    const ownSessionId = sessionId && sessionProvider === null ? sessionId : undefined;
     try {
       const host = await this.hostFor("", null);
-      const listing = asRecord(await host.manager.listModels(sessionId));
+      const listing = asRecord(await host.manager.listModels(ownSessionId));
       const rows = listing?.["models"];
       for (const row of Array.isArray(rows) ? rows : []) {
         const record = asRecord(row);
@@ -2763,6 +2920,9 @@ export class HeliconServer {
    */
   private async hostFor(cwd: string, endpointId: string | null = null): Promise<ManagedHost> {
     await this.museRuntime();
+    if (endpointId) {
+      await this.endpointInvalidations.get(endpointId);
+    }
     const key = this.hostKeyFor(cwd, endpointId);
     const existing = this.hosts.get(key);
     if (existing) {
@@ -2802,8 +2962,14 @@ export class HeliconServer {
     }
     this.lastHostError = null;
     this.fingerprints.set(key, started?.fingerprintWarning ?? null);
-    const manager = new SessionManager(handle.connection);
-    manager.onNotification((notification) => this.forward(key, notification));
+    const connection: CommandConnection = endpointId
+      ? {
+          command: (method, params) => this.trackedEndpointCall(endpointId, handle, () => handle.connection.command(method, params)),
+          request: (method, params) => this.trackedEndpointCall(endpointId, handle, () => handle.connection.request?.(method, params) ?? handle.connection.command(method, params)),
+          onNotification: (handler) => handle.connection.onNotification(handler),
+        }
+      : handle.connection;
+    const manager = new SessionManager(connection);
     const serverInfo = asRecord(asRecord(started?.initializeResult)?.["serverInfo"]);
     const managed: ManagedHost = {
       key,
@@ -2813,8 +2979,14 @@ export class HeliconServer {
       serverVersion: serverInfo ? str(serverInfo["version"]) : null,
       startedAt: nowIso(),
     };
-    handle.onExit?.((exit) => this.hostExited(managed, exit));
     this.hosts.set(key, managed);
+    manager.onNotification((notification) => {
+      if (this.hosts.get(key)?.handle !== handle || this.invalidatedHosts.has(handle)) {
+        return;
+      }
+      this.forward(key, notification);
+    });
+    handle.onExit?.((exit) => this.hostExited(managed, exit));
     return managed;
   }
 
@@ -2855,7 +3027,7 @@ export class HeliconServer {
         command: this.options.musePath ?? "muse",
         args: ["serve"],
         cwd: cwd || process.cwd(),
-        ...(endpointEnv ? { env: { ...process.env, ...endpointEnv } } : {}),
+        ...(endpointEnv ? { env: this.hostEnvironment(endpointEnv) } : {}),
       };
     }
     const runtime = await this.museRuntime();
@@ -2874,7 +3046,7 @@ export class HeliconServer {
         command: musePath,
         args: ["serve"],
         cwd: this.spawnCwdFor(cwd) || process.cwd(),
-        ...(Object.keys(extra).length > 0 ? { env: { ...process.env, ...extra } } : {}),
+        ...(Object.keys(extra).length > 0 ? { env: this.hostEnvironment(extra) } : {}),
       };
     }
     if (endpointEnv) {
@@ -2889,20 +3061,38 @@ export class HeliconServer {
     return { command: plan.command, args: plan.args, cwd: plan.cwd };
   }
 
+  private hostEnvironment(extra: Record<string, string | undefined>): Record<string, string | undefined> {
+    const env = { ...process.env, ...extra };
+    if (Object.prototype.hasOwnProperty.call(extra, "META_API_KEY") && extra["META_API_KEY"] === undefined) {
+      delete env["META_API_KEY"];
+    }
+    return env;
+  }
+
   /** Env that points a `muse serve` at that provider's isolated Muse home; null for the user's own login. */
   private endpointSpawnEnv(endpointId: string | null): Record<string, string | undefined> | null {
     const endpoint = endpointId ? this.store.getEndpoint(endpointId) : null;
+    if (endpointId && !endpoint) {
+      throw new HttpError(404, "This model endpoint is no longer configured.");
+    }
     if (!endpoint) {
       return null;
     }
-    const home = writeEndpointHome(join(this.options.endpointsDir, endpoint.id), endpoint);
+    if (!isAllowedEndpointTransport(endpoint.baseUrl, endpoint.apiKey)) {
+      throw new HttpError(400, "API keys require HTTPS except for localhost, 127.0.0.1, or ::1.");
+    }
+    if (!isSafeEndpointId(endpoint.id)) {
+      throw new HttpError(409, "This endpoint has an invalid stored id and cannot be started.");
+    }
+    const endpointRoot = managedEndpointRoot(this.options.endpointsDir, endpoint.id);
+    const home = writeEndpointHome(endpointRoot, endpoint);
     return {
       XDG_CONFIG_HOME: home.configHome,
       XDG_DATA_HOME: home.dataHome,
       // OpenCode's Go gateway drops requests with no x-opencode-session; hosts are pooled per
       // workspace, so the stable endpoint id stands in for one. Unknown headers are harmless elsewhere.
       MUSE_CUSTOM_HEADERS: `x-opencode-session: ${endpoint.id}`,
-      ...(endpoint.apiKey ? { META_API_KEY: endpoint.apiKey } : {}),
+      META_API_KEY: endpoint.apiKey ?? undefined,
     };
   }
 

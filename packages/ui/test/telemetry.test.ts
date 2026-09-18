@@ -4,6 +4,7 @@ import { applyEvents, emptyFold, type ThreadFold } from "../src/model/fold.js";
 import { formatCompactTokens, formatDuration, formatExactTokens, formatTokensPerSecond } from "../src/model/format.js";
 import { sessionTelemetry, timePillLabel, usagePillLabel } from "../src/model/usage.js";
 import type { ViewEvent } from "../src/types.js";
+import { historyEvents } from "./fixtures/probe.js";
 
 function calls(entries: Record<string, unknown>[]): ViewEvent[] {
   return entries.map((params, index) => ({
@@ -21,6 +22,59 @@ function foldWith(events: ViewEvent[]): ThreadFold {
 }
 
 describe("session telemetry", () => {
+  it("uses the provider's cache-read counter without double counting or exceeding the prompt", () => {
+    const fold = foldWith(calls([
+      { promptTokens: 1000, usage: { outputTokens: 100, cacheReadTokens: 900, cachedTokens: 100 } },
+      { promptTokens: 100, usage: { outputTokens: 10, cachedTokens: 500 } },
+    ]));
+    const t = sessionTelemetry(fold);
+    assert.equal(t.cachedTokens, 1000);
+    assert.equal(t.cacheHitPct, 91);
+  });
+
+  it("keeps cumulative token totals when only the tail of a thread is loaded", () => {
+    const whole = sessionTelemetry(foldWith(historyEvents));
+    const tailFold = foldWith(historyEvents.slice(-12));
+    const tail = sessionTelemetry(tailFold);
+    assert.equal(tail.promptTokens, whole.promptTokens);
+    assert.equal(tail.outputTokens, whole.outputTokens);
+    assert.match(timePillLabel(tail), /partial/i);
+    assert.doesNotMatch(usagePillLabel(tail), /Cache hit/);
+    const loadedPrompt = Object.values(tailFold.meta.calls).reduce((sum, call) => sum + call.promptTokens, 0);
+    assert.equal(tail.uncachedTokens + tail.cachedTokens, loadedPrompt);
+  });
+
+  it("marks counts as a lower bound when truncated history has no cumulative totals", () => {
+    const t = sessionTelemetry(foldWith(calls([{ promptTokens: 1000, usage: { outputTokens: 100, cachedTokens: 900 } }])), true);
+    assert.equal(t.partial, true);
+    assert.equal(t.totalsComplete, false);
+    assert.equal(usagePillLabel(t), "1.1K+ tok");
+    assert.match(timePillLabel(t), /Partial/);
+  });
+
+  it("keeps loaded cache counts separate from authoritative session totals", () => {
+    const t = sessionTelemetry(foldWith(calls([{
+      promptTokens: 1000,
+      usage: { outputTokens: 100, cachedTokens: 900 },
+      cumulative: { promptTokens: 10000, outputTokens: 1000, totalTokens: 11000 },
+    }])));
+    assert.equal(t.totalTokens, 11000);
+    assert.equal(t.uncachedTokens, 100);
+    assert.equal(t.cachedTokens, 900);
+    assert.equal(t.cacheHitPct, 90);
+    assert.equal(usagePillLabel(t), "11K tok");
+  });
+
+  it("retains reported usage even when no call history is available", () => {
+    const fold = emptyFold();
+    fold.meta.tokenTotals = { promptTokens: 900, outputTokens: 100, totalTokens: 1000 };
+    const t = sessionTelemetry(fold);
+    assert.equal(t.partial, true);
+    assert.equal(t.totalsComplete, true);
+    assert.equal(t.steps, 0);
+    assert.equal(usagePillLabel(t), "1K tok");
+  });
+
   it("sums every call, taking speed and time only from the calls that timed", () => {
     const fold = foldWith([
       started("t1"),

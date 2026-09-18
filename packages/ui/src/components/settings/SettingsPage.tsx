@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { useOverlayDragProps } from "../../app/frame.js";
 import { modelDisplayName } from "../../model/format.js";
-import { providerKey } from "../../model/providers.js";
+import { ownProviderModels, providerKey } from "../../model/providers.js";
 import { CODE_THEMES, ZOOM_MAX, ZOOM_MIN, type CodeTheme, type GroupBy, type ThemePref } from "../../model/store.js";
 import type { ApprovalMode, EndpointSummary, ReasoningEffort } from "../../types.js";
 import { LEVELS, MODES } from "../composer/Composer.js";
@@ -96,9 +96,9 @@ const GROUPS: readonly { value: GroupBy; label: string }[] = [
   { value: "status", label: "Status" },
 ];
 
-type EndpointForm = { id: string | null; name: string; baseUrl: string; apiKey: string; defaultModel: string };
+type EndpointForm = { id: string | null; name: string; baseUrl: string; apiKey: string; clearApiKey: boolean; defaultModel: string };
 
-const BLANK_ENDPOINT_FORM: EndpointForm = { id: null, name: "", baseUrl: "", apiKey: "", defaultModel: "" };
+const BLANK_ENDPOINT_FORM: EndpointForm = { id: null, name: "", baseUrl: "", apiKey: "", clearApiKey: false, defaultModel: "" };
 
 const FIELD =
   "h-9 w-full rounded-lg bg-sunken px-3 text-sm text-fg shadow-[0_0_0_1px_var(--border)] outline-none placeholder:text-subtle focus-visible:shadow-[0_0_0_1px_var(--accent)]";
@@ -108,6 +108,7 @@ export function SettingsPage() {
   const controller = useController();
   const prefs = useApp((s) => s.prefs);
   const models = useApp((s) => s.models);
+  const titleModels = ownProviderModels(models);
   const titleSettings = useApp((s) => s.titleSettings);
   const env = useApp((s) => s.env);
   const updates = useApp((s) => s.updates);
@@ -116,6 +117,8 @@ export function SettingsPage() {
   const endpoints = useApp((s) => s.endpoints);
   const activeEndpointId = useApp((s) => s.activeEndpointId);
   const providerModels = models.filter((model) => model.providerId === activeEndpointId);
+  const rememberedModelId = prefs.modelByProvider[providerKey(activeEndpointId)] ?? (activeEndpointId === null ? prefs.defaultModelId : null);
+  const selectedModelId = providerModels.some((model) => model.modelId === rememberedModelId) ? rememberedModelId : null;
   const [confirmBypass, setConfirmBypass] = useState(false);
   const [endpointForm, setEndpointForm] = useState<EndpointForm | null>(null);
   const [deleteEndpointId, setDeleteEndpointId] = useState<string | null>(null);
@@ -131,7 +134,7 @@ export function SettingsPage() {
   const openEndpointForm = (endpoint: EndpointSummary | null) =>
     setEndpointForm(
       endpoint
-        ? { id: endpoint.id, name: endpoint.name, baseUrl: endpoint.baseUrl, apiKey: "", defaultModel: endpoint.defaultModel ?? "" }
+        ? { id: endpoint.id, name: endpoint.name, baseUrl: endpoint.baseUrl, apiKey: "", clearApiKey: false, defaultModel: endpoint.defaultModel ?? "" }
         : { ...BLANK_ENDPOINT_FORM },
     );
 
@@ -143,8 +146,8 @@ export function SettingsPage() {
       ...(endpointForm.id ? { id: endpointForm.id } : {}),
       name: endpointForm.name.trim(),
       baseUrl: endpointForm.baseUrl.trim(),
-      // A blank key on an edit keeps the stored one: only a key the user typed is sent.
-      ...(endpointForm.apiKey.trim() ? { apiKey: endpointForm.apiKey.trim() } : {}),
+      // A blank key on an edit keeps the stored one; the explicit clear action sends an empty string.
+      ...(endpointForm.clearApiKey ? { apiKey: "" } : endpointForm.apiKey.trim() ? { apiKey: endpointForm.apiKey.trim() } : {}),
       defaultModel: endpointForm.defaultModel.trim() || null,
     });
     if (saved) {
@@ -220,7 +223,7 @@ export function SettingsPage() {
               <p className="text-xs text-subtle">No models loaded</p>
             ) : (
               <Pick
-                value={prefs.modelByProvider[providerKey(activeEndpointId)] ?? (activeEndpointId === null ? prefs.defaultModelId : null)}
+                value={selectedModelId}
                 options={providerModels.map((model) => ({
                   value: model.modelId,
                   // The contributor variants share a display name, so without this the list offers the same
@@ -324,7 +327,7 @@ export function SettingsPage() {
                   value={titleSettings.modelId}
                   options={[
                     { value: null, label: "Muse default" },
-                    ...models.map((model) => ({
+                    ...titleModels.map((model) => ({
                       value: model.modelId as string | null,
                       label: model.contributor ? `${modelDisplayName(model.modelId)} · Contributor` : modelDisplayName(model.modelId),
                       hint: model.contributor ? "Contributor tier: prompts and outputs may be used for product improvement." : undefined,
@@ -484,10 +487,28 @@ export function SettingsPage() {
                 type="password"
                 value={endpointForm.apiKey}
                 autoComplete="new-password"
-                onChange={(event) => setEndpointForm({ ...endpointForm, apiKey: event.currentTarget.value })}
-                placeholder={editing?.hasApiKey ? "API key saved — leave blank to keep it" : "Optional"}
+                onChange={(event) => setEndpointForm({ ...endpointForm, apiKey: event.currentTarget.value, clearApiKey: false })}
+                placeholder={endpointForm.clearApiKey ? "Saved API key will be cleared on Save" : editing?.hasApiKey ? "API key saved — leave blank to keep it" : "Optional"}
                 className={FIELD}
               />
+              {editing?.hasApiKey && endpointForm.clearApiKey ? (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted">Saved API key will be cleared on Save.</p>
+                  <Button type="button" size="sm" variant="ghost" aria-label="Keep saved API key" onClick={() => setEndpointForm({ ...endpointForm, clearApiKey: false })}>
+                    Keep saved API key
+                  </Button>
+                </div>
+              ) : editing?.hasApiKey ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  aria-label="Clear saved API key"
+                  onClick={() => setEndpointForm({ ...endpointForm, apiKey: "", clearApiKey: true })}
+                >
+                  Clear saved API key
+                </Button>
+              ) : null}
             </label>
             <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">
               Default model

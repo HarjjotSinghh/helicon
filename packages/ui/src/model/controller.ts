@@ -229,6 +229,17 @@ export class HeliconController {
   private saveHandle: unknown = null;
   private refreshing: Promise<void> | null = null;
   private refreshQueued = false;
+  /** Invalidates endpoint snapshots when a newer load or provider mutation wins the race. */
+  private endpointStateRev = 0;
+  /** Only the newest endpoint snapshot may replace the visible list. */
+  private endpointLoadRev = 0;
+  /** Only the newest aggregate catalog response may replace the picker state. */
+  private modelLoadRev = 0;
+  /** Provider activations are ordered so persisted routing and visible state agree. */
+  private endpointActivation: Promise<void> = Promise.resolve();
+  /** The latest provider requested by the user, including activations still in flight. */
+  private endpointTarget: string | null = null;
+  private endpointTargetInitialized = false;
   private toastSeq = 0;
   /** Bumped by every title-settings request, so only the latest completion or rollback lands. */
   private titleSettingsRev = 0;
@@ -368,12 +379,14 @@ export class HeliconController {
         return;
       }
       await this.refresh();
+      // Resolve the persisted provider before the app becomes interactive. Otherwise a fast first
+      // send can inherit the own-login default while the endpoint preference is still loading.
+      await this.loadEndpoints(true);
+      await this.loadModels();
       this.update((s) => ({ ...s, boot: "ready" }));
       this.applyRoute(hashToRoute(this.platform.readHash()), false);
       void this.discoverAll(true);
-      void this.loadModels();
       void this.loadTitleSettings();
-      void this.loadEndpoints(true);
       void this.loadPlanUsage();
     } catch (error) {
       this.update((s) => ({ ...s, boot: "error", bootError: errorMessage(error) }));
@@ -447,9 +460,12 @@ export class HeliconController {
   }
 
   private async loadModels(): Promise<void> {
+    const rev = ++this.modelLoadRev;
     try {
       const models = await this.client.listModels();
-      this.update((s) => ({ ...s, models }));
+      if (rev === this.modelLoadRev) {
+        this.update((s) => ({ ...s, models }));
+      }
     } catch {
       /* the picker falls back to the session's model */
     }
@@ -790,12 +806,12 @@ export class HeliconController {
   /** What a new thread on this provider starts on: the last pick for it, then the old default, then Muse's. */
   private preferredModel(endpointId: string | null): string | null {
     const key = endpointId ?? "own";
-    return (
-      this.state.prefs.modelByProvider[key] ??
-      (key === "own" ? this.state.prefs.defaultModelId : null) ??
-      this.state.models.find((model) => model.providerId === endpointId && model.isDefault)?.modelId ??
-      null
-    );
+    const preferred = this.state.prefs.modelByProvider[key] ?? (key === "own" ? this.state.prefs.defaultModelId : null);
+    const valid =
+      preferred &&
+      (this.state.models.some((model) => model.modelId === preferred && model.providerId === endpointId) ||
+        (endpointId !== null && this.state.models.length === 0 && this.state.endpoints.some((endpoint) => endpoint.id === endpointId && endpoint.models.includes(preferred))));
+    return valid ? preferred : this.state.models.find((model) => model.providerId === endpointId && model.isDefault)?.modelId ?? null;
   }
 
   /** Starts a thread in `cwd` and runs its first action there; what the user typed goes to its composer if that fails. */
@@ -810,6 +826,11 @@ export class HeliconController {
     }
     this.setBusy("start", true);
     try {
+      let activation: Promise<void>;
+      do {
+        activation = this.endpointActivation;
+        await activation;
+      } while (activation !== this.endpointActivation);
       const { defaultMode } = this.state.prefs;
       const endpointId = this.state.activeEndpointId;
       const modelId = this.preferredModel(endpointId);
@@ -1252,7 +1273,7 @@ export class HeliconController {
     const modelByProvider = { ...this.state.prefs.modelByProvider, [key]: modelId };
     this.setPrefs({
       modelByProvider,
-      ...(endpointId === this.state.activeEndpointId ? { defaultModelId: modelId } : {}),
+      ...(endpointId === null ? { defaultModelId: modelId } : {}),
     });
     const route = this.state.route;
     if (route.kind !== "thread") {
@@ -1278,15 +1299,28 @@ export class HeliconController {
 
   /** Where new threads start; running threads keep the provider they were created on. */
   async setDefaultEndpoint(endpointId: string | null): Promise<void> {
-    if (this.state.activeEndpointId === endpointId) {
+    if (!this.endpointTargetInitialized) {
+      this.endpointTarget = this.state.activeEndpointId;
+      this.endpointTargetInitialized = true;
+    }
+    if (this.endpointTarget === endpointId) {
       return;
     }
-    try {
-      await this.client.activateEndpoint(endpointId);
-      this.update((s) => ({ ...s, activeEndpointId: endpointId }));
-    } catch (error) {
-      this.toast("error", "Could not change the default provider", errorMessage(error));
-    }
+    this.endpointTarget = endpointId;
+    ++this.endpointStateRev;
+    const run = this.endpointActivation.then(async () => {
+      try {
+        await this.client.activateEndpoint(endpointId);
+        this.update((s) => ({ ...s, activeEndpointId: endpointId }));
+      } catch (error) {
+        if (this.endpointTarget === endpointId) {
+          this.endpointTarget = this.state.activeEndpointId;
+        }
+        this.toast("error", "Could not change the default provider", errorMessage(error));
+      }
+    });
+    this.endpointActivation = run.catch(() => undefined);
+    await run;
   }
 
   async setMode(mode: ApprovalMode): Promise<void> {
@@ -1387,8 +1421,19 @@ export class HeliconController {
   /** The custom Muse endpoints and the active one, for the Settings page and the model picker. `silent` is for boot, where an older server must not toast on every start. */
   async loadEndpoints(silent = false): Promise<void> {
     try {
+      let activation: Promise<void>;
+      do {
+        activation = this.endpointActivation;
+        await activation;
+      } while (activation !== this.endpointActivation);
+      const stateRev = this.endpointStateRev;
+      const loadRev = ++this.endpointLoadRev;
       const { endpoints, activeEndpointId } = await this.client.endpoints();
-      this.update((s) => ({ ...s, endpoints, activeEndpointId }));
+      if (stateRev === this.endpointStateRev && loadRev === this.endpointLoadRev) {
+        this.update((s) => ({ ...s, endpoints, activeEndpointId }));
+        this.endpointTarget = activeEndpointId;
+        this.endpointTargetInitialized = true;
+      }
     } catch (error) {
       if (!silent) {
         this.toast("error", "Could not load the model endpoints", errorMessage(error));
@@ -1401,6 +1446,7 @@ export class HeliconController {
     try {
       await this.client.saveEndpoint(input);
       await this.loadEndpoints();
+      await this.loadModels();
       return true;
     } catch (error) {
       this.toast("error", "Could not save the endpoint", errorMessage(error));
@@ -1412,6 +1458,7 @@ export class HeliconController {
     try {
       await this.client.deleteEndpoint(id);
       await this.loadEndpoints();
+      await this.loadModels();
     } catch (error) {
       this.toast("error", "Could not delete the endpoint", errorMessage(error));
     }
@@ -1430,6 +1477,7 @@ export class HeliconController {
     try {
       await this.client.refreshEndpointModels(id);
       await this.loadEndpoints();
+      await this.loadModels();
     } catch (error) {
       this.toast("error", "Could not refresh the model list", errorMessage(error));
     }

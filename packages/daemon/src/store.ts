@@ -728,6 +728,11 @@ export class HeliconStore {
     return rows.map((row) => this.toEndpoint(row));
   }
 
+  countSessionsForEndpoint(id: string): number {
+    const row = this.db.prepare(`SELECT COUNT(*) AS count FROM sessions WHERE endpoint_id = ?`).get(id) as Row;
+    return Number(row["count"] ?? 0);
+  }
+
   getEndpoint(id: string): EndpointRecord | null {
     const row = this.db.prepare(`SELECT * FROM endpoints WHERE id = ?`).get(id) as Row | undefined;
     return row ? this.toEndpoint(row) : null;
@@ -745,6 +750,17 @@ export class HeliconStore {
       )
       .run(input.id, input.name, input.baseUrl, input.apiKey, input.defaultModel, input.modelsJson, now, now);
     return this.getEndpoint(input.id) as EndpointRecord;
+  }
+
+  /** Replace only the catalog fetched from a snapshot, so a concurrent edit or delete wins. */
+  updateEndpointModelsIfUnchanged(expected: EndpointRecord, modelsJson: string): EndpointRecord | null {
+    const result = this.db
+      .prepare(
+        `UPDATE endpoints SET models_json = ?, updated_at = ?
+         WHERE id = ? AND name = ? AND base_url = ? AND api_key IS ? AND default_model IS ? AND models_json = ? AND updated_at = ?`,
+      )
+      .run(modelsJson, nowIso(), expected.id, expected.name, expected.baseUrl, expected.apiKey, expected.defaultModel, expected.modelsJson, expected.updatedAt);
+    return Number(result.changes) === 1 ? this.getEndpoint(expected.id) : null;
   }
 
   deleteEndpoint(id: string): void {

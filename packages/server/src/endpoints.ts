@@ -1,5 +1,5 @@
 import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { EndpointRecord } from "@helicon/daemon";
 
 export type { EndpointRecord };
@@ -30,6 +30,42 @@ const PROVIDER_ID = "meta";
 const PROFILE_ID = "tbh";
 const MODEL_FETCH_TIMEOUT_MS = 10_000;
 const CONTRIBUTOR_FREE_DESCRIPTION = "Free tier: prompts and completions may be used to train future Meta models.";
+
+/** Endpoint ids are persisted directory names, so keep them opaque and path-safe. */
+export function isSafeEndpointId(id: string): boolean {
+  return id !== "own" && /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(id);
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
+/** Keyed cleartext transport is only safe for an intentionally local proxy. */
+export function isAllowedEndpointTransport(baseUrl: string, apiKey: string | null): boolean {
+  try {
+    const parsed = new URL(baseUrl);
+    if (parsed.username || parsed.password) {
+      return false;
+    }
+    return parsed.protocol === "https:" || (parsed.protocol === "http:" && (!apiKey || isLoopbackHost(parsed.hostname)));
+  } catch {
+    return false;
+  }
+}
+
+export function managedEndpointRoot(root: string, id: string): string {
+  if (!isSafeEndpointId(id)) {
+    throw new Error("Invalid endpoint id for managed home.");
+  }
+  const managedRoot = resolve(root);
+  const home = resolve(managedRoot, id);
+  const within = relative(managedRoot, home);
+  if (isAbsolute(within) || within === ".." || within.startsWith(`..${sep}`)) {
+    throw new Error("Endpoint home leaves the managed directory.");
+  }
+  return home;
+}
 
 function catalogRowFor(modelId: string): CatalogRow {
   return {
@@ -99,6 +135,9 @@ export function endpointCatalog(endpoint: Pick<EndpointRecord, "modelsJson" | "d
  * own, so without the cache Muse would fall back to whatever it last cached — or nothing.
  */
 export function writeEndpointHome(root: string, endpoint: EndpointRecord): { configHome: string; dataHome: string } {
+  if (!isSafeEndpointId(endpoint.id)) {
+    throw new Error("Invalid endpoint id for managed home.");
+  }
   const configHome = join(root, "config");
   const dataHome = join(root, "data");
   const stored = parseCatalog(endpoint.modelsJson);
@@ -138,9 +177,13 @@ export async function fetchEndpointModels(
   apiKey: string | null,
   fetchImpl: typeof fetch = fetch,
 ): Promise<CatalogRow[] | null> {
+  if (!isAllowedEndpointTransport(baseUrl, apiKey)) {
+    return null;
+  }
   try {
     const response = await fetchImpl(`${baseUrl.trim().replace(/\/+$/, "")}/models`, {
       headers: apiKey ? { authorization: `Bearer ${apiKey}` } : undefined,
+      redirect: "error",
       signal: AbortSignal.timeout(MODEL_FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {
