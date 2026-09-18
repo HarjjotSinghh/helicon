@@ -8,6 +8,12 @@
 - **Every provider in one model picker.** The picker groups models by provider — your own login and each endpoint — and a thread keeps the provider it was created on, so a model switch never crosses Muse homes; to move, start a new thread. **Default provider** in Settings picks where new threads start, each provider remembers the model you last chose for it, and **Refresh models** reads an endpoint's own `/models`. Threads from every provider are discovered and listed, and the OpenCode Go mark or the thread header's chip shows which home serves a thread.
 - **Session statistics above the composer.** Two pills — on by default, switchable in Settings under **Session statistics** — summarize the open thread: turns, steps, request-average speed and model time, plus exact token counts with the cache split and a per-model breakdown. Every number comes from the thread it is shown in; nothing leaves your machine.
 
+## 0.13.1
+
+### Fixed
+
+- **A thread that ran subagents no longer grinds to a halt** ([#32](https://github.com/HarjjotSinghh/helicon/issues/32), reported by [@margantcovka](https://github.com/margantcovka)). Applying an event copied the whole thread's state, so each event cost more as the thread grew, and a long one eventually stopped updating while the work carried on without it. Subagent children drove the count, which is why only those threads hung: 20,000 of them took 36 seconds to apply and now take 8 milliseconds. They are also left out of the thread entirely now, since nothing ever showed them.
+
 ## 0.13.0
 
 ### New
