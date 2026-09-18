@@ -8,7 +8,8 @@ import { Tip } from "../ui/overlays.js";
 import { Button, IconButton, Shortcut, Spinner, cn } from "../ui/primitives.js";
 import { RollingDigits } from "../ui/sourced.js";
 
-function isTyping(target: EventTarget | null): boolean {
+/** True while the event is going to a text field, where a bare key belongs to the text and not to a shortcut. */
+export function isTyping(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   return Boolean(el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable));
 }

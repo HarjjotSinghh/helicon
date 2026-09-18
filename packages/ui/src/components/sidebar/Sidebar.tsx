@@ -326,6 +326,12 @@ const ProjectSection = memo(function ProjectSection(props: {
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup", onUp);
             window.removeEventListener("pointercancel", onUp);
+            // The browser sends its click to the element holding both ends of the gesture, so a drop onto
+            // another project never reaches this header's onClickCapture. Clearing here, after that click has
+            // gone by, keeps the next real click on this header from being swallowed.
+            setTimeout(() => {
+              didReorder.current = false;
+            }, 0);
             if (!started) {
               return;
             }
