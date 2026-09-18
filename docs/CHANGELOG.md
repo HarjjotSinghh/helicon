@@ -1,10 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.13.0
 
 ### New
 
-- **Threads get a short generated title.** The first prompt still names a thread instantly, then one cheap `muse exec` call replaces the echo with a concise title and pushes it back to Muse, so the CLI shows the same name. A typed title or a name Muse chose itself is never touched, and anything that fails leaves the echo in place. Settings has a switch for it, with a model choice when it is on.
+- **Threads get a short generated title** ([#29](https://github.com/HarjjotSinghh/helicon/issues/29), built by [@orkuhh](https://github.com/orkuhh) in [#28](https://github.com/HarjjotSinghh/helicon/pull/28)). The first prompt still names a thread instantly, then one cheap `muse exec` call replaces the echo with a concise title and pushes it back to Muse Code, so the CLI shows the same name. A typed title, or a name Muse Code chose itself, is never touched, and anything that fails leaves the echo in place. Settings has a switch, a model choice, and says plainly that the calls run on your plan; off means no calls at all.
+
+### Changed
+
+- **Back on Settings and Usage returns where you came from** ([#27](https://github.com/HarjjotSinghh/helicon/pull/27), thanks [@orkuhh](https://github.com/orkuhh)), instead of always going home.
+- **The desktop app asks helicon.sh for updates**, falling back to GitHub as before. That request is how we count roughly how many installs are in use, since downloads and stars say nothing about that: the platform, the version, and a hash of the IP salted per week, so two weeks of logs cannot be joined. Nothing about your code, prompts or files leaves your machine, and the README and FAQ both say so.
+- **"Muse Code" everywhere it means the CLI.** Meta now ships a consumer assistant called Muse for Mac; Helicon is a client for Muse Code and unrelated to it, so the site and README never say bare "Muse" and both disclaimers name the two apart.
 
 ## 0.12.6
 
