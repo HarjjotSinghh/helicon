@@ -1,6 +1,6 @@
 import type { Cta } from "@/lib/copy";
 import { buttonClass } from "./ui";
-import { DownloadSimple } from "@phosphor-icons/react/ssr";
+import { ArrowUpRight, DownloadSimple } from "@phosphor-icons/react/ssr";
 import { AppleLogo, GitHubLogo, WindowsLogo } from "./os-logos";
 import { TrackedLink } from "./tracked-link";
 import { StarCount } from "./star-count";
@@ -40,6 +40,12 @@ export function CtaRow({
           <Icon href={cta.href} kind={cta.kind} />
           {cta.label}
           {cta.href.includes("github.com") ? <StarCount stars={stars} className="ml-0.5 text-subtle" /> : null}
+          {cta.external ? (
+            <ArrowUpRight
+              aria-hidden="true"
+              className="!size-3 text-subtle transition-transform duration-200 ease-out [@media(hover:hover)]:group-hover/btn:translate-x-0.5 [@media(hover:hover)]:group-hover/btn:-translate-y-0.5"
+            />
+          ) : null}
         </TrackedLink>
       ))}
     </div>
