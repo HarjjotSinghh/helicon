@@ -15,7 +15,8 @@ request. The first version has to be submitted by hand; after that the Release w
 
 ## The first submission
 
-The three manifests in this folder describe one version. Fill in the version and the installer's SHA-256, then open the
+The three manifests in `manifests/` describe one version. They live in a folder of their own because
+`winget validate` parses every file in the folder it is given, and would choke on this README. Fill in the version and the installer's SHA-256, then open the
 pull request:
 
 ```bash
@@ -24,7 +25,7 @@ gh release download vX.Y.Z -p "Helicon_X.Y.Z_x64-setup.exe" -O /tmp/helicon.exe
 shasum -a 256 /tmp/helicon.exe
 ```
 
-Copy this folder to `manifests/h/HarjjotSinghh/Helicon/X.Y.Z/` in a branch of the winget-pkgs fork, with the version and
+Copy `manifests/` to `manifests/h/HarjjotSinghh/Helicon/X.Y.Z/` in a branch of the winget-pkgs fork, with the version and
 hash filled in, and open a pull request against `microsoft/winget-pkgs`. A bot validates the manifests and installs the
 package in a sandbox; a maintainer merges once it passes, usually within a day.
 
