@@ -70,8 +70,12 @@ Short redirects exist for `/gui`, `/desktop`, `/app`, `/windows`, `/mac`, `/maco
 | `/pricing.md` | Pricing as Markdown, for agents comparing tools programmatically |
 | `/faq.md` | Every question and answer as Markdown |
 | `/<any-page>.md` | The Markdown mirror of that page |
-| `Accept: text/markdown` | Any page, without the `.md` suffix. Handled in `src/proxy.ts` |
-| `Link:` header | Every HTML page advertises its own `.md` twin |
+| `/index.md` | The home page as Markdown |
+| `Accept: text/markdown` | Any page including `/`, without the `.md` suffix. Handled in `src/proxy.ts` |
+| `Link:` header | Every HTML page advertises its own `.md` twin; the home page also advertises `/openapi.json` as `rel="service-desc"` |
+| `/openapi.json` | OpenAPI 3.1 description of the public API |
+| `/api/openapi.yaml` | The same document as YAML |
+| `/api/v1` | The public JSON API. No key, no account, read only |
 
 Every one of these sends `Access-Control-Allow-Origin: *` so a tool on another origin can fetch
 them, and `X-Robots-Tag: index, follow` so they stay indexable.
@@ -88,8 +92,10 @@ selector pointing at `[data-answer]`.
 ## Crawler access
 
 `src/app/robots.ts` allows everything, then names 37 AI and search crawlers explicitly. The named
-block is not redundant: several of those crawlers only read the block that names them. `/api/` and
-`/download/` are disallowed for the wildcard because they are redirects and endpoints, not pages.
+block is not redundant: several of those crawlers only read the block that names them. `/api/og`, `/api/update/`
+and `/download/` are disallowed for the wildcard because they are redirects and endpoints, not
+pages. `/api/v1/`, `/api/openapi.yaml` and `/openapi.json` are explicitly allowed: they are the
+machine-readable half of the site, and an agent that cannot crawl them cannot find the API.
 
 ## Runbook: Google Search Console
 
@@ -177,18 +183,59 @@ After a build, with `npx next start` running:
 
 ```sh
 node scripts/seo-check.mjs                # every sitemap URL: canonical, title, description, h1, schema, og
+node scripts/agent-check.mjs              # content negotiation, the 404 body, the API and the OpenAPI document
+npm test                                  # the router, the OpenAPI document, the negotiation rules, the schema graph
 ```
 
-It fails loudly on a missing canonical, a duplicated `h1`, a description outside 80 to 185
-characters, an unparseable `ld+json` block, or an accidental `noindex`.
+`seo-check` fails loudly on a missing canonical, a duplicated `h1`, a description outside 80 to
+185 characters, an unparseable `ld+json` block, or an accidental `noindex`.
+
+`agent-check` covers what only exists once a server is running: that `/` answers Markdown with
+`Vary: Accept` to `Accept: text/markdown` and HTML to a browser, that a path that does not exist
+answers 404 with a Markdown body that links the indexes, that every endpoint the API index claims
+returns parseable JSON, that a bad path, a bad parameter and a write each return the shared error
+envelope, and that `/docs`, `/api-docs`, `/openapi` and `/swagger.json` land where they should.
+
+Both take `BASE=https://helicon.sh` to run against production instead of a local build.
+
+## The public API
+
+`src/lib/api/router.ts` is the whole API: one dispatcher over path segments, served by
+`src/app/api/v1/[[...path]]/route.ts`. It is written as a function of its input so that every
+failure takes the same shape without a 405 handler per endpoint, and so that it can be tested
+without a server.
+
+`src/lib/api/openapi.ts` builds the OpenAPI 3.1 document from the same catalog the pages render
+from, so the description cannot drift from the API. Adding an endpoint means adding a case to the
+router, a path to the OpenAPI document and a row to the table on `/developers`; the tests fail
+until the three agree.
+
+Every error is `{ error: { code, message, hint, status, documentation_url } }`, with `code` drawn
+from `ERROR_CODES` in `src/lib/api/contract.ts`. Agents branch on the code, show the message and
+act on the hint.
 
 ## Tracking
 
 ```sh
-npm run seo:report              # last 7 days vs the 7 before
-DAYS=28 npm run seo:report      # any window
-npm run seo:report -- --coverage  # plus index state for every page, ~90s
+npm run seo:report                          # last 7 days vs the 7 before
+DAYS=28 npm run seo:report                  # any window
+npm run seo:report -- --coverage            # plus index state for every page, ~90s
+npm run seo:report -- --record --coverage   # the weekly run: records and writes a dated report
+npm run seo:dashboard                       # rebuild seo-data/dashboard.html from the CSVs
 ```
+
+Everything lands in `seo-data/`, which is committed, so the history is versioned and diffable:
+
+| File | Written by | Holds |
+| --- | --- | --- |
+| `history.csv` | `--record`, weekly | Clicks, impressions, CTR, position, index coverage, sitemap state |
+| `reports/YYYY-MM-DD.md` | `--record` | The full run, plus a section for what you changed because of it |
+| `links.csv` | You, monthly | Referring domains, backlinks, domain rating |
+| `aeo.csv` | You, monthly | One row per engine per question: runs, cited, mentioned, URL, accurate |
+| `dashboard.html` | `seo:dashboard` | Charts over all three. Self-contained, opens from disk |
+
+Fill in the "What I changed because of this" section of the dated report every week. A metric
+that moved with no record of what you did to it teaches you nothing the following month.
 
 It borrows a token from the same gcloud login the MCP server uses, so there is nothing else to
 configure. Search Console data lags about two days; the script already offsets for that.

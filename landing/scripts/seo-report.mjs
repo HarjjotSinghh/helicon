@@ -9,13 +9,20 @@
 // Search Console data lags about 2 days, so "yesterday" is usually empty. That is normal.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const DATA = join(ROOT, "seo-data");
+const HISTORY = join(DATA, "history.csv");
 
 const SITE = process.env.GSC_SITE ?? "https://helicon.sh/";
 const DAYS = Number(process.env.DAYS ?? 7);
 const WITH_COVERAGE = process.argv.includes("--coverage");
+/** --record appends a row to seo-data/history.csv and writes a dated report beside it. */
+const RECORD = process.argv.includes("--record");
 const GCLOUD = process.env.GCLOUD_BIN ?? "/opt/homebrew/share/google-cloud-sdk/bin/gcloud";
 
 function token() {
@@ -56,6 +63,12 @@ const auth = {
   Authorization: `Bearer ${token()}`,
   "Content-Type": "application/json",
   ...(project ? { "x-goog-user-project": project } : {}),
+};
+
+const transcript = [];
+const print = (line = "") => {
+  transcript.push(line);
+  console.log(line);
 };
 
 /** Search Console reports in the property's own timezone and lags roughly two days. */
@@ -99,8 +112,8 @@ function delta(now, before) {
 const thisWindow = { startDate: day(DAYS + 2), endDate: day(2) };
 const lastWindow = { startDate: day(DAYS * 2 + 2), endDate: day(DAYS + 3) };
 
-console.log(`Search Console: ${SITE}`);
-console.log(`${thisWindow.startDate} to ${thisWindow.endDate}, against the ${DAYS} days before\n`);
+print(`Search Console: ${SITE}`);
+print(`${thisWindow.startDate} to ${thisWindow.endDate}, against the ${DAYS} days before\n`);
 
 const [nowRows, beforeRows] = await Promise.all([
   query({ ...thisWindow, dimensions: ["date"], rowLimit: 500 }),
@@ -109,16 +122,16 @@ const [nowRows, beforeRows] = await Promise.all([
 const now = totals(nowRows);
 const before = totals(beforeRows);
 
-console.log("HEADLINE");
-console.log(`  clicks        ${String(now.clicks).padStart(7)}   ${delta(now.clicks, before.clicks)}`);
-console.log(`  impressions   ${String(now.impressions).padStart(7)}   ${delta(now.impressions, before.impressions)}`);
-console.log(`  ctr           ${now.ctr.toFixed(2).padStart(7)}%  ${delta(now.ctr, before.ctr)}`);
-console.log(`  avg position  ${now.position.toFixed(1).padStart(7)}   ${delta(before.position, now.position)} (lower is better)`);
+print("HEADLINE");
+print(`  clicks        ${String(now.clicks).padStart(7)}   ${delta(now.clicks, before.clicks)}`);
+print(`  impressions   ${String(now.impressions).padStart(7)}   ${delta(now.impressions, before.impressions)}`);
+print(`  ctr           ${now.ctr.toFixed(2).padStart(7)}%  ${delta(now.ctr, before.ctr)}`);
+print(`  avg position  ${now.position.toFixed(1).padStart(7)}   ${delta(before.position, now.position)} (lower is better)`);
 
 if (!now.impressions) {
-  console.log("\nNo impressions yet. On a property this young that means Google has not started");
-  console.log("serving the pages, not that anything is wrong. Index coverage is the metric to");
-  console.log("watch until this fills in: run with --coverage.\n");
+  print("\nNo impressions yet. On a property this young that means Google has not started");
+  print("serving the pages, not that anything is wrong. Index coverage is the metric to");
+  print("watch until this fills in: run with --coverage.\n");
 }
 
 const [queries, pages] = await Promise.all([
@@ -127,9 +140,9 @@ const [queries, pages] = await Promise.all([
 ]);
 
 if (queries.length) {
-  console.log("\nTOP QUERIES");
+  print("\nTOP QUERIES");
   for (const r of queries.slice(0, 15)) {
-    console.log(
+    print(
       `  ${String(r.clicks).padStart(4)} clicks ${String(r.impressions).padStart(6)} impr  pos ${r.position.toFixed(1).padStart(5)}  ${r.keys[0]}`,
     );
   }
@@ -139,9 +152,9 @@ if (queries.length) {
     .filter((r) => r.position >= 4 && r.position <= 20 && r.impressions >= 5)
     .sort((a, b) => b.impressions - a.impressions);
   if (striking.length) {
-    console.log("\nSTRIKING DISTANCE (position 4 to 20, the cheapest wins)");
+    print("\nSTRIKING DISTANCE (position 4 to 20, the cheapest wins)");
     for (const r of striking.slice(0, 15)) {
-      console.log(`  pos ${r.position.toFixed(1).padStart(5)} ${String(r.impressions).padStart(6)} impr  ${r.keys[0]}`);
+      print(`  pos ${r.position.toFixed(1).padStart(5)} ${String(r.impressions).padStart(6)} impr  ${r.keys[0]}`);
     }
   }
 
@@ -150,9 +163,9 @@ if (queries.length) {
     .filter((r) => r.impressions >= 50 && r.clicks / r.impressions < 0.02 && r.position <= 10)
     .sort((a, b) => b.impressions - a.impressions);
   if (poorCtr.length) {
-    console.log("\nRANKING BUT NOT CLICKED (rewrite the title and description)");
+    print("\nRANKING BUT NOT CLICKED (rewrite the title and description)");
     for (const r of poorCtr.slice(0, 10)) {
-      console.log(
+      print(
         `  pos ${r.position.toFixed(1).padStart(5)} ${String(r.impressions).padStart(6)} impr  ${(100 * r.clicks / r.impressions).toFixed(1)}% ctr  ${r.keys[0]}`,
       );
     }
@@ -160,9 +173,9 @@ if (queries.length) {
 }
 
 if (pages.length) {
-  console.log("\nTOP PAGES");
+  print("\nTOP PAGES");
   for (const r of pages.slice(0, 15)) {
-    console.log(
+    print(
       `  ${String(r.clicks).padStart(4)} clicks ${String(r.impressions).padStart(6)} impr  pos ${r.position.toFixed(1).padStart(5)}  ${new URL(r.keys[0]).pathname}`,
     );
   }
@@ -173,14 +186,15 @@ const smRes = await fetch(
   { headers: auth },
 );
 const sitemaps = (await smRes.json()).sitemap ?? [];
-console.log("\nSITEMAPS");
+print("\nSITEMAPS");
 for (const s of sitemaps) {
   const c = s.contents?.[0] ?? {};
-  console.log(
+  print(
     `  ${s.path}  submitted ${c.submitted ?? "?"}  indexed ${c.indexed ?? "?"}  errors ${s.errors}  warnings ${s.warnings}  last read ${s.lastDownloaded?.slice(0, 10) ?? "never"}`,
   );
 }
 
+let coverage = null;
 if (WITH_COVERAGE) {
   const xml = await (await fetch(`${SITE}sitemap.xml`)).text();
   const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)]
@@ -212,15 +226,80 @@ if (WITH_COVERAGE) {
     await new Promise((r) => setTimeout(r, 300));
   }
 
-  console.log(`\nINDEX COVERAGE (${urls.length} pages)`);
+  coverage = {
+    total: urls.length,
+    indexed: buckets.get("Submitted and indexed") ?? 0,
+    discovered: buckets.get("Discovered - currently not indexed") ?? 0,
+    unknown: buckets.get("URL is unknown to Google") ?? 0,
+  };
+  print(`\nINDEX COVERAGE (${urls.length} pages)`);
   for (const [state, n] of [...buckets].sort((a, b) => b[1] - a[1])) {
-    console.log(`  ${String(n).padStart(3)}  ${state}`);
+    print(`  ${String(n).padStart(3)}  ${state}`);
   }
   const unknown = notIndexed.filter(([, s]) => /unknown/i.test(s));
   if (unknown.length) {
-    console.log(`\n  Not yet discovered, request indexing on these first (${unknown.length}):`);
-    for (const [p] of unknown.slice(0, 12)) console.log(`    ${SITE.replace(/\/$/, "")}${p}`);
+    print(`\n  Not yet discovered, request indexing on these first (${unknown.length}):`);
+    for (const [p] of unknown.slice(0, 12)) print(`    ${SITE.replace(/\/$/, "")}${p}`);
   }
 }
 
-console.log();
+print();
+
+if (RECORD) {
+  mkdirSync(join(DATA, "reports"), { recursive: true });
+
+  const sm = sitemaps[0]?.contents?.[0] ?? {};
+  const row = {
+    recorded: new Date().toISOString().slice(0, 10),
+    window_start: thisWindow.startDate,
+    window_end: thisWindow.endDate,
+    days: DAYS,
+    clicks: now.clicks,
+    impressions: now.impressions,
+    ctr: now.ctr.toFixed(3),
+    avg_position: now.position.toFixed(2),
+    top_query: queries[0]?.keys[0] ?? "",
+    top_page: pages[0] ? new URL(pages[0].keys[0]).pathname : "",
+    pages_total: coverage?.total ?? "",
+    pages_indexed: coverage?.indexed ?? "",
+    pages_discovered: coverage?.discovered ?? "",
+    pages_unknown: coverage?.unknown ?? "",
+    sitemap_submitted: sm.submitted ?? "",
+    sitemap_indexed: sm.indexed ?? "",
+  };
+
+  const columns = Object.keys(row);
+  // A CSV field can contain a comma or a quote; a query certainly can.
+  const escape = (v) => {
+    const str = String(v ?? "");
+    return /[",\n]/.test(str) ? `"${str.replaceAll('"', '""')}"` : str;
+  };
+  if (!existsSync(HISTORY)) writeFileSync(HISTORY, `${columns.join(",")}\n`);
+  appendFileSync(HISTORY, `${columns.map((c) => escape(row[c])).join(",")}\n`);
+
+  const reportPath = join(DATA, "reports", `${row.recorded}.md`);
+  writeFileSync(
+    reportPath,
+    [
+      `# SEO report, ${row.recorded}`,
+      "",
+      `Window: ${thisWindow.startDate} to ${thisWindow.endDate} (${DAYS} days).`,
+      coverage ? "" : "Index coverage not measured. Re-run with --coverage to include it.",
+      "",
+      "```",
+      transcript.join("\n").trimEnd(),
+      "```",
+      "",
+      "## What I changed because of this",
+      "",
+      "_Write it here or the next report has no baseline to compare against._",
+      "",
+    ]
+      .filter((l) => l !== null)
+      .join("\n"),
+  );
+
+  console.log(`recorded → seo-data/history.csv`);
+  console.log(`report   → seo-data/reports/${row.recorded}.md`);
+  console.log(`dashboard: npm run seo:dashboard`);
+}
