@@ -190,9 +190,11 @@ function check(what, condition, message) {
     check(`GET ${path}.md`, mirror.type.includes("text/markdown"), `content-type ${mirror.type}`);
   }
 
-  // The home page has to link the developer documentation, or an agent never finds the API.
+  // The home page used to be asserted to link /developers. The nav deliberately does not carry it
+  // any more, so the assertion is gone rather than failing on a decision that was made on purpose.
+  // /developers stays reachable from llms.txt, agents.md, facts.json, the sitemap and the 404 page.
   const home = await get("/", { accept: BROWSER });
-  check("GET /", home.body.includes('href="/developers"'), "home page does not link /developers");
+  check("GET /", home.res.status === 200, `status ${home.res.status}`);
 }
 
 // 7. The paths people guess, and where they land.
