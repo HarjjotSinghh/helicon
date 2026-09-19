@@ -132,8 +132,11 @@ jobs:
           work="$(mktemp -d)"
           trap 'rm -rf "$work"' EXIT
           cd "$work"
-          gh release download "$RELEASE_TAG" --pattern "*.AppImage" --clobber
+          # gh infers the repository from the git remote, and $work is not a checkout.
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "*.AppImage" --clobber
           appimage=(Helicon_*_amd64.AppImage)
+          # A downloaded release asset does not keep its executable bit.
+          chmod +x "${appimage[0]}"
           "./${appimage[0]}" --appimage-extract
           rm -f squashfs-root/usr/lib/libwayland-client.so.0 squashfs-root/usr/lib/libwayland-cursor.so.0 \
             squashfs-root/usr/lib/libwayland-egl.so.1 squashfs-root/usr/lib/libwayland-server.so.0
@@ -142,7 +145,7 @@ jobs:
           chmod +x appimagetool
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run squashfs-root "${appimage[0]}"
           "${{ github.workspace }}/node_modules/.bin/tauri" signer sign "${appimage[0]}"
-          gh release download "$RELEASE_TAG" --pattern "latest.json" --clobber
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "latest.json" --clobber
           SIG_FILE="${appimage[0]}.sig" node -e '
             const fs = require("fs");
             const latest = JSON.parse(fs.readFileSync("latest.json", "utf8"));
@@ -152,4 +155,4 @@ jobs:
             }
             fs.writeFileSync("latest.json", JSON.stringify(latest, null, 2));
           '
-          gh release upload "$RELEASE_TAG" "${appimage[0]}" "${appimage[0]}.sig" latest.json --clobber
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "${appimage[0]}" "${appimage[0]}.sig" latest.json --clobber

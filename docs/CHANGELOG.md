@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.1
+
+Same app as 0.14.0 on Windows and macOS. The step that repacks the Linux AppImage without its stale Wayland libraries failed on its first real run, so 0.14.0's AppImage still carried them; it is repacked properly here. Windows and macOS users on 0.14.0 lose nothing by updating.
+
 ## 0.14.0
 
 ### New
