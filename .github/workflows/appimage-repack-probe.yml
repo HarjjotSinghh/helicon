@@ -33,6 +33,7 @@ jobs:
           cd "$work"
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "*.AppImage" --clobber
           appimage=(Helicon_*_amd64.AppImage)
+          chmod +x "${appimage[0]}"
           echo "::group::before"
           "./${appimage[0]}" --appimage-extract > /dev/null
           ls -la squashfs-root/usr/lib/ | grep -i wayland || echo "no wayland libs found BEFORE (unexpected)"
@@ -58,6 +59,7 @@ jobs:
           '
           echo "::group::after"
           rm -rf squashfs-root
+          chmod +x "${appimage[0]}"
           "./${appimage[0]}" --appimage-extract > /dev/null
           ls squashfs-root/usr/lib/ | grep -i wayland && echo "WAYLAND STILL PRESENT" && exit 1
           echo "wayland libs gone, repacked AppImage is $(du -h "${appimage[0]}" | cut -f1)"
