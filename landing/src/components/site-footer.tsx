@@ -6,7 +6,7 @@ import {
   Heart,
   Question,
 } from "@phosphor-icons/react/ssr";
-import { ISSUES_URL, RELEASES_URL, REPO_URL } from "@/lib/site";
+import { ALTERNATIVETO_URL, ISSUES_URL, RELEASES_URL, REPO_URL } from "@/lib/site";
 import { closingCta, type PageCopy } from "@/lib/copy";
 import { GitHubLogo } from "./os-logos";
 import { Logo, buttonClass } from "./ui";
@@ -95,6 +95,35 @@ export function SiteFooter() {
             </a>{" "}
             and contributors.
           </p>
+          {/*
+            AlternativeTo ships one badge per theme; both are self-hosted so the footer makes no
+            third-party request. The width and height attributes are the SVG's own 244x83 so the
+            aspect ratio reserves the right space before paint; w-[140px] is the rendered size.
+          */}
+          <TrackedLink
+            href={ALTERNATIVETO_URL}
+            placement="footer"
+            eventLabel="AlternativeTo"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 block w-fit rounded-[12px] transition-opacity duration-200 ease-out [@media(hover:hover)]:hover:opacity-80"
+          >
+            <img
+              src="/badges/alternativeto-light.svg"
+              alt="Helicon on AlternativeTo"
+              width={244}
+              height={83}
+              className="theme-light-only block h-auto w-[120px]"
+            />
+            <img
+              src="/badges/alternativeto-dark.svg"
+              alt="Helicon on AlternativeTo"
+              width={244}
+              height={83}
+              className="theme-dark-only h-auto w-[120px]"
+            />
+          </TrackedLink>
+
           <div className="mt-6 flex items-center gap-3 sm:hidden">
             <span className="text-[13px] font-semibold text-fg">Theme</span>
             <ThemeToggle />

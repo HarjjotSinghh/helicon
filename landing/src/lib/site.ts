@@ -18,6 +18,10 @@ export const REPO_URL = "https://github.com/HarjjotSinghh/helicon";
 export const RELEASES_URL = `${REPO_URL}/releases/latest`;
 export const ISSUES_URL = `${REPO_URL}/issues`;
 
+/** The AlternativeTo listing. The utm parameters are the ones their badge snippet ships with. */
+export const ALTERNATIVETO_URL =
+  "https://alternativeto.net/software/helicon/about/?utm_source=badge&utm_medium=referral";
+
 export type OsId = "windows" | "macos" | "linux";
 
 export type InstallStep = {
