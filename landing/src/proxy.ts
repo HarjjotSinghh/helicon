@@ -49,13 +49,13 @@ export function proxy(request: NextRequest) {
   // Paths that already are a document (anything with an extension) and the API get nothing.
   const clean = url.pathname.replace(/\/$/, "");
   const isDocument = /\.[a-z0-9]+$/i.test(clean) || clean.startsWith("/api") || clean.startsWith("/download");
+  // append, never set: Next puts its font preloads in this same header on statically generated
+  // pages, and replacing it costs several seconds of LCP on a throttled connection.
   if (url.pathname === "/") {
-    response.headers.set(
-      "Link",
-      `<${SITE_URL}/llms.txt>; rel="alternate"; type="text/plain", <${SITE_URL}/llms-full.txt>; rel="alternate"; type="text/plain"`,
-    );
+    response.headers.append("Link", `<${SITE_URL}/llms.txt>; rel="alternate"; type="text/plain"`);
+    response.headers.append("Link", `<${SITE_URL}/llms-full.txt>; rel="alternate"; type="text/plain"`);
   } else if (!isDocument) {
-    response.headers.set("Link", `<${SITE_URL}${clean}.md>; rel="alternate"; type="text/markdown"`);
+    response.headers.append("Link", `<${SITE_URL}${clean}.md>; rel="alternate"; type="text/markdown"`);
   }
   response.headers.set("Accept-CH", "Sec-CH-UA-Platform, Sec-CH-UA-Mobile");
 
