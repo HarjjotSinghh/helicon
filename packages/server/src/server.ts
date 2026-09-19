@@ -1634,6 +1634,7 @@ export class HeliconServer {
       settled: record.settledOverride === "settled",
       settledAt: record.settledAt,
       unsettledAt: record.unsettledAt,
+      sandboxDisabled: record.sandboxDisabled,
       live: this.liveView(record.id),
     };
   }
@@ -1940,6 +1941,8 @@ export class HeliconServer {
       modelId: raw ? str(raw["modelId"]) : found.session.modelId,
       turnCount: num(raw?.["turnCount"]),
       createdAt: normalizeIso(raw?.["createdAt"]),
+      // A fork branches its source session, so it inherits the source's posture.
+      sandboxDisabled: found.session.sandboxDisabled,
     });
     const hostKey = this.sessionHosts.get(sessionId);
     if (hostKey) {
@@ -1966,6 +1969,8 @@ export class HeliconServer {
       origin: "helicon",
       modelId: raw ? str(raw["modelId"]) : null,
       createdAt: normalizeIso(raw?.["createdAt"]),
+      // The creating host's own flags, not the live switch: a flip's restart may still be closing the old host.
+      sandboxDisabled: host.target.args.includes("--disable-sandbox"),
     });
     this.sessionHosts.set(started.sessionId, host.key);
     this.liveFor(started.sessionId);

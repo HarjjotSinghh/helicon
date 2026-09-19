@@ -21,6 +21,7 @@ const SESSION: SessionSummary = {
   settled: false,
   settledAt: null,
   unsettledAt: null,
+  sandboxDisabled: false,
   live: null,
 };
 

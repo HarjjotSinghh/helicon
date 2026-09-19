@@ -51,6 +51,8 @@ export interface SessionSummary {
   settledAt: string | null;
   /** When it was last brought back from the shelf; keeps its place in the active list. */
   unsettledAt: string | null;
+  /** Sandbox posture at creation; null for threads recorded before tracking. */
+  sandboxDisabled: boolean | null;
   live: LiveView | null;
 }
 

@@ -853,6 +853,31 @@ describe("HeliconServer", () => {
     );
   });
 
+  it("marks sessions with their creation posture, inherited by forks", async () => {
+    const connection = new FakeConnection();
+    let started = 0;
+    connection.replies.set("session/start", () => ({ session: { sessionId: `s${(started += 1)}` } }));
+    const { base } = await start(connection);
+
+    const plain = await send(base, "/api/sessions", { cwd: "/work/proj" });
+    assert.equal(plain.json.session.sandboxDisabled, false);
+
+    await send(base, "/api/sandbox-settings", { disabled: true }, "PATCH");
+    const lifted = await send(base, "/api/sessions", { cwd: "/work/other" });
+    assert.equal(lifted.json.session.sandboxDisabled, true, "a session records its creating host's flags");
+
+    connection.replies.set("session/fork", { session: { sessionId: "s3" } });
+    const fork = await send(base, "/api/sessions/s2/fork", {});
+    assert.equal(fork.json.session.sandboxDisabled, true, "a fork inherits its source's posture");
+
+    const sessions = (await get(base, "/api/sessions")).sessions as { sessionId: string; sandboxDisabled: boolean | null }[];
+    assert.equal(
+      sessions.find((s) => s.sessionId === "s1")?.sandboxDisabled,
+      false,
+      "flipping the switch never rewrites old rows",
+    );
+  });
+
   it("upgrades an echo title with one muse exec call, and pushes the name back", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });

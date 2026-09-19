@@ -175,4 +175,16 @@ describe("HeliconStore", () => {
     assert.deepEqual(store.setSandboxSettings({}), { disabled: true }, "an empty patch changes nothing");
     assert.deepEqual(store.setSandboxSettings({ disabled: false }), { disabled: false });
   });
+
+  it("records each session's sandbox posture at creation, never on touch", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/p");
+    const created = store.recordSession({ id: "s1", projectId: project.id, sandboxDisabled: true });
+    assert.equal(created.sandboxDisabled, true);
+    const touched = store.recordSession({ id: "s1", projectId: project.id, turnCount: 2 });
+    assert.equal(touched.sandboxDisabled, true, "a later touch keeps the creation posture");
+    const unknown = store.recordSession({ id: "s2", projectId: project.id });
+    assert.equal(unknown.sandboxDisabled, null, "sessions recorded before tracking stay unknown");
+  });
 });
