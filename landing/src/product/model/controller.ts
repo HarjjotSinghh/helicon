@@ -168,6 +168,7 @@ function blankThread(): ThreadState {
     fold: emptyFold(),
     attachments: [],
     shellRuns: [],
+    stalled: false,
   };
 }
 
@@ -573,6 +574,15 @@ export class HeliconController {
     }
   }
 
+  /**
+   * Asked for by hand from the stalled notice. The watchdog's budget is spent per stuck turn, so a
+   * retry clears it: the user asking is new information, and one more attempt is cheap.
+   */
+  retryStalledThread(sessionId: string): Promise<void> {
+    this.staleReloads.delete(sessionId);
+    return this.loadThread(sessionId);
+  }
+
   async loadThread(sessionId: string): Promise<void> {
     // A second load while one is in flight would orphan the first load's buffer: every event that
     // streamed into it is dropped, and the thread never shows them (#32: a frozen view on a thread
@@ -600,6 +610,7 @@ export class HeliconController {
       this.loading.delete(sessionId);
       const fold = applyEvents(foldFromLoad(load, existing?.fold ?? null), buffered);
       this.appliedAt.set(sessionId, this.platform.now());
+      const wasStalled = existing?.stalled ?? false;
       this.update((s) => ({
         ...s,
         threads: {
@@ -613,6 +624,8 @@ export class HeliconController {
             fold,
             attachments: (load.attachments ?? []).map((file) => this.stamp(file)),
             shellRuns: load.shellRuns ?? [],
+            // History moved the turn on, so the notice goes; a turn still running keeps it.
+            stalled: wasStalled && fold.activeTurnId !== null,
           },
         },
         sessions: load.session ? { ...s.sessions, [sessionId]: load.session } : s.sessions,
@@ -786,6 +799,11 @@ export class HeliconController {
       const spent = this.staleReloads.get(id);
       const count = spent && spent.turnId === turnId ? spent.count : 0;
       if (count >= STALE_RELOAD_LIMIT) {
+        // Out of reloads and the turn still has not moved. Say so: a spinner that will never
+        // resolve reads as the app working, and the user waits for nothing (#42).
+        if (!thread.stalled) {
+          this.setThread(id, { ...thread, stalled: true });
+        }
         continue;
       }
       this.staleReloads.set(id, { turnId, count: count + 1 });
@@ -939,6 +957,7 @@ export class HeliconController {
             fold,
             attachments: [],
             shellRuns: [],
+            stalled: false,
           },
         },
       }));

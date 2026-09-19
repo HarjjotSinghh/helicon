@@ -1240,6 +1240,38 @@ describe("stale thread watchdog", () => {
     stop();
   });
 
+  it("says a thread stalled once the reloads are spent, and retries when asked", async () => {
+    const client = new FakeClient();
+    let loads = 0;
+    client.transcript = async () => {
+      loads += 1;
+      return runningLoad();
+    };
+    const { controller, stop, setNow, runStaleChecks } = await startedWatching(client);
+    assert.equal(controller.store.get().threads["s1"]?.stalled, false, "nothing is stalled to begin with");
+
+    setNow(1_000_000 + 31_000);
+    runStaleChecks();
+    await settle();
+    await settle();
+    setNow(1_000_000 + 62_000);
+    runStaleChecks();
+    await settle();
+    await settle();
+    assert.equal(controller.store.get().threads["s1"]?.stalled, false, "still trying, so nothing is said yet");
+
+    setNow(1_000_000 + 93_000);
+    runStaleChecks();
+    await settle();
+    assert.equal(controller.store.get().threads["s1"]?.stalled, true, "out of reloads: the view says so");
+    assert.equal(loads, 3, "and stops reloading");
+
+    await controller.retryStalledThread("s1");
+    await settle();
+    assert.equal(loads, 4, "asking by hand tries again");
+    stop();
+  });
+
   it("reloads a turn both sides agree is running but silent", async () => {
     const client = new FakeClient();
     let loads = 0;

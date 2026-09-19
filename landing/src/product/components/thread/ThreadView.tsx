@@ -10,7 +10,7 @@ import type { SessionSummary } from "../../types";
 import { SidebarToggle, TrafficLightSpacer } from "../chrome";
 import { Composer, ComposerFooter } from "../composer/Composer";
 import { TelemetryPills } from "../composer/TelemetryPills";
-import { ApprovalPanel, CloseCard, PlanPanel, QuestionPanel, QueuedList, ReadOnlyNotice } from "../requests/Requests";
+import { ApprovalPanel, CloseCard, PlanPanel, QuestionPanel, QueuedList, ReadOnlyNotice, StalledNotice } from "../requests/Requests";
 import { GoalPanel } from "./GoalPanel";
 import { revealLabel } from "../sidebar/Sidebar";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tip } from "../ui/overlays";
@@ -267,6 +267,12 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
             reason={thread.readOnlyReason}
             busy={thread.load === "loading"}
             onRetry={() => void controller.loadThread(session.sessionId)}
+          />
+        ) : null}
+        {thread?.stalled && !thread.readOnly ? (
+          <StalledNotice
+            busy={thread.load === "loading"}
+            onRetry={() => void controller.retryStalledThread(session.sessionId)}
           />
         ) : null}
         {approvals.map((request, index) => (

@@ -175,6 +175,12 @@ export interface ThreadState {
   attachments: AttachmentView[];
   /** `!` commands Helicon ran itself, which Muse's transcript never sees. */
   shellRuns: ShellRun[];
+  /**
+   * The thread shows a turn running, but its stream went quiet and reloading from history did not
+   * move it on. Set once the watchdog has spent its reloads, so the view can say so instead of
+   * leaving a spinner that means nothing (#42).
+   */
+  stalled: boolean;
 }
 
 export interface Toast {

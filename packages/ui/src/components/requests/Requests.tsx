@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronUp, Circle, CircleCheck, CircleX, Clock, ListTodo, Lock, MessageCircleQuestion, Pencil, ShieldAlert, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Circle, CircleCheck, CircleX, Clock, ListTodo, Lock, MessageCircleQuestion, Pencil, PlugZap, ShieldAlert, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useApp, useController } from "../../app/context.js";
 import type { LocalEcho } from "../../model/fold.js";
@@ -511,6 +511,29 @@ export function QueuedList(props: { sessionId: string; items: LocalEcho[] }) {
           </Tip>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * The thread still shows a turn running, but its stream went quiet and reloading from history did
+ * not move it on. Saying so beats a spinner that will never resolve: the work itself usually
+ * finished, and the transcript catches up once the backend starts talking again (#42).
+ */
+export function StalledNotice(props: { onRetry: () => void; busy: boolean }) {
+  return (
+    <div className="flex items-start gap-3 rounded-2xl bg-sunken px-4 py-3 shadow-[0_0_0_1px_var(--border)]">
+      <PlugZap size={15} className="mt-0.5 shrink-0 text-warn" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-fg">This thread stopped receiving updates</p>
+        <p className="mt-0.5 text-xs text-muted">
+          Muse is most likely still working, and may well have finished. Reloading the history twice did not move
+          this turn on, so nothing more arrives here until it does. Restarting Helicon reconnects it.
+        </p>
+      </div>
+      <Button size="sm" onClick={props.onRetry} loading={props.busy}>
+        Reload
+      </Button>
     </div>
   );
 }
