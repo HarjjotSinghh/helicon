@@ -48,6 +48,10 @@ describe("formatting", () => {
     assert.equal(formatDuration(73471), "1m 13s");
     assert.equal(formatDuration(120000), "2m");
     assert.equal(formatDuration(3_900_000), "1h 5m");
+    assert.equal(formatDuration(123), "123ms");
+    assert.equal(formatDuration(999), "999ms");
+    assert.equal(formatDuration(999.6), "1s");
+    assert.equal(formatDuration(1000), "1s");
     assert.equal(formatTokens(842), "842");
     assert.equal(formatTokens(21177), "21k");
     assert.equal(formatTokens(1500), "1.5k");
