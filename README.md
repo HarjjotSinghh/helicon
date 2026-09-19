@@ -108,6 +108,25 @@ Helicon bundles its own Node.js, so you only need the `muse` CLI with `muse logi
 
 Helicon updates itself, so there is nothing to subscribe to for that. If you would rather read what changed before it lands, use **Watch → Custom → Releases** at the top of this page: GitHub then tells you about each release and nothing else. [Discussions](https://github.com/HarjjotSinghh/helicon/discussions) is the place for questions and for what you are building with it.
 
+## Docs
+
+Longer versions of everything above live on [helicon.sh](https://helicon.sh). Every page has a
+Markdown twin at the same path with `.md` appended, for anyone reading this with an agent.
+
+| | |
+| --- | --- |
+| [Muse Code GUI options](https://helicon.sh/muse-code-gui) | Every graphical interface for Muse Code, including the editor extensions and the other wrappers |
+| [The desktop app](https://helicon.sh/muse-code-desktop-app) | What Helicon is, on which platforms, and what it needs from you |
+| [Install](https://helicon.sh/install) | [Windows](https://helicon.sh/install/windows) · [macOS](https://helicon.sh/install/macos) · [Linux](https://helicon.sh/install/linux) · [WSL2](https://helicon.sh/install/wsl2) |
+| [Comparisons](https://helicon.sh/compare) | Against [the terminal](https://helicon.sh/compare/muse-code-terminal), [VS Code extensions](https://helicon.sh/compare/vs-code-extension), [Zed and JetBrains over ACP](https://helicon.sh/compare/zed-acp), and [the other Muse GUIs](https://helicon.sh/compare/other-muse-code-guis) |
+| [Features](https://helicon.sh/features) | One page per capability: [sessions](https://helicon.sh/features/session-history), [diffs](https://helicon.sh/features/inline-diffs), [approvals](https://helicon.sh/features/approvals), [cost](https://helicon.sh/features/cost-and-usage), [remote daemon](https://helicon.sh/features/remote-daemon) |
+| [Guides](https://helicon.sh/guides) | [Windows without WSL](https://helicon.sh/guides/muse-code-windows-without-wsl), [resuming a session](https://helicon.sh/guides/resume-a-muse-session), [parallel agents](https://helicon.sh/guides/run-parallel-agents), [when the CLI is not found](https://helicon.sh/guides/muse-cli-not-found) |
+| [Glossary](https://helicon.sh/glossary) | [Muse Code](https://helicon.sh/glossary/muse-code), [MSP](https://helicon.sh/glossary/msp), [`muse serve`](https://helicon.sh/glossary/muse-serve), [ACP](https://helicon.sh/glossary/acp), [approvals](https://helicon.sh/glossary/agent-approvals) |
+| [FAQ](https://helicon.sh/faq) · [Pricing](https://helicon.sh/pricing) · [Changelog](https://helicon.sh/changelog) | Every question in one page; free and MIT; every release |
+
+For agents: [llms.txt](https://helicon.sh/llms.txt), [llms-full.txt](https://helicon.sh/llms-full.txt),
+[AGENTS.md](https://helicon.sh/agents.md), [facts.json](https://helicon.sh/facts.json).
+
 ## From source
 
 Prereqs (source builds and the web app only - the desktop installers bundle Node.js): Node 22+, the `muse` CLI with `muse login` done once (natively or in WSL2 on Windows), and the repo checked out.

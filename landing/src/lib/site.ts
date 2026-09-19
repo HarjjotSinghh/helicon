@@ -110,7 +110,9 @@ export function osesFor(version: string | null): OsInfo[] {
   const dmg = version
     ? `Open Helicon_${version}_universal.dmg from the latest release.`
     : "Open the macOS DMG from the latest GitHub release.";
-  const linux = version ? `Linux is source-only at v${version}.` : "Linux is source-only; there is no packaged build yet.";
+  const appImage = version
+    ? `Download Helicon_${version}_amd64.AppImage from the latest release.`
+    : "Download the x86_64 AppImage from the latest GitHub release.";
   return [
     {
       id: "windows",
@@ -118,10 +120,11 @@ export function osesFor(version: string | null): OsInfo[] {
       summary:
         "Signed installer with auto-update. Muse Code runs natively on Windows; WSL2 still works, with path translation both ways.",
       steps: [
-        { text: "Install the muse CLI inside WSL2 Ubuntu." },
-        { text: "Sign in from the WSL2 shell.", command: "muse login" },
+        { text: "Install Muse Code for Windows in PowerShell.", command: "irm https://dev.meta.ai/install.ps1 | iex" },
+        { text: "Sign in once.", command: "muse login" },
         { text: win },
       ],
+      note: "Already running Muse inside WSL2? Helicon uses that when native Muse is not installed. Set HELICON_MUSE_RUNTIME=wsl to keep WSL when both are.",
     },
     {
       id: "macos",
@@ -137,13 +140,13 @@ export function osesFor(version: string | null): OsInfo[] {
     {
       id: "linux",
       label: "Linux",
-      summary: "Run from source for now. There is no packaged build yet.",
+      summary: "An x86_64 AppImage that runs on most distributions, with auto-update.",
       steps: [
-        { text: "Clone the repository.", command: `git clone ${REPO_URL}` },
-        { text: "Install dependencies.", command: "cd helicon && npm install" },
-        { text: "Start the app.", command: "npm run dev" },
+        { text: "Sign in with the muse CLI.", command: "muse login" },
+        { text: appImage },
+        { text: "Make it executable, then run it.", command: "chmod +x Helicon_*.AppImage && ./Helicon_*.AppImage" },
       ],
-      note: linux,
+      note: "Some distributions need FUSE (libfuse2). There is no ARM build yet; running from source instead needs Node 22 or newer.",
     },
   ];
 }

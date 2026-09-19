@@ -221,67 +221,97 @@ export const INSTALL_PAGES: SeoPage[] = [
     icon: "linux",
     section: "install",
     label: "Linux",
-    title: "Muse Code GUI on Linux: run Helicon from source",
-    h1: "Run Helicon on Linux",
+    title: "Muse Code GUI on Linux: the Helicon AppImage",
+    h1: "Install Helicon on Linux",
     description:
-      "Linux is source only for now. Clone the repository, install dependencies with Node 22 or newer, and run the app against your local muse CLI.",
+      "An x86_64 AppImage that runs on most distributions and updates itself. Make it executable, run it, and point it at a muse CLI that is signed in.",
     answer:
-      "Linux has no packaged Helicon build yet, so it runs from source. Clone the repository, install dependencies with Node 22 or newer, and start it against your local muse CLI. The web build is often the better Linux answer: run the daemon on the Linux box and open the UI in a browser.",
+      "Download the x86_64 AppImage from the latest GitHub release, make it executable, and run it. It works on most distributions, needs FUSE (libfuse2) on some of them, and updates itself from then on. Running from source is the alternative and needs Node 22 or newer.",
     keywords: [
       "muse code linux",
       "muse code gui linux",
+      "muse code appimage",
       "muse code ubuntu",
       "run muse code from source",
-      "muse code appimage",
     ],
     updated: UPDATED,
     ogEyebrow: "Install on Linux",
     blocks: [
-      { kind: "h2", text: "State of Linux support" },
-      {
-        kind: "p",
-        text: "There is no packaged Linux build today. That is a gap rather than a policy. Running from source works, and because the same React UI ships as a web app, a Linux machine is a good place to put the daemon even when you look at it from somewhere else.",
-      },
-      { kind: "h2", text: "Requirements" },
+      { kind: "h2", text: "Before you start" },
       {
         kind: "ul",
         items: [
-          "Node 22 or newer on the machine, since you are not getting the bundled runtime that comes with the desktop app.",
+          "An x86_64 distribution. There is no ARM build yet.",
+          "FUSE, usually the `libfuse2` package, on distributions that do not ship it.",
           "The muse CLI, signed in with your own `muse login`.",
-          "Standard Tauri build dependencies if you want the desktop shell rather than the web build.",
+          "Nothing else. The AppImage bundles its own Node.js.",
         ],
       },
-      { kind: "h2", text: "The remote daemon route" },
+      { kind: "h2", text: "Making the AppImage runnable" },
       {
         kind: "p",
-        text: "If the Linux box is a server rather than your desktop, run the daemon there and open the web UI from your laptop. You get the same sidebar, diffs, approvals and cost view, and the agent runs next to the code.",
+        text: "An AppImage arrives without the executable bit, which is the single most common reason a first launch does nothing at all. Set it once, from the shell or from your file manager's properties dialog.",
+      },
+      { kind: "code", lang: "sh", code: "chmod +x Helicon_*.AppImage\n./Helicon_*.AppImage" },
+      {
+        kind: "note",
+        text: "If it exits immediately with a FUSE error, install `libfuse2` (Debian and Ubuntu) or your distribution's equivalent, then run it again.",
+      },
+      { kind: "h2", text: "Updates" },
+      {
+        kind: "p",
+        text: "The AppImage updates itself the same way the Windows and macOS builds do: it asks helicon.sh whether a newer version exists and replaces itself. There is no repository to add and nothing to subscribe to.",
+      },
+      { kind: "h2", text: "Running from source instead" },
+      {
+        kind: "p",
+        text: "Source is the route for ARM machines, for hacking on Helicon, and for running the daemon headless on a server. It needs Node 22 or newer, because you are not getting the runtime the AppImage bundles.",
+      },
+      { kind: "h2", text: "Linux as the daemon host" },
+      {
+        kind: "p",
+        text: "If the Linux box is a server rather than your desktop, run the daemon there and open the web UI from your laptop. Same sidebar, diffs, approvals and cost view, with the agent running next to the code.",
       },
     ],
     howTo: {
-      name: "Run Helicon on Linux from source",
+      name: "Install Helicon on Linux from the AppImage",
       steps: [
-        { name: "Clone the repository", text: "Get the source from GitHub.", code: `git clone ${REPO_URL}` },
-        { name: "Install dependencies", text: "Node 22 or newer is required.", code: "cd helicon && npm install" },
-        { name: "Start the app", text: "This runs the daemon and the UI.", code: "npm run dev" },
         {
           name: "Sign in with the muse CLI",
-          text: "Helicon uses your own login and stores no credentials.",
+          text: "Helicon uses this login and stores no credentials of its own.",
           code: "muse login",
+        },
+        {
+          name: "Download the AppImage",
+          text: "Take Helicon_<version>_amd64.AppImage from the latest GitHub release.",
+        },
+        {
+          name: "Make it executable and run it",
+          text: "Or right click it in your file manager and allow running it as a program.",
+          code: "chmod +x Helicon_*.AppImage && ./Helicon_*.AppImage",
+        },
+        {
+          name: "Add a project",
+          text: "Point Helicon at a working directory to start a muse serve host and list its sessions.",
         },
       ],
     },
     faqs: [
       {
-        q: "Is there an AppImage or a deb?",
-        a: "Not yet. Linux is source only today. The web build against a local daemon is the lightest way to use it in the meantime.",
+        q: "Is there an AppImage?",
+        a: "Yes, x86_64, attached to every GitHub release, with auto update. There is no deb or rpm, and no ARM build yet.",
+      },
+      {
+        q: "The AppImage does nothing when I double click it.",
+        a: "It needs the executable bit: `chmod +x Helicon_*.AppImage`. If it then exits with a FUSE error, install `libfuse2` or your distribution's equivalent.",
       },
       {
         q: "What Node version do I need?",
-        a: "Node 22 or newer. The desktop app bundles its own Node, but running from source does not.",
+        a: "None for the AppImage, which bundles its own. Running from source needs Node 22 or newer.",
       },
       {
         q: "Can the daemon run headless on a server?",
-        a: "Yes. That is what the web build is for: daemon on the server, UI in a browser.",
+        a: "Yes. Run it from source there and open the web build in a browser.",
       },
     ],
     related: ["features/remote-daemon", "guides/remote-daemon-setup", "install/windows"],
@@ -343,6 +373,10 @@ export const INSTALL_PAGES: SeoPage[] = [
       },
       {
         kind: "note",
+        text: "Helicon prefers native Muse Code when both are installed. Set `HELICON_MUSE_RUNTIME=wsl` to keep it on the WSL2 route anyway.",
+      },
+      {
+        kind: "note",
         text: "Running the daemon from source on Windows needs Node 22 or newer on the Windows host, not inside WSL2. The packaged desktop app brings its own.",
       },
     ],
@@ -372,7 +406,7 @@ export const INSTALL_PAGES: SeoPage[] = [
     faqs: [
       {
         q: "Do I still need WSL2?",
-        a: "Not for Muse Code itself, which runs natively on Windows. Keep WSL2 if your project or toolchain lives there. Helicon supports both and prefers native when it finds it.",
+        a: "Not for Muse Code itself, which runs natively on Windows. Keep WSL2 if your project or toolchain lives there. Helicon supports both, prefers native when it finds it, and honours `HELICON_MUSE_RUNTIME=wsl` when you want the WSL2 route regardless.",
       },
       {
         q: "Which paths should I add as projects?",
