@@ -1,14 +1,12 @@
-import { ArrowRight, ArrowUpRight, CaretRight, DownloadSimple, FileText, ListBullets, Plus } from "@phosphor-icons/react/ssr";
+import { ArrowRight, CaretRight, FileText, ListBullets, Plus } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { Blocks, Inline, Steps, headingId, headingsOf } from "./blocks";
 import { DocShell } from "./doc-shell";
 import { IconTile } from "./icons";
-import { GitHubLogo, WindowsLogo } from "../os-logos";
-import { Rule, bandX, buttonClass, cn } from "../ui";
+import { PlatformCta } from "./platform-cta";
+import { Rule, bandX, cn } from "../ui";
 import { relatedPages, sectionById } from "@/lib/seo/catalog";
 import type { Faq, IconKey, SeoPage } from "@/lib/seo/types";
-import { installerPath } from "@/lib/downloads";
-import { REPO_URL } from "@/lib/site";
 
 function formatDate(iso: string) {
   return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", {
@@ -152,24 +150,7 @@ export function PageCta({ title, body }: { title: string; body: string }) {
         ))}
       </h2>
       <p className="mt-3 max-w-[56ch] text-[15px] leading-relaxed text-muted sm:text-[16px]">{body}</p>
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-        <Link href={installerPath("windows", "doc-cta")} className={buttonClass("primary", "md")}>
-          <WindowsLogo aria-hidden="true" className="size-[18px]" />
-          Download for Windows
-        </Link>
-        <Link href="/install" className={buttonClass("outline", "md")}>
-          <DownloadSimple weight="bold" aria-hidden="true" />
-          All platforms
-        </Link>
-        <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={buttonClass("ghost", "md")}>
-          <GitHubLogo aria-hidden="true" />
-          View source
-          <ArrowUpRight
-            aria-hidden="true"
-            className="!size-3 text-subtle transition-transform duration-200 ease-out [@media(hover:hover)]:group-hover/btn:translate-x-0.5 [@media(hover:hover)]:group-hover/btn:-translate-y-0.5"
-          />
-        </a>
-      </div>
+      <PlatformCta />
     </section>
   );
 }

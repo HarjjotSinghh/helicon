@@ -56,7 +56,12 @@ export type FooterGroup = {
   links: { href: string; label: string; icon: ComponentType<{ className?: string }>; external: boolean }[];
 };
 
-const groups: FooterGroup[] = [
+/**
+ * One definition for both footers, capped at five links a column so no column becomes a wall.
+ * Every hub and both pillars are here, which is what keeps all 78 pages two clicks from home now
+ * that the home page has no index band. The doc shell imports this rather than keeping its own.
+ */
+export const FOOTER_GROUPS: FooterGroup[] = [
   {
     title: "Project",
     links: [
@@ -67,16 +72,6 @@ const groups: FooterGroup[] = [
     ],
   },
   {
-    title: "On this page",
-    links: [
-      { href: "#features", label: "Features", icon: BookOpen, external: false },
-      { href: "#install", label: "Install", icon: DownloadSimple, external: false },
-      { href: "#faq", label: "FAQ", icon: Question, external: false },
-    ],
-  },
-  // The whole generated site hangs off these two columns. Every one of the 71 pages is two
-  // clicks from here, which is what keeps crawl depth sane now that the home page has no index.
-  {
     title: "Learn",
     links: [
       { href: "/muse-code-gui", label: "Muse Code GUI", icon: BookOpen, external: false },
@@ -84,18 +79,21 @@ const groups: FooterGroup[] = [
       { href: "/features", label: "Features", icon: BookOpen, external: false },
       { href: "/compare", label: "Compare", icon: BookOpen, external: false },
       { href: "/guides", label: "Guides", icon: BookOpen, external: false },
-      { href: "/use-cases", label: "Use cases", icon: BookOpen, external: false },
     ],
   },
-  // Named "Developers" because that is the word an agent and a person both search for. Every
-  // machine-readable surface the site publishes is one click from the home page through here.
   {
     title: "More",
     links: [
       { href: "/install", label: "Install", icon: DownloadSimple, external: false },
+      { href: "/use-cases", label: "Use cases", icon: BookOpen, external: false },
       { href: "/glossary", label: "Glossary", icon: BookOpen, external: false },
       { href: "/pricing", label: "Pricing", icon: BookOpen, external: false },
-      { href: "/faq", label: "Full FAQ", icon: Question, external: false },
+      { href: "/faq", label: "FAQ", icon: Question, external: false },
+    ],
+  },
+  {
+    title: "Company",
+    links: [
       { href: "/about", label: "About", icon: BookOpen, external: false },
       { href: "/contact", label: "Contact", icon: EnvelopeSimple, external: false },
       { href: "/legal", label: "Legal", icon: BookOpen, external: false },
@@ -103,7 +101,7 @@ const groups: FooterGroup[] = [
   },
 ];
 
-export function SiteFooter({ nav = groups }: { nav?: FooterGroup[] }) {
+export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
   return (
     <footer>
       <div className="grid gap-10 px-5 py-12 sm:px-8 md:grid-cols-[1fr_auto] lg:px-12">

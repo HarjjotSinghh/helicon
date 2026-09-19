@@ -7,6 +7,7 @@ import {
   SquaresFour,
   TerminalWindow,
 } from "@phosphor-icons/react/ssr";
+import type { ReactNode } from "react";
 import { REPO_URL } from "@/lib/site";
 import type { PageCopy } from "@/lib/copy";
 import { GitHubLogo } from "./os-logos";
@@ -38,10 +39,17 @@ export function SiteHeader({
   copy,
   nav = links,
   homeHref = "#top",
+  cta,
 }: {
   copy: PageCopy;
   nav?: { href: string; label: string; icon: typeof MonitorPlay }[];
   homeHref?: string;
+  /**
+   * Replaces the download button. Generated pages pass a client component, because they are
+   * static and the default copy's button points at #install, an anchor that only the home page
+   * has.
+   */
+  cta?: ReactNode;
 }) {
   return (
     <header className="sticky top-0 z-[210] isolate bg-bg/85 pt-[env(safe-area-inset-top)] backdrop-blur-md backdrop-saturate-150 supports-[not(backdrop-filter:blur(1px))]:bg-bg">
@@ -82,15 +90,17 @@ export function SiteHeader({
           >
             <GitHubLogo aria-hidden="true" />
           </TrackedLink>
-          <TrackedLink
-            href={copy.headerHref}
-            placement="header"
-            eventLabel={copy.headerCta}
-            className={buttonClass("primary", "sm", "ml-0 min-h-11 px-3 sm:ml-1.5 sm:min-h-0")}
-          >
-            <DownloadSimple weight="bold" aria-hidden="true" />
-            {copy.headerCta}
-          </TrackedLink>
+          {cta ?? (
+            <TrackedLink
+              href={copy.headerHref}
+              placement="header"
+              eventLabel={copy.headerCta}
+              className={buttonClass("primary", "sm", "ml-0 min-h-11 px-3 sm:ml-1.5 sm:min-h-0")}
+            >
+              <DownloadSimple weight="bold" aria-hidden="true" />
+              {copy.headerCta}
+            </TrackedLink>
+          )}
           <MobileNav
             links={[
               ...nav.map(({ href, label }) => ({ href, label })),
