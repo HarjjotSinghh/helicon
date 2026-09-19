@@ -160,6 +160,39 @@ export function shortenPath(path: string, max = 48): string {
   return `${head}${separator}...${separator}${tail}`;
 }
 
+const ANSI_PATTERN = `${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`;
+
+/**
+ * The last non-blank line of a (possibly huge) output, scanned from the end so a running tool
+ * row's preview costs its tail rather than the whole log on every flush.
+ */
+export function lastLine(text: string | undefined): string | null {
+  if (!text) {
+    return null;
+  }
+  const ansi = new RegExp(ANSI_PATTERN, "g");
+  let end = text.length;
+  while (end > 0) {
+    let lineEnd = end;
+    if (text[lineEnd - 1] === "\n") {
+      lineEnd -= 1;
+    }
+    if (lineEnd === 0) {
+      return null;
+    }
+    const lineStart = text.lastIndexOf("\n", lineEnd - 1) + 1;
+    const line = text.slice(lineStart, lineEnd).replace(ansi, "").trim();
+    if (line) {
+      return line;
+    }
+    if (lineStart === 0) {
+      return null;
+    }
+    end = lineStart;
+  }
+  return null;
+}
+
 export function humanize(identifier: string): string {
   const spaced = identifier
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -387,6 +420,9 @@ function lines(value: unknown): string[] {
   return typeof value === "string" ? value.replace(/\r\n/g, "\n").split("\n") : [];
 }
 
+/** Old/new line pairs past this skip the alignment table and read as two plain blocks. */
+export const ALIGN_CELL_LIMIT = 250_000;
+
 /**
  * Aligns an edit's old and new lines the way a diff does: unchanged lines read as context instead of
  * showing as removed and re-added, which is what the find block's padding lines would otherwise do.
@@ -397,6 +433,15 @@ export function alignLines(removed: string[], added: string[]): DiffRow[] {
   }
   if (added.length === 0) {
     return removed.map((text) => ({ kind: "del" as const, text }));
+  }
+  // The table below costs a cell per old/new pair, and a running edit's diff is recomputed on every
+  // flush: past this many cells a giant edit would eat the frame budget on its own, so it reads as
+  // one removed block followed by one added block instead of an aligned diff. Nothing is dropped.
+  if (removed.length * added.length > ALIGN_CELL_LIMIT) {
+    return [
+      ...removed.map((text) => ({ kind: "del" as const, text })),
+      ...added.map((text) => ({ kind: "add" as const, text })),
+    ];
   }
   const width = added.length + 1;
   const table = new Uint32Array((removed.length + 1) * width);
