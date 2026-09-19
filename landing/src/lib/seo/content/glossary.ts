@@ -1,4 +1,4 @@
-import type { SeoPage } from "../types";
+import type { IconKey, SeoPage } from "../types";
 
 /**
  * Definition pages. These exist for answer engines: each one opens with a self contained
@@ -9,6 +9,7 @@ const UPDATED = "2026-09-19";
 
 type Def = {
   slug: string;
+  icon: IconKey;
   term: string;
   title: string;
   description: string;
@@ -22,6 +23,7 @@ type Def = {
 const DEFS: Def[] = [
   {
     slug: "muse-code",
+    icon: "sparkle",
     term: "Muse Code",
     title: "What is Muse Code? Meta's terminal coding agent",
     description:
@@ -58,6 +60,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "muse-cli",
+    icon: "terminalWindow",
     term: "the muse CLI",
     title: "What is the muse CLI?",
     description:
@@ -96,6 +99,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "msp",
+    icon: "plugsConnected",
     term: "the Muse Code Session Protocol",
     title: "What is MSP, the Muse Code Session Protocol?",
     description:
@@ -132,6 +136,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "muse-serve",
+    icon: "drives",
     term: "muse serve",
     title: "What is muse serve?",
     description:
@@ -162,6 +167,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "acp",
+    icon: "plugs",
     term: "the Agent Client Protocol",
     title: "What is ACP, the Agent Client Protocol?",
     description:
@@ -196,6 +202,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "ade",
+    icon: "appWindow",
     term: "an ADE",
     title: "What is an ADE, an agentic development environment?",
     description:
@@ -239,6 +246,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "agent-approvals",
+    icon: "shield",
     term: "agent approvals",
     title: "What are coding agent approvals?",
     description:
@@ -281,6 +289,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "git-worktree",
+    icon: "gitBranch",
     term: "a git worktree",
     title: "What is a git worktree, and why agents need them",
     description:
@@ -316,6 +325,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "subagent",
+    icon: "tree",
     term: "a subagent",
     title: "What is a subagent in a coding agent?",
     description:
@@ -354,6 +364,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "reasoning-effort",
+    icon: "gauge",
     term: "reasoning effort",
     title: "What is reasoning effort in a coding agent?",
     description:
@@ -388,6 +399,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "tui",
+    icon: "terminal",
     term: "a TUI",
     title: "What is a TUI, and why coding agents ship one",
     description:
@@ -428,6 +440,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "llms-txt",
+    icon: "file",
     term: "llms.txt",
     title: "What is llms.txt?",
     description:
@@ -471,6 +484,7 @@ const DEFS: Def[] = [
   },
   {
     slug: "tauri",
+    icon: "cube",
     term: "Tauri",
     title: "What is Tauri, and why build a desktop app with it?",
     description:
@@ -506,6 +520,7 @@ function toPage(def: Def): SeoPage {
   return {
     slug: `glossary/${def.slug}`,
     section: "glossary",
+    icon: def.icon,
     label: def.term,
     title: def.title,
     h1: def.title.replace(/\?.*$/, "?"),

@@ -16,6 +16,7 @@ import { PILLAR_PAGES } from "./content/pillars";
 export const SECTIONS: Section[] = [
   {
     id: "install",
+    icon: "download",
     slug: "install",
     label: "Install",
     title: "Install a Muse Code desktop app on Windows, macOS or Linux",
@@ -30,6 +31,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "compare",
+    icon: "scales",
     slug: "compare",
     label: "Compare",
     title: "Muse Code GUI comparisons: Helicon vs the alternatives",
@@ -44,6 +46,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "features",
+    icon: "squares",
     slug: "features",
     label: "Features",
     title: "Muse Code GUI features: sessions, diffs, approvals, cost",
@@ -57,6 +60,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "guides",
+    icon: "book",
     slug: "guides",
     label: "Guides",
     title: "Muse Code how-to guides",
@@ -70,6 +74,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "use-cases",
+    icon: "people",
     slug: "use-cases",
     label: "Use cases",
     title: "Who a Muse Code desktop app is for",
@@ -83,6 +88,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "glossary",
+    icon: "bookmark",
     slug: "glossary",
     label: "Glossary",
     title: "Muse Code glossary: MSP, muse serve, ADE, approvals",

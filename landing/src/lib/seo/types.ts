@@ -6,6 +6,65 @@
  * with no JSX, which keeps it importable from route handlers, the sitemap and the llms.txt files.
  */
 
+/**
+ * Every glyph a generated page can carry. The registry in components/seo/icons.tsx is typed as
+ * Record<IconKey, Glyph>, so adding a key here without drawing it is a type error rather than a
+ * blank square on a live page.
+ */
+export type IconKey =
+  | "windows"
+  | "apple"
+  | "linux"
+  | "github"
+  | "terminal"
+  | "terminalWindow"
+  | "code"
+  | "lightning"
+  | "browsers"
+  | "appWindow"
+  | "robot"
+  | "cursor"
+  | "wind"
+  | "gitBranch"
+  | "gitCommit"
+  | "gitDiff"
+  | "gitFork"
+  | "puzzle"
+  | "squares"
+  | "tag"
+  | "clock"
+  | "shield"
+  | "chart"
+  | "gauge"
+  | "folder"
+  | "folderOpen"
+  | "command"
+  | "file"
+  | "globe"
+  | "tree"
+  | "target"
+  | "queue"
+  | "rewind"
+  | "drives"
+  | "currency"
+  | "search"
+  | "keyboard"
+  | "warning"
+  | "swap"
+  | "stack"
+  | "broadcast"
+  | "briefcase"
+  | "sparkle"
+  | "plugsConnected"
+  | "plugs"
+  | "cube"
+  | "scales"
+  | "bookmark"
+  | "book"
+  | "people"
+  | "download"
+  | "question";
+
 export type SectionId =
   | "compare"
   | "features"
@@ -36,6 +95,8 @@ export type SeoPage = {
   /** Path under the origin, with no leading or trailing slash. "compare/cursor". */
   slug: string;
   section: SectionId;
+  /** The glyph this page carries, in its header and on every card that links to it. */
+  icon: IconKey;
   /** Breadcrumb label and card label. Short. */
   label: string;
   /** The <title>, written for the SERP. Keep under 60 characters where possible. */
@@ -67,6 +128,7 @@ export type SeoPage = {
 
 export type Section = {
   id: SectionId;
+  icon: IconKey;
   /** Hub path, with no leading slash. */
   slug: string;
   label: string;

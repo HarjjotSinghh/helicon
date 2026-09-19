@@ -8,6 +8,7 @@ const UPDATED = "2026-09-19";
 export const INSTALL_PAGES: SeoPage[] = [
   {
     slug: "install/windows",
+    icon: "windows",
     section: "install",
     label: "Windows",
     title: "Muse Code for Windows: install the desktop app",
@@ -123,6 +124,7 @@ export const INSTALL_PAGES: SeoPage[] = [
   },
   {
     slug: "install/macos",
+    icon: "apple",
     section: "install",
     label: "macOS",
     title: "Muse Code desktop app for macOS: install Helicon",
@@ -216,6 +218,7 @@ export const INSTALL_PAGES: SeoPage[] = [
   },
   {
     slug: "install/linux",
+    icon: "linux",
     section: "install",
     label: "Linux",
     title: "Muse Code GUI on Linux: run Helicon from source",
@@ -285,6 +288,7 @@ export const INSTALL_PAGES: SeoPage[] = [
   },
   {
     slug: "install/wsl2",
+    icon: "terminalWindow",
     section: "install",
     label: "WSL2",
     title: "Muse Code in WSL2 with a Windows GUI",

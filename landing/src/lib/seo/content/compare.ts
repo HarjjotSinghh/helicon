@@ -1,4 +1,4 @@
-import type { SeoPage } from "../types";
+import type { IconKey, SeoPage } from "../types";
 
 /**
  * Comparison pages. One per tool people weigh Helicon against, written from the honest position
@@ -10,6 +10,7 @@ const UPDATED = "2026-09-19";
 
 type Entry = {
   slug: string;
+  icon: IconKey;
   label: string;
   /** How the tool is written in prose. */
   name: string;
@@ -31,6 +32,7 @@ type Entry = {
 const ENTRIES: Entry[] = [
   {
     slug: "muse-code-terminal",
+    icon: "terminalWindow",
     label: "The muse terminal",
     name: "the muse terminal TUI",
     title: "Helicon vs the muse terminal: Muse Code with a UI",
@@ -113,6 +115,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "vs-code-extension",
+    icon: "code",
     label: "VS Code extensions",
     name: "a VS Code Muse extension",
     title: "Helicon vs VS Code Muse Code extensions",
@@ -194,6 +197,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "zed-acp",
+    icon: "lightning",
     label: "Zed with ACP",
     name: "Zed with an ACP bridge",
     title: "Helicon vs Zed + muse-acp for Muse Code",
@@ -270,6 +274,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "jetbrains-acp",
+    icon: "browsers",
     label: "JetBrains IDEs",
     name: "a JetBrains IDE with an ACP plugin",
     title: "Helicon vs JetBrains + ACP for Muse Code",
@@ -346,6 +351,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "claude-code-desktop",
+    icon: "appWindow",
     label: "Claude Code desktop",
     name: "the Claude Code desktop app",
     title: "Helicon vs the Claude Code desktop app",
@@ -421,6 +427,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "codex-app",
+    icon: "robot",
     label: "Codex app",
     name: "the Codex and ChatGPT desktop app",
     title: "Helicon vs the Codex desktop app",
@@ -496,6 +503,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "cursor",
+    icon: "cursor",
     label: "Cursor",
     name: "Cursor",
     title: "Helicon vs Cursor for Muse Code users",
@@ -572,6 +580,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "windsurf",
+    icon: "wind",
     label: "Windsurf",
     name: "Windsurf",
     title: "Helicon vs Windsurf for Muse Code users",
@@ -647,6 +656,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "opencode",
+    icon: "gitBranch",
     label: "OpenCode",
     name: "OpenCode",
     title: "Helicon vs OpenCode for Muse Code subscribers",
@@ -718,6 +728,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "aider",
+    icon: "gitCommit",
     label: "Aider",
     name: "Aider",
     title: "Helicon vs Aider: GUI over CLI, two ways",
@@ -789,6 +800,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "cline",
+    icon: "puzzle",
     label: "Cline",
     name: "Cline",
     title: "Helicon vs Cline for agent supervision",
@@ -863,6 +875,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "warp",
+    icon: "terminal",
     label: "Warp",
     name: "Warp",
     title: "Helicon vs Warp for running Muse Code",
@@ -937,6 +950,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "other-muse-code-guis",
+    icon: "squares",
     label: "Other Muse GUIs",
     name: "the other open-source Muse Code GUIs",
     title: "Muse Code GUI comparison: Helicon and the others",
@@ -1017,6 +1031,7 @@ function toPage(entry: Entry): SeoPage {
   return {
     slug: `compare/${entry.slug}`,
     section: "compare",
+    icon: entry.icon,
     label: entry.label,
     title: entry.title,
     h1: entry.h1,

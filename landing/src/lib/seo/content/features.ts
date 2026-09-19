@@ -7,6 +7,7 @@ const UPDATED = "2026-09-19";
 export const FEATURE_PAGES: SeoPage[] = [
   {
     slug: "features/session-history",
+    icon: "clock",
     section: "features",
     label: "Session history and resume",
     title: "Muse Code session history: find and resume any thread",
@@ -75,6 +76,7 @@ export const FEATURE_PAGES: SeoPage[] = [
   },
   {
     slug: "features/inline-diffs",
+    icon: "gitDiff",
     section: "features",
     label: "Inline diffs",
     title: "Inline diffs for Muse Code: see every edit in the thread",
@@ -131,6 +133,7 @@ export const FEATURE_PAGES: SeoPage[] = [
   },
   {
     slug: "features/approvals",
+    icon: "shield",
     section: "features",
     label: "Approvals",
     title: "Muse Code approvals, surfaced and never bypassed",
@@ -197,6 +200,7 @@ export const FEATURE_PAGES: SeoPage[] = [
   },
   {
     slug: "features/cost-and-usage",
+    icon: "chart",
     section: "features",
     label: "Cost at API rates",
     title: "Muse Code cost tracking: what each thread would cost",
@@ -256,6 +260,7 @@ export const FEATURE_PAGES: SeoPage[] = [
   },
   {
     slug: "features/plan-limits",
+    icon: "gauge",
     section: "features",
     label: "Plan meter",
     title: "Muse Code usage limits: the 5 hour window, in the sidebar",
@@ -310,6 +315,7 @@ export const FEATURE_PAGES: SeoPage[] = [
   },
   {
     slug: "features/projects-and-worktrees",
+    icon: "folder",
     section: "features",
     label: "Projects and worktrees",
     title: "Projects and git worktrees in a Muse Code GUI",
@@ -370,6 +376,7 @@ export const FEATURE_PAGES: SeoPage[] = [
   },
   {
     slug: "features/command-palette",
+    icon: "command",
     section: "features",
     label: "Keyboard and palette",
     title: "Command palette and keyboard control for Muse Code",
@@ -429,6 +436,7 @@ export const FEATURE_PAGES: SeoPage[] = [
   },
   {
     slug: "features/file-viewer",
+    icon: "file",
     section: "features",
     label: "File viewer",
     title: "A file viewer beside the Muse Code thread",
@@ -486,6 +494,7 @@ export const FEATURE_PAGES: SeoPage[] = [
   },
   {
     slug: "features/remote-daemon",
+    icon: "globe",
     section: "features",
     label: "Remote daemon and web UI",
     title: "Run Muse Code on a remote machine, drive it from a browser",
@@ -546,6 +555,7 @@ export const FEATURE_PAGES: SeoPage[] = [
   },
   {
     slug: "features/subagents-and-workflows",
+    icon: "tree",
     section: "features",
     label: "Subagents and workflows",
     title: "Watch Muse Code subagents and workflows in one window",
@@ -602,6 +612,7 @@ export const FEATURE_PAGES: SeoPage[] = [
   },
   {
     slug: "features/goals",
+    icon: "target",
     section: "features",
     label: "Goals",
     title: "Set, pause and steer a Muse Code goal from the UI",
@@ -659,6 +670,7 @@ export const FEATURE_PAGES: SeoPage[] = [
   },
   {
     slug: "features/background-tasks",
+    icon: "queue",
     section: "features",
     label: "Background work",
     title: "Background and stop controls for running Muse Code tools",

@@ -1,10 +1,12 @@
-import { ArrowRight, CaretRight, FileText, ListBullets } from "@phosphor-icons/react/ssr";
+import { ArrowRight, ArrowUpRight, CaretRight, DownloadSimple, FileText, ListBullets, Plus } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { Blocks, Inline, Steps, headingId, headingsOf } from "./blocks";
 import { DocShell } from "./doc-shell";
+import { IconTile } from "./icons";
+import { GitHubLogo, WindowsLogo } from "../os-logos";
 import { Rule, bandX, buttonClass, cn } from "../ui";
 import { relatedPages, sectionById } from "@/lib/seo/catalog";
-import type { Faq, SeoPage } from "@/lib/seo/types";
+import type { Faq, IconKey, SeoPage } from "@/lib/seo/types";
 import { installerPath } from "@/lib/downloads";
 import { REPO_URL } from "@/lib/site";
 
@@ -81,9 +83,9 @@ export function FaqList({
               <span className="transition-colors group-hover:text-accent-text">{faq.q}</span>
               <span
                 aria-hidden="true"
-                className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-sunken text-muted transition-transform duration-300 group-open:rotate-90"
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-sunken text-muted transition-[transform,background-color,color] duration-300 ease-[var(--ease-out-quart)] group-open:rotate-45 group-open:bg-tint group-open:text-accent-text"
               >
-                <CaretRight weight="bold" className="size-3.5" />
+                <Plus weight="bold" className="size-4" />
               </span>
             </summary>
             <p className="mt-3 max-w-[66ch] text-[15.5px] leading-[1.7] text-muted sm:pr-12">
@@ -96,7 +98,13 @@ export function FaqList({
   );
 }
 
-export function RelatedGrid({ pages, title = "Keep reading" }: { pages: { slug: string; label: string; description: string }[]; title?: string }) {
+export function RelatedGrid({
+  pages,
+  title = "Keep reading",
+}: {
+  pages: { slug: string; label: string; description: string; icon: IconKey }[];
+  title?: string;
+}) {
   if (!pages.length) return null;
   return (
     <section aria-labelledby="related" className="mt-14">
@@ -108,14 +116,17 @@ export function RelatedGrid({ pages, title = "Keep reading" }: { pages: { slug: 
           <li key={page.slug} className="rounded-xl shadow-[inset_0_0_0_1px_var(--border)]">
             <Link
               href={`/${page.slug}`}
-              className="group flex h-full flex-col gap-1.5 rounded-xl p-4 transition-colors hover:bg-sunken sm:p-5"
+              className="group flex h-full flex-col gap-2.5 rounded-xl p-4 transition-colors hover:bg-sunken sm:p-5"
             >
-              <span className="flex items-center gap-1.5 text-[15px] font-medium text-fg">
-                {page.label}
-                <ArrowRight
-                  aria-hidden="true"
-                  className="size-3.5 text-subtle transition-transform duration-200 group-hover:translate-x-0.5"
-                />
+              <span className="flex items-center gap-3">
+                <IconTile name={page.icon} />
+                <span className="flex items-center gap-1.5 text-[15px] font-medium text-fg">
+                  {page.label}
+                  <ArrowRight
+                    aria-hidden="true"
+                    className="size-3.5 text-subtle transition-transform duration-200 group-hover:translate-x-0.5"
+                  />
+                </span>
               </span>
               <span className="text-[13.5px] leading-relaxed text-muted">{page.description}</span>
             </Link>
@@ -127,26 +138,36 @@ export function RelatedGrid({ pages, title = "Keep reading" }: { pages: { slug: 
 }
 
 export function PageCta({ title, body }: { title: string; body: string }) {
+  // Each sentence is its own inline-block, so a line break lands between sentences rather than
+  // in the middle of one. A sentence that cannot fit still wraps inside itself.
+  const sentences = title.match(/[^.!?]+[.!?]*\s*/g) ?? [title];
   return (
     <section aria-labelledby="page-cta" className="mt-16 rounded-2xl bg-sunken px-5 py-8 shadow-[inset_0_0_0_1px_var(--border)] sm:px-8 sm:py-10">
-      <h2 id="page-cta" className="max-w-[24ch] font-headline text-[clamp(1.5rem,3vw,2rem)] leading-tight font-semibold tracking-[-0.015em] text-fg">
-        {title}
+      <h2 id="page-cta" className="max-w-[26ch] font-headline text-[clamp(1.5rem,3vw,2rem)] leading-tight font-semibold tracking-[-0.015em] text-fg">
+        {sentences.map((sentence) => (
+          <span key={sentence} className="inline-block">
+            {sentence.trim()}
+            &nbsp;
+          </span>
+        ))}
       </h2>
       <p className="mt-3 max-w-[56ch] text-[15px] leading-relaxed text-muted sm:text-[16px]">{body}</p>
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <Link href={installerPath("windows", "doc-cta")} className={buttonClass("primary", "md")}>
+          <WindowsLogo aria-hidden="true" className="size-[18px]" />
           Download for Windows
         </Link>
         <Link href="/install" className={buttonClass("outline", "md")}>
+          <DownloadSimple weight="bold" aria-hidden="true" />
           All platforms
         </Link>
-        <a
-          href={REPO_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={buttonClass("ghost", "md")}
-        >
+        <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={buttonClass("ghost", "md")}>
+          <GitHubLogo aria-hidden="true" />
           View source
+          <ArrowUpRight
+            aria-hidden="true"
+            className="!size-3 text-subtle transition-transform duration-200 ease-out [@media(hover:hover)]:group-hover/btn:translate-x-0.5 [@media(hover:hover)]:group-hover/btn:-translate-y-0.5"
+          />
         </a>
       </div>
     </section>
@@ -211,8 +232,9 @@ export function DocPage({
     <DocShell jsonLdString={jsonLdString} version={version}>
       <article className={cn(bandX, "py-10 sm:py-14")}>
         <Breadcrumbs trail={trail} />
+        <IconTile name={page.icon} lead className="mt-6" />
         {section ? (
-          <p className="mt-6 text-[13px] font-semibold tracking-[0.08em] text-accent-text uppercase">
+          <p className="mt-4 text-[13px] font-semibold tracking-[0.08em] text-accent-text uppercase">
             {page.ogEyebrow ?? section.label}
           </p>
         ) : null}

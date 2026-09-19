@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AnswerBlock, Breadcrumbs, FaqList, PageCta, RelatedGrid } from "@/components/seo/doc-page";
 import { DocShell } from "@/components/seo/doc-shell";
+import { IconTile } from "@/components/seo/icons";
 import { Rule, bandX, cn } from "@/components/ui";
 import { FAQ_PAGE_META, faqGroups } from "@/lib/seo/faq";
 import { ogImagePath } from "@/lib/seo/metadata";
@@ -84,7 +85,8 @@ export default async function Page() {
     <DocShell version={version} jsonLdString={jsonLd(graph)}>
       <div className={cn(bandX, "py-10 sm:py-14")}>
         <Breadcrumbs trail={[{ name: "FAQ", slug: "faq" }]} />
-        <h1 className="mt-6 max-w-[20ch] font-headline text-[clamp(2rem,4.6vw,3.25rem)] leading-[1.05] font-semibold tracking-[-0.02em] text-fg">
+        <IconTile name="question" lead className="mt-6" />
+        <h1 className="mt-4 max-w-[20ch] font-headline text-[clamp(2rem,4.6vw,3.25rem)] leading-[1.05] font-semibold tracking-[-0.02em] text-fg">
           {FAQ_PAGE_META.h1}
         </h1>
         <AnswerBlock>{FAQ_PAGE_META.answer}</AnswerBlock>

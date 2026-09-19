@@ -1,3 +1,4 @@
+import { Info } from "@phosphor-icons/react/ssr";
 import { Fragment } from "react";
 import type { Block, Step } from "@/lib/seo/types";
 import { CopyCommand } from "./copy-command";
@@ -125,8 +126,11 @@ function BlockView({ block }: { block: Block }) {
       return <CopyCommand value={block.code} className="mt-5 max-w-[68ch]" multiline />;
     case "note":
       return (
-        <aside className="mt-6 max-w-[68ch] rounded-xl bg-tint px-4 py-3.5 text-[14.5px] leading-relaxed text-fg shadow-[inset_0_0_0_1px_var(--tint-strong)] sm:text-[15px]">
-          <Inline text={block.text} />
+        <aside className="mt-6 flex max-w-[68ch] gap-3 rounded-xl bg-tint px-4 py-3.5 text-[14.5px] leading-relaxed text-fg shadow-[inset_0_0_0_1px_var(--tint-strong)] sm:text-[15px]">
+          <Info aria-hidden="true" weight="duotone" className="mt-0.5 size-[18px] shrink-0 text-accent-text" />
+          <span className="min-w-0">
+            <Inline text={block.text} />
+          </span>
         </aside>
       );
     case "quote":

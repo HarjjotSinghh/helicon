@@ -7,6 +7,7 @@ const UPDATED = "2026-09-19";
 export const GUIDE_PAGES: SeoPage[] = [
   {
     slug: "guides/muse-code-windows-without-wsl",
+    icon: "windows",
     section: "guides",
     label: "Muse Code on Windows without WSL",
     title: "How to run Muse Code on Windows without WSL",
@@ -86,6 +87,7 @@ export const GUIDE_PAGES: SeoPage[] = [
   },
   {
     slug: "guides/resume-a-muse-session",
+    icon: "rewind",
     section: "guides",
     label: "Resume a session",
     title: "How to resume a Muse Code session you started earlier",
@@ -156,6 +158,7 @@ export const GUIDE_PAGES: SeoPage[] = [
   },
   {
     slug: "guides/remote-daemon-setup",
+    icon: "drives",
     section: "guides",
     label: "Remote daemon",
     title: "How to run Muse Code on a remote machine with a web UI",
@@ -229,6 +232,7 @@ export const GUIDE_PAGES: SeoPage[] = [
   },
   {
     slug: "guides/see-muse-code-cost",
+    icon: "currency",
     section: "guides",
     label: "See what a thread cost",
     title: "How to see what a Muse Code thread cost",
@@ -289,6 +293,7 @@ export const GUIDE_PAGES: SeoPage[] = [
   },
   {
     slug: "guides/review-agent-changes",
+    icon: "search",
     section: "guides",
     label: "Review what the agent did",
     title: "How to review what a Muse Code agent changed",
@@ -344,6 +349,7 @@ export const GUIDE_PAGES: SeoPage[] = [
   },
   {
     slug: "guides/run-parallel-agents",
+    icon: "gitFork",
     section: "guides",
     label: "Parallel agents in worktrees",
     title: "How to run several Muse Code agents in parallel",
@@ -414,6 +420,7 @@ export const GUIDE_PAGES: SeoPage[] = [
   },
   {
     slug: "guides/keyboard-shortcuts",
+    icon: "keyboard",
     section: "guides",
     label: "Keyboard control",
     title: "Muse Code GUI keyboard shortcuts and slash commands",
@@ -469,6 +476,7 @@ export const GUIDE_PAGES: SeoPage[] = [
   },
   {
     slug: "guides/muse-cli-not-found",
+    icon: "warning",
     section: "guides",
     label: "Fix: muse CLI not found",
     title: "Fix: Helicon cannot find the muse CLI",
@@ -532,6 +540,7 @@ export const GUIDE_PAGES: SeoPage[] = [
   },
   {
     slug: "guides/macos-first-launch",
+    icon: "apple",
     section: "guides",
     label: "Fix: macOS first launch",
     title: "Fix: macOS blocks Helicon on first launch",
@@ -596,6 +605,7 @@ export const GUIDE_PAGES: SeoPage[] = [
   },
   {
     slug: "guides/from-terminal-to-gui",
+    icon: "swap",
     section: "guides",
     label: "Move from the terminal",
     title: "Moving from the muse terminal to a GUI without losing anything",

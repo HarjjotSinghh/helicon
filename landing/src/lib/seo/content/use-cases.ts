@@ -7,6 +7,7 @@ const UPDATED = "2026-09-19";
 export const USE_CASE_PAGES: SeoPage[] = [
   {
     slug: "use-cases/windows-developers",
+    icon: "windows",
     section: "use-cases",
     label: "Windows developers",
     title: "Muse Code for Windows developers",
@@ -71,6 +72,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
   },
   {
     slug: "use-cases/macos-power-users",
+    icon: "apple",
     section: "use-cases",
     label: "macOS power users",
     title: "Muse Code for macOS power users",
@@ -124,6 +126,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
   },
   {
     slug: "use-cases/parallel-agents",
+    icon: "stack",
     section: "use-cases",
     label: "Running agents in parallel",
     title: "Running several coding agents in parallel",
@@ -173,6 +176,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
   },
   {
     slug: "use-cases/remote-development",
+    icon: "broadcast",
     section: "use-cases",
     label: "Remote development",
     title: "Muse Code for remote and remote-first development",
@@ -226,6 +230,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
   },
   {
     slug: "use-cases/open-source-maintainers",
+    icon: "github",
     section: "use-cases",
     label: "Open source maintainers",
     title: "Muse Code for open-source maintainers",
@@ -280,6 +285,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
   },
   {
     slug: "use-cases/freelancers",
+    icon: "briefcase",
     section: "use-cases",
     label: "Freelancers and consultants",
     title: "Muse Code for freelancers and consultants",
@@ -331,6 +337,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
   },
   {
     slug: "use-cases/monorepos",
+    icon: "folderOpen",
     section: "use-cases",
     label: "Monorepos",
     title: "Muse Code in a monorepo",
@@ -378,6 +385,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
   },
   {
     slug: "use-cases/terminal-skeptics",
+    icon: "terminalWindow",
     section: "use-cases",
     label: "If you like the terminal",
     title: "A Muse Code GUI for people who like the terminal",

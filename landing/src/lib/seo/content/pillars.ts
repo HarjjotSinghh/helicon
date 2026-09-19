@@ -10,6 +10,7 @@ const UPDATED = "2026-09-19";
 export const PILLAR_PAGES: SeoPage[] = [
   {
     slug: "muse-code-gui",
+    icon: "squares",
     section: "page",
     label: "Muse Code GUI",
     title: "Muse Code GUI: every graphical interface, compared",
@@ -138,6 +139,7 @@ export const PILLAR_PAGES: SeoPage[] = [
   },
   {
     slug: "muse-code-desktop-app",
+    icon: "appWindow",
     section: "page",
     label: "Muse Code desktop app",
     title: "Muse Code desktop app for Windows, macOS and the web",
@@ -238,6 +240,7 @@ export const PILLAR_PAGES: SeoPage[] = [
   },
   {
     slug: "pricing",
+    icon: "tag",
     section: "page",
     label: "Pricing",
     title: "Helicon pricing: free, MIT licensed, no paid tier",
