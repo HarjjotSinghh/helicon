@@ -16,14 +16,25 @@ Written 2026-09-19. Track progress in the table at the bottom.
 | Use-case pages | Yes, 8 under `/use-cases` |
 | Single h1, clean heading order | Yes, enforced by `npm run seo:check` |
 | FAQ schema and structured data | Yes, 414 Q&A pairs, `SoftwareApplication`, `Organization` |
-| Logo in PNG and SVG, square, favicon | PNG and favicon yes. **SVG and a square 1024x1024 are missing** |
+| Logo in PNG and SVG, square, favicon | Yes. `assets/social/` has all of it, and the pieces a form asks for by URL are published under `https://helicon.sh/brand/` |
 | 5 to 8 real screenshots at 1920x1080 | In `docs/assets`, worth re-exporting at that size |
 | 60 to 90 second demo video | Yes, `landing/public/demo` |
 | Privacy policy and terms pages | **Missing.** Several Tier 1 and Tier 2 directories require both |
 | 20 users who could leave a review | Not yet. Blocks G2 and Capterra, which are dead without reviews |
 
-Two hard blocks before submitting anywhere that matters: **privacy and terms pages**, and an
-**SVG plus square logo**. Everything else can proceed.
+One hard block before submitting anywhere that matters: **privacy and terms pages**. Everything
+else can proceed.
+
+Assets, by URL, for forms that want a link rather than an upload:
+
+| | |
+| --- | --- |
+| Logo, SVG, dark on light | `https://helicon.sh/brand/helicon-logo-black.svg` |
+| Logo, SVG, light on dark | `https://helicon.sh/brand/helicon-logo-white.svg` |
+| Square mark, 2048 | `https://helicon.sh/brand/helicon-mark-2048.png` |
+| Square avatar, 1024 | `https://helicon.sh/brand/pfp-1024-light.png` and `-dark.png` |
+| Social card, 1200x630 | `https://helicon.sh/brand/og-light.png` and `og-dark.png` |
+| Generated per page | `https://helicon.sh/api/og?title=...&subtitle=...&eyebrow=...` |
 
 ## Order
 

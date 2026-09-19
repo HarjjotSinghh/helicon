@@ -65,13 +65,43 @@ export function visitorOsFromRequest(request: Request): VisitorOs {
   });
 }
 
+/**
+ * A request served from a developer's own machine. The client-side guard added in #33 keeps
+ * localhost out of PostHog, but these events are sent from the server, where that guard never ran:
+ * four downloads from a dev server on 127.0.0.1 reached production before this existed.
+ */
+export function isLocalRequest(request: Request): boolean {
+  const host = (request.headers.get("host") ?? "").toLowerCase().replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+  return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host === "::1" || host.endsWith(".localhost");
+}
+
+/**
+ * Crawlers, link previewers and monitors. They follow a download link and never install anything,
+ * and each one arrives without a cookie, so an unfiltered count inflates both downloads and people.
+ * Only use this where a browser is the only legitimate caller: the updater is not a browser and
+ * must never be filtered by it.
+ */
+const BOT_AGENTS =
+  /bot\b|bots\b|crawl|spider|slurp|preview|facebookexternalhit|embedly|pinterest|headlesschrome|phantomjs|python-requests|curl\/|wget\/|node-fetch|axios\/|go-http-client|java\/|okhttp|postman|lighthouse|gptbot|oai-searchbot|chatgpt-user|claudebot|claude-web|perplexity|amazonbot|bytespider|semrush|ahrefs|mj12|dotbot|dataforseo|scrapy|httpx|monitoring/i;
+
+export function isBotRequest(request: Request): boolean {
+  const agent = request.headers.get("user-agent")?.trim() ?? "";
+  // No user agent at all is not a browser; every real one is far longer than this.
+  if (agent.length < 16) {
+    return true;
+  }
+  return BOT_AGENTS.test(agent);
+}
+
 export async function track(
   event: string,
   properties: Record<string, unknown>,
   distinctId: string,
+  /** The request being counted. Required so that a caller cannot forget the localhost check. */
+  request: Request,
 ) {
   const key = projectKey();
-  if (!key) return;
+  if (!key || isLocalRequest(request)) return;
 
   const host = (process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com").replace(/\/$/, "");
   try {

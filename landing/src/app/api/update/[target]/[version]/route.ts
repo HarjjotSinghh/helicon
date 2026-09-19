@@ -61,6 +61,7 @@ export async function GET(request: Request, context: { params: Promise<{ target:
       latest_version: release?.version ?? null,
     },
     installHash(request, target),
+    request,
   ).catch(() => undefined);
 
   const manifest = await fetch(MANIFEST_URL, { next: { revalidate: 300 } }).catch(() => null);

@@ -93,6 +93,8 @@ const groups: FooterGroup[] = [
       { href: "/pricing", label: "Pricing", icon: BookOpen, external: false },
       { href: "/faq", label: "Full FAQ", icon: Question, external: false },
       { href: "/changelog", label: "Changelog", icon: BookOpen, external: false },
+      { href: "/privacy", label: "Privacy", icon: BookOpen, external: false },
+      { href: "/terms", label: "Terms", icon: BookOpen, external: false },
     ],
   },
 ];

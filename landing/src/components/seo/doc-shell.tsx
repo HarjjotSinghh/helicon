@@ -37,6 +37,8 @@ const footerNav = [
       { href: "/glossary", label: "Glossary", icon: BookOpen, external: false },
       { href: "/faq", label: "FAQ", icon: Question, external: false },
       { href: "/pricing", label: "Pricing", icon: BookOpen, external: false },
+      { href: "/privacy", label: "Privacy", icon: BookOpen, external: false },
+      { href: "/terms", label: "Terms", icon: BookOpen, external: false },
     ],
   },
 ];

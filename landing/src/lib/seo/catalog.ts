@@ -6,6 +6,7 @@ import { GLOSSARY_PAGES } from "./content/glossary";
 import { INSTALL_PAGES } from "./content/install";
 import { USE_CASE_PAGES } from "./content/use-cases";
 import { PILLAR_PAGES } from "./content/pillars";
+import { LEGAL_PAGES } from "./content/legal";
 
 /**
  * Every generated page on the site, in one place. The sitemap, the internal link grids, the
@@ -104,6 +105,7 @@ export const SECTIONS: Section[] = [
 
 export const ALL_PAGES: SeoPage[] = [
   ...PILLAR_PAGES,
+  ...LEGAL_PAGES,
   ...INSTALL_PAGES,
   ...COMPARE_PAGES,
   ...FEATURE_PAGES,
