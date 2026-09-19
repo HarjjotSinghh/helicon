@@ -822,6 +822,37 @@ describe("HeliconServer", () => {
     assert.equal(closes, 1, "an unchanged switch restarts nothing");
   });
 
+  it("drops --disable-sandbox from respawned hosts when the switch flips back on", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const probe: FactoryProbe = { targets: [], exits: [] };
+    let closes = 0;
+    const inner = fakeFactory(connection, probe);
+    const counting = (target: ServeTarget): HostHandle => {
+      const handle = inner(target);
+      const close = handle.close.bind(handle);
+      handle.close = async () => {
+        closes += 1;
+        return close();
+      };
+      return handle;
+    };
+    const { base } = await start(connection, { hostFactory: counting });
+
+    await send(base, "/api/sandbox-settings", { disabled: true }, "PATCH");
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    assert.deepEqual(probe.targets.map((t) => t.args), [["serve", "--disable-sandbox"]]);
+
+    await send(base, "/api/sandbox-settings", { disabled: false }, "PATCH");
+    await waitFor(() => closes === 1, "the live host closing");
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    assert.deepEqual(
+      probe.targets.map((t) => t.args),
+      [["serve", "--disable-sandbox"], ["serve"]],
+      "the respawned host drops --disable-sandbox",
+    );
+  });
+
   it("upgrades an echo title with one muse exec call, and pushes the name back", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });

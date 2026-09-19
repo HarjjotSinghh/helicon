@@ -279,7 +279,7 @@ export function SettingsPage() {
         <Section title="Sandbox">
           <Row
             label="Disable sandboxing"
-            description="Muse's shells run sandboxed: filesystem and network access is confined. Switching this off lifts that confinement for every thread, and restarts the running Muse hosts, interrupting their turns."
+            description="Muse's shells run sandboxed: filesystem and network access is confined. Switching this off lifts that confinement for new threads; existing threads keep the posture they started with. Flipping it restarts the running Muse hosts, interrupting their turns."
           >
             {sandboxSettings ? (
               <Toggle
@@ -382,7 +382,7 @@ export function SettingsPage() {
         open={confirmSandbox}
         onOpenChange={setConfirmSandbox}
         title="Disable Muse's sandbox?"
-        description="Every thread's shells will run without filesystem or network confinement, and the running Muse hosts restart, interrupting their turns. Only do this in a disposable environment."
+        description="New threads' shells will run without filesystem or network confinement, and the running Muse hosts restart, interrupting their turns. Threads already open keep their current confinement. Only do this in a disposable environment."
       >
         <div className="mt-6 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setConfirmSandbox(false)}>

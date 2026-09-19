@@ -2651,6 +2651,8 @@ export class HeliconServer {
   /**
    * Closes every live host so the next use respawns it with the current sandbox posture. Never
    * throws: closing is best effort, and a host that refuses to die is dropped the same way.
+   * The respawn only fixes new sessions: per a Muse SDK limitation, the posture is
+   * committed into each session's permission profile at creation and never re-resolves.
    */
   private async restartHosts(): Promise<void> {
     for (const pending of this.starting.values()) {
