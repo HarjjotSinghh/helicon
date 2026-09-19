@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import type { HeliconClient } from "../client.js";
 import { AddProjectDialog } from "../components/sidebar/AddProjectDialog.js";
+import { WhatsNew } from "../components/app/WhatsNew.js";
 import { BootError, BootScreen, NewThread, Onboarding, Welcome } from "../components/home/Home.js";
 import { CommandPalette } from "../components/palette/CommandPalette.js";
 import { isTyping } from "../components/requests/Requests.js";
@@ -60,6 +61,7 @@ export function HeliconApp(props: HeliconAppProps) {
           <Shell />
           <CommandPalette />
           <AddProjectDialog />
+          <WhatsNew />
           <Toasts />
           <WindowControls />
         </TooltipProvider>

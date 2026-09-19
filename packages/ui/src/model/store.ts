@@ -99,6 +99,8 @@ export interface Prefs {
   /** The file viewer beside a thread is open. */
   filesOpen: boolean;
   filesWidth: number;
+  /** The version whose release notes were last shown, so an update shows what changed once. */
+  lastSeenVersion: string | null;
   /** Session statistics pills above the composer: turns, speed and token usage for the open thread. */
   showTelemetry: boolean;
 }
@@ -150,6 +152,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     zoom: 1,
     filesOpen: false,
     filesWidth: DEFAULT_FILES_WIDTH,
+    lastSeenVersion: null,
     showTelemetry: false,
   };
 }
@@ -312,6 +315,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     zoom: pick("zoom", (v) => typeof v === "number" && Number.isFinite(v) && v >= ZOOM_MIN && v <= ZOOM_MAX),
     filesOpen: pick("filesOpen", (v) => typeof v === "boolean"),
     filesWidth: pick("filesWidth", (v) => typeof v === "number" && v >= FILES_WIDTH_MIN && v <= FILES_WIDTH_MAX),
+    lastSeenVersion: pick("lastSeenVersion", (v) => v === null || typeof v === "string"),
     showTelemetry: pick("showTelemetry", (v) => typeof v === "boolean"),
   };
 }
