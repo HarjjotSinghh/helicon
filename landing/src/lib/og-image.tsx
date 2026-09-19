@@ -7,7 +7,21 @@ import { TAGLINE } from "./site";
 export const ogSize = { width: 1200, height: 630 };
 export const ogAlt = "Helicon: Muse Code desktop app for Windows and macOS. A free, open-source desktop and web app for the muse CLI.";
 
-export async function renderOgImage(version: string | null) {
+export type OgContent = {
+  /** The big line. Defaults to the home page headline. */
+  title?: string;
+  /** The quiet line under it. Defaults to the tagline. */
+  subtitle?: string;
+  /** The pill in the top right. Defaults to the version and licence. */
+  eyebrow?: string;
+};
+
+export async function renderOgImage(version: string | null, content: OgContent = {}) {
+  const title = content.title ?? "Muse Code desktop app for Windows and macOS.";
+  const subtitle = content.subtitle ?? TAGLINE;
+  const pill = content.eyebrow ?? (version ? `v${version} · Free and MIT licensed` : "Free and MIT licensed");
+  // Long titles need to come down a size or two so they stay inside the frame.
+  const titleSize = title.length > 78 ? 50 : title.length > 54 ? 60 : 74;
   const [heading, headingBold, body, logo] = await Promise.all([
     // Literal paths keep the build's file tracing to exactly these four files.
     readFile(join(process.cwd(), "node_modules/@fontsource/instrument-sans/files/instrument-sans-latin-500-normal.woff")),
@@ -69,7 +83,7 @@ export async function renderOgImage(version: string | null) {
                 fontSize: 20,
               }}
             >
-              {version ? `v${version} · Free and MIT licensed` : "Free and MIT licensed"}
+              {pill}
             </div>
           </div>
 
@@ -80,16 +94,16 @@ export async function renderOgImage(version: string | null) {
               style={{
                 fontFamily: "Instrument Sans",
                 fontWeight: 600,
-                fontSize: 74,
-                lineHeight: 1.02,
+                fontSize: titleSize,
+                lineHeight: 1.04,
                 letterSpacing: "-0.02em",
                 color: fg,
                 maxWidth: 940,
               }}
             >
-              Muse Code desktop app for Windows and macOS.
+              {title}
             </div>
-            <div style={{ marginTop: 22, fontSize: 28, color: "rgba(239,241,243,0.72)" }}>{TAGLINE}</div>
+            <div style={{ marginTop: 22, fontSize: 26, color: "rgba(239,241,243,0.72)", maxWidth: 920 }}>{subtitle}</div>
           </div>
 
           {/* The footer wordmark: faded in from the top, cut by the image edge. */}

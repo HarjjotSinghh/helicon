@@ -593,3 +593,73 @@ html.motion-ready [data-reveal]:not([data-inview]) {
     height: 2.25rem;
   }
 }
+
+/*
+ * Release notes come from GitHub as Markdown, so the changelog needs a small prose scope. It is
+ * deliberately narrow: headings, lists, links and code, nothing else.
+ */
+.changelog-body h1,
+.changelog-body h2,
+.changelog-body h3 {
+  margin-top: 1.5rem;
+  color: var(--fg);
+  font-family: var(--font-heading), var(--font-sans);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.changelog-body h1:first-child,
+.changelog-body h2:first-child,
+.changelog-body h3:first-child {
+  margin-top: 0;
+}
+
+.changelog-body p,
+.changelog-body ul,
+.changelog-body ol {
+  margin-top: 0.75rem;
+}
+
+.changelog-body ul,
+.changelog-body ol {
+  padding-left: 1.25rem;
+}
+
+.changelog-body ul {
+  list-style: disc;
+}
+
+.changelog-body ol {
+  list-style: decimal;
+}
+
+.changelog-body li {
+  margin-top: 0.35rem;
+}
+
+.changelog-body a {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.changelog-body code {
+  border-radius: 6px;
+  background: var(--bg-sunken);
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+
+.changelog-body pre {
+  margin-top: 0.75rem;
+  overflow-x: auto;
+  border-radius: 10px;
+  background: var(--bg-sunken);
+  padding: 0.85rem 1rem;
+  font-size: 0.85em;
+}
+
+.changelog-body pre code {
+  background: none;
+  padding: 0;
+}

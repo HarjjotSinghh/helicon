@@ -10,16 +10,36 @@ npm run build
 
 ## Search, social and AI discovery
 
-Set **`NEXT_PUBLIC_SITE_URL`** (for example `https://helicon.dev`) in the Vercel project once the domain is
-live. Every absolute URL below is built from it; without it, Vercel's production URL is used.
+**[SEO.md](SEO.md) is the full map and the runbook**, including how to verify Google Search
+Console and how to submit to IndexNow. The short version:
 
-- Metadata, canonical URL, Open Graph and Twitter cards: `src/app/layout.tsx`
-- Social image (1200x630, generated at build): `src/app/opengraph-image.tsx`, `src/app/twitter-image.tsx`, drawn in `src/lib/og-image.tsx`
-- `robots.txt` (search and AI crawlers allowed), `sitemap.xml`, `manifest.webmanifest`: `src/app/robots.ts`, `sitemap.ts`, `manifest.ts`
-- schema.org JSON-LD (WebSite, SoftwareApplication, FAQPage): `src/components/structured-data.tsx`
-- For AI agents and answer engines, generated from `src/lib/site.ts` so they match the page:
-  - `/llms.txt` (llmstxt.org index), `/llms-full.txt` (the whole page as Markdown), `/agents.md` (install guide and facts for agents)
-  - Content lives in `src/lib/ai-docs.ts`
+The site is the hand-written landing page plus 71 generated pages, all built from data in
+`src/lib/seo/content/`. Adding an entry there creates the page, its Markdown mirror, its social
+image, its schema.org graph, its sitemap entry and its internal links.
+
+Set **`NEXT_PUBLIC_SITE_URL`** (`https://helicon.sh`) in the Vercel project. Every absolute URL is
+built from it; a production build with no Vercel environment falls back to `https://helicon.sh`.
+
+- Page content and the registry every surface reads: `src/lib/seo/content/*.ts`, `src/lib/seo/catalog.ts`
+- Per page `<head>`, canonical and Open Graph: `src/lib/seo/metadata.ts`
+- schema.org JSON-LD, one merged graph per page: `src/lib/seo/schema.ts`, `src/components/structured-data.tsx`
+- Social images, one per page from `/api/og`: `src/lib/og-image.tsx`
+- `robots.txt` (37 search and AI crawlers named explicitly), `sitemap.xml`, `manifest.webmanifest`:
+  `src/app/robots.ts`, `sitemap.ts`, `manifest.ts`
+- For AI agents and answer engines, all generated from the same data the pages render:
+  - `/llms.txt`, `/llms-full.txt`, `/agents.md`, `/facts.json`, `/pricing.md`, `/faq.md`
+  - `<any-page>.md`, or any page with `Accept: text/markdown` (`src/proxy.ts`)
+  - Content lives in `src/lib/ai-docs.ts` and `src/lib/seo/markdown.ts`
+
+```sh
+npm run build && npx next start -p 3111
+npm run seo:check      # canonicals, titles, descriptions, h1s, JSON-LD, og:image, .md mirrors
+npm run seo:indexnow   # tell Bing, Yandex, Seznam and Naver that URLs changed
+```
+
+Verification tags are emitted only when their variable is set: `GOOGLE_SITE_VERIFICATION`,
+`BING_SITE_VERIFICATION`, `YANDEX_VERIFICATION`, `NAVER_SITE_VERIFICATION`. Google Analytics 4
+loads only when `NEXT_PUBLIC_GA_ID` is set.
 
 ## Installer downloads
 

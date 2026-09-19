@@ -1,62 +1,53 @@
-import { AUTHOR, DESCRIPTION, FAQS, REPO_URL, SITE_NAME, SITE_URL } from "@/lib/site";
+import { FAQS, SITE_URL, TITLE } from "@/lib/site";
+import { SECTIONS } from "@/lib/seo/catalog";
+import { IDS, coreNodes, jsonLd } from "@/lib/seo/schema";
 
-/** schema.org data for search and answer engines: the app, its FAQ, and the site itself. */
+/**
+ * schema.org data for the home page. The shared nodes (the site, the publisher, the author and
+ * the application itself) come from lib/seo/schema so every page on the site describes the same
+ * entity with the same identifiers, which is what lets a graph be merged rather than guessed at.
+ */
 export function StructuredData({ version }: { version: string | null }) {
   const graph = {
     "@context": "https://schema.org",
     "@graph": [
+      ...coreNodes(version),
       {
-        "@type": "WebSite",
-        "@id": `${SITE_URL}/#website`,
-        url: SITE_URL,
-        name: SITE_NAME,
-        description: DESCRIPTION,
+        "@type": "WebPage",
+        "@id": `${SITE_URL}/#webpage`,
+        url: `${SITE_URL}/`,
+        name: TITLE,
+        description:
+          "Helicon is a free, open-source desktop and web app for Meta's Muse Code CLI: projects, sessions, inline diffs, approvals and cost in one window, on your existing subscription.",
         inLanguage: "en",
-        publisher: { "@id": `${SITE_URL}/#author` },
-      },
-      {
-        "@type": "Person",
-        "@id": `${SITE_URL}/#author`,
-        name: AUTHOR.name,
-        url: AUTHOR.url,
-      },
-      {
-        "@type": "SoftwareApplication",
-        "@id": `${SITE_URL}/#app`,
-        name: SITE_NAME,
-        description: DESCRIPTION,
-        url: SITE_URL,
-        image: `${SITE_URL}/opengraph-image`,
-        applicationCategory: "DeveloperApplication",
-        applicationSubCategory: "AI coding agent interface",
-        operatingSystem: "Windows, macOS, Linux",
-        softwareVersion: version ?? undefined,
-        license: "https://opensource.org/licenses/MIT",
-        isAccessibleForFree: true,
-        downloadUrl: `${SITE_URL}/download/windows`,
-        installUrl: `${SITE_URL}/#install`,
-        codeRepository: REPO_URL,
-        softwareRequirements: "The muse CLI, logged in; Node.js is bundled",
-        featureList: [
-          "Projects and sessions grouped by working directory, git worktrees included",
-          "Inline diffs in the thread",
-          "Every agent approval surfaced, never bypassed",
-          "Cost at API rates per thread, day and model",
-          "Command palette, slash commands, model and reasoning-effort picker",
-          "Tauri desktop app and web app on the same UI",
+        isPartOf: { "@id": IDS.website },
+        about: { "@id": IDS.app },
+        primaryImageOfPage: `${SITE_URL}/opengraph-image`,
+        speakable: { "@type": "SpeakableSpecification", cssSelector: ["h1", "[data-answer]"] },
+        mainEntity: { "@id": IDS.app },
+        significantLink: SECTIONS.map((section) => `${SITE_URL}/${section.slug}`),
+        hasPart: [
+          `${SITE_URL}/muse-code-gui`,
+          `${SITE_URL}/muse-code-desktop-app`,
+          `${SITE_URL}/pricing`,
+          `${SITE_URL}/faq`,
         ],
-        offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-        author: { "@id": `${SITE_URL}/#author` },
-        sameAs: [REPO_URL],
       },
       {
         "@type": "FAQPage",
         "@id": `${SITE_URL}/#faq`,
+        url: `${SITE_URL}/faq`,
         mainEntity: FAQS.map(([q, a]) => ({
           "@type": "Question",
           name: q,
           acceptedAnswer: { "@type": "Answer", text: a },
         })),
+      },
+      {
+        "@type": "SiteNavigationElement",
+        "@id": `${SITE_URL}/#nav`,
+        name: SECTIONS.map((section) => section.label),
+        url: SECTIONS.map((section) => `${SITE_URL}/${section.slug}`),
       },
     ],
   };
@@ -64,8 +55,8 @@ export function StructuredData({ version }: { version: string | null }) {
   return (
     <script
       type="application/ld+json"
-      // Static data from lib/site; "<" is escaped so the JSON can never close the script tag.
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(graph).replace(/</g, "\\u003c") }}
+      // Static data; "<" is escaped so the JSON can never close the script tag.
+      dangerouslySetInnerHTML={{ __html: jsonLd(graph) }}
     />
   );
 }

@@ -2,17 +2,82 @@
  * The public origin, used for canonical URLs, sitemaps, Open Graph and the llms.txt files.
  * Set NEXT_PUBLIC_SITE_URL once the domain is live; Vercel's production URL is the fallback.
  */
+const CANONICAL_ORIGIN = "https://helicon.sh";
+
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ??
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000")
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : // A production build with no Vercel environment still has to emit real canonicals, real
+      // Open Graph URLs and a real sitemap, so it falls back to the domain we own rather than to
+      // localhost. Development keeps localhost so links stay clickable.
+      process.env.NODE_ENV === "production"
+      ? CANONICAL_ORIGIN
+      : "http://localhost:3000")
 ).replace(/\/$/, "");
 
 export const SITE_NAME = "Helicon";
 export const TITLE = "Helicon: Muse Code desktop app for Windows and macOS";
 export const TAGLINE = "Same Muse Code. Same subscription. Better interface.";
 export const DESCRIPTION =
-  "Helicon is a free, open-source desktop and web app for the Muse Code CLI. Every project, session and diff in one window, with approvals, inline diffs and cost at API rates, on your existing Muse Code subscription.";
+  "Free, open-source desktop and web app for Meta's Muse Code CLI. Every project, session, diff, approval and cost in one window, on the subscription you already have.";
 export const AUTHOR = { name: "Harjot Singh Rana", url: "https://harjotrana.com" };
+
+/**
+ * The terms the home page is written for. Meta keywords are not a ranking signal for Google and
+ * have not been for years; this list is here because several answer engines and site-search
+ * indexers still read it, and because keeping the target set in one place makes it reviewable.
+ * Everything here has to be true of the page it is on.
+ */
+export const SITE_KEYWORDS = [
+  // Brand
+  "Helicon",
+  "Helicon app",
+  "Helicon Muse Code",
+  "helicon.sh",
+  // Head terms
+  "Muse Code GUI",
+  "Muse Code desktop app",
+  "Muse Code UI",
+  "Muse Code app",
+  "Muse Code client",
+  "Muse Code interface",
+  "GUI for Muse Code",
+  "desktop app for Muse Code",
+  "muse CLI GUI",
+  "muse CLI desktop app",
+  // Platform
+  "Muse Code for Windows",
+  "Muse Code Windows app",
+  "Muse Code Windows GUI",
+  "Muse Code Windows 11",
+  "Muse Code WSL2",
+  "Muse Code macOS app",
+  "Muse Code Mac",
+  "Muse Code Linux",
+  "Muse Code web UI",
+  // Capability
+  "Muse Code session history",
+  "resume Muse Code session",
+  "Muse Code approvals",
+  "Muse Code inline diffs",
+  "Muse Code cost tracking",
+  "Muse Code usage limits",
+  "Muse Code remote daemon",
+  "Muse Code subagents",
+  // Category
+  "AI coding agent GUI",
+  "coding agent desktop app",
+  "agentic development environment",
+  "ADE",
+  "open source coding agent client",
+  // Technology
+  "Muse Code Session Protocol",
+  "MSP client",
+  "muse serve",
+  "Tauri 2 app",
+  "MIT licensed",
+];
 
 export const REPO_URL = "https://github.com/HarjjotSinghh/helicon";
 export const RELEASES_URL = `${REPO_URL}/releases/latest`;

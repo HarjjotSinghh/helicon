@@ -100,3 +100,53 @@ export async function latestInstaller(kind: InstallerKind): Promise<ReleaseAsset
     size: asset.size,
   };
 }
+
+export type ReleaseSummary = {
+  version: string;
+  tag: string;
+  name: string;
+  publishedAt: string;
+  notesUrl: string;
+  /** The release notes body, as GitHub stores it. May be empty. */
+  body: string;
+  prerelease: boolean;
+};
+
+/**
+ * Recent releases, for the changelog page. A changelog is the cheapest honest freshness signal a
+ * site can have: it changes when the product changes, and it is the page people link to.
+ */
+export const recentReleases = cache(async (limit = 20): Promise<ReleaseSummary[]> => {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repoPath}/releases?per_page=${limit}`, {
+      headers: await githubHeaders(),
+      next: { revalidate: 900 },
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as Array<{
+      tag_name?: string;
+      name?: string;
+      published_at?: string;
+      html_url?: string;
+      body?: string;
+      prerelease?: boolean;
+      draft?: boolean;
+    }>;
+    return body
+      .filter((item) => !item.draft && item.tag_name)
+      .map((item) => {
+        const tag = item.tag_name ?? "";
+        return {
+          version: tag.replace(/^v/, ""),
+          tag,
+          name: item.name?.trim() || tag,
+          publishedAt: item.published_at ?? "",
+          notesUrl: item.html_url || RELEASES_URL,
+          body: (item.body ?? "").trim(),
+          prerelease: Boolean(item.prerelease),
+        };
+      });
+  } catch {
+    return [];
+  }
+});

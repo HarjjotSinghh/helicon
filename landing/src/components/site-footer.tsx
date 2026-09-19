@@ -6,6 +6,7 @@ import {
   Heart,
   Question,
 } from "@phosphor-icons/react/ssr";
+import type { ComponentType } from "react";
 import { ALTERNATIVETO_URL, ISSUES_URL, RELEASES_URL, REPO_URL } from "@/lib/site";
 import { closingCta, type PageCopy } from "@/lib/copy";
 import { GitHubLogo } from "./os-logos";
@@ -49,7 +50,12 @@ export function ClosingCta({ copy, stars = null }: { copy: PageCopy; stars?: num
   );
 }
 
-const groups = [
+export type FooterGroup = {
+  title: string;
+  links: { href: string; label: string; icon: ComponentType<{ className?: string }>; external: boolean }[];
+};
+
+const groups: FooterGroup[] = [
   {
     title: "Project",
     links: [
@@ -66,9 +72,19 @@ const groups = [
       { href: "#faq", label: "FAQ", icon: Question, external: false },
     ],
   },
+  {
+    title: "Learn",
+    links: [
+      { href: "/muse-code-gui", label: "Muse Code GUI", icon: BookOpen, external: false },
+      { href: "/muse-code-desktop-app", label: "Desktop app", icon: DownloadSimple, external: false },
+      { href: "/compare", label: "Compare", icon: BookOpen, external: false },
+      { href: "/guides", label: "Guides", icon: BookOpen, external: false },
+      { href: "/faq", label: "Full FAQ", icon: Question, external: false },
+    ],
+  },
 ];
 
-export function SiteFooter() {
+export function SiteFooter({ nav = groups }: { nav?: FooterGroup[] }) {
   return (
     <footer>
       <div className="grid gap-10 px-5 py-12 sm:px-8 md:grid-cols-[1fr_auto] lg:px-12">
@@ -131,7 +147,7 @@ export function SiteFooter() {
         </div>
 
         <div className="flex flex-wrap gap-12">
-          {groups.map((g) => (
+          {nav.map((g) => (
             <nav key={g.title} aria-label={g.title} data-reveal>
               <h2 className="text-[13px] font-semibold text-fg">{g.title}</h2>
               <ul className="mt-3 space-y-1">

@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, Inter, JetBrains_Mono, Manrope, Newsreader } from "next/font/google";
 import { FontPicker } from "@/components/font-picker";
-import { AUTHOR, DESCRIPTION, SITE_NAME, SITE_URL, TAGLINE, TITLE } from "@/lib/site";
+import { GoogleAnalytics } from "@/components/analytics-scripts";
+import { AUTHOR, DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_URL, TAGLINE, TITLE } from "@/lib/site";
 import "./globals.css";
 
 // Landing typefaces: Instrument Sans for headings, Manrope for everything else.
@@ -32,24 +33,25 @@ export const metadata: Metadata = {
   creator: AUTHOR.name,
   publisher: AUTHOR.name,
   category: "Developer tools",
-  keywords: [
-    "Helicon",
-    "Muse Code",
-    "muse CLI",
-    "Muse Code GUI",
-    "Muse Code desktop app",
-    "AI coding agent GUI",
-    "coding agent desktop app",
-    "agent approvals",
-    "inline diffs",
-    "Tauri app",
-    "WSL2",
-    "open source",
-    "MIT",
-  ],
+  keywords: SITE_KEYWORDS,
   alternates: {
-    canonical: "/",
-    types: { "text/plain": [{ url: "/llms.txt", title: "llms.txt" }], "text/markdown": [{ url: "/agents.md", title: "AGENTS.md" }] },
+    // Next normalises this to the bare origin; the sitemap's home entry matches it exactly.
+    canonical: SITE_URL,
+    types: {
+      "text/plain": [{ url: "/llms.txt", title: "llms.txt" }],
+      "text/markdown": [{ url: "/agents.md", title: "AGENTS.md" }],
+      "application/json": [{ url: "/facts.json", title: "Checkable facts about Helicon" }],
+    },
+  },
+  // Search Console and Webmaster Tools verification. Set the env vars once per property; an
+  // unset var leaves the tag out entirely rather than emitting an empty one.
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION,
+    yandex: process.env.YANDEX_VERIFICATION,
+    other: {
+      ...(process.env.BING_SITE_VERIFICATION ? { "msvalidate.01": process.env.BING_SITE_VERIFICATION } : {}),
+      ...(process.env.NAVER_SITE_VERIFICATION ? { "naver-site-verification": process.env.NAVER_SITE_VERIFICATION } : {}),
+    },
   },
   openGraph: {
     type: "website",
@@ -70,6 +72,11 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
   },
   formatDetection: { telephone: false, email: false, address: false },
+  other: {
+    // Read by a few answer engines and by people reading view-source. Harmless to the rest.
+    "ai-content-declaration": "human-authored",
+    "llms-txt": `${SITE_URL}/llms.txt`,
+  },
 };
 
 export const viewport: Viewport = {
@@ -96,6 +103,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body>
         {children}
+        <GoogleAnalytics />
         {process.env.NODE_ENV === "development" ? <FontPicker /> : null}
       </body>
     </html>

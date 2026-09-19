@@ -22,12 +22,29 @@ const links = [
   { href: "#faq", label: "FAQ", icon: Question },
 ];
 
-export function SiteHeader({ copy }: { copy: PageCopy }) {
+/** Generated pages are not the home page, so their nav points at real paths rather than hashes. */
+export const docLinks = [
+  { href: "/muse-code-gui", label: "Muse Code GUI", icon: SquaresFour },
+  { href: "/features", label: "Features", icon: Lightning },
+  { href: "/compare", label: "Compare", icon: MonitorPlay },
+  { href: "/guides", label: "Guides", icon: Question },
+  { href: "/install", label: "Install", icon: TerminalWindow },
+];
+
+export function SiteHeader({
+  copy,
+  nav = links,
+  homeHref = "#top",
+}: {
+  copy: PageCopy;
+  nav?: { href: string; label: string; icon: typeof MonitorPlay }[];
+  homeHref?: string;
+}) {
   return (
     <header className="sticky top-0 z-[210] isolate bg-bg/85 pt-[env(safe-area-inset-top)] backdrop-blur-md backdrop-saturate-150 supports-[not(backdrop-filter:blur(1px))]:bg-bg">
       <div className="relative flex h-14 items-center gap-3 px-4 sm:h-16 sm:gap-4 sm:px-8 lg:px-12">
         <a
-          href="#top"
+          href={homeHref}
           className="-mx-1 flex min-h-11 items-center gap-2 rounded-lg px-1 py-1 text-fg sm:-mx-1.5 sm:gap-2.5 sm:px-1.5"
           aria-label="Helicon home"
         >
@@ -36,7 +53,7 @@ export function SiteHeader({ copy }: { copy: PageCopy }) {
         </a>
 
         <nav aria-label="Primary" className="ml-6 hidden items-center gap-1 lg:flex">
-          {links.map(({ href, label, icon: Icon }) => (
+          {nav.map(({ href, label, icon: Icon }) => (
             <a
               key={href}
               href={href}
@@ -73,7 +90,7 @@ export function SiteHeader({ copy }: { copy: PageCopy }) {
           </TrackedLink>
           <MobileNav
             links={[
-              ...links.map(({ href, label }) => ({ href, label })),
+              ...nav.map(({ href, label }) => ({ href, label })),
               { href: REPO_URL, label: "GitHub" },
             ]}
           />
