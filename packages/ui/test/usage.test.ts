@@ -123,3 +123,110 @@ describe("context and session usage", () => {
     assert.deepEqual(sessionUsage(fold, []).compactions, [{ itemId: "c1", trigger: "manual", outcome: "compacted", before: 5000, after: 300 }]);
   });
 });
+
+/** Muse's live catalog declares no limits; the ring must still show, sized by the published table. */
+const NULL_CATALOG: ModelOption = {
+  modelId: "muse-spark-1.3-contributor",
+  displayLabel: "muse-spark-1.3-contributor",
+  description: null,
+  isDefault: false,
+  isActive: true,
+  contextLimit: null,
+  outputLimit: null,
+  cost: { input: 0.1, output: 0.2, cached: 0.002, currency: "USD" },
+  contributor: true,
+};
+
+describe("context window fallback", () => {
+  it("sizes history calls by the published table when the catalog declares no limit", () => {
+    // Captured live: a one-word reply still carries the system prompt and tools.
+    const fold = applyEvents(emptyFold(), [
+      tokenUsage("v:1", {
+        modelId: "muse-spark-1.3-contributor",
+        promptTokens: 20_627,
+        totalTokens: 20_652,
+        usage: { inputTokens: 20_627, outputTokens: 25, cachedTokens: 10_481, reasoningTokens: 14 },
+      }),
+    ]);
+    assert.equal(fold.meta.contextUsage, null);
+    const usage = contextUsageOf(fold, [NULL_CATALOG]);
+    assert.ok(usage);
+    assert.equal(usage.usedTokens, 20_652);
+    assert.equal(usage.windowTokens, 1_048_576);
+    assert.equal(usage.windowEstimated, true);
+    assert.equal(usage.pressure, "normal");
+    const breakdown = contextBreakdown(fold, [NULL_CATALOG]);
+    assert.equal(breakdown?.window, 1_048_576);
+    assert.equal(breakdown?.windowEstimated, true);
+    assert.equal(breakdown?.free, 1_048_576 - 20_652);
+  });
+
+  it("reads zero against the thread model's window before the first call", () => {
+    const fold = emptyFold();
+    fold.meta.modelId = "muse-spark-1.3-contributor";
+    const usage = contextUsageOf(fold, [NULL_CATALOG]);
+    assert.ok(usage);
+    assert.equal(usage.usedTokens, 0);
+    assert.equal(usage.windowTokens, 1_048_576);
+    assert.equal(usage.windowEstimated, true);
+    assert.ok(contextUsageOf(fold, []), "the table needs no catalog at all");
+  });
+
+  it("still reads null when the model is unknown everywhere", () => {
+    assert.equal(contextUsageOf(emptyFold(), []), null);
+    const fold = emptyFold();
+    fold.meta.modelId = "some-other-model";
+    assert.equal(contextUsageOf(fold, []), null);
+  });
+
+  it("keeps a live reading with a window untouched", () => {
+    const fold = emptyFold();
+    fold.meta.contextUsage = { usedTokens: 100, windowTokens: 200, pressure: "warning" };
+    const usage = contextUsageOf(fold, [NULL_CATALOG]);
+    assert.equal(usage?.windowTokens, 200);
+    assert.equal(usage?.pressure, "warning");
+    assert.ok(!usage?.windowEstimated);
+  });
+
+  it("attaches a fallback window to a live total without one", () => {
+    const fold = emptyFold();
+    fold.meta.modelId = "muse-spark-1.3-contributor";
+    fold.meta.contextUsage = { usedTokens: 50_000, pressure: "normal" };
+    const usage = contextUsageOf(fold, [NULL_CATALOG]);
+    assert.equal(usage?.usedTokens, 50_000);
+    assert.equal(usage?.windowTokens, 1_048_576);
+    assert.equal(usage?.windowEstimated, true);
+    assert.equal(usage?.pressure, "normal", "a live level always wins");
+  });
+
+  it("lets a catalog limit win over the published table", () => {
+    const fold = applyEvents(emptyFold(), [
+      tokenUsage("v:1", { modelId: "muse-spark-1.3-contributor", promptTokens: 100, totalTokens: 110, usage: { outputTokens: 10 } }),
+    ]);
+    const usage = contextUsageOf(fold, [{ ...NULL_CATALOG, contextLimit: 1_007_997 }]);
+    assert.equal(usage?.windowTokens, 1_007_997);
+    assert.equal(usage?.windowEstimated, false);
+  });
+
+  it("rejects non-positive windows from every source", () => {
+    const live = emptyFold();
+    live.meta.modelId = "muse-spark-1.3-contributor";
+    live.meta.contextUsage = { usedTokens: 100, windowTokens: -50, pressure: "normal" };
+    assert.equal(contextUsageOf(live, [NULL_CATALOG])?.windowTokens, 1_048_576, "a negative live window falls through to the table");
+    const calls = applyEvents(emptyFold(), [
+      tokenUsage("v:1", { modelId: "muse-spark-1.3-contributor", promptTokens: 100, totalTokens: 110, usage: { outputTokens: 10 } }),
+    ]);
+    const negative = contextUsageOf(calls, [{ ...NULL_CATALOG, contextLimit: -7 }]);
+    assert.equal(negative?.windowTokens, 1_048_576);
+    assert.equal(negative?.windowEstimated, true);
+  });
+
+  it("computes pressure from the fill when Muse sends none", () => {
+    const used = (promptTokens: number): ViewEvent[] => [
+      tokenUsage("v:1", { modelId: "muse-spark-1.3-contributor", promptTokens, totalTokens: promptTokens + 10, usage: { outputTokens: 10 } }),
+    ];
+    assert.equal(contextUsageOf(applyEvents(emptyFold(), used(950_000)), [NULL_CATALOG])?.pressure, "warning");
+    assert.equal(contextUsageOf(applyEvents(emptyFold(), used(1_048_576)), [NULL_CATALOG])?.pressure, "blocked");
+    assert.equal(contextUsageOf(applyEvents(emptyFold(), used(100)), [NULL_CATALOG])?.pressure, "normal");
+  });
+});

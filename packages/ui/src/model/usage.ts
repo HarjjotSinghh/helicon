@@ -1,6 +1,7 @@
 import type { ContextUsage, ModelOption, MspItem } from "../types.js";
 import { HIDDEN_KINDS, type CallUsage, type ThreadFold, type TurnInfo } from "./fold.js";
 import { diffStats, extractDiff } from "./format.js";
+import { listedContextLimit } from "./limits.js";
 
 /**
  * Context and session usage for the composer's context panel. Muse reports the context total,
@@ -23,6 +24,8 @@ export interface ContextBreakdown {
   /** Muse's own count of the tokens in context. */
   used: number;
   window: number | null;
+  /** True when the window came from the published table, not from Muse. */
+  windowEstimated: boolean;
   pressure: string;
   /** How `used` splits, in a fixed order so the bar keeps its colors as it grows. */
   slices: ContextSlice[];
@@ -63,22 +66,52 @@ function inContext(fold: ThreadFold): { items: MspItem[]; summary: MspItem | nul
   return { items, summary };
 }
 
+/** Client-side pressure over a fallback window; a live level from Muse always wins. */
+function pressureFor(used: number, window: number | undefined): string {
+  if (window === undefined || window <= 0) {
+    return "normal";
+  }
+  const fill = used / window;
+  if (fill >= 1) {
+    return "blocked";
+  }
+  if (fill >= 0.9) {
+    return "warning";
+  }
+  return "normal";
+}
+
 /**
  * The context reading to show. Live streams report it directly; a thread opened from history
  * only has its model calls, so the latest call's occupancy stands in, sized by the model's limit.
+ * Muse's catalog currently declares no limits and the provider reports counts but never the
+ * window, so a reading without a window is sized by the published table instead of hiding the
+ * ring; only a thread whose model is unknown everywhere still reads null. A thread with no
+ * calls yet reads zero against its own model's window.
  */
 export function contextUsageOf(fold: ThreadFold, models: readonly ModelOption[]): ContextUsage | null {
-  if (fold.meta.contextUsage) {
-    return fold.meta.contextUsage;
+  const live = fold.meta.contextUsage;
+  if (live?.windowTokens !== undefined && live.windowTokens > 0) {
+    return live;
   }
   const calls = Object.values(fold.meta.calls);
   const last = calls[calls.length - 1];
-  if (!last) {
+  const modelId = last?.modelId ?? fold.meta.modelId;
+  const catalog = modelId ? (models.find((m) => m.modelId === modelId)?.contextLimit ?? null) : null;
+  const listed = listedContextLimit(modelId);
+  const catalogWindow = catalog !== null && catalog > 0 ? catalog : null;
+  const listedWindow = listed !== null && listed > 0 ? listed : null;
+  const window = catalogWindow ?? listedWindow ?? undefined;
+  const used = live?.usedTokens ?? (last ? last.promptTokens + last.outputTokens : 0);
+  if (!live && !last && window === undefined) {
     return null;
   }
-  const modelId = last.modelId ?? fold.meta.modelId;
-  const window = models.find((m) => m.modelId === modelId)?.contextLimit ?? undefined;
-  return { usedTokens: last.promptTokens + last.outputTokens, windowTokens: window, pressure: "normal" };
+  return {
+    usedTokens: used,
+    windowTokens: window,
+    pressure: live?.pressure ?? pressureFor(used, window),
+    windowEstimated: catalogWindow === null && listedWindow !== null,
+  };
 }
 
 export function contextBreakdown(fold: ThreadFold, models: readonly ModelOption[]): ContextBreakdown | null {
@@ -126,7 +159,14 @@ export function contextBreakdown(fold: ThreadFold, models: readonly ModelOption[
     slices.push({ key: "system", label: SLICE_LABELS.system, tokens: system });
   }
   const window = usage.windowTokens ?? null;
-  return { used, window, pressure: usage.pressure, slices, free: window === null ? null : Math.max(0, window - used) };
+  return {
+    used,
+    window,
+    windowEstimated: usage.windowEstimated ?? false,
+    pressure: usage.pressure,
+    slices,
+    free: window === null ? null : Math.max(0, window - used),
+  };
 }
 
 /** Calls with this few output tokens say nothing about speed, as in opencode's gateway. */
