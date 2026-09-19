@@ -279,6 +279,8 @@ export class HeliconController {
   private titleSettingsRev = 0;
   /** Bumped by every sandbox-settings request, so only the latest completion or rollback lands. */
   private sandboxSettingsRev = 0;
+  /** Sandbox PATCHes queue behind each other so rapid opposite flips land in order. */
+  private sandboxSettingsChain: Promise<void> = Promise.resolve();
   /** The main route Back leaves the settings/usage pages for; cleared once back on a main route. */
   private returnRoute: Route | null = null;
 
@@ -1437,8 +1439,15 @@ export class HeliconController {
     const previous = this.state.sandboxSettings;
     const rev = ++this.sandboxSettingsRev;
     this.update((s) => ({ ...s, sandboxSettings: { disabled } }));
+    // The rev below drops stale responses but cannot order the requests. Queue the PATCHes
+    // so a slow disable can never persist after a faster re-enable.
+    const run = this.sandboxSettingsChain.then(() => this.client.setSandboxSettings({ disabled }));
+    this.sandboxSettingsChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
     try {
-      const sandboxSettings = await this.client.setSandboxSettings({ disabled });
+      const sandboxSettings = await run;
       if (rev === this.sandboxSettingsRev) {
         this.update((s) => ({ ...s, sandboxSettings }));
       }

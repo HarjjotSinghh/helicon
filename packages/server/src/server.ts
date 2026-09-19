@@ -597,6 +597,8 @@ export class HeliconServer {
   private readonly store: HeliconStore;
   private readonly hosts = new Map<string, ManagedHost>();
   private readonly starting = new Map<string, Promise<ManagedHost>>();
+  /** Restarts queued by sandbox flips, oldest first. Hosts are only acquired past the tail. */
+  private restartChain: Promise<void> = Promise.resolve();
   private readonly fingerprints = new Map<string, unknown>();
   private readonly sinks = new Set<SseSink>();
   private readonly live = new Map<string, LiveState>();
@@ -1316,7 +1318,9 @@ export class HeliconServer {
       const next = this.store.setSandboxSettings(patch);
       if (wasDisabled !== next.disabled) {
         // Posture is fixed at spawn, so live hosts restart; closing can outlast this request.
-        void this.restartHosts();
+        // Restarts queue behind each other so a session created mid-flip never lands on a retired host.
+        const run = this.restartChain.then(() => this.restartHosts());
+        this.restartChain = run.catch(() => undefined);
       }
       this.json(res, 200, next);
       return true;
@@ -2567,6 +2571,10 @@ export class HeliconServer {
 
   private async hostFor(cwd: string): Promise<ManagedHost> {
     await this.museRuntime();
+    // A flip's restart runs past its PATCH response. Wait it out so a new session never
+    // starts on a host with the previous posture. Starts never wait for the chain, so this
+    // cannot deadlock against the restart awaiting them.
+    await this.restartChain;
     const key = this.hostPathFor(cwd) || "__default__";
     const existing = this.hosts.get(key);
     if (existing) {

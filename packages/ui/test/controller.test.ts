@@ -136,10 +136,16 @@ class FakeClient implements HeliconClient {
   }
   sandboxSettings = { disabled: false };
   sandboxError: Error | null = null;
+  sandboxGate: Promise<void> | null = null;
+  sandboxCalls: (boolean | undefined)[] = [];
   async getSandboxSettings() {
     return { ...this.sandboxSettings };
   }
   async setSandboxSettings(patch: { disabled?: boolean }) {
+    this.sandboxCalls.push(patch.disabled);
+    if (this.sandboxGate) {
+      await this.sandboxGate;
+    }
     if (this.sandboxError) {
       const error = this.sandboxError;
       this.sandboxError = null;
@@ -328,6 +334,31 @@ describe("HeliconController", () => {
     assert.deepEqual(controller.store.get().sandboxSettings, { disabled: false }, "a failed flip rolls back");
     assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /Could not change the sandbox setting/);
     stop();
+  });
+
+  it("sends rapid sandbox flips to the server in order", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    try {
+      let release!: () => void;
+      client.sandboxGate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const first = controller.setSandboxDisabled(true);
+      const second = controller.setSandboxDisabled(false);
+      try {
+        await new Promise((r) => setTimeout(r, 0));
+        assert.deepEqual(client.sandboxCalls, [true], "the second PATCH waits for the first");
+      } finally {
+        release();
+      }
+      await Promise.all([first, second]);
+      assert.deepEqual(client.sandboxCalls, [true, false]);
+      assert.deepEqual(client.sandboxSettings, { disabled: false }, "the server ends at the latest flip");
+      assert.deepEqual(controller.store.get().sandboxSettings, { disabled: false });
+    } finally {
+      stop();
+    }
   });
 
   it("clears the host error and toasts when hosts restart for the sandbox switch", async () => {

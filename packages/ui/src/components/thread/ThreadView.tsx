@@ -91,7 +91,8 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
         <Tip label="This thread started while sandboxing was switched off, so its shells run unconfined">
           <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium text-warn-text">
             <ShieldOff size={12} aria-hidden="true" />
-            <span className="@max-[420px]:hidden">Sandbox off</span>
+            <span className="sr-only">Sandbox off</span>
+            <span aria-hidden="true" className="@max-[420px]:hidden">Sandbox off</span>
           </span>
         </Tip>
       ) : null}
