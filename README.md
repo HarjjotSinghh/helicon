@@ -106,6 +106,8 @@ Linux: download the AppImage (x86_64) from the [latest release](https://github.c
 
 Helicon bundles its own Node.js, so you only need the `muse` CLI with `muse login` done once, however you installed it. Helicon uses the login you already have and never stores credentials of its own.
 
+Helicon updates itself, so there is nothing to subscribe to for that. If you would rather read what changed before it lands, use **Watch → Custom → Releases** at the top of this page: GitHub then tells you about each release and nothing else. [Discussions](https://github.com/HarjjotSinghh/helicon/discussions) is the place for questions and for what you are building with it.
+
 ## From source
 
 Prereqs (source builds and the web app only - the desktop installers bundle Node.js): Node 22+, the `muse` CLI with `muse login` done once (natively or in WSL2 on Windows), and the repo checked out.
@@ -183,6 +185,8 @@ back to asking GitHub, as it always did.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). PRs welcome. See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
+
+Not a code change? [Discussions](https://github.com/HarjjotSinghh/helicon/discussions) takes questions, setups that did not work, and anything you want Helicon to do that it does not.
 
 ### Contributors
 
