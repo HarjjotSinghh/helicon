@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.14.0
+
+### New
+
+- **Session statistics above the composer** ([#39](https://github.com/HarjjotSinghh/helicon/pull/39), built by [@jorgitin02](https://github.com/jorgitin02)). Two pills summarise the open thread: turns, steps and the request-average speed in one, exact token counts with the cache split and a per-model breakdown in the other. Everything is worked out from the thread's own history on your machine; nothing is sent anywhere. Off by default, switched on under Settings -> Appearance -> Session statistics. On a long thread where only part of the history is loaded, the numbers say so rather than quietly under-reporting: details are marked *Partial* and the token total carries a `+`.
+
+### Fixed
+
+- **The Linux AppImage opens on current distributions** ([#38](https://github.com/HarjjotSinghh/helicon/pull/38), thanks [@orkuhh](https://github.com/orkuhh)). The bundler shipped Ubuntu 22.04's Wayland libraries inside the AppImage, and a newer system's graphics stack could not initialise against them, so the window never appeared ([tauri-apps/tauri#15665](https://github.com/tauri-apps/tauri/issues/15665)). The release now repacks the AppImage without those libraries so it uses the ones already on your system.
+- **Two clicks that went to the wrong place** ([#36](https://github.com/HarjjotSinghh/helicon/issues/36), [#37](https://github.com/HarjjotSinghh/helicon/issues/37)). Finishing a sidebar drag no longer opens the thread you dropped, and Alt with the arrow keys no longer jumps threads while you are typing in the composer.
+
+### Changed
+
+- **Short durations read in milliseconds.** A tool call that took under a second used to say "under 1s", which told you nothing; it now says `412ms`.
+
 ## 0.13.1
 
 ### Fixed
