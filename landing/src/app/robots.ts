@@ -59,7 +59,13 @@ const AI_AGENTS = [
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
-      { userAgent: "*", allow: "/", disallow: ["/api/", "/download/"] },
+      // /api/v1 and the OpenAPI document are meant to be found: they are the machine-readable
+      // half of this site. Only the image renderer and the updater endpoint are noise.
+      {
+        userAgent: "*",
+        allow: ["/", "/api/v1/", "/api/openapi.yaml", "/openapi.json"],
+        disallow: ["/api/og", "/api/update/", "/download/"],
+      },
       { userAgent: AI_AGENTS, allow: "/" },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

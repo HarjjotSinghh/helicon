@@ -120,3 +120,38 @@ export function sectionToMarkdown(section: Section, pages: SeoPage[]): string {
     "",
   ].join("\n");
 }
+
+/**
+ * The body a missing page answers with when the caller asked for Markdown.
+ *
+ * A 404 is the one response an agent is most likely to meet and least likely to understand, so it
+ * says what happened, and then hands over every index that would have found the right page. The
+ * status is still 404: this replaces the empty body, not the status code.
+ */
+export function notFoundMarkdown(path: string): string {
+  const clean = path.startsWith("/") ? path : `/${path}`;
+  return [
+    "---",
+    `title: ${JSON.stringify("404: page not found")}`,
+    `url: ${SITE_URL}${clean}`,
+    "status: 404",
+    `site: ${SITE_NAME}`,
+    "---",
+    "",
+    "# 404: page not found",
+    "",
+    `There is no page at ${SITE_URL}${clean}. The link may be old, or the path may have a typo in it. Nothing was deleted: this site has never published that path.`,
+    "",
+    "## Where to look instead",
+    "",
+    `- [Index of every page, written for machines](${SITE_URL}/llms.txt)`,
+    `- [The whole site as one file](${SITE_URL}/llms-full.txt)`,
+    `- [Sitemap](${SITE_URL}/sitemap.xml)`,
+    `- [Guides](${SITE_URL}/guides) and [documentation for developers](${SITE_URL}/developers)`,
+    `- [Search the documentation](${SITE_URL}/api/v1/search?q=): add a term to the q parameter`,
+    `- [Home](${SITE_URL}/)`,
+    "",
+    `Every page on this site also answers at its own path with .md appended, and to an Accept: text/markdown header.`,
+    "",
+  ].join("\n");
+}

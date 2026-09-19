@@ -150,3 +150,144 @@ export const recentReleases = cache(async (limit = 20): Promise<ReleaseSummary[]
     return [];
   }
 });
+
+export type Change = {
+  /** The commit subject, with the conventional-commit prefix and the PR suffix removed. */
+  text: string;
+  /** Pull request number, when the subject carries one. */
+  pr: number | null;
+  /** Issue numbers the body says this closes. */
+  closes: number[];
+  sha: string;
+};
+
+export type ChangeGroups = {
+  added: Change[];
+  fixed: Change[];
+  changed: Change[];
+  removed: Change[];
+};
+
+export type ReleaseNotes = ReleaseSummary & { changes: ChangeGroups; commitCount: number };
+
+/**
+ * Which section of a changelog a commit belongs in. Conventional-commit prefixes win when they
+ * are there; this repository mostly writes prose subjects, so the verb decides the rest. Release
+ * commits, merges and pure chores are dropped: nobody reading a changelog wants "bump deps".
+ */
+function classify(subject: string): keyof ChangeGroups | null {
+  const s = subject.trim();
+  if (/^Release\s+v?\d/i.test(s)) return null;
+  if (/^Merge (pull request|branch|remote)/i.test(s)) return null;
+  // Bots. Their commits are real but nobody reads a changelog for them.
+  if (/^\[?(ImgBot|dependabot|renovate)\]?/i.test(s)) return null;
+
+  const conventional = /^(\w+)(\([^)]*\))?!?:\s*/.exec(s);
+  if (conventional) {
+    const type = conventional[1].toLowerCase();
+    if (type === "feat") return "added";
+    if (type === "fix") return "fixed";
+    if (type === "revert") return "removed";
+    if (type === "perf" || type === "refactor" || type === "style") return "changed";
+    if (["chore", "docs", "test", "build", "ci", "deps"].includes(type)) return null;
+    return "changed";
+  }
+
+  if (/^(add|ship|introduce|bring|give|support|allow|let)\b/i.test(s)) return "added";
+  if (/^(fix|stop|correct|repair|prevent|unbreak|handle|guard|restore|resolve)\b/i.test(s)) return "fixed";
+  if (/^(remove|drop|delete|retire|strip)\b/i.test(s)) return "removed";
+  return "changed";
+}
+
+/**
+ * Strips the conventional prefix, every trailing PR reference and the full stop, then restores
+ * the capital that the prefix was carrying. `fix: stop the view freezing (#32) (#41)` becomes
+ * `Stop the view freezing`.
+ */
+function cleanSubject(subject: string) {
+  const text = subject
+    .replace(/^(\w+)(\([^)]*\))?!?:\s*/, "")
+    .replace(/\s*\((?:#\d+(?:,\s*)?)+\)\s*$/g, "")
+    .replace(/\s*\((?:#\d+(?:,\s*)?)+\)\s*$/g, "")
+    .replace(/\.$/, "")
+    .trim();
+  return text ? text[0].toUpperCase() + text.slice(1) : text;
+}
+
+function parseCommit(message: string, sha: string): { group: keyof ChangeGroups | null; change: Change } {
+  const [subject, ...rest] = message.split("\n");
+  const body = rest.join("\n");
+  const prMatch = [...subject.matchAll(/#(\d+)/g)];
+  const closes = [...body.matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi)].map((m) => Number(m[1]));
+  return {
+    group: classify(subject),
+    change: {
+      text: cleanSubject(subject),
+      pr: prMatch.length ? Number(prMatch[prMatch.length - 1][1]) : null,
+      closes: [...new Set(closes)],
+      sha,
+    },
+  };
+}
+
+/**
+ * Releases with the commits that went into each one. The release bodies in this repository are
+ * the same installation boilerplate every time, so the changelog has to be built from the
+ * commits instead.
+ *
+ * Commits are fetched in pages and bucketed by date rather than compared tag by tag: a compare
+ * call per release would be one request per version, and this site talks to GitHub unauthenticated
+ * unless GITHUB_TOKEN is set. Four requests, cached for a day, covers the whole page.
+ */
+export const releaseNotes = cache(async (limit = 12): Promise<ReleaseNotes[]> => {
+  const releases = (await recentReleases(limit + 1)).filter((r) => r.publishedAt);
+  if (!releases.length) return [];
+
+  const commits: Array<{ sha: string; date: string; message: string }> = [];
+  try {
+    for (let page = 1; page <= 3; page++) {
+      const res = await fetch(`https://api.github.com/repos/${repoPath}/commits?per_page=100&page=${page}`, {
+        headers: await githubHeaders(),
+        next: { revalidate: 86400 },
+      });
+      if (!res.ok) break;
+      const body = (await res.json()) as Array<{
+        sha: string;
+        commit?: { message?: string; committer?: { date?: string } };
+      }>;
+      if (!body.length) break;
+      for (const c of body) {
+        commits.push({
+          sha: c.sha,
+          date: c.commit?.committer?.date ?? "",
+          message: c.commit?.message ?? "",
+        });
+      }
+      if (body.length < 100) break;
+    }
+  } catch {
+    // An empty commit list degrades to releases with no detail, which is what the page had before.
+  }
+
+  // Oldest release first makes the "everything since the previous tag" window trivial to express.
+  const ordered = [...releases].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt));
+
+  return ordered
+    .map((release, i) => {
+      const since = ordered[i - 1]?.publishedAt ?? "";
+      const window = commits.filter((c) => c.date && c.date <= release.publishedAt && c.date > since);
+      const changes: ChangeGroups = { added: [], fixed: [], changed: [], removed: [] };
+      const seen = new Set<string>();
+      for (const c of window) {
+        const { group, change } = parseCommit(c.message, c.sha);
+        if (!group || !change.text) continue;
+        const key = change.text.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        changes[group].push(change);
+      }
+      return { ...release, changes, commitCount: window.length };
+    })
+    .reverse()
+    .slice(0, limit);
+});

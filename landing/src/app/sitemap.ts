@@ -46,6 +46,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/llms.txt`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
     { url: `${SITE_URL}/llms-full.txt`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
     { url: `${SITE_URL}/agents.md`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
+    { url: `${SITE_URL}/facts.json`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
+    { url: `${SITE_URL}/openapi.json`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
   );
 
   return entries;

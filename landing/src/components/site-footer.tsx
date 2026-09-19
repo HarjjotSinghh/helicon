@@ -3,6 +3,7 @@ import {
   BookOpen,
   Bug,
   DownloadSimple,
+  EnvelopeSimple,
   Heart,
   Question,
 } from "@phosphor-icons/react/ssr";
@@ -62,6 +63,7 @@ const groups: FooterGroup[] = [
       { href: REPO_URL, label: "Source", icon: GitHubLogo, external: true },
       { href: RELEASES_URL, label: "Releases", icon: DownloadSimple, external: true },
       { href: ISSUES_URL, label: "Report an issue", icon: Bug, external: true },
+      { href: "/changelog", label: "Changelog", icon: BookOpen, external: false },
     ],
   },
   {
@@ -85,6 +87,8 @@ const groups: FooterGroup[] = [
       { href: "/use-cases", label: "Use cases", icon: BookOpen, external: false },
     ],
   },
+  // Named "Developers" because that is the word an agent and a person both search for. Every
+  // machine-readable surface the site publishes is one click from the home page through here.
   {
     title: "More",
     links: [
@@ -92,7 +96,8 @@ const groups: FooterGroup[] = [
       { href: "/glossary", label: "Glossary", icon: BookOpen, external: false },
       { href: "/pricing", label: "Pricing", icon: BookOpen, external: false },
       { href: "/faq", label: "Full FAQ", icon: Question, external: false },
-      { href: "/changelog", label: "Changelog", icon: BookOpen, external: false },
+      { href: "/about", label: "About", icon: BookOpen, external: false },
+      { href: "/contact", label: "Contact", icon: EnvelopeSimple, external: false },
       { href: "/legal", label: "Legal", icon: BookOpen, external: false },
     ],
   },

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BookOpen, Bug, DownloadSimple, Question, SquaresFour } from "@phosphor-icons/react/ssr";
+import { BookOpen, Bug, DownloadSimple, EnvelopeSimple, Question, SquaresFour } from "@phosphor-icons/react/ssr";
 import { SiteHeader, docLinks } from "../site-header";
 import { SiteFooter } from "../site-footer";
 import { GitHubLogo } from "../os-logos";
@@ -18,6 +18,7 @@ const footerNav = [
       { href: REPO_URL, label: "Source", icon: GitHubLogo, external: true },
       { href: RELEASES_URL, label: "Releases", icon: DownloadSimple, external: true },
       { href: ISSUES_URL, label: "Report an issue", icon: Bug, external: true },
+      { href: "/changelog", label: "Changelog", icon: BookOpen, external: false },
     ],
   },
   {
@@ -37,6 +38,8 @@ const footerNav = [
       { href: "/glossary", label: "Glossary", icon: BookOpen, external: false },
       { href: "/faq", label: "FAQ", icon: Question, external: false },
       { href: "/pricing", label: "Pricing", icon: BookOpen, external: false },
+      { href: "/about", label: "About", icon: BookOpen, external: false },
+      { href: "/contact", label: "Contact", icon: EnvelopeSimple, external: false },
       { href: "/legal", label: "Legal", icon: BookOpen, external: false },
     ],
   },

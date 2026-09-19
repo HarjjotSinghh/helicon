@@ -83,6 +83,25 @@ export const REPO_URL = "https://github.com/HarjjotSinghh/helicon";
 export const RELEASES_URL = `${REPO_URL}/releases/latest`;
 export const ISSUES_URL = `${REPO_URL}/issues`;
 
+/**
+ * How to reach the people behind Helicon, and where they are. Published in the Organization
+ * JSON-LD, on /contact and in facts.json, because an answer engine that cannot verify who
+ * publishes a thing will not recommend it. Helicon is one maintainer rather than a company, so
+ * the address is the publisher's city, not an office you can visit.
+ */
+export const CONTACT = {
+  email: "me@harjotrana.com",
+  /** Anything reproducible belongs here rather than in email: it is public, and it gets fixed. */
+  issues: ISSUES_URL,
+  security: `${REPO_URL}/security/advisories/new`,
+  address: {
+    locality: "New Delhi",
+    region: "Delhi",
+    country: "IN",
+    countryName: "India",
+  },
+} as const;
+
 /** The AlternativeTo listing. The utm parameters are the ones their badge snippet ships with. */
 export const ALTERNATIVETO_URL =
   "https://alternativeto.net/software/helicon/about/?utm_source=badge&utm_medium=referral";

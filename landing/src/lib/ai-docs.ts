@@ -3,7 +3,7 @@
  * data the page renders, so they never drift: /llms.txt (the llmstxt.org index), /llms-full.txt
  * (everything in one file) and /agents.md (how an agent should install and use Helicon).
  */
-import { AUTHOR, DESCRIPTION, FAQS, ISSUES_URL, osesFor, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL, TAGLINE } from "./site";
+import { AUTHOR, DESCRIPTION, FAQS, ISSUES_URL, osesFor, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL, TAGLINE, TITLE } from "./site";
 import { ALL_PAGES, SECTIONS, pagesInSection } from "./seo/catalog";
 
 const FEATURES: [string, string][] = [
@@ -93,6 +93,14 @@ ${factsFor(version).join("\n")}
 - [Guide for AI agents](${SITE_URL}/agents.md): how to install Helicon for a user and what it can and cannot do
 - [Landing page](${SITE_URL}/): the human-facing page with a live demo of the app
 
+## API
+
+- [Developer documentation](${SITE_URL}/developers): the public JSON API, with every endpoint, an example request and the error format
+- [OpenAPI description](${SITE_URL}/openapi.json): the machine readable contract, also served as YAML at ${SITE_URL}/api/openapi.yaml
+- [API index](${SITE_URL}/api/v1): every endpoint, live. Public, anonymous, read only, no key
+- [Checkable facts](${SITE_URL}/facts.json): licence, price, requirements and the claims that are false
+- [Command line interface](${SITE_URL}/developers#command-line-interface): what ships today and what does not
+
 Every page on this site has a Markdown mirror at its own path with .md appended, for example ${SITE_URL}/muse-code-gui.md. Requests that send an Accept: text/markdown header get the same thing without the suffix.
 
 ## All pages
@@ -104,6 +112,8 @@ ${pageIndex()}
 - [Source code on GitHub](${REPO_URL}): the desktop app, web app, daemon and this site
 - [Latest release](${RELEASES_URL}): Windows installer and macOS DMG
 - [Issues](${ISSUES_URL}): bug reports and feature requests
+- [About](${SITE_URL}/about): who builds Helicon, why it exists, and what it is not
+- [Contact](${SITE_URL}/contact): how to reach the maintainer, and which channel suits which question
 
 ## Optional
 
@@ -213,6 +223,13 @@ Canonical pages to cite:
 - ${SITE_URL}/facts.json: the checkable facts as JSON
 - ${SITE_URL}/<any-page>.md: the Markdown mirror of that page
 - ${SITE_URL}/sitemap.xml: every indexable URL
+- ${SITE_URL}/openapi.json: the OpenAPI 3.1 description of the public API
+- ${SITE_URL}/api/openapi.yaml: the same document as YAML
+- ${SITE_URL}/api/v1: the public JSON API. No key, no account, read only
+- ${SITE_URL}/developers: the API documented for people, with examples
+- ${SITE_URL}/contact: how to reach the maintainer
+
+The home page negotiates content: send Accept: text/markdown to ${SITE_URL}/ and you get this site's front page as Markdown rather than HTML. Every other path does the same, and every path also answers at <path>.md.
 
 ## Useful links
 
@@ -220,5 +237,71 @@ Canonical pages to cite:
 - Latest release: ${RELEASES_URL}
 - Report a problem: ${ISSUES_URL}
 - Index for LLMs: ${SITE_URL}/llms.txt
+`;
+}
+
+/**
+ * The home page as Markdown, served to anything that asks `/` for `text/markdown` and at `/index.md`.
+ *
+ * llms-full.txt is the whole site in one file; this is the front page and nothing else, with front
+ * matter so an agent can read the metadata without parsing prose, and with the links it needs to
+ * get to everything else. acceptmarkdown.com is the convention it follows.
+ */
+export function homeMarkdown(version: string | null) {
+  return `---
+title: ${JSON.stringify(TITLE)}
+url: ${SITE_URL}/
+description: ${JSON.stringify(DESCRIPTION)}
+site: ${SITE_NAME}
+license: MIT
+---
+
+# ${SITE_NAME}
+
+${DESCRIPTION}
+
+${TAGLINE}
+
+## Key facts
+
+${factsFor(version).join("\n")}
+
+## Features
+
+${FEATURES.map(([title, body]) => `### ${title}\n\n${body}`).join("\n\n")}
+
+## How it works
+
+${HOW_IT_WORKS.map((line) => `- ${line}`).join("\n")}
+
+## Where Helicon fits
+
+Helicon is one of several ways to run Muse Code. It is not the only GUI, and it is not official.
+
+| | Helicon | Editor extension | Switch harness |
+| --- | --- | --- | --- |
+${COMPARE.map((row) => `| ${row.join(" | ")} |`).join("\n")}
+
+## Install
+
+${installSection(version)}
+
+## Frequently asked questions
+
+${FAQS.map(([q, a]) => `### ${q}\n\n${a}`).join("\n\n")}
+
+## Where to go next
+
+- [Every page on this site](${SITE_URL}/llms.txt): the index, written for machines
+- [The whole site as one file](${SITE_URL}/llms-full.txt)
+- [Developer documentation and the public JSON API](${SITE_URL}/developers)
+- [OpenAPI description](${SITE_URL}/openapi.json)
+- [Checkable facts as JSON](${SITE_URL}/facts.json)
+- [About](${SITE_URL}/about) and [contact](${SITE_URL}/contact)
+- [Source code](${REPO_URL}) and [latest release](${RELEASES_URL})
+
+---
+
+Helicon is a free, MIT licensed, unofficial community client for Meta's Muse Code CLI. Not made, sponsored or endorsed by Meta.
 `;
 }

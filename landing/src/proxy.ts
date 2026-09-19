@@ -1,36 +1,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { markdownRewriteTarget } from "@/lib/markdown-negotiation";
 import { ANON_COOKIE, VISITOR_OS_HEADER, parseVisitorOs } from "@/lib/os";
 import { SITE_URL } from "@/lib/site";
-
-/**
- * Paths that already serve their own plain-text or Markdown document. They must not be rewritten
- * into the Markdown mirror, or /agents.md would start answering with a mirror of a page.
- */
-const OWN_TEXT_ROUTES = new Set(["/agents.md", "/llms.txt", "/llms-full.txt"]);
-
-/** True when the caller would rather have Markdown than HTML. */
-function prefersMarkdown(accept: string | null) {
-  if (!accept) return false;
-  const wantsMarkdown = /text\/markdown/i.test(accept);
-  if (!wantsMarkdown) return false;
-  // An HTML-first browser sends text/html before anything else; only rewrite when it does not.
-  return !/text\/html/i.test(accept);
-}
 
 export function proxy(request: NextRequest) {
   const url = request.nextUrl;
 
-  // `<path>.md` and an explicit `Accept: text/markdown` both resolve to the Markdown mirror.
-  if (!OWN_TEXT_ROUTES.has(url.pathname)) {
-    if (url.pathname.endsWith(".md")) {
-      const target = url.pathname.slice(0, -3);
-      return NextResponse.rewrite(new URL(`/md${target}`, request.url));
-    }
-    if (url.pathname !== "/" && !url.pathname.startsWith("/md/") && prefersMarkdown(request.headers.get("accept"))) {
-      return NextResponse.rewrite(new URL(`/md${url.pathname.replace(/\/$/, "")}`, request.url));
-    }
-  }
+  // `<path>.md` and an explicit `Accept: text/markdown` both resolve to the Markdown mirror, the
+  // home page included: an agent handed nothing but helicon.sh still has to be able to ask that
+  // URL for Markdown. The rules live in lib/markdown-negotiation.ts so that they can be tested.
+  const markdownTarget = markdownRewriteTarget(url.pathname, request.headers.get("accept"));
+  if (markdownTarget) return NextResponse.rewrite(new URL(markdownTarget, request.url));
 
   const platform = request.headers.get("sec-ch-ua-platform")?.replaceAll('"', "");
   const mobileHeader = request.headers.get("sec-ch-ua-mobile");
@@ -52,8 +33,10 @@ export function proxy(request: NextRequest) {
   // append, never set: Next puts its font preloads in this same header on statically generated
   // pages, and replacing it costs several seconds of LCP on a throttled connection.
   if (url.pathname === "/") {
+    response.headers.append("Link", `<${SITE_URL}/index.md>; rel="alternate"; type="text/markdown"`);
     response.headers.append("Link", `<${SITE_URL}/llms.txt>; rel="alternate"; type="text/plain"`);
     response.headers.append("Link", `<${SITE_URL}/llms-full.txt>; rel="alternate"; type="text/plain"`);
+    response.headers.append("Link", `<${SITE_URL}/openapi.json>; rel="service-desc"; type="application/json"`);
   } else if (!isDocument) {
     response.headers.append("Link", `<${SITE_URL}${clean}.md>; rel="alternate"; type="text/markdown"`);
   }

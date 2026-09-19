@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   DownloadSimple,
   Lightning,
   MonitorPlay,
@@ -20,11 +21,13 @@ const links = [
   { href: "#how", label: "How it works", icon: Lightning },
   { href: "#install", label: "Install", icon: TerminalWindow },
   { href: "#faq", label: "FAQ", icon: Question },
+  // The only nav entry that leaves the page. An agent reading the home page has to be able to
+  // find the documentation without guessing a path, and /docs redirects here.
+  { href: "/guides", label: "Docs", icon: BookOpen },
 ];
 
 /** Generated pages are not the home page, so their nav points at real paths rather than hashes. */
 export const docLinks = [
-  { href: "/muse-code-gui", label: "Muse Code GUI", icon: SquaresFour },
   { href: "/features", label: "Features", icon: Lightning },
   { href: "/compare", label: "Compare", icon: MonitorPlay },
   { href: "/guides", label: "Guides", icon: Question },

@@ -1,4 +1,4 @@
-import { AUTHOR, DESCRIPTION, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL } from "../site";
+import { AUTHOR, CONTACT, DESCRIPTION, ISSUES_URL, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL } from "../site";
 import { ogImageUrl } from "./metadata";
 import type { Section, SeoPage } from "./types";
 
@@ -45,9 +45,44 @@ export function coreNodes(version: string | null): Json[] {
       url: `${SITE_URL}/`,
       logo: `${SITE_URL}/assets/logo-light.png`,
       founder: { "@id": IDS.author },
+      email: CONTACT.email,
       sameAs: [REPO_URL, "https://alternativeto.net/software/helicon/about/"],
       description:
         "Helicon is an unofficial, MIT licensed community project: a desktop and web client for Meta's Muse Code CLI. Not made, sponsored or endorsed by Meta.",
+      // A real address and real ways to reach a person. An answer engine asked "who publishes
+      // this, and can I contact them" has to be able to answer without leaving the page.
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: CONTACT.address.locality,
+        addressRegion: CONTACT.address.region,
+        addressCountry: CONTACT.address.country,
+      },
+      contactPoint: [
+        {
+          "@type": "ContactPoint",
+          contactType: "customer support",
+          email: CONTACT.email,
+          url: `${SITE_URL}/contact`,
+          areaServed: "Worldwide",
+          availableLanguage: ["English"],
+        },
+        {
+          "@type": "ContactPoint",
+          contactType: "technical support",
+          url: ISSUES_URL,
+          email: CONTACT.email,
+          areaServed: "Worldwide",
+          availableLanguage: ["English"],
+        },
+        {
+          "@type": "ContactPoint",
+          contactType: "security",
+          url: CONTACT.security,
+          email: CONTACT.email,
+          areaServed: "Worldwide",
+          availableLanguage: ["English"],
+        },
+      ],
     },
     {
       "@type": "SoftwareApplication",
