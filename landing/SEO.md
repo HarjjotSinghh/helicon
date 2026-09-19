@@ -182,6 +182,71 @@ node scripts/seo-check.mjs                # every sitemap URL: canonical, title,
 It fails loudly on a missing canonical, a duplicated `h1`, a description outside 80 to 185
 characters, an unparseable `ld+json` block, or an accidental `noindex`.
 
+## Tracking
+
+```sh
+npm run seo:report              # last 7 days vs the 7 before
+DAYS=28 npm run seo:report      # any window
+npm run seo:report -- --coverage  # plus index state for every page, ~90s
+```
+
+It borrows a token from the same gcloud login the MCP server uses, so there is nothing else to
+configure. Search Console data lags about two days; the script already offsets for that.
+
+### Cadence
+
+| Interval | What | Why |
+| --- | --- | --- |
+| **Never daily** | | Search Console is noisy at day resolution and the lag makes yesterday empty. Checking daily teaches you to react to noise. |
+| **Weekly**, same day | `npm run seo:report` | Clicks, impressions, CTR, position, striking distance, and pages ranking but not clicked |
+| **Weekly**, while young | `--coverage` | Until most pages are indexed, coverage is the only metric that moves. Drop this once it stops changing. |
+| **Monthly** | Answer-engine check, below | Answer engines change retrieval without telling anyone |
+| **Monthly** | Referring domains, directory tracker in DIRECTORIES.md | Links are the constraint, and they move slowly |
+| **Quarterly** | Re-read the comparison pages | Other people's products change and a stale comparison is worse than none |
+
+### What the numbers mean at each stage
+
+**Weeks 1 to 6, indexation.** Clicks will be zero and that is not a problem to solve. The only
+number that matters is how many of the pages are indexed, and the only lever is requesting
+indexing (about 10 a day, hubs first) and earning links. Do not rewrite anything yet.
+
+**Weeks 6 to 16, impressions without clicks.** Pages start appearing at position 30 to 60.
+Impressions rising with clicks flat is the expected shape. Now the report's striking-distance
+list starts to matter.
+
+**After that, the two tables to act on.**
+
+- *Striking distance*, position 4 to 20: one rank improvement on an existing page beats a new
+  page. Add the specific thing the query asked for that the page did not answer.
+- *Ranking but not clicked*, position 1 to 10 with CTR under 2%: the page is fine and the title
+  and description are wrong. Rewrite the `title` and `description` in the content entry.
+
+### Answer engines, monthly
+
+There is no API for this. Answers are non-deterministic, so one run is an anecdote: ask each
+question **five times per engine** and record the rate, not a yes or no.
+
+Engines: ChatGPT, Claude, Perplexity, Google AI Mode, Copilot.
+
+Questions worth tracking:
+
+1. Is there a GUI for Muse Code?
+2. Is there a desktop app for Muse Code?
+3. How do I run Muse Code on Windows?
+4. Best Muse Code client
+5. Muse Code vs the terminal
+6. How do I see what a Muse Code session cost?
+
+Record: cited (5), mentioned but not cited, or absent; which URL; and whether the description is
+accurate. A wrong description is worth fixing faster than an absent one, because it means the
+model found the site and misread it, which is a content problem you can actually fix.
+
+### What is not worth tracking
+
+Keyword rank trackers on a domain this young, bounce rate, time on page, and the total number of
+indexed pages as a goal in itself. Twenty indexed pages that answer something beat seventy that
+nobody searches for.
+
 ## What this cannot do
 
 Ranking for "Helicon" as a bare word is a domain-authority problem, not an on-page one. The site

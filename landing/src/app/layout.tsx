@@ -14,15 +14,27 @@ const instrumentSans = Instrument_Sans({
 });
 const manrope = Manrope({ variable: "--font-manrope", subsets: ["latin"], display: "swap" });
 
-// The product's own faces, used by the live app demos.
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
+/*
+ * The product's own faces, used by the live app demos, which exist only on the home page.
+ * They are declared here because the CSS variables are global, but `preload: false` keeps them
+ * out of every page's <head>: together they are ~200 KB, and preloading them on a text page
+ * costs the answer paragraph its LCP on a throttled connection for fonts nothing there uses.
+ * The browser still fetches them the moment a demo actually asks for them.
+ */
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap", preload: false });
 const newsreader = Newsreader({
   variable: "--font-newsreader",
   subsets: ["latin"],
   axes: ["opsz"],
   display: "swap",
+  preload: false,
 });
-const jetbrainsMono = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"], display: "swap" });
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
