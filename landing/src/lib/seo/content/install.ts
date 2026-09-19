@@ -1,5 +1,4 @@
 import type { SeoPage } from "../types";
-import { REPO_URL } from "../../site";
 
 /** Platform install pages. These carry HowTo schema and are the highest intent pages on the site. */
 

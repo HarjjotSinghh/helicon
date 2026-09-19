@@ -11,6 +11,86 @@ const UPDATED = "2026-09-19";
 
 export const LEGAL_PAGES: SeoPage[] = [
   {
+    slug: "legal",
+    icon: "gavel",
+    section: "page",
+    label: "Legal",
+    title: "Legal: licence, privacy, terms and trademarks",
+    h1: "Legal",
+    description:
+      "Everything in one place: the MIT licence, what Helicon collects, the terms, the security policy, and the trademark position on Muse and Muse Code.",
+    answer:
+      "Helicon is MIT licensed, free, and an unofficial community project that is not made, sponsored or endorsed by Meta. It has no account and no telemetry, and it never stores credentials. Muse and Muse Code are Meta trademarks, used here only to describe what Helicon connects to.",
+    keywords: [
+      "helicon legal",
+      "helicon license",
+      "helicon privacy policy",
+      "helicon terms of use",
+      "is helicon affiliated with meta",
+    ],
+    updated: UPDATED,
+    ogEyebrow: "Legal",
+    blocks: [
+      { kind: "h2", text: "The documents" },
+      {
+        kind: "table",
+        head: ["Document", "What it covers"],
+        rows: [
+          ["[Privacy](/privacy)", "What the app sends, which is an update check, and what this website's analytics record"],
+          ["[Terms](/terms)", "The MIT licence in plain words, no warranty, and who is responsible for what an agent does"],
+          [
+            "[MIT licence](https://github.com/HarjjotSinghh/helicon/blob/prod/LICENSE)",
+            "The licence itself, in the repository. It is the document that governs",
+          ],
+          [
+            "[Security policy](https://github.com/HarjjotSinghh/helicon/blob/prod/SECURITY.md)",
+            "How to report a vulnerability. Do not open a public issue for one",
+          ],
+        ],
+      },
+      { kind: "h2", text: "The short version" },
+      {
+        kind: "ul",
+        items: [
+          "**Free and MIT licensed.** No paid tier, no account, no second bill. Any version you have stays yours.",
+          "**Unofficial.** Not made, sponsored or endorsed by Meta, and unrelated to the Muse assistant app for Mac.",
+          "**No credential custody.** Authentication stays with your own `muse login`, held by the CLI.",
+          "**No telemetry in the app.** One update check, reporting platform, version and a weekly hash of the IP.",
+          "**Nothing leaves your machine.** Not your code, prompts, threads or files.",
+          "**No warranty.** The MIT licence provides the software as is. You own what you approve.",
+        ],
+      },
+      { kind: "h2", text: "Trademarks" },
+      {
+        kind: "p",
+        text: "Muse and Muse Code are trademarks of Meta. They appear on this site only to say what Helicon works with, which is nominative use: there is no way to describe a client for Muse Code without naming Muse Code. The project is deliberately called Helicon rather than anything containing Muse, and the binary, bundle identifier and domain follow the same rule.",
+      },
+      {
+        kind: "p",
+        text: "Other names on this site, including Cursor, Windsurf, Zed, JetBrains, Claude Code, Codex, OpenCode, Aider, Cline and Warp, belong to their respective owners and are used the same way, to compare honestly rather than to imply any relationship.",
+      },
+      {
+        kind: "note",
+        text: "These pages describe what the software does, checked against the source. They are not legal advice.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Is Helicon affiliated with Meta?",
+        a: "No. It is an unofficial community project. Muse and Muse Code are Meta trademarks, used here only to describe what Helicon connects to.",
+      },
+      {
+        q: "What licence is Helicon under?",
+        a: "MIT. Use, modify, redistribute and sell it, commercially included, as long as the copyright notice and licence text travel with it.",
+      },
+      {
+        q: "Where do I report a security issue?",
+        a: "SECURITY.md in the repository has the process. Do not open a public issue for a vulnerability.",
+      },
+    ],
+    related: ["privacy", "terms", "pricing", "muse-code-desktop-app"],
+  },
+  {
     slug: "privacy",
     icon: "shield",
     section: "page",

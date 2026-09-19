@@ -82,19 +82,18 @@ const groups: FooterGroup[] = [
       { href: "/features", label: "Features", icon: BookOpen, external: false },
       { href: "/compare", label: "Compare", icon: BookOpen, external: false },
       { href: "/guides", label: "Guides", icon: BookOpen, external: false },
+      { href: "/use-cases", label: "Use cases", icon: BookOpen, external: false },
     ],
   },
   {
     title: "More",
     links: [
       { href: "/install", label: "Install", icon: DownloadSimple, external: false },
-      { href: "/use-cases", label: "Use cases", icon: BookOpen, external: false },
       { href: "/glossary", label: "Glossary", icon: BookOpen, external: false },
       { href: "/pricing", label: "Pricing", icon: BookOpen, external: false },
       { href: "/faq", label: "Full FAQ", icon: Question, external: false },
       { href: "/changelog", label: "Changelog", icon: BookOpen, external: false },
-      { href: "/privacy", label: "Privacy", icon: BookOpen, external: false },
-      { href: "/terms", label: "Terms", icon: BookOpen, external: false },
+      { href: "/legal", label: "Legal", icon: BookOpen, external: false },
     ],
   },
 ];

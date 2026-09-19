@@ -6,11 +6,11 @@ import { cn } from "../ui";
 
 /**
  * Content is authored as plain strings so the same text can render as React and as Markdown.
- * Two Markdown spellings survive into the HTML: `code` and **bold**. Anything more would mean
- * shipping a parser to render a landing page, which is not a trade worth making.
+ * Three Markdown spellings survive into the HTML: `code`, **bold** and [links](url). Anything
+ * more would mean shipping a parser to render a landing page, which is not a trade worth making.
  */
 export function Inline({ text }: { text: string }) {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).filter(Boolean);
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g).filter(Boolean);
   return (
     <>
       {parts.map((part, i) => {
@@ -29,6 +29,22 @@ export function Inline({ text }: { text: string }) {
             <strong key={i} className="font-semibold text-fg">
               {part.slice(2, -2)}
             </strong>
+          );
+        }
+        const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part);
+        if (link) {
+          const [, label, href] = link;
+          const external = href.startsWith("http");
+          return (
+            <a
+              key={i}
+              href={href}
+              target={external ? "_blank" : undefined}
+              rel={external ? "noopener noreferrer" : undefined}
+              className="font-medium text-accent-text underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-current"
+            >
+              {label}
+            </a>
           );
         }
         return <Fragment key={i}>{part}</Fragment>;

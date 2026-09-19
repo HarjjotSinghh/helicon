@@ -19,6 +19,7 @@ import {
   FolderOpen,
   FolderSimple,
   Gauge,
+  Gavel,
   GitBranch,
   GitCommit,
   GitDiff,
@@ -123,6 +124,7 @@ export const ICONS: Record<IconKey, Glyph> = {
   people: duotone(UsersThree),
   download: duotone(DownloadSimple),
   question: duotone(Question),
+  gavel: duotone(Gavel),
 };
 
 /**

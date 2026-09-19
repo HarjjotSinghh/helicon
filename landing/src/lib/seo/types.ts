@@ -63,7 +63,8 @@ export type IconKey =
   | "book"
   | "people"
   | "download"
-  | "question";
+  | "question"
+  | "gavel";
 
 export type SectionId =
   | "compare"
