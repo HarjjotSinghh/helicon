@@ -1,6 +1,8 @@
 import { Check, Copy } from "lucide-react";
 import { Children, createContext, isValidElement, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { looksLikeFilePath, type FileTarget } from "../../model/files";
+import { STREAM_SAMPLE_MS, streamRenderMode } from "../../model/streaming";
+import { useSampledText } from "../../app/sampled";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { highlight } from "sugar-high";
@@ -281,12 +283,18 @@ function rehypeWords() {
 
 const STREAM_PLUGINS = [rehypeWords];
 
-/** Agent prose: GitHub-flavored markdown with highlighted code blocks. `stream` fades in each new word. */
+/**
+ * Agent prose: GitHub-flavored markdown with highlighted code blocks. `stream` fades in each new
+ * word while the text is short; a huge stream renders plain, then from a throttled snapshot, so
+ * it cannot cost a full re-parse on every flush.
+ */
 export const Markdown = memo(function Markdown(props: { text: string; className?: string; stream?: boolean }) {
+  const mode = streamRenderMode(props.text.length, props.stream ?? false);
+  const shown = useSampledText(props.text, mode === "sampled", STREAM_SAMPLE_MS);
   return (
     <div className={cn("prose-helicon", props.className)}>
-      <ReactMarkdown remarkPlugins={PLUGINS} rehypePlugins={props.stream ? STREAM_PLUGINS : undefined} components={COMPONENTS}>
-        {props.text}
+      <ReactMarkdown remarkPlugins={PLUGINS} rehypePlugins={mode === "words" ? STREAM_PLUGINS : undefined} components={COMPONENTS}>
+        {shown}
       </ReactMarkdown>
     </div>
   );
