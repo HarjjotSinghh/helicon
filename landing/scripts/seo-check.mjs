@@ -13,7 +13,20 @@ const base = (process.env.BASE ?? "http://127.0.0.1:3111").replace(/\/$/, "");
 const problems = [];
 const note = (path, message) => problems.push(`${path}: ${message}`);
 
-const sitemapRes = await fetch(`${base}/sitemap.xml`);
+// One stalled TLS read used to abort the whole run: 161 serial requests against a real CDN will
+// eventually hit one. Each request now has a deadline and one retry, so a flake costs a second
+// rather than the report.
+async function get(url, attempt = 0) {
+  try {
+    return await fetch(url, { signal: AbortSignal.timeout(15000) });
+  } catch (error) {
+    if (attempt >= 1) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    return get(url, attempt + 1);
+  }
+}
+
+const sitemapRes = await get(`${base}/sitemap.xml`);
 if (!sitemapRes.ok) {
   console.error(`Could not read ${base}/sitemap.xml: ${sitemapRes.status}`);
   process.exit(1);
@@ -28,12 +41,12 @@ for (const url of urls) {
   const { pathname } = new URL(url);
   // The plain-text surfaces are checked for existence only; they have no head to inspect.
   if (/\.(txt|md|json|xml)$/.test(pathname)) {
-    const res = await fetch(base + pathname);
+    const res = await get(base + pathname);
     if (!res.ok) note(pathname, `status ${res.status}`);
     continue;
   }
 
-  const res = await fetch(base + pathname);
+  const res = await get(base + pathname);
   const html = await res.text();
   pages++;
   if (!res.ok) note(pathname, `status ${res.status}`);
@@ -69,7 +82,7 @@ for (const url of urls) {
   }
 
   if (pathname !== "/") {
-    const mirror = await fetch(`${base}${pathname}.md`);
+    const mirror = await get(`${base}${pathname}.md`);
     const type = mirror.headers.get("content-type") ?? "";
     if (!mirror.ok) note(`${pathname}.md`, `status ${mirror.status}`);
     else if (!type.includes("text/markdown")) note(`${pathname}.md`, `content-type ${type}`);

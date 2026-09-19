@@ -16,6 +16,12 @@ const eslintConfig = defineConfig([
     "src/product/**",
     "legacy/**",
   ]),
+  {
+    // The tests walk JSON documents, an OpenAPI description and a schema.org graph, where the
+    // shape is the thing under test. Typing those as `unknown` would mean a cast per assertion.
+    files: ["test/**/*.ts"],
+    rules: { "@typescript-eslint/no-explicit-any": "off" },
+  },
 ]);
 
 export default eslintConfig;
