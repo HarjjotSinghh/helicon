@@ -346,6 +346,29 @@ export const INSTALL_PAGES: SeoPage[] = [
         text: "Running the daemon from source on Windows needs Node 22 or newer on the Windows host, not inside WSL2. The packaged desktop app brings its own.",
       },
     ],
+    howTo: {
+      name: "Run Muse Code inside WSL2 with the Helicon Windows app",
+      steps: [
+        {
+          name: "Confirm the CLI answers inside the distribution",
+          text: "Open your WSL2 shell. If this prints a version, the install Helicon should route to is there.",
+          code: "muse --version",
+        },
+        {
+          name: "Sign in from that same shell",
+          text: "Credentials stay with the CLI, inside the distribution. Helicon stores none of its own.",
+          code: "muse login",
+        },
+        {
+          name: "Install Helicon on Windows",
+          text: "Run the signed installer from the latest GitHub release. It runs on the Windows host, not inside WSL2.",
+        },
+        {
+          name: "Add your project",
+          text: "Add the path as the side you work on. Helicon translates between Windows and WSL2 paths both ways, so the file viewer, the diffs and the agent agree.",
+        },
+      ],
+    },
     faqs: [
       {
         q: "Do I still need WSL2?",

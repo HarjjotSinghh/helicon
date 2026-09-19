@@ -522,6 +522,33 @@ export const GUIDE_PAGES: SeoPage[] = [
         ],
       },
     ],
+    howTo: {
+      name: "Fix Helicon not finding the muse CLI",
+      steps: [
+        {
+          name: "Ask the CLI directly",
+          text: "Run this in the shell where you installed Muse Code. On Windows that is PowerShell for a native install, or the WSL2 shell for a WSL2 one.",
+          code: "muse --version",
+        },
+        {
+          name: "Sign in from that same shell",
+          text: "An installed but signed-out CLI fails in exactly the same way as a missing one, because Helicon stores no credentials.",
+          code: "muse login",
+        },
+        {
+          name: "Check which route Helicon took",
+          text: "On Windows, Helicon prefers a native install over WSL2. If you have both, it is talking to the native one.",
+        },
+        {
+          name: "Restart the app",
+          text: "Detection runs at startup, so restart after changing an install.",
+        },
+        {
+          name: "Check the project path exists",
+          text: "The directory you added has to exist on the machine running the daemon, which is not your laptop when you are using a remote daemon.",
+        },
+      ],
+    },
     faqs: [
       {
         q: "Does Helicon install the muse CLI for me?",

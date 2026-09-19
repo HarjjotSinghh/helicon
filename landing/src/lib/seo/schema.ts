@@ -123,11 +123,14 @@ function faqNode(id: string, faqs: { q: string; a: string }[]): Json {
   };
 }
 
-/** The page type that fits each section, so the graph says what the page actually is. */
+/**
+ * The page type that fits each page, so the graph says what the page actually is. HowToPage is
+ * claimed only when the page carries steps: a HowToPage with no HowTo node in it is a lie the
+ * rich results test will not catch and a model will.
+ */
 function pageTypeFor(page: SeoPage): string {
   if (page.section === "glossary") return "DefinedTermSet";
-  if (page.section === "guides" || page.section === "install") return "HowToPage";
-  if (page.section === "compare") return "WebPage";
+  if (page.howTo) return "HowToPage";
   return "WebPage";
 }
 
