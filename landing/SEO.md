@@ -124,16 +124,26 @@ Same pattern for the others, all optional:
 ### The Search Console MCP server
 
 `.mcp.json` at the repo root registers `mcp-server-gsc`, so Search Console data can be queried
-from this repo without opening a browser. It needs a Google service account:
+from this repo without opening a browser. It reads `GOOGLE_APPLICATION_CREDENTIALS` and asks for
+one scope, `webmasters.readonly`.
 
-1. In Google Cloud Console, create a project and enable the **Google Search Console API**.
-2. Create a service account, then create a JSON key for it and download it.
-3. In Search Console → Settings → Users and permissions, add the service account's email address
-   as a **Full** user on the property.
-4. Export the path to the key file, then restart the session:
-   ```sh
-   export GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/key.json
-   ```
+**Set up (done 2026-09-19):** the credentials are the owner's own, not a service account.
+
+```sh
+gcloud auth application-default login \
+  --scopes=https://www.googleapis.com/auth/webmasters.readonly,https://www.googleapis.com/auth/cloud-platform
+```
+
+That writes `~/.config/gcloud/application_default_credentials.json`, which `.mcp.json` points at.
+Because the account is already an Owner of the property, nothing has to be added in Search
+Console at all. Re-run the command if the refresh token is ever revoked.
+
+The service account route is documented everywhere and is worse here: Search Console frequently
+rejects a freshly created `name@project.iam.gserviceaccount.com` address with *"Failed to add
+user: email not found"*, and it needs a delegation step that owner credentials do not. A service
+account (`helicon-gsc@helicon-seo.iam.gserviceaccount.com`, key at
+`~/.config/helicon/gsc-service-account.json`) exists as a fallback if a non-owner ever needs
+access; it still has to be added as a Full user on the property before it can read anything.
 
 ## Runbook: IndexNow
 
