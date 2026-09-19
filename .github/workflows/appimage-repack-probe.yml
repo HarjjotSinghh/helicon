@@ -1,0 +1,65 @@
+# Temporary: proves the AppImage repack step end to end against an existing release,
+# without uploading anything. Delete once the fix is in release.yml.
+name: AppImage repack probe
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to repack
+        required: true
+        default: v0.14.0
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y squashfs-tools
+      - run: npm ci
+      - name: Repack without uploading
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          cd "$work"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "*.AppImage" --clobber
+          appimage=(Helicon_*_amd64.AppImage)
+          echo "::group::before"
+          "./${appimage[0]}" --appimage-extract > /dev/null
+          ls -la squashfs-root/usr/lib/ | grep -i wayland || echo "no wayland libs found BEFORE (unexpected)"
+          echo "::endgroup::"
+          rm -f squashfs-root/usr/lib/libwayland-client.so.0 squashfs-root/usr/lib/libwayland-cursor.so.0 \
+            squashfs-root/usr/lib/libwayland-egl.so.1 squashfs-root/usr/lib/libwayland-server.so.0
+          curl -sSL --fail -o appimagetool https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool" | sha256sum --check
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run squashfs-root "${appimage[0]}"
+          "${{ github.workspace }}/node_modules/.bin/tauri" signer sign "${appimage[0]}"
+          test -s "${appimage[0]}.sig" && echo "SIG OK: $(wc -c < "${appimage[0]}.sig") bytes"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "latest.json" --clobber
+          SIG_FILE="${appimage[0]}.sig" node -e '
+            const fs = require("fs");
+            const latest = JSON.parse(fs.readFileSync("latest.json", "utf8"));
+            const signature = fs.readFileSync(process.env.SIG_FILE, "utf8").trim();
+            for (const platform of ["linux-x86_64", "linux-x86_64-appimage"]) {
+              latest.platforms[platform].signature = signature;
+            }
+            fs.writeFileSync("latest.json", JSON.stringify(latest, null, 2));
+            console.log("latest.json patched, linux sig length", signature.length);
+          '
+          echo "::group::after"
+          rm -rf squashfs-root
+          "./${appimage[0]}" --appimage-extract > /dev/null
+          ls squashfs-root/usr/lib/ | grep -i wayland && echo "WAYLAND STILL PRESENT" && exit 1
+          echo "wayland libs gone, repacked AppImage is $(du -h "${appimage[0]}" | cut -f1)"
+          echo "::endgroup::"
+          echo "PROBE OK — nothing uploaded"
