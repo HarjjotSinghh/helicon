@@ -101,15 +101,17 @@ export function SiteFooter({ nav = groups }: { nav?: FooterGroup[] }) {
   return (
     <footer>
       <div className="grid gap-10 px-5 py-12 sm:px-8 md:grid-cols-[1fr_auto] lg:px-12">
-        <div className="max-w-[52ch]">
+        <div className="max-w-[40ch]">
           <div className="flex items-center gap-2.5">
             <Logo size={26} />
             <span className="font-headline text-[15px] font-semibold text-fg sm:text-[17px]">Helicon</span>
           </div>
+          {/*
+            The long form of this notice lives in the FAQ ("Is this official?") and in the README.
+            Two lines here: unaffiliated, licensed, and whose trademark the name is.
+          */}
           <p className="mt-4 text-[14px] leading-relaxed text-subtle">
-            An unofficial, community-built project. Not made, sponsored or endorsed by Meta. A client for the Muse
-            Code CLI, unrelated to the Muse assistant app for Mac. &ldquo;Muse&rdquo; and &ldquo;Muse Code&rdquo; are
-            Meta&apos;s trademarks, used here only to say what Helicon works with. MIT licensed.
+            Unofficial, MIT licensed, not affiliated with Meta. &ldquo;Muse Code&rdquo; is Meta&apos;s trademark.
           </p>
           <p className="mt-3 text-[14px] leading-relaxed text-subtle">
             Made with{" "}
