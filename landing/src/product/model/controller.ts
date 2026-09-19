@@ -2433,6 +2433,11 @@ export class HeliconController {
     this.update((s) => (s.addProjectOpen === open ? s : { ...s, addProjectOpen: open }));
   }
 
+  /** Opens the release notes from Settings, rather than waiting for a version to change. */
+  setWhatsNewOpen(open: boolean): void {
+    this.update((s) => (s.whatsNewOpen === open ? s : { ...s, whatsNewOpen: open }));
+  }
+
   toast(tone: Toast["tone"], title: string, detail?: string, action?: Toast["action"]): void {
     this.toastSeq += 1;
     const id = this.toastSeq;

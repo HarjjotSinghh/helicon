@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowLeft, Minus, Plus, RefreshCw, RotateCw } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft, Minus, Plus, RefreshCw, RotateCw, ScrollText } from "lucide-react";
 import { Switch } from "radix-ui";
 import { useState, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context";
@@ -318,6 +318,11 @@ export function SettingsPage() {
         ) : null}
 
         <Section title="Environment">
+          <Row label="What's new" description="The release notes for this version, as they appear after Helicon updates itself.">
+            <Button size="sm" variant="secondary" onClick={() => controller.setWhatsNewOpen(true)}>
+              <ScrollText size={13} /> Read
+            </Button>
+          </Row>
           <Fact label="Helicon" value={env?.version ?? "Unknown"} />
           <Fact label="Platform" value={env?.platform ?? "Unknown"} />
           {env?.platform === "win32" ? (
