@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.3
+
+### Fixed
+
+- **A thread that stops receiving updates says so** ([#42](https://github.com/HarjjotSinghh/helicon/issues/42), reported by [@margantcovka](https://github.com/margantcovka)). When a turn's live updates go quiet, Helicon reloads the thread's history twice to catch up. If that does not move the turn on, it used to leave a spinner turning for ever. It now says the thread stopped receiving updates, explains that Muse is probably still working, and offers a reload.
+
+### Changed
+
+- **Helicon can now say whether a thread went quiet or was simply idle.** A long report of turns finishing while their view stood still could not be diagnosed, because nothing here recorded anything about the feed of updates. Each session now tracks when it last received one and what it received, frames the protocol refuses are recorded instead of vanishing, and updates that arrive without a session to belong to are counted rather than dropped in silence. All of it reads from `/api/health`. Nothing new leaves your machine: this is written to the local daemon and stays there.
+- **One bad update can no longer take down every thread at once.** Handling an update ran unguarded inside the connection's read loop, so a single failure would have ended the connection to Muse and every thread on it. A failure is now contained to the update that caused it.
+
 ## 0.14.2
 
 ### Fixed
