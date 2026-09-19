@@ -1634,6 +1634,7 @@ export class HeliconServer {
       settled: record.settledOverride === "settled",
       settledAt: record.settledAt,
       unsettledAt: record.unsettledAt,
+      sandboxDisabled: record.sandboxDisabled,
       live: this.liveView(record.id),
     };
   }
@@ -1940,6 +1941,8 @@ export class HeliconServer {
       modelId: raw ? str(raw["modelId"]) : found.session.modelId,
       turnCount: num(raw?.["turnCount"]),
       createdAt: normalizeIso(raw?.["createdAt"]),
+      // A fork branches its source session, so it inherits the source's posture.
+      sandboxDisabled: found.session.sandboxDisabled,
     });
     const hostKey = this.sessionHosts.get(sessionId);
     if (hostKey) {
@@ -1966,6 +1969,8 @@ export class HeliconServer {
       origin: "helicon",
       modelId: raw ? str(raw["modelId"]) : null,
       createdAt: normalizeIso(raw?.["createdAt"]),
+      // The creating host's own flags, not the live switch: a flip's restart may still be closing the old host.
+      sandboxDisabled: host.target.args.includes("--disable-sandbox"),
     });
     this.sessionHosts.set(started.sessionId, host.key);
     this.liveFor(started.sessionId);
@@ -2651,8 +2656,9 @@ export class HeliconServer {
   /**
    * Closes every live host so the next use respawns it with the current sandbox posture. Never
    * throws: closing is best effort, and a host that refuses to die is dropped the same way.
-   * The respawn only fixes new sessions: per a Muse SDK limitation, the posture is
-   * committed into each session's permission profile at creation and never re-resolves.
+   * The respawn only fixes new sessions. Per a Muse SDK limitation, Muse commits
+   * the posture into each session's profile at creation. Only a CLI yolo-open ever
+   * re-resolves it, and that only escalates. Nothing over MSP de-escalates to sandboxed.
    */
   private async restartHosts(): Promise<void> {
     for (const pending of this.starting.values()) {
