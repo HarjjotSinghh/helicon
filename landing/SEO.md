@@ -134,9 +134,22 @@ gcloud auth application-default login \
   --scopes=https://www.googleapis.com/auth/webmasters.readonly,https://www.googleapis.com/auth/cloud-platform
 ```
 
-That writes `~/.config/gcloud/application_default_credentials.json`, which `.mcp.json` points at.
-Because the account is already an Owner of the property, nothing has to be added in Search
-Console at all. Re-run the command if the refresh token is ever revoked.
+That writes `~/.config/gcloud/application_default_credentials.json`. Because the account is
+already an Owner of the property, nothing has to be added in Search Console at all. Re-run the
+command if the refresh token is ever revoked.
+
+The committed `.mcp.json` carries `${GOOGLE_APPLICATION_CREDENTIALS}` and nothing more. The path
+to the credentials file is machine-specific and belongs nowhere near a public repository, so it
+is registered at **local scope** instead, in `~/.claude.json`, which is not tracked:
+
+```sh
+claude mcp add google-search-console --scope local \
+  -e GOOGLE_APPLICATION_CREDENTIALS="$HOME/.config/gcloud/application_default_credentials.json" \
+  -- npx -y mcp-server-gsc
+```
+
+Exporting the variable from a shell profile works too. Either way, never write the path into
+`.mcp.json`.
 
 The service account route is documented everywhere and is worse here: Search Console frequently
 rejects a freshly created `name@project.iam.gserviceaccount.com` address with *"Failed to add
