@@ -72,14 +72,27 @@ const groups: FooterGroup[] = [
       { href: "#faq", label: "FAQ", icon: Question, external: false },
     ],
   },
+  // The whole generated site hangs off these two columns. Every one of the 71 pages is two
+  // clicks from here, which is what keeps crawl depth sane now that the home page has no index.
   {
     title: "Learn",
     links: [
       { href: "/muse-code-gui", label: "Muse Code GUI", icon: BookOpen, external: false },
       { href: "/muse-code-desktop-app", label: "Desktop app", icon: DownloadSimple, external: false },
+      { href: "/features", label: "Features", icon: BookOpen, external: false },
       { href: "/compare", label: "Compare", icon: BookOpen, external: false },
       { href: "/guides", label: "Guides", icon: BookOpen, external: false },
+    ],
+  },
+  {
+    title: "More",
+    links: [
+      { href: "/install", label: "Install", icon: DownloadSimple, external: false },
+      { href: "/use-cases", label: "Use cases", icon: BookOpen, external: false },
+      { href: "/glossary", label: "Glossary", icon: BookOpen, external: false },
+      { href: "/pricing", label: "Pricing", icon: BookOpen, external: false },
       { href: "/faq", label: "Full FAQ", icon: Question, external: false },
+      { href: "/changelog", label: "Changelog", icon: BookOpen, external: false },
     ],
   },
 ];

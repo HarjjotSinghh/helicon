@@ -11,7 +11,6 @@ import { ClosingCta, SiteFooter } from "@/components/site-footer";
 import { DemoApp } from "@/demo/demo-app";
 import { Rule } from "@/components/ui";
 import { StructuredData } from "@/components/structured-data";
-import { SiteIndex } from "@/components/seo/site-index";
 import { getPageCopy } from "@/lib/copy";
 import { latestRelease, repoStars } from "@/lib/github-release";
 import { getVisitorOs } from "@/lib/visitor";
@@ -89,8 +88,6 @@ export default async function Page() {
           <Install version={version} />
           <Rule />
           <Faq audience={copy.audience} intro={copy.faqIntro} />
-          <Rule />
-          <SiteIndex />
           <Rule />
           <ClosingCta copy={copy} stars={stars} />
           <Rule />
