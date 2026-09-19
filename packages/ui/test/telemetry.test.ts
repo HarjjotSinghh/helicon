@@ -181,7 +181,12 @@ describe("telemetry pill labels", () => {
         ]),
       ]),
     );
-    assert.equal(timePillLabel(untimed), "1 turns · 4 steps");
+    assert.equal(timePillLabel(untimed), "1 turn · 4 steps");
+
+    const single = sessionTelemetry(
+      foldWith([started("t1"), ...calls([{ turnId: "t1", usage: { outputTokens: 10 } }])]),
+    );
+    assert.equal(timePillLabel(single), "1 turn · 1 step");
   });
 
   it("labels the usage pill with the compact total and the cache hit, when there is cache data", () => {

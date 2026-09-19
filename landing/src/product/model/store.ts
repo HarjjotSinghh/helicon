@@ -99,6 +99,8 @@ export interface Prefs {
   /** The file viewer beside a thread is open. */
   filesOpen: boolean;
   filesWidth: number;
+  /** Session statistics pills above the composer: turns, speed and token usage for the open thread. */
+  showTelemetry: boolean;
 }
 
 export const DEFAULT_FILES_WIDTH = 480;
@@ -148,6 +150,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     zoom: 1,
     filesOpen: false,
     filesWidth: DEFAULT_FILES_WIDTH,
+    showTelemetry: false,
   };
 }
 
@@ -309,5 +312,6 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     zoom: pick("zoom", (v) => typeof v === "number" && Number.isFinite(v) && v >= ZOOM_MIN && v <= ZOOM_MAX),
     filesOpen: pick("filesOpen", (v) => typeof v === "boolean"),
     filesWidth: pick("filesWidth", (v) => typeof v === "number" && v >= FILES_WIDTH_MIN && v <= FILES_WIDTH_MAX),
+    showTelemetry: pick("showTelemetry", (v) => typeof v === "boolean"),
   };
 }

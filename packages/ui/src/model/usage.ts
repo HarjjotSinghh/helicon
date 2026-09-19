@@ -522,7 +522,9 @@ export function sessionTelemetry(fold: ThreadFold, truncated = false): SessionTe
 /** The time pill's label: `3 turns · 8 steps · 62 tok/s`, the speed left off when nothing timed. */
 export function timePillLabel(t: SessionTelemetry): string {
   const speed = t.tokensPerSecond === null ? "" : ` · ${formatTokensPerSecond(t.tokensPerSecond)}`;
-  return `${t.partial ? "Partial · " : ""}${t.turns} turns · ${t.steps} steps${speed}`;
+  const turns = `${t.turns} ${t.turns === 1 ? "turn" : "turns"}`;
+  const steps = `${t.steps} ${t.steps === 1 ? "step" : "steps"}`;
+  return `${t.partial ? "Partial · " : ""}${turns} · ${steps}${speed}`;
 }
 
 /** The usage pill's label: `252K tok · Cache hit 87%`, the cache left off before any prompt tokens. */
