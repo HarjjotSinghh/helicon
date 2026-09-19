@@ -6,8 +6,27 @@ import { RELEASES_URL } from "@/lib/site";
 
 export const runtime = "nodejs";
 
-/** Tauri's own target names, so a stray path cannot be counted as a platform. */
-const TARGETS = new Set(["windows-x86_64", "darwin-aarch64", "darwin-x86_64", "linux-x86_64"]);
+/**
+ * What the updater actually puts in `{{target}}`: the bare platform, from `updater_os()` in
+ * tauri-plugin-updater. The arch-suffixed names are latest.json's keys rather than the target, and
+ * only reach here from a hand-written check, so both spellings are allowed and a stray path is
+ * still not counted as a platform.
+ */
+const TARGETS = new Set([
+  "windows",
+  "darwin",
+  "linux",
+  "windows-x86_64",
+  "darwin-aarch64",
+  "darwin-x86_64",
+  "linux-x86_64",
+]);
+
+/** The platform on its own, so one OS is one bucket whichever spelling the check arrived with. */
+function platformOf(target: string): string {
+  const base = target.split("-")[0];
+  return base === "windows" || base === "darwin" || base === "linux" ? base : "other";
+}
 
 const MANIFEST_URL = `${RELEASES_URL}/download/latest.json`;
 
@@ -37,6 +56,7 @@ export async function GET(request: Request, context: { params: Promise<{ target:
     "update_check",
     {
       target: TARGETS.has(target) ? target : "other",
+      platform: platformOf(target),
       current_version: /^\d+\.\d+\.\d+$/.test(version) ? version : "other",
       latest_version: release?.version ?? null,
     },

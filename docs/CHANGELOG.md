@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.2
+
+### Fixed
+
+- **A thread stops freezing part-way through a long run** ([#32](https://github.com/HarjjotSinghh/helicon/issues/32), found and fixed by [@margantcovka](https://github.com/margantcovka) in [#41](https://github.com/HarjjotSinghh/helicon/pull/41)). 0.13.1 fixed one cause of this and missed the rest: it still happened with no subagents at all, on a thread of roughly 487 tool calls. Three things were wrong. Reloading a thread while another load was still running threw away every event that arrived in the meantime, so a turn's ending could vanish and the view would show it running for ever. Streaming text, long tool output and very large edits were each re-processed in full on every frame, which stalled the window as a thread grew. And a thread whose stream goes quiet now reloads itself instead of sitting there, which is what restarting the app used to do for you.
+
 ## 0.14.1
 
 Same app as 0.14.0 on Windows and macOS. The step that repacks the Linux AppImage without its stale Wayland libraries failed on its first real run, so 0.14.0's AppImage still carried them; it is repacked properly here. Windows and macOS users on 0.14.0 lose nothing by updating.
