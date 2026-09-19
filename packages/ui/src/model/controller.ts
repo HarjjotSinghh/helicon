@@ -204,6 +204,13 @@ const STALE_CHECK_MS = 30_000;
 const DIVERGED_GRACE_MS = 30_000;
 /** Both sides agree a turn is running, but nothing landed for this long: reload it. */
 const QUIET_TURN_MS = 90_000;
+/**
+ * Reloads one stuck turn is worth. A turn whose ending is missing from history too, rather than
+ * just from the stream, converges on nothing: without a cap the thread would refetch its whole
+ * history every grace period for as long as it stays open, which is worst on the very large
+ * sessions this watchdog exists for.
+ */
+const STALE_RELOAD_LIMIT = 2;
 
 /** Why a loaded thread needs reloading from history: its ending never landed, or its stream went quiet mid-turn. */
 export type StaleThreadReason = "diverged" | "quiet";
@@ -263,6 +270,8 @@ export class HeliconController {
   private disposed = false;
   /** When stream events were last applied per session, so a thread that went silent can be noticed. */
   private readonly appliedAt = new Map<string, number>();
+  /** Reloads already spent on a thread's current stuck turn, so a hopeless one is not refetched forever. */
+  private readonly staleReloads = new Map<string, { turnId: string; count: number }>();
   private refreshing: Promise<void> | null = null;
   private refreshQueued = false;
   private toastSeq = 0;
@@ -764,6 +773,7 @@ export class HeliconController {
       }
       const turnId = thread.fold.activeTurnId;
       if (!turnId) {
+        this.staleReloads.delete(id);
         continue;
       }
       const applied = this.appliedAt.get(id) ?? null;
@@ -773,6 +783,12 @@ export class HeliconController {
       if (staleThreadReason(turnId, this.state.sessions[id]?.live?.activeTurnId ?? null, applied, now) === null) {
         continue;
       }
+      const spent = this.staleReloads.get(id);
+      const count = spent && spent.turnId === turnId ? spent.count : 0;
+      if (count >= STALE_RELOAD_LIMIT) {
+        continue;
+      }
+      this.staleReloads.set(id, { turnId, count: count + 1 });
       void this.loadThread(id);
     }
   }

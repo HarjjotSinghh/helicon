@@ -1232,6 +1232,11 @@ describe("stale thread watchdog", () => {
     await settle();
     await settle();
     assert.equal(loads, 3, "a thread that stays silent is retried once per grace period");
+    setNow(1_000_000 + 93_000);
+    runStaleChecks();
+    await settle();
+    await settle();
+    assert.equal(loads, 3, "a turn history never finishes stops being refetched");
     stop();
   });
 
