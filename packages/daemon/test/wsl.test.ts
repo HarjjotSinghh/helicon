@@ -89,6 +89,29 @@ describe("serve planning", () => {
       distro: null,
     });
   });
+
+  it("adds the YOLO flags when asked, on every route", () => {
+    const direct = planServe({
+      platform: "win32",
+      distro: "Ubuntu",
+      musePath: "/home/harjot/.local/bin/muse",
+      cwd: "D:\\work\\helicon",
+      yoloEnabled: true,
+    });
+    assert.deepEqual(direct.args, [
+      "-d",
+      "Ubuntu",
+      "--",
+      "/home/harjot/.local/bin/muse",
+      "serve",
+      "--disable-sandbox",
+      "--trust-workspace",
+    ]);
+    const loginShell = planServe({ platform: "win32", cwd: "D:\\work\\helicon", yoloEnabled: true });
+    assert.deepEqual(loginShell.args, ["-d", "Ubuntu", "--", "sh", "-lc", "muse serve --disable-sandbox --trust-workspace"]);
+    const native = planServe({ platform: "linux", cwd: "/work/proj", yoloEnabled: true });
+    assert.deepEqual(native.args, ["serve", "--disable-sandbox", "--trust-workspace"]);
+  });
 });
 
 describe("environment probe", () => {

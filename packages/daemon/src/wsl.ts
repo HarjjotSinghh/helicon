@@ -134,14 +134,17 @@ export function planServe(options: {
   cwd: string;
   /** On Windows, `native` runs Windows Muse itself; anything else goes through WSL. */
   runtime?: MuseRuntime;
+  /** Pass `muse serve --disable-sandbox --trust-workspace`, the `muse --yolo` posture for the host. */
+  yoloEnabled?: boolean;
 }): ServePlan {
   const platform = options.platform ?? process.platform;
+  const serveArgs = options.yoloEnabled ? ["serve", "--disable-sandbox", "--trust-workspace"] : ["serve"];
   if (platform === "win32" && options.runtime !== "native") {
     const distro = options.distro ?? "Ubuntu";
     if (options.musePath) {
       return {
         command: "wsl",
-        args: ["-d", distro, "--", options.musePath, "serve"],
+        args: ["-d", distro, "--", options.musePath, ...serveArgs],
         cwd: options.cwd,
         viaWsl: true,
         distro,
@@ -149,7 +152,7 @@ export function planServe(options: {
     }
     return {
       command: "wsl",
-      args: ["-d", distro, "--", "sh", "-lc", "muse serve"],
+      args: ["-d", distro, "--", "sh", "-lc", ["muse", ...serveArgs].join(" ")],
       cwd: options.cwd,
       viaWsl: true,
       distro,
@@ -157,7 +160,7 @@ export function planServe(options: {
   }
   return {
     command: options.musePath ?? "muse",
-    args: ["serve"],
+    args: serveArgs,
     cwd: options.cwd,
     viaWsl: false,
     distro: null,

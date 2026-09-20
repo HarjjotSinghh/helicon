@@ -2,6 +2,7 @@ import {
   HeliconError,
   parseModelList,
   parseTitleSettings,
+  parseYoloSettings,
   type ApprovalDecisionInput,
   type ApprovalMode,
   type AttachmentView,
@@ -30,6 +31,7 @@ import {
   type UsageReport,
   type UserInputAnswer,
   type WorkflowAction,
+  type YoloSettings,
 } from "@helicon/ui";
 
 /** Which daemon this page talks to. An empty base is the origin that served the page. */
@@ -288,6 +290,14 @@ export class WebHeliconClient implements HeliconClient {
 
   async setTitleSettings(patch: { enabled?: boolean; modelId?: string | null }): Promise<TitleSettings> {
     return parseTitleSettings(await call<unknown>("PATCH", "/api/title-settings", patch));
+  }
+
+  async getYoloSettings(): Promise<YoloSettings> {
+    return parseYoloSettings(await call<unknown>("GET", "/api/yolo-settings"));
+  }
+
+  async setYoloSettings(patch: { enabled?: boolean }): Promise<YoloSettings> {
+    return parseYoloSettings(await call<unknown>("PATCH", "/api/yolo-settings", patch));
   }
 
   async setSessionModel(sessionId: string, modelId: string): Promise<void> {

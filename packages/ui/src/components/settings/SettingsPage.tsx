@@ -106,6 +106,8 @@ export function SettingsPage() {
   const bypassAll = useApp((s) => s.bypassAll);
   const armedThreads = useApp((s) => s.bypassThreads.length);
   const [confirmBypass, setConfirmBypass] = useState(false);
+  const yoloSettings = useApp((s) => s.yoloSettings);
+  const [confirmYolo, setConfirmYolo] = useState(false);
   const now = useNow(60_000);
   const busy = updates?.status === "checking" || updates?.status === "downloading" || updates?.status === "installing";
   const drag = useOverlayDragProps();
@@ -121,7 +123,7 @@ export function SettingsPage() {
         </Button>
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold text-fg">Settings</h1>
-          <p className="text-xs text-muted">Kept on this device. Nothing here changes a thread that is already running.</p>
+          <p className="text-xs text-muted">Kept on this device. Most settings leave running threads alone; YOLO mode restarts Muse hosts at once.</p>
         </div>
       </header>
 
@@ -274,6 +276,23 @@ export function SettingsPage() {
           ) : null}
         </Section>
 
+        <Section title="YOLO mode">
+          <Row
+            label="YOLO mode"
+            description="Like muse --yolo: nothing asks for approval in any thread, new threads run without sandbox confinement, and workspaces are trusted. Existing threads keep the sandbox posture they started with. Flipping it restarts the running Muse hosts, interrupting their turns."
+          >
+            {yoloSettings ? (
+              <Toggle
+                checked={yoloSettings.enabled}
+                label="YOLO mode"
+                onChange={(on) => (on ? setConfirmYolo(true) : void controller.setYoloEnabled(false))}
+              />
+            ) : (
+              <p className="text-xs text-subtle">Loading…</p>
+            )}
+          </Row>
+        </Section>
+
         <Section title="Notifications">
           <Row
             label="Tell me when a thread needs me"
@@ -355,6 +374,28 @@ export function SettingsPage() {
             }}
           >
             Answer them for me
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={confirmYolo}
+        onOpenChange={setConfirmYolo}
+        title="Turn on YOLO mode?"
+        description="Like muse --yolo: nothing asks for approval in any thread, new threads run without sandbox confinement, and workspaces are trusted. The running Muse hosts restart, interrupting their turns, and threads already open keep the sandbox posture they started with. This stays on until you switch it off."
+      >
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setConfirmYolo(false)}>
+            Keep asking
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setConfirmYolo(false);
+              void controller.setYoloEnabled(true);
+            }}
+          >
+            Turn on YOLO
           </Button>
         </div>
       </Modal>

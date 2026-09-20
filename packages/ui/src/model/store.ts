@@ -11,6 +11,7 @@ import type {
   ShellRun,
   SkillEntry,
   TitleSettings,
+  YoloSettings,
 } from "../types.js";
 import type { EchoAttachment, ThreadFold } from "./fold.js";
 import type { UpdateState } from "./updates.js";
@@ -205,6 +206,8 @@ export interface AppState {
   models: ModelOption[];
   /** Server-owned thread-title switch and model; null until the first boot load answers. */
   titleSettings: TitleSettings | null;
+  /** Server-owned YOLO mode; null until the first boot load answers. */
+  yoloSettings: YoloSettings | null;
   prefs: Prefs;
   toasts: Toast[];
   paletteOpen: boolean;
@@ -243,7 +246,7 @@ export interface AppState {
 }
 
 /** `confirmFullAccess` is the full-access confirmation, which `/permissions full` must still pass through. */
-export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAccess" | "confirmBypass";
+export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAccess" | "confirmBypass" | "confirmYolo";
 
 export interface SkillsState {
   status: "loading" | "ready" | "error";
@@ -267,6 +270,7 @@ export function initialState(prefs: Prefs): AppState {
     threads: {},
     models: [],
     titleSettings: null,
+    yoloSettings: null,
     prefs,
     toasts: [],
     paletteOpen: false,

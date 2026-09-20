@@ -21,6 +21,7 @@ import type {
   TranscriptLoad,
   UserInputAnswer,
   WorkflowAction,
+  YoloSettings,
 } from "./types.js";
 import { listedPrice } from "./model/pricing.js";
 
@@ -107,6 +108,8 @@ export interface HeliconClient {
   listModels(sessionId?: string): Promise<ModelOption[]>;
   getTitleSettings(): Promise<TitleSettings>;
   setTitleSettings(patch: { enabled?: boolean; modelId?: string | null }): Promise<TitleSettings>;
+  getYoloSettings(): Promise<YoloSettings>;
+  setYoloSettings(patch: { enabled?: boolean }): Promise<YoloSettings>;
   setSessionModel(sessionId: string, modelId: string): Promise<void>;
   setApprovalMode(sessionId: string, mode: ApprovalMode): Promise<void>;
   /** `noop` when Muse had nothing to summarize; `reason` is its snake_case explanation. */
@@ -158,6 +161,14 @@ export function parseTitleSettings(value: unknown): TitleSettings {
   return {
     enabled: typeof r["enabled"] === "boolean" ? r["enabled"] : true,
     modelId: typeof r["modelId"] === "string" && r["modelId"].trim() ? r["modelId"] : null,
+  };
+}
+
+/** Parse the yolo-settings endpoint; malformed answers fall back to YOLO-off. */
+export function parseYoloSettings(value: unknown): YoloSettings {
+  const r = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  return {
+    enabled: r["enabled"] === true,
   };
 }
 

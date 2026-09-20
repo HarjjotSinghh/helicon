@@ -21,6 +21,7 @@ const SESSION: SessionSummary = {
   settled: false,
   settledAt: null,
   unsettledAt: null,
+  sandboxDisabled: false,
   live: null,
 };
 
@@ -133,8 +134,31 @@ class FakeClient implements HeliconClient {
     };
     return { ...this.titleSettings };
   }
+  yoloSettings = { enabled: false };
+  yoloError: Error | null = null;
+  yoloGate: Promise<void> | null = null;
+  yoloCalls: (boolean | undefined)[] = [];
+  async getYoloSettings() {
+    return { ...this.yoloSettings };
+  }
+  async setYoloSettings(patch: { enabled?: boolean }) {
+    this.yoloCalls.push(patch.enabled);
+    if (this.yoloGate) {
+      await this.yoloGate;
+    }
+    if (this.yoloError) {
+      const error = this.yoloError;
+      this.yoloError = null;
+      throw error;
+    }
+    this.yoloSettings = { enabled: patch.enabled ?? this.yoloSettings.enabled };
+    return { ...this.yoloSettings };
+  }
   async setSessionModel() {}
-  async setApprovalMode() {}
+  approvalModes: { sessionId: string; mode: string }[] = [];
+  async setApprovalMode(sessionId: string, mode: string) {
+    this.approvalModes.push({ sessionId, mode });
+  }
   async setProjectOrder(cwds: string[]) {
     this.orders.push(cwds);
   }
@@ -312,6 +336,155 @@ describe("HeliconController", () => {
     release();
     await first;
     assert.deepEqual(controller.store.get().titleSettings, { enabled: true, modelId: null });
+    stop();
+  });
+
+  it("loads the YOLO switch at boot and flips it with rollback", async () => {
+    const client = new FakeClient();
+    client.yoloSettings = { enabled: true };
+    const { controller, stop } = await started(client);
+    assert.deepEqual(controller.store.get().yoloSettings, { enabled: true });
+    assert.equal(controller.store.get().threads["s1"]?.fold.meta.approvalMode, "allowAll", "boot under YOLO joins the open thread");
+    assert.ok(
+      client.approvalModes.some((p) => p.sessionId === "s1" && p.mode === "allowAll"),
+      "the join is pushed to Muse",
+    );
+
+    await controller.setYoloEnabled(false);
+    assert.deepEqual(controller.store.get().yoloSettings, { enabled: false });
+
+    client.yoloError = new Error("daemon away");
+    await controller.setYoloEnabled(true);
+    assert.deepEqual(controller.store.get().yoloSettings, { enabled: false }, "a failed flip rolls back");
+    assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /Could not change the YOLO setting/);
+    stop();
+  });
+
+  it("sends rapid YOLO flips to the server in order", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    try {
+      let release!: () => void;
+      client.yoloGate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const first = controller.setYoloEnabled(true);
+      const second = controller.setYoloEnabled(false);
+      try {
+        await new Promise((r) => setTimeout(r, 0));
+        assert.deepEqual(client.yoloCalls, [true], "the second PATCH waits for the first");
+      } finally {
+        release();
+      }
+      await Promise.all([first, second]);
+      assert.deepEqual(client.yoloCalls, [true, false]);
+      assert.deepEqual(client.yoloSettings, { enabled: false }, "the server ends at the latest flip");
+      assert.deepEqual(controller.store.get().yoloSettings, { enabled: false });
+    } finally {
+      stop();
+    }
+  });
+
+  it("moves open threads to full access on YOLO and restores them after", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    await controller.setMode("denyUnmatched");
+    controller.setPrefs({ defaultMode: "promptUnmatched" });
+    assert.equal(controller.store.get().threads["s1"]?.fold.meta.approvalMode, "denyUnmatched");
+
+    await controller.setYoloEnabled(true);
+    const on = controller.store.get();
+    assert.equal(on.prefs.defaultMode, "allowAll");
+    assert.equal(on.threads["s1"]?.fold.meta.approvalMode, "allowAll");
+    assert.deepEqual(client.approvalModes.at(-1), { sessionId: "s1", mode: "allowAll" });
+    assert.equal(controller.bypassArmed("s1"), true);
+
+    await controller.setYoloEnabled(false);
+    const off = controller.store.get();
+    assert.equal(off.prefs.defaultMode, "promptUnmatched", "the default from before arming comes back");
+    assert.equal(off.threads["s1"]?.fold.meta.approvalMode, "denyUnmatched", "and so does the thread's own mode");
+    assert.deepEqual(client.approvalModes.at(-1), { sessionId: "s1", mode: "denyUnmatched" });
+    assert.equal(controller.bypassArmed("s1"), false);
+    stop();
+  });
+
+  it("ignores a YOLO flip to the value it already has", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    await controller.setMode("denyUnmatched");
+
+    await controller.setYoloEnabled(false);
+    assert.deepEqual(client.yoloCalls, [], "no PATCH leaves for a no-op flip");
+    assert.equal(controller.store.get().prefs.defaultMode, "denyUnmatched");
+    assert.equal(controller.store.get().threads["s1"]?.fold.meta.approvalMode, "denyUnmatched");
+
+    await controller.setYoloEnabled(true);
+    await controller.setYoloEnabled(true);
+    assert.deepEqual(client.yoloCalls, [true], "the double-click enable PATCHes once");
+    stop();
+  });
+
+  it("refuses permission changes while YOLO is on", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    await controller.setYoloEnabled(true);
+    const pushes = client.approvalModes.length;
+
+    await controller.setMode("onRequest");
+    assert.equal(controller.store.get().threads["s1"]?.fold.meta.approvalMode, "allowAll");
+    assert.equal(client.approvalModes.length, pushes, "no mode push leaves while YOLO owns the modes");
+    assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /YOLO is on/);
+    stop();
+  });
+
+  it("joins a thread opened under YOLO to full access", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client, "#/");
+    await controller.setYoloEnabled(true);
+    await controller.loadThread("s1");
+    assert.equal(controller.store.get().threads["s1"]?.fold.meta.approvalMode, "allowAll");
+    assert.deepEqual(client.approvalModes.at(-1), { sessionId: "s1", mode: "allowAll" });
+    stop();
+  });
+
+  it("stays silent about approvals a bypass answers on its own", async () => {
+    const client = new FakeClient();
+    const shown: string[] = [];
+    const { controller, stop } = await started(client);
+    controller.attachNotifier({
+      permission: async () => "granted",
+      request: async () => "granted",
+      show: async (note) => {
+        shown.push(note.tag);
+      },
+    });
+    controller.setPrefs({ notifications: true });
+    await controller.setYoloEnabled(true);
+    client.handler?.({
+      type: "session-status",
+      sessionId: "s1",
+      live: {
+        activeTurnId: null,
+        turnStartedAt: null,
+        pendingApprovals: 1,
+        pendingInputs: 0,
+        lastTerminal: null,
+        lastError: null,
+      } as never,
+    });
+    await settle();
+    assert.deepEqual(shown, [], "an armed thread answers, so nobody is needed");
+    stop();
+  });
+
+  it("clears the host error and toasts when hosts restart for the YOLO switch", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.handler?.({ type: "host", key: "k", state: "failed", message: "boom" });
+    assert.equal(controller.store.get().hostError, "boom");
+    client.handler?.({ type: "host", key: "k", state: "restarted", message: "The Muse host restarted." });
+    assert.equal(controller.store.get().hostError, null);
+    assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /Muse hosts restarted/);
     stop();
   });
 

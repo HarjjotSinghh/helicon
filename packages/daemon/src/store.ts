@@ -34,6 +34,8 @@ export interface SessionRecord {
   settledOverride: SettledOverride | null;
   settledAt: string | null;
   unsettledAt: string | null;
+  /** Sandbox posture at creation: null for sessions recorded before tracking. */
+  sandboxDisabled: boolean | null;
 }
 
 export type SettledOverride = "settled" | "active";
@@ -56,6 +58,8 @@ export interface RecordSessionInput {
   turnCount?: number;
   createdAt?: string;
   activityAt?: string;
+  /** Creation posture; later touches never overwrite it. */
+  sandboxDisabled?: boolean | null;
 }
 
 export interface SessionPatch {
@@ -80,6 +84,17 @@ export interface TitleSettings {
 }
 
 export const DEFAULT_TITLE_SETTINGS: TitleSettings = { enabled: true, modelId: null };
+
+/**
+ * Server-owned YOLO mode: the `muse --yolo` posture for every host it spawns
+ * (`--disable-sandbox --trust-workspace`) plus the wire-level approval bypass.
+ * Off by default.
+ */
+export interface YoloSettings {
+  enabled: boolean;
+}
+
+export const DEFAULT_YOLO_SETTINGS: YoloSettings = { enabled: false };
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -186,6 +201,8 @@ const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: "sessions", column: "settled_override", ddl: "ALTER TABLE sessions ADD COLUMN settled_override TEXT" },
   { table: "sessions", column: "settled_at", ddl: "ALTER TABLE sessions ADD COLUMN settled_at TEXT" },
   { table: "sessions", column: "unsettled_at", ddl: "ALTER TABLE sessions ADD COLUMN unsettled_at TEXT" },
+  // NULL for sessions recorded before posture tracking; only new rows carry a value.
+  { table: "sessions", column: "sandbox_disabled", ddl: "ALTER TABLE sessions ADD COLUMN sandbox_disabled INTEGER" },
 ];
 
 type Row = Record<string, string | number | null>;
@@ -309,6 +326,33 @@ export class HeliconStore {
     };
     this.db
       .prepare(`INSERT INTO settings (key, value) VALUES ('title', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+      .run(JSON.stringify(next));
+    return next;
+  }
+
+  /** Malformed rows fall back to YOLO-off rather than breaking host startup. */
+  getYoloSettings(): YoloSettings {
+    const row = this.db.prepare(`SELECT value FROM settings WHERE key = 'yolo'`).get() as Row | undefined;
+    if (!row) {
+      return { ...DEFAULT_YOLO_SETTINGS };
+    }
+    try {
+      const parsed = JSON.parse(String(row["value"])) as Partial<YoloSettings>;
+      return {
+        enabled: typeof parsed.enabled === "boolean" ? parsed.enabled : DEFAULT_YOLO_SETTINGS.enabled,
+      };
+    } catch {
+      return { ...DEFAULT_YOLO_SETTINGS };
+    }
+  }
+
+  setYoloSettings(patch: Partial<YoloSettings>): YoloSettings {
+    const current = this.getYoloSettings();
+    const next: YoloSettings = {
+      enabled: patch.enabled ?? current.enabled,
+    };
+    this.db
+      .prepare(`INSERT INTO settings (key, value) VALUES ('yolo', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
       .run(JSON.stringify(next));
     return next;
   }
@@ -521,8 +565,8 @@ export class HeliconStore {
       this.db
         .prepare(
           `INSERT INTO sessions (id, project_id, title, title_source, status, turn_count, model_id, origin,
-             archived, created_at, updated_at, activity_at)
-           VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 0, ?, ?, ?)`,
+             archived, sandbox_disabled, created_at, updated_at, activity_at)
+           VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 0, ?, ?, ?, ?)`,
         )
         .run(
           input.id,
@@ -532,6 +576,7 @@ export class HeliconStore {
           input.turnCount ?? 0,
           input.modelId ?? null,
           input.origin ?? "helicon",
+          input.sandboxDisabled === undefined || input.sandboxDisabled === null ? null : input.sandboxDisabled ? 1 : 0,
           input.createdAt ?? now,
           now,
           input.activityAt ?? input.createdAt ?? now,
@@ -724,6 +769,7 @@ export class HeliconStore {
       settledOverride: row["settled_override"] === "settled" || row["settled_override"] === "active" ? row["settled_override"] : null,
       settledAt: row["settled_at"] === null || row["settled_at"] === undefined ? null : String(row["settled_at"]),
       unsettledAt: row["unsettled_at"] === null || row["unsettled_at"] === undefined ? null : String(row["unsettled_at"]),
+      sandboxDisabled: row["sandbox_disabled"] === null || row["sandbox_disabled"] === undefined ? null : Number(row["sandbox_disabled"]) === 1,
     };
   }
 }
