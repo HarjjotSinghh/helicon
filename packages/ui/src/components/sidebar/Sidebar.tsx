@@ -26,6 +26,7 @@ import {
   ChartColumn,
   Search,
   Settings,
+  ShieldOff,
   SquarePen,
   Sun,
   Target,
@@ -640,15 +641,20 @@ export const ThreadRow = memo(
             >
               <span
                 className={cn(
-                  "block truncate text-sm",
+                  "flex min-w-0 items-center gap-1.5 text-sm",
                   props.settled ? "text-subtle" : emphasized ? "text-fg" : "text-muted",
                   status === "unread" && !props.settled && "font-medium",
                 )}
               >
-                {session.title}
+                {session.sandboxDisabled === true ? (
+                  <span title="Sandbox off" className="flex shrink-0 text-warn-text">
+                    <ShieldOff size={12} aria-hidden="true" />
+                  </span>
+                ) : null}
+                <span className="min-w-0 flex-1 truncate">{session.title}</span>
               </span>
               {props.settled ? null : <RowMeta session={session} showProject={props.showProject} />}
-              <span className="sr-only">{`, ${STATUS_LABEL[status]}`}</span>
+              <span className="sr-only">{`, ${STATUS_LABEL[status]}${session.sandboxDisabled === true ? ", sandbox off" : ""}`}</span>
             </button>
           )}
           {renaming ? null : (

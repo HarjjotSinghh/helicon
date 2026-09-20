@@ -785,9 +785,18 @@ function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
         open={confirming}
         onOpenChange={setConfirming}
         title="Give Muse full access?"
-        description="Every tool call, including shell commands and file writes, will run without asking you first. Use this only in a disposable environment."
+        description="Every tool call, including shell commands and file writes, will run without asking you first. The OS sandbox still confines shells unless this thread started while sandboxing was switched off in Settings. Use this only in a disposable environment."
       >
         <div className="mt-6 flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setConfirming(false);
+              controller.navigate({ kind: "settings" });
+            }}
+          >
+            Sandbox settings
+          </Button>
           <Button variant="ghost" onClick={() => setConfirming(false)}>
             Keep asking
           </Button>
