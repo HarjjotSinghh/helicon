@@ -579,7 +579,7 @@ function ModelPicker(props: { sessionId: string | null; side: PickerSide }) {
 
 /**
  * Sets the project's default account for new threads (`startThread` reads `project.defaultAccountId`); no
- * transient state of its own. Shows only on the new-thread composer, and only once accounts exist — on an
+ * transient state of its own. Shows only on the new-thread composer, and only once accounts exist. On an
  * existing thread the account is fixed at spawn and shown by the sidebar badge instead.
  */
 function AccountPicker(props: { sessionId: string | null; cwd: string | null; variant: "thread" | "home" }) {
