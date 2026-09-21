@@ -617,6 +617,57 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("clears the pre-YOLO snapshot when the PATCH fails, so a later enable captures a fresh one", async () => {
+    const client = new FakeClient();
+    let saved: unknown = null;
+    const shared: Platform & { hash: string } = {
+      hash: "#/t/s1",
+      loadPrefs: () => null,
+      savePrefs: (prefs) => {
+        saved = prefs;
+      },
+      readHash: () => shared.hash,
+      writeHash: (next) => {
+        shared.hash = next;
+      },
+      onHashChange: () => () => {},
+      now: () => Date.now(),
+      schedule: (fn: () => void) => setTimeout(fn, 0),
+      cancel: (handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+      focused: () => false,
+    };
+
+    const controller = new HeliconController(client, shared);
+    const stop = controller.start();
+    await settle();
+    await settle();
+
+    await controller.setMode("denyUnmatched");
+    client.yoloError = new Error("daemon away");
+    await controller.setYoloEnabled(true);
+    await settle();
+    assert.deepEqual(controller.store.get().yoloSettings, { enabled: false });
+    assert.equal(
+      (saved as { preYolo: unknown } | null)?.preYolo ?? null,
+      null,
+      "the failed enable's snapshot never sticks around in prefs",
+    );
+
+    // A different mode than the failed attempt saw, so a stale snapshot from that attempt would
+    // be caught by this asserting the wrong value instead of passing by coincidence.
+    await controller.setMode("promptUnmatched");
+    await controller.setYoloEnabled(true);
+    await settle();
+    assert.deepEqual(controller.store.get().yoloSettings, { enabled: true });
+    assert.equal(
+      (saved as { preYolo: { defaultMode: string } | null } | null)?.preYolo?.defaultMode,
+      "promptUnmatched",
+      "a following successful enable captures a fresh snapshot",
+    );
+
+    stop();
+  });
+
   it("starts new threads at full access under YOLO, even when the local default was never touched", async () => {
     const client = new FakeClient();
     // Boot converges the open thread through convergeThread, not applyYoloApprovals, so the default

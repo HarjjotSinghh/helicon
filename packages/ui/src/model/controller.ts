@@ -555,10 +555,11 @@ export class HeliconController {
           for (const sessionId of Object.keys(this.state.threads)) {
             this.convergeThread(sessionId);
           }
-        } else if (wasEnabled && this.preYolo === null) {
-          // Another client turned YOLO off. This one never armed it locally, so there is no local
-          // snapshot to restore from, but it must still stop auto-approving: the same restore path
-          // `setYoloEnabled` uses on a genuine flip, minus the snapshot it would otherwise consume.
+        } else if (wasEnabled) {
+          // Another client turned YOLO off. This client must stop auto-approving too, whether or
+          // not it holds a local snapshot: the same restore path `setYoloEnabled` uses on a genuine
+          // flip. `applyYoloApprovals(false)` already consumes `this.preYolo` when one is present,
+          // and falls back to Ask-first when it is not, so this is safe to call either way.
           this.applyYoloApprovals(false);
         }
       }
@@ -1522,8 +1523,10 @@ export class HeliconController {
     }
     const previous = this.state.yoloSettings;
     const rev = ++this.yoloSettingsRev;
+    let capturedPreYolo = false;
     if (enabled && this.preYolo === null) {
       this.capturePreYolo();
+      capturedPreYolo = true;
     }
     this.update((s) => ({ ...s, yoloSettings: { enabled } }));
     // The PATCH queues a host restart on the server, and `hostFor` awaits `restartChain`, so an
@@ -1547,6 +1550,12 @@ export class HeliconController {
         // flag comes back, nothing to unwind on the approvals side.
         this.update((s) => ({ ...s, yoloSettings: previous }));
         this.toast("error", "Could not change the YOLO setting", errorMessage(error));
+        if (capturedPreYolo) {
+          // This call's snapshot never armed anything: drop it so the next enable captures a
+          // fresh one instead of restoring modes from a YOLO session that never happened.
+          this.preYolo = null;
+          this.setPrefs({ preYolo: null });
+        }
       }
     }
   }
