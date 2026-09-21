@@ -276,6 +276,11 @@ export interface SandboxSettings {
   disabled: boolean;
 }
 
+/** Server-owned YOLO mode: hosts spawn with `--disable-sandbox --trust-workspace`, approvals bypassed. */
+export interface YoloSettings {
+  enabled: boolean;
+}
+
 /** A skill Muse can load in a workspace, from `muse skills list`. Skills switched off are left out. */
 export interface SkillEntry {
   id: string;
