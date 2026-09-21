@@ -290,6 +290,8 @@ export class HeliconController {
   private accountsRev = 0;
   /** Account mutations queue behind each other so rapid edits land in order. */
   private accountsChain: Promise<void> = Promise.resolve();
+  /** Bumped by every project-default-account request, so only the latest completion or rollback lands. */
+  private projectDefaultRev = 0;
   /** Approval modes from before YOLO was armed, restored when it is switched off. Null when never armed here. */
   private preYolo: { defaultMode: ApprovalMode; threads: Record<string, ApprovalMode | null> } | null = null;
   /** The main route Back leaves the settings/usage pages for; cleared once back on a main route. */
@@ -1750,7 +1752,9 @@ export class HeliconController {
       if (usage) {
         this.takePlanUsage(usage);
       }
-      this.update((s) => ({ ...s, planUsageByAccount: { ...s.planUsageByAccount, ...byAccount } }));
+      for (const [accountId, accountUsage] of Object.entries(byAccount)) {
+        this.takePlanUsage(accountUsage, accountId);
+      }
     } catch {
       /* the meter is extra: a server without it leaves the usage page as it was */
     }
@@ -1837,6 +1841,7 @@ export class HeliconController {
 
   async setProjectDefaultAccount(cwd: string, accountId: string | null): Promise<void> {
     const previous = this.state.projects;
+    const rev = ++this.projectDefaultRev;
     this.update((s) => ({ ...s, projects: s.projects.map((p) => (p.cwd === cwd ? { ...p, defaultAccountId: accountId } : p)) }));
     const run = this.accountsChain.then(() => this.client.setProjectDefaultAccount(cwd, accountId));
     this.accountsChain = run.then(
@@ -1846,8 +1851,10 @@ export class HeliconController {
     try {
       await run;
     } catch (error) {
-      this.update((s) => ({ ...s, projects: previous }));
-      this.toast("error", "Could not set the default account", errorMessage(error));
+      if (rev === this.projectDefaultRev) {
+        this.update((s) => ({ ...s, projects: previous }));
+        this.toast("error", "Could not set the default account", errorMessage(error));
+      }
     }
   }
 

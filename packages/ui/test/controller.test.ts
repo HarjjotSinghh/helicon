@@ -85,7 +85,7 @@ class FakeClient implements HeliconClient {
   startCalls: { cwd: string; approvalMode?: string; modelId?: string; accountId: string | null }[] = [];
   async startSession(cwd: string, options?: { approvalMode?: string; modelId?: string; accountId?: string | null }) {
     this.startCalls.push({ cwd, approvalMode: options?.approvalMode, modelId: options?.modelId, accountId: options?.accountId ?? null });
-    return SESSION;
+    return { ...SESSION, accountId: options?.accountId ?? null };
   }
   loadTranscript() {
     return this.transcript();
@@ -283,8 +283,14 @@ class FakeClient implements HeliconClient {
     this.accountCalls.push({ kind: "remove", id });
     this.accounts = this.accounts.filter((a) => a.id !== id);
   }
+  setProjectDefaultAccountError: Error | null = null;
   async setProjectDefaultAccount(cwd: string, accountId: string | null) {
     this.accountCalls.push({ kind: "default", cwd, accountId });
+    if (this.setProjectDefaultAccountError) {
+      const error = this.setProjectDefaultAccountError;
+      this.setProjectDefaultAccountError = null;
+      throw error;
+    }
   }
   writes: { path: string; content: string; baseMtimeMs: number | null }[] = [];
   writeError: Error | null = null;
@@ -1380,6 +1386,27 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("does not let a stale boot-load snapshot clobber a fresher per-account reading", async () => {
+    const client = new FakeClient();
+    const reading = (percent: number, at: number) => ({
+      tier: "high",
+      observedAtMs: at,
+      window: { usedPercent: percent, resetsAtMs: at + 1, windowDurationMins: 300 },
+      weekly: { usedPercent: 3, resetsAtMs: at + 2, windowDurationMins: null },
+    });
+    const { controller, stop } = await started(client);
+    client.handler?.({ type: "plan-usage", usage: reading(77, 200), accountId: "work" });
+    assert.equal(controller.store.get().planUsageByAccount["work"]?.window.usedPercent, 77);
+    client.planByAccount = { work: reading(10, 100) };
+    await controller.loadPlanUsage();
+    assert.equal(
+      controller.store.get().planUsageByAccount["work"]?.window.usedPercent,
+      77,
+      "a stale byAccount snapshot from a boot GET does not replace a newer event-derived reading",
+    );
+    stop();
+  });
+
   it("loads the account list and creates an account", async () => {
     const client = new FakeClient();
     const controller = new HeliconController(client, platform());
@@ -1429,6 +1456,31 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("does not let a stale rollback clobber a newer overlapping default-account write", async () => {
+    const client = new FakeClient();
+    client.projects = [{ cwd: "/work/app", displayName: "app", pinned: false, activityAt: SESSION.activityAt, defaultAccountId: null }];
+    const { controller, stop } = await started(client);
+
+    client.setProjectDefaultAccountError = new Error("nope");
+    // Fired without awaiting: the first PATCH is queued to fail, the second to succeed. The chain
+    // means the server sees them in order, so the first's rejection lands after the second's optimism.
+    const first = controller.setProjectDefaultAccount("/work/app", "alpha");
+    const second = controller.setProjectDefaultAccount("/work/app", "beta");
+    await Promise.all([first, second]);
+
+    assert.equal(
+      controller.store.get().projects.find((p) => p.cwd === "/work/app")?.defaultAccountId,
+      "beta",
+      "the second call's value stands; the stale rollback from the first call's failure is dropped",
+    );
+    assert.equal(
+      controller.store.get().toasts.some((t) => /Could not set the default account/.test(t.title)),
+      false,
+      "a stale rollback does not toast either",
+    );
+    stop();
+  });
+
   it("starts a new thread on the project's default account", async () => {
     const client = new FakeClient();
     client.projects = [{ cwd: "/work/app", displayName: "app", pinned: false, activityAt: SESSION.activityAt, defaultAccountId: "work" }];
@@ -1436,6 +1488,10 @@ describe("HeliconController", () => {
     controller.newThread("/work/app");
     assert.equal(await controller.send("hello"), true);
     assert.equal(client.startCalls.at(-1)?.accountId, "work");
+    const route = controller.store.get().route;
+    assert.equal(route.kind, "thread");
+    const sessionId = route.kind === "thread" ? route.sessionId : "";
+    assert.equal(controller.store.get().sessions[sessionId]?.accountId, "work", "the seeded session carries the account the server confirmed");
     stop();
   });
 
