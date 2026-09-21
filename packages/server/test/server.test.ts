@@ -730,6 +730,38 @@ describe("HeliconServer", () => {
     assert.equal(read.usage.weekly.windowDurationMins, null);
   });
 
+  it("tracks plan usage per account and keeps the newest as the default", async () => {
+    const work = new FakeConnection();
+    const personal = new FakeConnection();
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const aonia = createAonia({ home, platform: "linux", musePath: "muse" });
+    await aonia.createProfile("work");
+    await aonia.createProfile("personal");
+    // Route each account's host to its own connection so their notifications are distinct.
+    const byCwdAccount = new Map<string, FakeConnection>();
+    const factory = (target: ServeTarget): HostHandle => {
+      const account = target.env?.["XDG_CONFIG_HOME"]?.includes("/work/") ? work : personal;
+      return fakeFactory(account)(target);
+    };
+    const { base } = await start(work, { hostFactory: factory, aonia });
+
+    work.replies.set("session/start", { session: { sessionId: "w1" } });
+    personal.replies.set("session/start", { session: { sessionId: "p1" } });
+    await send(base, "/api/sessions", { cwd: "/proj", accountId: "work" });
+    await send(base, "/api/sessions", { cwd: "/proj", accountId: "personal" });
+
+    // usage/changed notifications carry the SubscriptionUsage fields flat (see parseSubscriptionUsage and
+    // the "keeps the newest subscription window any host reports" test above); only the usage/read
+    // request/reply wraps them under a "usage" key.
+    work.notify("usage/changed", { tier: "1", observedAtMs: 100, window: { usedPercent: 90, resetsAtMs: 1, windowDurationMins: 300 }, weekly: { usedPercent: 50, resetsAtMs: 1, windowDurationMins: null } });
+    personal.notify("usage/changed", { tier: "1", observedAtMs: 200, window: { usedPercent: 12, resetsAtMs: 1, windowDurationMins: 300 }, weekly: { usedPercent: 8, resetsAtMs: 1, windowDurationMins: null } });
+
+    const res = await get(base, "/api/plan-usage");
+    assert.equal(res.byAccount.work.window.usedPercent, 90);
+    assert.equal(res.byAccount.personal.window.usedPercent, 12);
+    assert.equal(res.usage.window.usedPercent, 12, "usage holds the newest across accounts");
+  });
+
   it("gives Muse the name typed here, and takes the name Muse settles on", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });

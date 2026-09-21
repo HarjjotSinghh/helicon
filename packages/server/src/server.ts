@@ -632,6 +632,8 @@ export class HeliconServer {
   private readonly skillCache = new Map<string, SkillListing>();
   /** The newest subscription window any host reported; `usage/changed` carries no session, so it lives here. */
   private planUsage: SubscriptionUsage | null = null;
+  /** The newest window per account, keyed by aonia profile id. The default login is not keyed here. */
+  private readonly planUsageByAccount = new Map<string, SubscriptionUsage>();
   /** The reasoning effort each session is known to be running at, so a turn only re-sets it when it changes. */
   private readonly effortApplied = new Map<string, ReasoningEffort>();
   private lastHostError: string | null = null;
@@ -1326,7 +1328,7 @@ export class HeliconServer {
     }
 
     if (method === "GET" && path === "/api/plan-usage") {
-      this.json(res, 200, { usage: await this.readPlanUsage() });
+      this.json(res, 200, await this.readPlanUsage());
       return true;
     }
     if (method === "GET" && path === "/api/title-settings") {
@@ -2958,7 +2960,9 @@ export class HeliconServer {
     try {
       const params = asRecord(notification.params) ?? {};
       if (notification.method === "usage/changed") {
-        this.observeUsage(parseSubscriptionUsage(params));
+        const usage = parseSubscriptionUsage(params);
+        const accountId = this.hosts.get(hostKey)?.accountId ?? null;
+        this.observeUsage(usage, accountId);
         return;
       }
       const event = toWireEvent(notification.method, params, notification.emittedAtMs);
@@ -3194,26 +3198,34 @@ export class HeliconServer {
   }
 
   /** A newer subscription window from any host replaces the one held, and every open window hears about it. */
-  private observeUsage(usage: SubscriptionUsage | null): void {
-    if (!usage || (this.planUsage && this.planUsage.observedAtMs > usage.observedAtMs)) {
+  private observeUsage(usage: SubscriptionUsage | null, accountId: string | null = null): void {
+    if (!usage) {
       return;
     }
-    this.planUsage = usage;
-    this.emit("helicon", { type: "plan-usage", usage });
+    if (accountId) {
+      const prior = this.planUsageByAccount.get(accountId);
+      if (!prior || prior.observedAtMs <= usage.observedAtMs) {
+        this.planUsageByAccount.set(accountId, usage);
+      }
+    }
+    if (!this.planUsage || this.planUsage.observedAtMs <= usage.observedAtMs) {
+      this.planUsage = usage;
+    }
+    this.emit("helicon", { type: "plan-usage", usage, accountId });
   }
 
   /** Asks every running host what it last saw; none is started just for this, since it would have seen nothing. */
-  private async readPlanUsage(): Promise<SubscriptionUsage | null> {
+  private async readPlanUsage(): Promise<{ usage: SubscriptionUsage | null; byAccount: Record<string, SubscriptionUsage> }> {
     await Promise.all(
       [...this.hosts.values()].map(async (managed) => {
         try {
-          this.observeUsage(await managed.manager.readSubscriptionUsage());
+          this.observeUsage(await managed.manager.readSubscriptionUsage(), managed.accountId);
         } catch {
           /* an older host without usage/read */
         }
       }),
     );
-    return this.planUsage;
+    return { usage: this.planUsage, byAccount: Object.fromEntries(this.planUsageByAccount) };
   }
 
   /** Muse named or renamed the session, here or in another client; the newest name wins, and a typed title stays typed. */
