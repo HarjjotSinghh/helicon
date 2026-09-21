@@ -334,6 +334,10 @@ export class WebHeliconClient implements HeliconClient {
     await call("PATCH", "/api/projects/default-account", { cwd, accountId });
   }
 
+  async accountsHealth(): Promise<{ metaApiKeyInherited: boolean }> {
+    return call<{ metaApiKeyInherited: boolean }>("GET", "/api/accounts/health");
+  }
+
   async getYoloSettings(): Promise<YoloSettings> {
     return parseYoloSettings(await call<unknown>("GET", "/api/yolo-settings"));
   }

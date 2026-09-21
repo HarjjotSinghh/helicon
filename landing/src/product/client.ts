@@ -119,6 +119,8 @@ export interface HeliconClient {
   removeAccount(id: string): Promise<void>;
   /** Sets which account new threads in a project default to; null clears it. */
   setProjectDefaultAccount(cwd: string, accountId: string | null): Promise<void>;
+  /** Whether META_API_KEY in the environment makes every account share one Meta login. */
+  accountsHealth(): Promise<{ metaApiKeyInherited: boolean }>;
   getYoloSettings(): Promise<YoloSettings>;
   setYoloSettings(patch: { enabled?: boolean }): Promise<YoloSettings>;
   setSessionModel(sessionId: string, modelId: string): Promise<void>;

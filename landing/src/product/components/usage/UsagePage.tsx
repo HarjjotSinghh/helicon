@@ -8,7 +8,7 @@ import { fillUsageDays, rangeLabel, USAGE_RANGES } from "../../model/usage-range
 import type { ModelOption, UsageBucket, UsageReport, UsageThread } from "../../types";
 import { Button, Spinner, cn } from "../ui/primitives";
 import { TopBar } from "../chrome";
-import { PlanMeter } from "./PlanMeter";
+import { AccountMeters, PlanMeter } from "./PlanMeter";
 import { Tip } from "../ui/overlays";
 
 /** One colour per model, in the order they appear; the accent leads and the rest step away from it. */
@@ -93,6 +93,7 @@ export function UsagePage() {
         <div className="mb-6">
           <PlanMeter />
         </div>
+        <AccountMeters />
         {error ? (
           <p className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-text">{error}</p>
         ) : !view ? (

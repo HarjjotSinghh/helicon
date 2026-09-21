@@ -292,6 +292,10 @@ class FakeClient implements HeliconClient {
       throw error;
     }
   }
+  metaApiKeyInherited = false;
+  async accountsHealth() {
+    return { metaApiKeyInherited: this.metaApiKeyInherited };
+  }
   writes: { path: string; content: string; baseMtimeMs: number | null }[] = [];
   writeError: Error | null = null;
   async listFiles(_cwd: string, path: string) {

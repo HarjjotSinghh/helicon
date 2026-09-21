@@ -259,7 +259,7 @@ export interface AppState {
 }
 
 /** `confirmFullAccess` is the full-access confirmation, which `/permissions full` must still pass through. */
-export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAccess" | "confirmBypass" | "confirmYolo";
+export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAccess" | "confirmBypass" | "confirmYolo" | "account";
 
 export interface SkillsState {
   status: "loading" | "ready" | "error";
