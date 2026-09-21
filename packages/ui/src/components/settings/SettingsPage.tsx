@@ -1,11 +1,12 @@
-import { ArrowDownToLine, ArrowLeft, Minus, Plus, RefreshCw, RotateCw, ScrollText } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft, Minus, Pencil, Plus, RefreshCw, RotateCw, ScrollText, Trash2 } from "lucide-react";
 import { Switch } from "radix-ui";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { useOverlayDragProps } from "../../app/frame.js";
 import { modelDisplayName } from "../../model/format.js";
+import type { HeliconController } from "../../model/controller.js";
 import { CODE_THEMES, ZOOM_MAX, ZOOM_MIN, type CodeTheme, type GroupBy, type ThemePref } from "../../model/store.js";
-import type { ApprovalMode, ReasoningEffort } from "../../types.js";
+import type { AccountView, ApprovalMode, ReasoningEffort } from "../../types.js";
 import { LEVELS, MODES } from "../composer/Composer.js";
 import { CODE_THEME_LABELS, updateSummary } from "../sidebar/Sidebar.js";
 import { Modal } from "../ui/overlays.js";
@@ -98,11 +99,150 @@ const GROUPS: readonly { value: GroupBy; label: string }[] = [
   { value: "status", label: "Status" },
 ];
 
+const INPUT_CLASS =
+  "h-9 w-full rounded-lg border border-line bg-sunken px-3 text-sm text-fg outline-none focus-visible:ring-2 focus-visible:ring-accent";
+
+function AddAccountModal(props: { open: boolean; onOpenChange: (open: boolean) => void; controller: HeliconController }) {
+  const [id, setId] = useState("");
+  const [name, setName] = useState("");
+  const [seedFromDefault, setSeedFromDefault] = useState(false);
+
+  async function submit() {
+    const trimmedId = id.trim();
+    if (!trimmedId) return;
+    const ok = await props.controller.createAccount(trimmedId, name.trim() || undefined, seedFromDefault);
+    if (ok) {
+      setId("");
+      setName("");
+      setSeedFromDefault(false);
+      props.onOpenChange(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title="Add account"
+      description="Separate logins for work, personal, or a client. Each runs under its own Muse profile."
+    >
+      <div className="mt-4 flex flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-muted" htmlFor="account-add-id">
+            Account id
+          </label>
+          <input
+            id="account-add-id"
+            type="text"
+            value={id}
+            onChange={(event) => setId(event.target.value)}
+            placeholder="work"
+            className={INPUT_CLASS}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-muted" htmlFor="account-add-name">
+            Name
+          </label>
+          <input
+            id="account-add-name"
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Optional"
+            className={INPUT_CLASS}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-fg">Copy settings from the default login</p>
+          <Toggle checked={seedFromDefault} onChange={setSeedFromDefault} label="Copy settings from the default login" />
+        </div>
+      </div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="ghost" onClick={() => props.onOpenChange(false)}>
+          Cancel
+        </Button>
+        <Button variant="primary" disabled={!id.trim()} onClick={() => void submit()}>
+          Add account
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+function RenameAccountModal(props: { account: AccountView | null; onOpenChange: (open: boolean) => void; controller: HeliconController }) {
+  const [name, setName] = useState("");
+
+  useEffect(() => {
+    if (props.account) setName(props.account.name);
+  }, [props.account]);
+
+  async function submit() {
+    const account = props.account;
+    if (!account) return;
+    const ok = await props.controller.renameAccount(account.id, name);
+    if (ok) props.onOpenChange(false);
+  }
+
+  return (
+    <Modal open={props.account !== null} onOpenChange={props.onOpenChange} title="Rename account">
+      <div className="mt-4 flex flex-col gap-1.5">
+        <label className="text-xs font-medium text-muted" htmlFor="account-rename-name">
+          Name
+        </label>
+        <input
+          id="account-rename-name"
+          type="text"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          className={INPUT_CLASS}
+        />
+      </div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="ghost" onClick={() => props.onOpenChange(false)}>
+          Cancel
+        </Button>
+        <Button variant="primary" disabled={!name.trim()} onClick={() => void submit()}>
+          Rename
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+function RemoveAccountModal(props: { account: AccountView | null; onOpenChange: (open: boolean) => void; controller: HeliconController }) {
+  async function submit() {
+    const account = props.account;
+    if (!account) return;
+    const ok = await props.controller.removeAccount(account.id);
+    if (ok) props.onOpenChange(false);
+  }
+
+  return (
+    <Modal
+      open={props.account !== null}
+      onOpenChange={props.onOpenChange}
+      title="Remove this account?"
+      description="The profile's local settings are deleted. Any threads that used it keep running under it until they end."
+    >
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="ghost" onClick={() => props.onOpenChange(false)}>
+          Cancel
+        </Button>
+        <Button variant="danger" onClick={() => void submit()}>
+          Remove account
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
 /** Everything Helicon lets you set, in one place: the menus around the app are shortcuts into this. */
 export function SettingsPage() {
   const controller = useController();
   const prefs = useApp((s) => s.prefs);
   const models = useApp((s) => s.models);
+  const accounts = useApp((s) => s.accounts);
   const titleSettings = useApp((s) => s.titleSettings);
   const sandboxSettings = useApp((s) => s.sandboxSettings);
   const env = useApp((s) => s.env);
@@ -113,10 +253,17 @@ export function SettingsPage() {
   const yoloSettings = useApp((s) => s.yoloSettings);
   const [confirmSandbox, setConfirmSandbox] = useState(false);
   const [confirmYolo, setConfirmYolo] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [renaming, setRenaming] = useState<AccountView | null>(null);
+  const [removing, setRemoving] = useState<AccountView | null>(null);
   const now = useNow(60_000);
   const busy = updates?.status === "checking" || updates?.status === "downloading" || updates?.status === "installing";
   const drag = useOverlayDragProps();
   const collapsed = useApp((s) => s.prefs.sidebarCollapsed);
+
+  useEffect(() => {
+    void controller.loadAccounts();
+  }, [controller]);
 
   return (
     <div className="@container flex h-full min-w-0 flex-col">
@@ -218,6 +365,31 @@ export function SettingsPage() {
               onChange={(value) => controller.setEffort(value)}
             />
           </Row>
+        </Section>
+
+        <Section title="Accounts">
+          <Row label="Add account" description="Separate logins for work, personal, or a client. Each runs under its own Muse profile.">
+            {accounts === null ? (
+              <p className="text-xs text-subtle">Loading…</p>
+            ) : (
+              <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
+                <Plus size={13} /> Add account
+              </Button>
+            )}
+          </Row>
+          {accounts?.map((account) => (
+            <Row key={account.id} label={account.name} description={account.hasLogin ? (account.email ?? "Signed in") : "Not signed in"}>
+              <div className="flex items-center gap-2">
+                {/* Task 6: per-account "Log in" button goes here when !account.hasLogin */}
+                <Button size="sm" variant="secondary" onClick={() => setRenaming(account)}>
+                  <Pencil size={13} /> Rename
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setRemoving(account)}>
+                  <Trash2 size={13} /> Remove account
+                </Button>
+              </div>
+            </Row>
+          ))}
         </Section>
 
         <Section title="Threads list">
@@ -454,6 +626,10 @@ export function SettingsPage() {
           </Button>
         </div>
       </Modal>
+
+      <AddAccountModal open={addOpen} onOpenChange={setAddOpen} controller={controller} />
+      <RenameAccountModal account={renaming} onOpenChange={(open) => !open && setRenaming(null)} controller={controller} />
+      <RemoveAccountModal account={removing} onOpenChange={(open) => !open && setRemoving(null)} controller={controller} />
     </div>
   );
 }
