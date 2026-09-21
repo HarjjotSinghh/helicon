@@ -138,6 +138,54 @@ async function waitFor(cond: () => boolean | Promise<boolean>, what: string): Pr
   }
 }
 
+/**
+ * Opens the real `/api/events` SSE stream, waits for it to be live, runs `drive`, then counts how many
+ * `plan-usage` events arrived. Uses the server's actual public event API rather than a test-only hook.
+ */
+async function countPlanUsageEvents(base: string, drive: () => Promise<void>): Promise<number> {
+  const res = await fetch(`${base}/api/events`);
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let sawHello = false;
+  let planUsageCount = 0;
+  let stop = false;
+  const pump = (async () => {
+    while (!stop) {
+      const { value, done } = await reader.read();
+      if (done) {
+        return;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      let idx: number;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        const block = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        const dataLine = block.split("\n").find((line) => line.startsWith("data: "));
+        if (!dataLine) {
+          continue;
+        }
+        const payload = JSON.parse(dataLine.slice("data: ".length));
+        if (payload.type === "hello") {
+          sawHello = true;
+        }
+        if (payload.type === "plan-usage") {
+          planUsageCount += 1;
+        }
+      }
+    }
+  })();
+
+  await waitFor(() => sawHello, "sse hello event");
+  await drive();
+  // Give the emitted SSE writes a moment to land before counting.
+  await new Promise((r) => setTimeout(r, 150));
+  stop = true;
+  await reader.cancel().catch(() => undefined);
+  await pump.catch(() => undefined);
+  return planUsageCount;
+}
+
 const RANGE = { first: { id: "r", sequence: 1 }, last: { id: "r", sequence: 1 }, stream: { id: "s", kind: "session" } };
 
 describe("HeliconServer", () => {
@@ -738,7 +786,6 @@ describe("HeliconServer", () => {
     await aonia.createProfile("work");
     await aonia.createProfile("personal");
     // Route each account's host to its own connection so their notifications are distinct.
-    const byCwdAccount = new Map<string, FakeConnection>();
     const factory = (target: ServeTarget): HostHandle => {
       const account = target.env?.["XDG_CONFIG_HOME"]?.includes("/work/") ? work : personal;
       return fakeFactory(account)(target);
@@ -760,6 +807,26 @@ describe("HeliconServer", () => {
     assert.equal(res.byAccount.work.window.usedPercent, 90);
     assert.equal(res.byAccount.personal.window.usedPercent, 12);
     assert.equal(res.usage.window.usedPercent, 12, "usage holds the newest across accounts");
+  });
+
+  it("does not re-broadcast plan-usage when a repeat GET re-reads the same window", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const { base } = await start(connection);
+    const reading = {
+      tier: "high",
+      observedAtMs: 5_000,
+      window: { usedPercent: 30, resetsAtMs: 6_000, windowDurationMins: 300 },
+      weekly: { usedPercent: 9, resetsAtMs: 12_000, windowDurationMins: null },
+    };
+    connection.replies.set("usage/read", { usage: reading });
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+
+    const count = await countPlanUsageEvents(base, async () => {
+      await get(base, "/api/plan-usage");
+      await get(base, "/api/plan-usage");
+    });
+    assert.equal(count, 1, "a same-timestamp re-read must not re-emit plan-usage");
   });
 
   it("gives Muse the name typed here, and takes the name Muse settles on", async () => {

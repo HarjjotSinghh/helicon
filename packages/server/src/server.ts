@@ -3202,16 +3202,21 @@ export class HeliconServer {
     if (!usage) {
       return;
     }
+    let changed = false;
     if (accountId) {
       const prior = this.planUsageByAccount.get(accountId);
-      if (!prior || prior.observedAtMs <= usage.observedAtMs) {
+      if (!prior || prior.observedAtMs < usage.observedAtMs) {
         this.planUsageByAccount.set(accountId, usage);
+        changed = true;
       }
     }
-    if (!this.planUsage || this.planUsage.observedAtMs <= usage.observedAtMs) {
+    if (!this.planUsage || this.planUsage.observedAtMs < usage.observedAtMs) {
       this.planUsage = usage;
+      changed = true;
     }
-    this.emit("helicon", { type: "plan-usage", usage, accountId });
+    if (changed) {
+      this.emit("helicon", { type: "plan-usage", usage, accountId });
+    }
   }
 
   /** Asks every running host what it last saw; none is started just for this, since it would have seen nothing. */
