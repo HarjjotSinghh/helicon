@@ -1623,6 +1623,13 @@ export class HeliconController {
   }
 
   async setSandboxDisabled(disabled: boolean): Promise<void> {
+    // The Sandbox row disables its toggle under YOLO, but nothing else routes through here today.
+    // Refuse anyway: YOLO already forces the sandbox off, and flipping this switch behind it would
+    // queue a pointless restart and desync the toggle from the setting it no longer controls.
+    if (this.state.yoloSettings?.enabled === true) {
+      this.toast("info", "YOLO mode is on", "The sandbox is already off. Switch YOLO off to control it separately.");
+      return;
+    }
     const previous = this.state.sandboxSettings;
     const rev = ++this.sandboxSettingsRev;
     this.update((s) => ({ ...s, sandboxSettings: { disabled } }));

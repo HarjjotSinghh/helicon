@@ -1005,6 +1005,18 @@ describe("HeliconServer", () => {
     );
   });
 
+  it("spawns hosts with --disable-sandbox once when both the sandbox switch and YOLO are on", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const probe: FactoryProbe = { targets: [], exits: [] };
+    const { base } = await start(connection, { hostFactory: fakeFactory(connection, probe) });
+
+    await send(base, "/api/sandbox-settings", { disabled: true }, "PATCH");
+    await send(base, "/api/yolo-settings", { enabled: true }, "PATCH");
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    assert.deepEqual(probe.targets.map((t) => t.args), [["serve", "--disable-sandbox", "--trust-workspace"]]);
+  });
+
   it("upgrades an echo title with one muse exec call, and pushes the name back", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });

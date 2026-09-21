@@ -127,6 +127,11 @@ describe("serve planning", () => {
     const native = planServe({ platform: "linux", cwd: "/work/proj", yoloEnabled: true });
     assert.deepEqual(native.args, ["serve", "--disable-sandbox", "--trust-workspace"]);
   });
+
+  it("does not duplicate --disable-sandbox when both the sandbox switch and YOLO are on", () => {
+    const native = planServe({ platform: "linux", cwd: "/work/proj", sandboxDisabled: true, yoloEnabled: true });
+    assert.deepEqual(native.args, ["serve", "--disable-sandbox", "--trust-workspace"]);
+  });
 });
 
 describe("environment probe", () => {

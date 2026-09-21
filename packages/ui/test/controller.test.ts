@@ -509,6 +509,17 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("refuses to change the sandbox switch while YOLO is on, with a toast", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    await controller.setYoloEnabled(true);
+
+    await controller.setSandboxDisabled(false);
+    assert.deepEqual(client.sandboxCalls, [], "no PATCH leaves while YOLO owns the sandbox posture");
+    assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /YOLO mode is on/);
+    stop();
+  });
+
   it("joins a thread opened under YOLO to full access", async () => {
     const client = new FakeClient();
     const { controller, stop } = await started(client, "#/");

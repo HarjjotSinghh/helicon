@@ -17,6 +17,7 @@ function Pick<T extends string | null>(props: {
   value: T;
   options: readonly { value: T; label: string; hint?: string }[];
   onChange: (value: T) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex max-w-full min-w-0 items-center gap-1 overflow-x-auto overscroll-x-contain rounded-lg bg-sunken p-0.5 [scrollbar-width:thin]">
@@ -26,9 +27,10 @@ function Pick<T extends string | null>(props: {
           type="button"
           title={option.hint}
           aria-pressed={props.value === option.value}
+          disabled={props.disabled}
           onClick={() => props.onChange(option.value)}
           className={cn(
-            "h-7 shrink-0 rounded-md px-2.5 text-xs font-medium whitespace-nowrap transition-colors duration-100",
+            "h-7 shrink-0 rounded-md px-2.5 text-xs font-medium whitespace-nowrap transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-40",
             props.value === option.value ? "bg-raised text-fg shadow-btn" : "text-muted hover:text-fg",
           )}
         >
@@ -39,13 +41,14 @@ function Pick<T extends string | null>(props: {
   );
 }
 
-function Toggle(props: { checked: boolean; onChange: (on: boolean) => void; label: string }) {
+function Toggle(props: { checked: boolean; onChange: (on: boolean) => void; label: string; disabled?: boolean }) {
   return (
     <Switch.Root
       checked={props.checked}
       onCheckedChange={props.onChange}
+      disabled={props.disabled}
       aria-label={props.label}
-      className="relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full bg-line-strong outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-accent data-[state=checked]:bg-accent"
+      className="relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full bg-line-strong outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-accent"
     >
       <Switch.Thumb className="block size-3.5 translate-x-0.5 rounded-full bg-white shadow-[0_1px_2px_oklch(0_0_0/0.3)] transition-transform duration-150 ease-out data-[state=checked]:translate-x-4" />
     </Switch.Root>
@@ -193,11 +196,17 @@ export function SettingsPage() {
             )}
           </Row>
           <Row label="Permissions" description="What Muse may do before it asks you.">
-            <Pick
-              value={prefs.defaultMode}
-              options={MODES.map((mode) => ({ value: mode.value as ApprovalMode, label: mode.label, hint: mode.description }))}
-              onChange={(value) => void controller.setMode(value as ApprovalMode)}
-            />
+            <div className="flex min-w-0 w-full flex-col items-end gap-1 @min-[520px]:w-auto">
+              <Pick
+                value={prefs.defaultMode}
+                options={MODES.map((mode) => ({ value: mode.value as ApprovalMode, label: mode.label, hint: mode.description }))}
+                onChange={(value) => void controller.setMode(value as ApprovalMode)}
+                disabled={yoloSettings?.enabled === true}
+              />
+              {yoloSettings?.enabled ? (
+                <p className="text-xs text-subtle">YOLO owns every thread&apos;s mode while it is on. Switch it off to choose.</p>
+              ) : null}
+            </div>
           </Row>
           <Row label="Reasoning effort" description="How long the model thinks before answering. Auto lets Muse choose per turn.">
             <Pick<ReasoningEffort | null>
@@ -298,12 +307,17 @@ export function SettingsPage() {
         <Section title="Sandbox">
           <Row
             label="Disable sandboxing"
-            description="Muse's shells run sandboxed: filesystem and network access is confined. Switching this off lifts that confinement for new threads; existing threads keep the posture they started with. Flipping it restarts the running Muse hosts, interrupting their turns."
+            description={
+              yoloSettings?.enabled
+                ? "Off because YOLO mode is on: YOLO already runs new threads without sandbox confinement. Switch YOLO off to control this separately."
+                : "Muse's shells run sandboxed: filesystem and network access is confined. Switching this off lifts that confinement for new threads; existing threads keep the posture they started with. Flipping it restarts the running Muse hosts, interrupting their turns."
+            }
           >
             {sandboxSettings ? (
               <Toggle
                 checked={sandboxSettings.disabled}
                 label="Disable sandboxing"
+                disabled={yoloSettings?.enabled === true}
                 onChange={(on) => (on ? setConfirmSandbox(true) : void controller.setSandboxDisabled(false))}
               />
             ) : (
