@@ -43,6 +43,7 @@ import {
 import { FileError, listFolder, readProjectFile, resolveInRoot, searchProjectFiles, serveProjectFile, writeProjectFile } from "./files.js";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 import { buildThreadTitlePrompt, deriveTitle, parseExecTitle, sanitizeThreadTitle } from "./threadTitles.js";
+import { createAonia, type Aonia } from "@harjjotsinghh/aonia";
 
 export const HELICON_VERSION = "0.15.0";
 
@@ -94,6 +95,8 @@ export interface ServerOptions {
   platform?: string;
   distro?: string;
   musePath?: string | null;
+  /** Named Muse profiles. Defaults to a real aonia over ~/.aonia; injected in tests. */
+  aonia?: Aonia;
   /** On Windows: `native` runs Windows Muse, `wsl` runs Muse in WSL, `auto` (the default) prefers native once installed. */
   runtime?: RuntimePreference;
   /** Finds native Windows Muse; the real install folders by default. */
@@ -606,6 +609,7 @@ interface PreparedAttachment {
 export class HeliconServer {
   private readonly server: Server;
   private readonly store: HeliconStore;
+  private readonly aonia: Aonia;
   private readonly hosts = new Map<string, ManagedHost>();
   private readonly starting = new Map<string, Promise<ManagedHost>>();
   /** Restarts queued by a settings flip, oldest first. Hosts are only acquired past the tail. */
@@ -646,7 +650,10 @@ export class HeliconServer {
   private runtimeKnown: MuseRuntime | null = null;
   private closed = false;
   private readonly options: Required<
-    Omit<ServerOptions, "staticDir" | "token" | "platform" | "distro" | "musePath" | "hostFactory" | "opener" | "exec" | "findNativeMuse">
+    Omit<
+      ServerOptions,
+      "staticDir" | "token" | "platform" | "distro" | "musePath" | "hostFactory" | "opener" | "exec" | "findNativeMuse" | "aonia"
+    >
   > &
     Pick<ServerOptions, "staticDir" | "token" | "findNativeMuse"> & {
       platform: string;
@@ -679,6 +686,7 @@ export class HeliconServer {
     this.store = new HeliconStore(
       this.options.dataDir === ":memory:" ? ":memory:" : join(this.options.dataDir, "helicon.db"),
     );
+    this.aonia = options.aonia ?? createAonia(this.options.musePath ? { musePath: this.options.musePath } : {});
     this.server = createServer((req, res) => {
       void this.route(req, res).catch((error) => this.fail(res, 500, String(error)));
     });

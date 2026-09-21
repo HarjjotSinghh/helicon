@@ -1,5 +1,9 @@
 import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createAonia } from "@harjjotsinghh/aonia";
 import {
   HeliconServer,
   deriveTitle,
@@ -1153,6 +1157,21 @@ describe("HeliconServer", () => {
     assert.match((await get(base, "/api/health")).lastHostError, /exited/);
     await send(base, "/api/sessions", { cwd: "/work/proj" });
     assert.equal(probe.targets.length, 2);
+  });
+
+  it("accepts an injected aonia and still starts a plain host with no account", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const probe: FactoryProbe = { targets: [], exits: [] };
+    const { base } = await start(connection, {
+      hostFactory: fakeFactory(connection, probe),
+      aonia: createAonia({ home, platform: "linux", musePath: "muse" }),
+    });
+    const res = await send(base, "/api/sessions", { cwd: "/work/proj" });
+    assert.equal(res.status, 200);
+    assert.deepEqual(probe.targets.map((t) => t.args), [["serve"]]);
+    assert.equal(probe.targets[0]?.env, undefined, "no account means no per-profile env, same as today");
   });
 });
 
