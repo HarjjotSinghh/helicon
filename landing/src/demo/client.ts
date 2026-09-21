@@ -134,6 +134,7 @@ function summary(sessionId: string, cwd: string, title: string, activityAt: numb
     settledAt: null,
     unsettledAt: null,
     sandboxDisabled: false,
+    accountId: null,
     live,
   };
 }
@@ -421,9 +422,9 @@ export class DemoClient implements HeliconClient {
     const latest = (cwd: string) =>
       [...this.sessions.values()].filter((s) => s.summary.cwd === cwd).map((s) => s.summary.activityAt).sort().pop() ?? new Date(this.now).toISOString();
     return [
-      { cwd: PROJECTS.readme, displayName: "readme-demo", pinned: false, activityAt: latest(PROJECTS.readme) },
-      { cwd: PROJECTS.api, displayName: "api-server", pinned: false, activityAt: latest(PROJECTS.api) },
-      { cwd: PROJECTS.helicon, displayName: "helicon", pinned: false, activityAt: latest(PROJECTS.helicon) },
+      { cwd: PROJECTS.readme, displayName: "readme-demo", pinned: false, activityAt: latest(PROJECTS.readme), defaultAccountId: null },
+      { cwd: PROJECTS.api, displayName: "api-server", pinned: false, activityAt: latest(PROJECTS.api), defaultAccountId: null },
+      { cwd: PROJECTS.helicon, displayName: "helicon", pinned: false, activityAt: latest(PROJECTS.helicon), defaultAccountId: null },
     ];
   }
 
@@ -441,6 +442,16 @@ export class DemoClient implements HeliconClient {
   async setPinned() {}
   async setProjectOrder() {}
 
+  async listAccounts() {
+    return [];
+  }
+  async createAccount(id: string, options?: { name?: string; seedFromDefault?: boolean }) {
+    return { id, name: options?.name ?? id };
+  }
+  async renameAccount() {}
+  async removeAccount() {}
+  async setProjectDefaultAccount() {}
+
   async usage(days?: number): Promise<UsageReport> {
     return usageReport(this.now, [...this.sessions.values()].map((s) => s.summary), days ?? 30);
   }
@@ -450,7 +461,7 @@ export class DemoClient implements HeliconClient {
   }
   async discover() {}
 
-  async startSession(cwd: string): Promise<SessionSummary> {
+  async startSession(cwd: string, _options?: { approvalMode?: string; modelId?: string; accountId?: string | null }): Promise<SessionSummary> {
     const id = uid("demo");
     const s = new Script(id, cwd, Date.now() - 1000);
     const entry: Seeded = { summary: summary(id, cwd, "New thread", Date.now(), 0), events: s.events, approvals: [] };
@@ -631,12 +642,21 @@ export class DemoClient implements HeliconClient {
   /** The demo makes no model calls, so the switch just remembers what the visitor picked. */
   private titleSettings = { enabled: true, modelId: null as string | null };
   private sandboxSettings = { disabled: false };
+  private yoloSettings = { enabled: false };
   async getSandboxSettings() {
     return this.sandboxSettings;
   }
   async setSandboxSettings(patch: { disabled?: boolean }) {
     this.sandboxSettings = { ...this.sandboxSettings, ...patch };
     return this.sandboxSettings;
+  }
+
+  async getYoloSettings() {
+    return this.yoloSettings;
+  }
+  async setYoloSettings(patch: { enabled?: boolean }) {
+    this.yoloSettings = { ...this.yoloSettings, ...patch };
+    return this.yoloSettings;
   }
 
   async getTitleSettings() {
@@ -697,12 +717,15 @@ export class DemoClient implements HeliconClient {
   }
 
   /** A plausible mid-afternoon plan meter, so the usage page and sidebar show what the real one looks like. */
-  async planUsage(): Promise<PlanUsage> {
+  async planUsage(): Promise<{ usage: PlanUsage | null; byAccount: Record<string, PlanUsage> }> {
     return {
-      tier: "high",
-      observedAtMs: this.now - 4 * MIN,
-      window: { usedPercent: 38, resetsAtMs: this.now + 2 * HOUR + 17 * MIN, windowDurationMins: 300 },
-      weekly: { usedPercent: 21, resetsAtMs: this.now + 3 * DAY + 5 * HOUR, windowDurationMins: null },
+      usage: {
+        tier: "high",
+        observedAtMs: this.now - 4 * MIN,
+        window: { usedPercent: 38, resetsAtMs: this.now + 2 * HOUR + 17 * MIN, windowDurationMins: 300 },
+        weekly: { usedPercent: 21, resetsAtMs: this.now + 3 * DAY + 5 * HOUR, windowDurationMins: null },
+      },
+      byAccount: {},
     };
   }
 
