@@ -1421,6 +1421,24 @@ describe("HeliconController", () => {
     assert.deepEqual(controller.store.get().accounts?.map((a) => a.id), ["work"]);
   });
 
+  it("flips metaApiKeyInherited when the client reports it", async () => {
+    const client = new FakeClient();
+    const controller = new HeliconController(client, platform());
+    assert.equal(controller.store.get().metaApiKeyInherited, false);
+    client.metaApiKeyInherited = true;
+    await controller.loadAccountsHealth();
+    assert.equal(controller.store.get().metaApiKeyInherited, true);
+  });
+
+  it("refreshes metaApiKeyInherited as part of loadAccounts", async () => {
+    const client = new FakeClient();
+    client.metaApiKeyInherited = true;
+    const controller = new HeliconController(client, platform());
+    await controller.loadAccounts();
+    await settle();
+    assert.equal(controller.store.get().metaApiKeyInherited, true);
+  });
+
   it("renames and removes accounts, reloading the list each time", async () => {
     const client = new FakeClient();
     client.accounts = [{ id: "default", name: "Default", hasLogin: true, email: "a@b.com", lastUsedAt: null }];

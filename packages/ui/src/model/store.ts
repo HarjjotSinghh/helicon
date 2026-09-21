@@ -246,6 +246,8 @@ export interface AppState {
   planUsage: PlanUsage | null;
   /** Every account Helicon can run; null until the first load answers. */
   accounts: import("../types.js").AccountView[] | null;
+  /** True when META_API_KEY in Helicon's environment makes every account share one Meta login. */
+  metaApiKeyInherited: boolean;
   /** The plan window per account, from `GET /api/plan-usage` and the `plan-usage` event. */
   planUsageByAccount: import("../types.js").PlanUsageByAccount;
   /** Each thread's file viewer. */
@@ -296,6 +298,7 @@ export function initialState(prefs: Prefs): AppState {
     hostError: null,
     planUsage: null,
     accounts: null,
+    metaApiKeyInherited: false,
     planUsageByAccount: {},
     filePanels: {},
     fileDrafts: {},
