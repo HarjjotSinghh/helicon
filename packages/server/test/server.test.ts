@@ -1231,6 +1231,52 @@ describe("HeliconServer", () => {
     const listed = await get(base, "/api/sessions");
     assert.ok(listed.sessions?.length > 0, "sessions listed");
   });
+
+  it("lists, creates, renames and removes accounts through aonia", async () => {
+    const connection = new FakeConnection();
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const { base } = await start(connection, { aonia: createAonia({ home, platform: "linux", musePath: "muse" }) });
+
+    assert.deepEqual((await get(base, "/api/accounts")).accounts, []);
+
+    const created = await send(base, "/api/accounts", { id: "work", name: "Work" });
+    assert.equal(created.status, 200);
+    assert.equal(created.json.account.id, "work");
+
+    const listed = (await get(base, "/api/accounts")).accounts;
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].id, "work");
+    assert.equal(listed[0].name, "Work");
+    assert.equal(listed[0].hasLogin, false);
+
+    const renamed = await send(base, "/api/accounts/work", { name: "Client A" }, "PATCH");
+    assert.equal(renamed.status, 200);
+    assert.equal((await get(base, "/api/accounts")).accounts[0].name, "Client A");
+
+    const removed = await send(base, "/api/accounts/work", undefined, "DELETE");
+    assert.equal(removed.status, 200);
+    assert.deepEqual((await get(base, "/api/accounts")).accounts, []);
+  });
+
+  it("rejects a bad account id and a duplicate", async () => {
+    const connection = new FakeConnection();
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const { base } = await start(connection, { aonia: createAonia({ home, platform: "linux", musePath: "muse" }) });
+    assert.equal((await send(base, "/api/accounts", { id: "Not Valid" })).status, 400);
+    await send(base, "/api/accounts", { id: "work" });
+    assert.equal((await send(base, "/api/accounts", { id: "work" })).status, 409);
+  });
+
+  it("sets a project's default account", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const { base } = await start(connection, { aonia: createAonia({ home, platform: "linux", musePath: "muse" }) });
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const res = await send(base, "/api/projects/default-account", { cwd: "/work/proj", accountId: "work" }, "PATCH");
+    assert.equal(res.status, 200);
+    assert.equal(res.json.defaultAccountId, "work");
+  });
 });
 
 describe("file viewer", () => {

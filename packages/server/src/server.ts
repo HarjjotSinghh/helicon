@@ -43,7 +43,7 @@ import {
 import { FileError, listFolder, readProjectFile, resolveInRoot, searchProjectFiles, serveProjectFile, writeProjectFile } from "./files.js";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 import { buildThreadTitlePrompt, deriveTitle, parseExecTitle, sanitizeThreadTitle } from "./threadTitles.js";
-import { createAonia, type Aonia } from "@harjjotsinghh/aonia";
+import { AoniaError, createAonia, type Aonia } from "@harjjotsinghh/aonia";
 
 export const HELICON_VERSION = "0.15.0";
 
@@ -1404,6 +1404,70 @@ export class HeliconServer {
         this.restartChain = run.catch(() => undefined);
       }
       this.json(res, 200, next);
+      return true;
+    }
+    if (method === "GET" && path === "/api/accounts") {
+      this.json(res, 200, { accounts: await this.accountList() });
+      return true;
+    }
+    if (method === "POST" && path === "/api/accounts") {
+      const body = await this.readBody(req);
+      const id = str(body["id"]);
+      if (!id) {
+        throw new HttpError(400, "id is required.");
+      }
+      const name = str(body["name"]);
+      const seed = body["seedFromDefault"] === true;
+      try {
+        const profile = await this.aonia.createProfile(id, {
+          ...(name ? { name } : {}),
+          seedFromDefault: seed,
+        });
+        this.json(res, 200, { account: { id: profile.id, name: profile.name } });
+      } catch (error) {
+        throw this.accountError(error);
+      }
+      return true;
+    }
+    if (method === "PATCH" && path.startsWith("/api/accounts/")) {
+      const id = decodeURIComponent(path.slice("/api/accounts/".length));
+      const body = await this.readBody(req);
+      const name = str(body["name"]);
+      if (!name) {
+        throw new HttpError(400, "name is required.");
+      }
+      try {
+        await this.aonia.renameProfile(id, name);
+      } catch (error) {
+        throw this.accountError(error);
+      }
+      this.json(res, 200, { ok: true });
+      return true;
+    }
+    if (method === "DELETE" && path.startsWith("/api/accounts/")) {
+      const id = decodeURIComponent(path.slice("/api/accounts/".length));
+      try {
+        await this.aonia.removeProfile(id);
+      } catch (error) {
+        throw this.accountError(error);
+      }
+      this.json(res, 200, { ok: true });
+      return true;
+    }
+    if (method === "PATCH" && path === "/api/projects/default-account") {
+      const body = await this.readBody(req);
+      const cwd = str(body["cwd"]);
+      if (!cwd) {
+        throw new HttpError(400, "cwd is required.");
+      }
+      const accountRaw = body["accountId"];
+      if (accountRaw !== undefined && accountRaw !== null && typeof accountRaw !== "string") {
+        throw new HttpError(400, "accountId must be a string or null.");
+      }
+      const accountId = typeof accountRaw === "string" && accountRaw.length > 0 ? accountRaw : null;
+      this.store.upsertProject(normalizeCwd(cwd));
+      this.store.setDefaultAccount(normalizeCwd(cwd), accountId);
+      this.json(res, 200, { defaultAccountId: accountId });
       return true;
     }
     if (method === "GET" && path === "/api/usage") {
@@ -2789,6 +2853,33 @@ export class HeliconServer {
       this.forgetHost(managed, message);
       this.emit("helicon", { type: "host", key: managed.key, state: "restarted", message });
     }
+  }
+
+  private async accountList(): Promise<Record<string, unknown>[]> {
+    const profiles = await this.aonia.listProfiles();
+    return Promise.all(
+      profiles.map(async (profile) => {
+        const identity = await this.aonia.identityOf(profile);
+        return {
+          id: profile.id,
+          name: profile.name,
+          hasLogin: identity.hasLogin,
+          email: identity.email,
+          lastUsedAt: profile.lastUsedAt,
+        };
+      }),
+    );
+  }
+
+  /** Turns an aonia error into the right HTTP status: a duplicate is 409, a bad id or missing profile is 400. */
+  private accountError(error: unknown): HttpError {
+    if (error instanceof AoniaError) {
+      if (error.code === "profile_exists") {
+        return new HttpError(409, error.message);
+      }
+      return new HttpError(400, error.message);
+    }
+    return new HttpError(500, error instanceof Error ? error.message : String(error));
   }
 
   private async serveTargetFor(cwd: string, accountId: string | null = null): Promise<ServeTarget> {
