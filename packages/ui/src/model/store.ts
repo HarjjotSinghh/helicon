@@ -244,6 +244,10 @@ export interface AppState {
   picker: ComposerPicker | null;
   /** The subscription window Muse last reported; null until a host has seen one. */
   planUsage: PlanUsage | null;
+  /** Every account Helicon can run; null until the first load answers. */
+  accounts: import("../types.js").AccountView[] | null;
+  /** The plan window per account, from `GET /api/plan-usage` and the `plan-usage` event. */
+  planUsageByAccount: import("../types.js").PlanUsageByAccount;
   /** Each thread's file viewer. */
   filePanels: Record<string, FilePanel>;
   /** Unsaved edits, by `fileKey(cwd, path)`. */
@@ -291,6 +295,8 @@ export function initialState(prefs: Prefs): AppState {
     bypassThreads: [],
     hostError: null,
     planUsage: null,
+    accounts: null,
+    planUsageByAccount: {},
     filePanels: {},
     fileDrafts: {},
     fileVersions: {},

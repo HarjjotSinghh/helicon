@@ -286,6 +286,10 @@ export class HeliconController {
   private yoloSettingsRev = 0;
   /** YOLO PATCHes queue behind each other so rapid opposite flips land in order. */
   private yoloSettingsChain: Promise<void> = Promise.resolve();
+  /** Bumped by every accounts request, so only the latest completion or rollback lands. */
+  private accountsRev = 0;
+  /** Account mutations queue behind each other so rapid edits land in order. */
+  private accountsChain: Promise<void> = Promise.resolve();
   /** Approval modes from before YOLO was armed, restored when it is switched off. Null when never armed here. */
   private preYolo: { defaultMode: ApprovalMode; threads: Record<string, ApprovalMode | null> } | null = null;
   /** The main route Back leaves the settings/usage pages for; cleared once back on a main route. */
@@ -437,6 +441,7 @@ export class HeliconController {
       void this.loadSandboxSettings();
       void this.loadYoloSettings();
       void this.loadPlanUsage();
+      void this.loadAccounts();
     } catch (error) {
       this.update((s) => ({ ...s, boot: "error", bootError: errorMessage(error) }));
     }
@@ -649,6 +654,9 @@ export class HeliconController {
       if (this.state.yoloSettings === null) {
         void this.loadYoloSettings();
       }
+      if (this.state.accounts === null) {
+        void this.loadAccounts();
+      }
     }
   }
 
@@ -752,7 +760,7 @@ export class HeliconController {
         this.queueEvent(event.sessionId, { method: event.method, params: event.params, at: event.at });
         break;
       case "plan-usage":
-        this.takePlanUsage(event.usage);
+        this.takePlanUsage(event.usage, event.accountId);
         break;
       case "session-status": {
         const known = this.state.sessions[event.sessionId];
@@ -1023,9 +1031,12 @@ export class HeliconController {
       // YOLO owns every thread's posture while it is on, new or old: a stale default from before it
       // was armed must never seed a thread that asks when the rest of the app does not.
       const approvalMode: ApprovalMode = this.state.yoloSettings?.enabled === true ? "allowAll" : defaultMode;
+      const project = this.state.projects.find((p) => p.cwd === cwd);
+      const accountId = project?.defaultAccountId ?? null;
       const session = await this.client.startSession(cwd, {
         approvalMode,
         modelId: defaultModelId ?? undefined,
+        accountId,
       });
       const base = emptyFold();
       const fold: ThreadFold = {
@@ -1735,21 +1746,109 @@ export class HeliconController {
   /** The subscription window Muse last saw, from the server; it also arrives as an event whenever it moves. */
   async loadPlanUsage(): Promise<void> {
     try {
-      const usage = await this.client.planUsage();
+      const { usage, byAccount } = await this.client.planUsage();
       if (usage) {
         this.takePlanUsage(usage);
       }
+      this.update((s) => ({ ...s, planUsageByAccount: { ...s.planUsageByAccount, ...byAccount } }));
     } catch {
       /* the meter is extra: a server without it leaves the usage page as it was */
     }
   }
 
-  private takePlanUsage(usage: import("../types.js").PlanUsage): void {
+  private takePlanUsage(usage: import("../types.js").PlanUsage, accountId: string | null = null): void {
     const current = this.state.planUsage;
-    if (current && current.observedAtMs > usage.observedAtMs) {
+    const currentForAccount = accountId ? this.state.planUsageByAccount[accountId] : undefined;
+    const takeGlobal = !current || current.observedAtMs <= usage.observedAtMs;
+    const takeForAccount = accountId !== null && (!currentForAccount || currentForAccount.observedAtMs <= usage.observedAtMs);
+    if (!takeGlobal && !takeForAccount) {
       return;
     }
-    this.update((s) => ({ ...s, planUsage: usage }));
+    this.update((s) => ({
+      ...s,
+      planUsage: takeGlobal ? usage : s.planUsage,
+      planUsageByAccount: takeForAccount ? { ...s.planUsageByAccount, [accountId as string]: usage } : s.planUsageByAccount,
+    }));
+  }
+
+  // ---------------------------------------------------------------- accounts
+
+  async loadAccounts(): Promise<void> {
+    const rev = ++this.accountsRev;
+    try {
+      const accounts = await this.client.listAccounts();
+      if (rev === this.accountsRev) {
+        this.update((s) => ({ ...s, accounts }));
+      }
+    } catch {
+      /* opening Settings retries the load */
+    }
+  }
+
+  async createAccount(id: string, name?: string, seedFromDefault?: boolean): Promise<boolean> {
+    const run = this.accountsChain.then(() =>
+      this.client.createAccount(id, { ...(name ? { name } : {}), seedFromDefault: seedFromDefault ?? false }),
+    );
+    this.accountsChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    try {
+      await run;
+      await this.loadAccounts();
+      return true;
+    } catch (error) {
+      this.toast("error", "Could not create the account", errorMessage(error));
+      return false;
+    }
+  }
+
+  async renameAccount(id: string, name: string): Promise<boolean> {
+    const run = this.accountsChain.then(() => this.client.renameAccount(id, name));
+    this.accountsChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    try {
+      await run;
+      await this.loadAccounts();
+      return true;
+    } catch (error) {
+      this.toast("error", "Could not rename the account", errorMessage(error));
+      return false;
+    }
+  }
+
+  async removeAccount(id: string): Promise<boolean> {
+    const run = this.accountsChain.then(() => this.client.removeAccount(id));
+    this.accountsChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    try {
+      await run;
+      await this.loadAccounts();
+      return true;
+    } catch (error) {
+      this.toast("error", "Could not remove the account", errorMessage(error));
+      return false;
+    }
+  }
+
+  async setProjectDefaultAccount(cwd: string, accountId: string | null): Promise<void> {
+    const previous = this.state.projects;
+    this.update((s) => ({ ...s, projects: s.projects.map((p) => (p.cwd === cwd ? { ...p, defaultAccountId: accountId } : p)) }));
+    const run = this.accountsChain.then(() => this.client.setProjectDefaultAccount(cwd, accountId));
+    this.accountsChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    try {
+      await run;
+    } catch (error) {
+      this.update((s) => ({ ...s, projects: previous }));
+      this.toast("error", "Could not set the default account", errorMessage(error));
+    }
   }
 
   // ---------------------------------------------------------------- threads and projects
