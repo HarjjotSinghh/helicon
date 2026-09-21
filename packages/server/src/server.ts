@@ -982,6 +982,7 @@ export class HeliconServer {
           displayName: p.displayName,
           pinned: p.pinned,
           activityAt: p.activityAt,
+          defaultAccountId: p.defaultAccountId,
         })),
       });
       return true;
@@ -1784,6 +1785,7 @@ export class HeliconServer {
       settledAt: record.settledAt,
       unsettledAt: record.unsettledAt,
       sandboxDisabled: record.sandboxDisabled,
+      accountId: record.accountId,
       live: this.liveView(record.id),
     };
   }

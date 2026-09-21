@@ -1280,6 +1280,30 @@ describe("HeliconServer", () => {
     assert.equal(res.status, 200);
     assert.equal(res.json.defaultAccountId, "work");
   });
+
+  it("reports a session's account and a project's default account over the wire", async () => {
+    const connection = new FakeConnection();
+    // Distinct ids per call: recordSession treats accountId as set-once-at-creation, so a fake
+    // host that reused one id across two sessions would leak the first session's account onto the second.
+    let n = 0;
+    connection.replies.set("session/start", () => ({ session: { sessionId: `s${++n}` } }));
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const aonia = createAonia({ home, platform: "linux", musePath: "muse" });
+    await aonia.createProfile("work");
+    const { base } = await start(connection, { hostFactory: fakeFactory(connection), aonia });
+
+    const created = await send(base, "/api/sessions", { cwd: "/work/proj", accountId: "work" });
+    assert.equal(created.json.session.accountId, "work");
+    const plain = await send(base, "/api/sessions", { cwd: "/other/proj" });
+    assert.equal(plain.json.session.accountId, null);
+
+    await send(base, "/api/projects/default-account", { cwd: "/work/proj", accountId: "work" }, "PATCH");
+    const projects = await get(base, "/api/projects");
+    const proj = projects.projects.find((p: { cwd: string }) => p.cwd === "/work/proj");
+    assert.equal(proj.defaultAccountId, "work");
+    const other = projects.projects.find((p: { cwd: string }) => p.cwd === "/other/proj");
+    assert.equal(other.defaultAccountId, null);
+  });
 });
 
 describe("file viewer", () => {
