@@ -787,7 +787,8 @@ describe("HeliconServer", () => {
     await aonia.createProfile("personal");
     // Route each account's host to its own connection so their notifications are distinct.
     const factory = (target: ServeTarget): HostHandle => {
-      const account = target.env?.["XDG_CONFIG_HOME"]?.includes("/work/") ? work : personal;
+      // Normalize separators: aonia's profile root uses backslashes on Windows (...\profiles\work\config).
+      const account = target.env?.["XDG_CONFIG_HOME"]?.replaceAll("\\", "/").includes("/work/") ? work : personal;
       return fakeFactory(account)(target);
     };
     const { base } = await start(work, { hostFactory: factory, aonia });
