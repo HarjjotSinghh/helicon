@@ -2,7 +2,8 @@ import { Check, ChevronDown, FolderPlus, RefreshCw } from "lucide-react";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { relativeTime, shortenPath } from "../../model/format.js";
-import type { ProjectView } from "../../types.js";
+import { planView } from "../../model/plan.js";
+import type { AccountView, PlanUsage, PlanUsageByAccount, ProjectView } from "../../types.js";
 import { TopBar } from "../chrome.js";
 import { Composer, ComposerFooter } from "../composer/Composer.js";
 import { CopyButton } from "../ui/Markdown.js";
@@ -16,6 +17,9 @@ export function NewThread(props: { cwd: string | null }) {
   const controller = useController();
   const projects = useApp((s) => s.projects);
   const sessions = useApp((s) => s.sessions);
+  const accounts = useApp((s) => s.accounts);
+  const planUsage = useApp((s) => s.planUsage);
+  const planUsageByAccount = useApp((s) => s.planUsageByAccount);
   const now = useNow(60_000);
   const project = projects.find((p) => p.cwd === props.cwd) ?? projects[0] ?? null;
   const recent = useMemo(
@@ -27,6 +31,10 @@ export function NewThread(props: { cwd: string | null }) {
             .slice(0, 5)
         : [],
     [sessions, project],
+  );
+  const nearCap = useMemo(
+    () => (project ? nearCapHint(project, accounts, planUsage, planUsageByAccount, now) : null),
+    [project, accounts, planUsage, planUsageByAccount, now],
   );
   if (!project) {
     return <Welcome />;
@@ -43,6 +51,7 @@ export function NewThread(props: { cwd: string | null }) {
             <Composer sessionId={null} cwd={project.cwd} running={false} readOnly={false} variant="home" autoFocus />
           </div>
           <ComposerFooter cwd={project.cwd} branch={null} running={false} />
+          {nearCap ? <p className="mt-2 text-xs text-muted">{nearCap}</p> : null}
           {recent.length > 0 ? (
             <section className="mt-12" aria-label={`Recent threads in ${project.displayName}`}>
               <h2 className="px-2 text-xs font-medium text-subtle">Recent in {project.displayName}</h2>
@@ -66,6 +75,48 @@ export function NewThread(props: { cwd: string | null }) {
       </div>
     </div>
   );
+}
+
+/**
+ * The manual version of "switch accounts before this one caps out": one line that says which account is close to
+ * its rolling-window cap and which has more room, so the choice stays with the person, never automatic. Needs at
+ * least two switchable accounts, the project's default account (or the default login, when unset) at 80% or more,
+ * and another account at least 25 points behind it.
+ */
+function nearCapHint(
+  project: ProjectView,
+  accounts: AccountView[] | null,
+  planUsage: PlanUsage | null,
+  planUsageByAccount: PlanUsageByAccount,
+  now: number,
+): string | null {
+  if (!accounts || accounts.length < 2) {
+    return null;
+  }
+  const candidates: { id: string | null; name: string; percent: number }[] = [];
+  const loginPercent = planView(planUsage, now)?.rows[0]?.percent;
+  if (loginPercent !== undefined) {
+    candidates.push({ id: null, name: "Default login", percent: loginPercent });
+  }
+  for (const account of accounts) {
+    const percent = planView(planUsageByAccount[account.id], now)?.rows[0]?.percent;
+    if (percent !== undefined) {
+      candidates.push({ id: account.id, name: account.name, percent });
+    }
+  }
+  const high = candidates.find((c) => c.id === project.defaultAccountId);
+  if (!high || high.percent < 80) {
+    return null;
+  }
+  const rest = candidates.filter((c) => c.id !== high.id);
+  if (rest.length === 0) {
+    return null;
+  }
+  const low = rest.reduce((min, c) => (c.percent < min.percent ? c : min), rest[0]);
+  if (high.percent - low.percent < 25) {
+    return null;
+  }
+  return `${high.name} is at ${high.percent}%. ${low.name} has more room, at ${low.percent}%.`;
 }
 
 function ProjectSwitcher(props: { project: ProjectView; projects: ProjectView[] }) {
