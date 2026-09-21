@@ -80,7 +80,7 @@ export function NewThread(props: { cwd: string | null }) {
 /**
  * The manual version of "switch accounts before this one caps out": one line that says which account is close to
  * its rolling-window cap and which has more room, so the choice stays with the person, never automatic. Needs at
- * least two switchable accounts, the project's default account (or the default login, when unset) at 80% or more,
+ * least two accounts with usage (the default login counts as one), the project's default account (or the default login, when unset) at 80% or more,
  * and another account at least 25 points behind it.
  */
 function nearCapHint(
@@ -90,7 +90,7 @@ function nearCapHint(
   planUsageByAccount: PlanUsageByAccount,
   now: number,
 ): string | null {
-  if (!accounts || accounts.length < 2) {
+  if (!accounts || accounts.length < 1) {
     return null;
   }
   const candidates: { id: string | null; name: string; percent: number }[] = [];
@@ -103,6 +103,10 @@ function nearCapHint(
     if (percent !== undefined) {
       candidates.push({ id: account.id, name: account.name, percent });
     }
+  }
+  // The default login counts as a switchable account, so one named profile plus a busy default login is enough.
+  if (candidates.length < 2) {
+    return null;
   }
   const high = candidates.find((c) => c.id === project.defaultAccountId);
   if (!high || high.percent < 80) {
