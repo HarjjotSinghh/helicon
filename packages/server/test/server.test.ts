@@ -1189,7 +1189,10 @@ describe("HeliconServer", () => {
     assert.ok(target?.env, "the account host carries an env");
     assert.equal(target.env["XDG_CONFIG_HOME"], work.roots.config);
     assert.equal(target.env["XDG_DATA_HOME"], work.roots.data);
-    assert.equal(target.env["PATH"], process.env["PATH"], "process.env is spread first");
+    // Look PATH up case-insensitively: Windows names it "Path", and the spread keeps that casing.
+    const pathKey = Object.keys(process.env).find((k) => k.toLowerCase() === "path");
+    assert.ok(pathKey, "the runner has a PATH");
+    assert.equal(target.env[pathKey], process.env[pathKey], "process.env is spread first");
   });
 
   it("keeps a separate host per account in the same workspace", async () => {
