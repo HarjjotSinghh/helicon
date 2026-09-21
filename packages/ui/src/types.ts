@@ -271,6 +271,11 @@ export interface TitleSettings {
   modelId: string | null;
 }
 
+/** Server-owned Muse sandbox posture: whether hosts spawn with `--disable-sandbox`. */
+export interface SandboxSettings {
+  disabled: boolean;
+}
+
 /** Server-owned YOLO mode: hosts spawn with `--disable-sandbox --trust-workspace`, approvals bypassed. */
 export interface YoloSettings {
   enabled: boolean;

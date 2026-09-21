@@ -133,6 +133,7 @@ function summary(sessionId: string, cwd: string, title: string, activityAt: numb
     settled: false,
     settledAt: null,
     unsettledAt: null,
+    sandboxDisabled: false,
     live,
   };
 }
@@ -629,6 +630,15 @@ export class DemoClient implements HeliconClient {
 
   /** The demo makes no model calls, so the switch just remembers what the visitor picked. */
   private titleSettings = { enabled: true, modelId: null as string | null };
+  private sandboxSettings = { disabled: false };
+  async getSandboxSettings() {
+    return this.sandboxSettings;
+  }
+  async setSandboxSettings(patch: { disabled?: boolean }) {
+    this.sandboxSettings = { ...this.sandboxSettings, ...patch };
+    return this.sandboxSettings;
+  }
+
   async getTitleSettings() {
     return this.titleSettings;
   }

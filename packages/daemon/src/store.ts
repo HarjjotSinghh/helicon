@@ -85,6 +85,13 @@ export interface TitleSettings {
 
 export const DEFAULT_TITLE_SETTINGS: TitleSettings = { enabled: true, modelId: null };
 
+/** Server-owned Muse sandbox posture: whether `muse serve` hosts spawn with `--disable-sandbox`. Off by default. */
+export interface SandboxSettings {
+  disabled: boolean;
+}
+
+export const DEFAULT_SANDBOX_SETTINGS: SandboxSettings = { disabled: false };
+
 /**
  * Server-owned YOLO mode: the `muse --yolo` posture for every host it spawns
  * (`--disable-sandbox --trust-workspace`) plus the wire-level approval bypass.
@@ -326,6 +333,33 @@ export class HeliconStore {
     };
     this.db
       .prepare(`INSERT INTO settings (key, value) VALUES ('title', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+      .run(JSON.stringify(next));
+    return next;
+  }
+
+  /** Malformed rows fall back to sandbox-on rather than breaking host startup. */
+  getSandboxSettings(): SandboxSettings {
+    const row = this.db.prepare(`SELECT value FROM settings WHERE key = 'sandbox'`).get() as Row | undefined;
+    if (!row) {
+      return { ...DEFAULT_SANDBOX_SETTINGS };
+    }
+    try {
+      const parsed = JSON.parse(String(row["value"])) as Partial<SandboxSettings>;
+      return {
+        disabled: typeof parsed.disabled === "boolean" ? parsed.disabled : DEFAULT_SANDBOX_SETTINGS.disabled,
+      };
+    } catch {
+      return { ...DEFAULT_SANDBOX_SETTINGS };
+    }
+  }
+
+  setSandboxSettings(patch: Partial<SandboxSettings>): SandboxSettings {
+    const current = this.getSandboxSettings();
+    const next: SandboxSettings = {
+      disabled: patch.disabled ?? current.disabled,
+    };
+    this.db
+      .prepare(`INSERT INTO settings (key, value) VALUES ('sandbox', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
       .run(JSON.stringify(next));
     return next;
   }

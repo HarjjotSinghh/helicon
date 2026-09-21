@@ -13,6 +13,7 @@ import type {
   PlanUsage,
   ProjectView,
   ReasoningEffort,
+  SandboxSettings,
   SessionSummary,
   SkillCatalog,
   SubagentAction,
@@ -108,6 +109,8 @@ export interface HeliconClient {
   listModels(sessionId?: string): Promise<ModelOption[]>;
   getTitleSettings(): Promise<TitleSettings>;
   setTitleSettings(patch: { enabled?: boolean; modelId?: string | null }): Promise<TitleSettings>;
+  getSandboxSettings(): Promise<SandboxSettings>;
+  setSandboxSettings(patch: { disabled?: boolean }): Promise<SandboxSettings>;
   getYoloSettings(): Promise<YoloSettings>;
   setYoloSettings(patch: { enabled?: boolean }): Promise<YoloSettings>;
   setSessionModel(sessionId: string, modelId: string): Promise<void>;
@@ -161,6 +164,14 @@ export function parseTitleSettings(value: unknown): TitleSettings {
   return {
     enabled: typeof r["enabled"] === "boolean" ? r["enabled"] : true,
     modelId: typeof r["modelId"] === "string" && r["modelId"].trim() ? r["modelId"] : null,
+  };
+}
+
+/** Parse the sandbox-settings endpoint; malformed answers fall back to sandbox-on. */
+export function parseSandboxSettings(value: unknown): SandboxSettings {
+  const r = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  return {
+    disabled: r["disabled"] === true,
   };
 }
 

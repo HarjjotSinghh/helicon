@@ -166,6 +166,16 @@ describe("HeliconStore", () => {
     assert.deepEqual(store.setTitleSettings({ enabled: true, modelId: null }), { enabled: true, modelId: null });
   });
 
+  it("keeps sandbox settings, defaulting to sandbox-on", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    assert.deepEqual(store.getSandboxSettings(), { disabled: false });
+    assert.deepEqual(store.setSandboxSettings({ disabled: true }), { disabled: true });
+    assert.deepEqual(store.getSandboxSettings(), { disabled: true });
+    assert.deepEqual(store.setSandboxSettings({}), { disabled: true }, "an empty patch changes nothing");
+    assert.deepEqual(store.setSandboxSettings({ disabled: false }), { disabled: false });
+  });
+
   it("keeps YOLO settings, defaulting to off", () => {
     const store = new HeliconStore();
     after(() => store.close());

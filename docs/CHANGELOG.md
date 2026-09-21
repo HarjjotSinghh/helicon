@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.15.0
+
+### New
+
+- **Muse's sandbox can be switched off** ([#34](https://github.com/HarjjotSinghh/helicon/issues/34), built by [@orkuhh](https://github.com/orkuhh) in [#35](https://github.com/HarjjotSinghh/helicon/pull/35)). Muse runs shell commands inside an operating-system sandbox, which on Windows blocks a lot of ordinary work. Settings now has a switch to turn it off, behind a confirmation that says plainly what you are giving up. Turning it on or off restarts Muse in the background; anything mid-turn stops and says so, and threads pick up again on their next use.
+
+  It applies to new threads only, and that is Muse's rule rather than a shortcut here: Muse fixes each thread's sandbox when the thread is created and nothing can change it afterwards. A thread created while the sandbox is off stays that way even after you turn it back on, so those threads carry a "Sandbox off" badge in the sidebar, the thread header and the command palette.
+
 ## 0.14.3
 
 ### Fixed
