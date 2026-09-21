@@ -296,6 +296,15 @@ class FakeClient implements HeliconClient {
   async accountsHealth() {
     return { metaApiKeyInherited: this.metaApiKeyInherited };
   }
+  loginAccountResult: { url: string; code: string | null } | { fallback: string } = {
+    url: "https://auth.meta.com/oauth/device/?code=TEST-CODE",
+    code: "TEST-CODE",
+  };
+  loginAccountCalls: string[] = [];
+  async loginAccount(id: string) {
+    this.loginAccountCalls.push(id);
+    return this.loginAccountResult;
+  }
   writes: { path: string; content: string; baseMtimeMs: number | null }[] = [];
   writeError: Error | null = null;
   async listFiles(_cwd: string, path: string) {
