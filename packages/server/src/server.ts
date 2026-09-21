@@ -1457,6 +1457,12 @@ export class HeliconServer {
       this.json(res, 200, { ok: true });
       return true;
     }
+    if (method === "GET" && path === "/api/accounts/health") {
+      const findings = await this.aonia.doctor();
+      const inherited = findings.some((f) => f.code === "meta_api_key_inherited");
+      this.json(res, 200, { metaApiKeyInherited: inherited });
+      return true;
+    }
     if (method === "PATCH" && path === "/api/projects/default-account") {
       const body = await this.readBody(req);
       const cwd = str(body["cwd"]);

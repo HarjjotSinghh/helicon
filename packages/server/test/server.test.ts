@@ -1370,6 +1370,26 @@ describe("HeliconServer", () => {
     assert.equal((await send(base, "/api/accounts", { id: "work" })).status, 409);
   });
 
+  it("reports metaApiKeyInherited from the aonia doctor finding", async () => {
+    const connection = new FakeConnection();
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const { base } = await start(connection, {
+      aonia: createAonia({ home, platform: "linux", musePath: "muse", env: { META_API_KEY: "x" } }),
+    });
+    const res = await get(base, "/api/accounts/health");
+    assert.equal(res.metaApiKeyInherited, true);
+  });
+
+  it("reports metaApiKeyInherited false when META_API_KEY is not set", async () => {
+    const connection = new FakeConnection();
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const { base } = await start(connection, {
+      aonia: createAonia({ home, platform: "linux", musePath: "muse", env: {} }),
+    });
+    const res = await get(base, "/api/accounts/health");
+    assert.equal(res.metaApiKeyInherited, false);
+  });
+
   it("sets a project's default account", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });
