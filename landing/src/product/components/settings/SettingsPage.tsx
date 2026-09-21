@@ -1,11 +1,25 @@
-import { ArrowDownToLine, ArrowLeft, Minus, Pencil, Plus, RefreshCw, RotateCw, ScrollText, Trash2, TriangleAlert } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowLeft,
+  CircleCheck,
+  ExternalLink,
+  LogIn,
+  Minus,
+  Pencil,
+  Plus,
+  RefreshCw,
+  RotateCw,
+  ScrollText,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import { Switch } from "radix-ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context";
 import { useOverlayDragProps } from "../../app/frame";
 import { modelDisplayName } from "../../model/format";
 import type { HeliconController } from "../../model/controller";
-import { CODE_THEMES, ZOOM_MAX, ZOOM_MIN, type CodeTheme, type GroupBy, type ThemePref } from "../../model/store";
+import { CODE_THEMES, ZOOM_MAX, ZOOM_MIN, type AccountLoginState, type CodeTheme, type GroupBy, type ThemePref } from "../../model/store";
 import type { AccountView, ApprovalMode, ReasoningEffort } from "../../types";
 import { LEVELS, MODES } from "../composer/Composer";
 import { CODE_THEME_LABELS, updateSummary } from "../sidebar/Sidebar";
@@ -239,6 +253,79 @@ function RemoveAccountModal(props: { account: AccountView | null; onOpenChange: 
   );
 }
 
+/** A button styled like `Button` `variant="primary" size="md"`, as an anchor so opening the device page is a real navigation. */
+function OpenLinkButton(props: { href: string; children: ReactNode }) {
+  return (
+    <a
+      href={props.href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-lg bg-inverse px-3 text-sm font-medium whitespace-nowrap text-inverse-fg transition-[background-color,color,opacity,transform] duration-150 ease-out hover:opacity-90 active:scale-[0.97]"
+    >
+      {props.children}
+    </a>
+  );
+}
+
+/** The device-code sign-in modal: a code to enter on Meta's own page, or a fallback message under WSL. */
+function DeviceLoginModal(props: { login: AccountLoginState | null; controller: HeliconController }) {
+  const login = props.login;
+  const isFallback = login !== null && "fallback" in login;
+  const isDone = login !== null && "status" in login && login.status === "done";
+
+  useEffect(() => {
+    if (!isDone) return;
+    const handle = setTimeout(() => props.controller.cancelLogin(), 1500);
+    return () => clearTimeout(handle);
+  }, [isDone, props.controller]);
+
+  return (
+    <Modal
+      open={login !== null}
+      onOpenChange={(open) => !open && props.controller.cancelLogin()}
+      title={isDone ? "Signed in" : "Log in with a device code"}
+    >
+      {login && isFallback ? (
+        <>
+          <p className="mt-4 text-sm text-fg">{login.fallback}</p>
+          <div className="mt-6 flex justify-end">
+            <Button variant="secondary" onClick={() => props.controller.cancelLogin()}>
+              Close
+            </Button>
+          </div>
+        </>
+      ) : null}
+      {login && !isFallback && "status" in login ? (
+        isDone ? (
+          <p className="mt-4 flex items-center gap-2 text-sm text-fg">
+            <CircleCheck size={16} className="text-ok-text" /> Signed in.
+          </p>
+        ) : (
+          <div className="mt-4 flex flex-col gap-3">
+            {login.code ? (
+              <code className="self-start rounded-lg bg-sunken px-3 py-2 font-mono text-lg tabular-nums text-fg">{login.code}</code>
+            ) : (
+              <p className="text-sm text-subtle">Waiting for Muse to print the sign-in link…</p>
+            )}
+            <p className="text-sm text-muted">Open the sign-in page and enter this code.</p>
+            <p className="text-xs text-subtle">This window updates on its own once sign-in completes.</p>
+            <div className="mt-3 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => props.controller.cancelLogin()}>
+                Close
+              </Button>
+              {login.url ? (
+                <OpenLinkButton href={login.url}>
+                  <ExternalLink size={14} /> Open sign-in page
+                </OpenLinkButton>
+              ) : null}
+            </div>
+          </div>
+        )
+      ) : null}
+    </Modal>
+  );
+}
+
 /** Everything Helicon lets you set, in one place: the menus around the app are shortcuts into this. */
 export function SettingsPage() {
   const controller = useController();
@@ -246,6 +333,7 @@ export function SettingsPage() {
   const models = useApp((s) => s.models);
   const accounts = useApp((s) => s.accounts);
   const metaApiKeyInherited = useApp((s) => s.metaApiKeyInherited);
+  const accountLogin = useApp((s) => s.accountLogin);
   const titleSettings = useApp((s) => s.titleSettings);
   const sandboxSettings = useApp((s) => s.sandboxSettings);
   const env = useApp((s) => s.env);
@@ -395,7 +483,11 @@ export function SettingsPage() {
           {accounts?.map((account) => (
             <Row key={account.id} label={account.name} description={account.hasLogin ? (account.email ?? "Signed in") : "Not signed in"}>
               <div className="flex items-center gap-2">
-                {/* Task 6: per-account "Log in" button goes here when !account.hasLogin */}
+                {!account.hasLogin ? (
+                  <Button size="sm" variant="secondary" onClick={() => void controller.beginLogin(account.id)}>
+                    <LogIn size={13} /> Log in
+                  </Button>
+                ) : null}
                 <Button size="sm" variant="secondary" onClick={() => setRenaming(account)}>
                   <Pencil size={13} /> Rename
                 </Button>
@@ -645,6 +737,7 @@ export function SettingsPage() {
       <AddAccountModal open={addOpen} onOpenChange={setAddOpen} controller={controller} />
       <RenameAccountModal account={renaming} onOpenChange={(open) => !open && setRenaming(null)} controller={controller} />
       <RemoveAccountModal account={removing} onOpenChange={(open) => !open && setRemoving(null)} controller={controller} />
+      <DeviceLoginModal login={accountLogin} controller={controller} />
     </div>
   );
 }
