@@ -105,6 +105,11 @@ export interface Prefs {
   lastSeenVersion: string | null;
   /** Session statistics pills above the composer: turns, speed and token usage for the open thread. */
   showTelemetry: boolean;
+  /**
+   * Approval modes from before YOLO was armed, survived across a reload so switching YOLO off still
+   * restores them instead of falling back to onRequest. Null when YOLO has never been armed here.
+   */
+  preYolo: { defaultMode: ApprovalMode; threads: Record<string, ApprovalMode | null> } | null;
 }
 
 export const DEFAULT_FILES_WIDTH = 480;
@@ -156,6 +161,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     filesWidth: DEFAULT_FILES_WIDTH,
     lastSeenVersion: null,
     showTelemetry: false,
+    preYolo: null,
   };
 }
 
@@ -308,6 +314,24 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
   }
   const pick = <K extends keyof Prefs>(key: K, valid: (v: unknown) => boolean): Prefs[K] =>
     valid(r[key]) ? (r[key] as Prefs[K]) : fallback[key];
+  const isApprovalMode = (v: unknown): boolean =>
+    v === "onRequest" || v === "promptUnmatched" || v === "denyUnmatched" || v === "allowAll";
+  const isPreYolo = (v: unknown): boolean => {
+    if (v === null) {
+      return true;
+    }
+    if (typeof v !== "object") {
+      return false;
+    }
+    const snapshot = v as { defaultMode?: unknown; threads?: unknown };
+    return (
+      isApprovalMode(snapshot.defaultMode) &&
+      typeof snapshot.threads === "object" &&
+      snapshot.threads !== null &&
+      !Array.isArray(snapshot.threads) &&
+      Object.values(snapshot.threads).every((mode) => mode === null || isApprovalMode(mode))
+    );
+  };
   return {
     groupBy: pick("groupBy", (v) => v === "project" || v === "status"),
     theme: pick("theme", (v) => v === "system" || v === "light" || v === "dark"),
@@ -334,5 +358,6 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     filesWidth: pick("filesWidth", (v) => typeof v === "number" && v >= FILES_WIDTH_MIN && v <= FILES_WIDTH_MAX),
     lastSeenVersion: pick("lastSeenVersion", (v) => v === null || typeof v === "string"),
     showTelemetry: pick("showTelemetry", (v) => typeof v === "boolean"),
+    preYolo: pick("preYolo", isPreYolo),
   };
 }

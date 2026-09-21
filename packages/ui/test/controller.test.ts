@@ -78,7 +78,9 @@ class FakeClient implements HeliconClient {
     return [SESSION];
   }
   async discover() {}
-  async startSession() {
+  startCalls: { cwd: string; approvalMode?: string; modelId?: string }[] = [];
+  async startSession(cwd: string, options?: { approvalMode?: string; modelId?: string }) {
+    this.startCalls.push({ cwd, approvalMode: options?.approvalMode, modelId: options?.modelId });
     return SESSION;
   }
   loadTranscript() {
@@ -176,8 +178,12 @@ class FakeClient implements HeliconClient {
   }
   async setSessionModel() {}
   approvalModes: { sessionId: string; mode: string }[] = [];
+  approvalModeFailFor: Set<string> = new Set();
   async setApprovalMode(sessionId: string, mode: string) {
     this.approvalModes.push({ sessionId, mode });
+    if (this.approvalModeFailFor.has(sessionId)) {
+      throw new Error(`could not set the approval mode for ${sessionId}`);
+    }
   }
   async setProjectOrder(cwds: string[]) {
     this.orders.push(cwds);
@@ -303,6 +309,16 @@ function platform(hash = ""): Platform & { hash: string } {
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 15));
+
+// Drains pending microtasks without ever crossing a real timer tick. The fake platform's `schedule`
+// collapses every real delay to 0ms, toast auto-dismiss included, so `settle()` would let a toast this
+// test wants to inspect land and expire before either check runs. This only waits long enough for a
+// fire-and-forget chain (like `pushThreadModes`) to finish adding it.
+async function flushMicrotasks(ticks = 20): Promise<void> {
+  for (let i = 0; i < ticks; i++) {
+    await Promise.resolve();
+  }
+}
 
 async function started(client: FakeClient, hash = "#/t/s1") {
   const controller = new HeliconController(client, platform(hash));
@@ -568,6 +584,191 @@ describe("HeliconController", () => {
     client.handler?.({ type: "host", key: "k", state: "restarted", message: "The Muse host restarted." });
     assert.equal(controller.store.get().hostError, null);
     assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /Muse hosts restarted/);
+    stop();
+  });
+
+  it("waits for the YOLO patch to land before pushing any thread's approval mode", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    let release!: () => void;
+    client.yoloGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const flip = controller.setYoloEnabled(true);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(client.approvalModes.length, 0, "no mode push leaves before the PATCH resolves");
+    assert.equal(controller.store.get().threads["s1"]?.fold.meta.approvalMode, "onRequest", "the thread's own mode is untouched until then");
+    release();
+    await flip;
+    assert.deepEqual(client.approvalModes.at(-1), { sessionId: "s1", mode: "allowAll" });
+    stop();
+  });
+
+  it("pushes no approval mode when the YOLO patch itself fails", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    await controller.setMode("denyUnmatched");
+    const pushes = client.approvalModes.length;
+    client.yoloError = new Error("daemon away");
+    await controller.setYoloEnabled(true);
+    assert.deepEqual(controller.store.get().yoloSettings, { enabled: false });
+    assert.equal(controller.store.get().threads["s1"]?.fold.meta.approvalMode, "denyUnmatched", "the thread's mode never moved");
+    assert.equal(client.approvalModes.length, pushes, "no mode push leaves for a flip that never landed");
+    stop();
+  });
+
+  it("starts new threads at full access under YOLO, even when the local default was never touched", async () => {
+    const client = new FakeClient();
+    // Boot converges the open thread through convergeThread, not applyYoloApprovals, so the default
+    // mode itself is left exactly as it starts: the case a new thread must not trust.
+    client.yoloSettings = { enabled: true };
+    const { controller, stop } = await started(client, "");
+    assert.equal(controller.store.get().prefs.defaultMode, "onRequest");
+    controller.newThread();
+    await controller.send("hello");
+    assert.equal(client.startCalls.at(-1)?.approvalMode, "allowAll");
+    assert.equal(controller.store.get().threads[SESSION.sessionId]?.fold.meta.approvalMode, "allowAll");
+    stop();
+  });
+
+  it("reloads YOLO and sandbox settings after hosts restart, and restores this client when YOLO went off elsewhere", async () => {
+    const client = new FakeClient();
+    client.yoloSettings = { enabled: true };
+    const { controller, stop } = await started(client);
+    assert.equal(controller.store.get().threads["s1"]?.fold.meta.approvalMode, "allowAll", "boot under YOLO joins the open thread");
+
+    // Another client turned YOLO off and the sandbox on; this one never called setYoloEnabled itself,
+    // so a restart is the only way it learns either happened.
+    client.yoloSettings = { enabled: false };
+    client.sandboxSettings = { disabled: true };
+    client.handler?.({ type: "host", key: "k", state: "restarted", message: "The Muse host restarted." });
+    await settle();
+
+    assert.deepEqual(controller.store.get().yoloSettings, { enabled: false });
+    assert.deepEqual(controller.store.get().sandboxSettings, { disabled: true });
+    assert.equal(
+      controller.store.get().threads["s1"]?.fold.meta.approvalMode,
+      "onRequest",
+      "this client stops auto approving too, with no local snapshot to restore from",
+    );
+    stop();
+  });
+
+  it("keeps its pre-YOLO snapshot across a reload, so switching YOLO off afterwards still restores the real modes", async () => {
+    const client = new FakeClient();
+    let saved: unknown = null;
+    const shared: Platform & { hash: string } = {
+      hash: "#/t/s1",
+      loadPrefs: () => saved,
+      savePrefs: (prefs) => {
+        saved = prefs;
+      },
+      readHash: () => shared.hash,
+      writeHash: (next) => {
+        shared.hash = next;
+      },
+      onHashChange: () => () => {},
+      now: () => Date.now(),
+      schedule: (fn: () => void) => setTimeout(fn, 0),
+      cancel: (handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+      focused: () => false,
+    };
+
+    const first = new HeliconController(client, shared);
+    const stopFirst = first.start();
+    await settle();
+    await settle();
+    await first.setMode("denyUnmatched");
+    await first.setYoloEnabled(true);
+    await settle();
+    stopFirst();
+
+    const second = new HeliconController(client, shared);
+    const stopSecond = second.start();
+    await settle();
+    await settle();
+    await second.setYoloEnabled(false);
+    assert.equal(second.store.get().prefs.defaultMode, "denyUnmatched", "the real default survives the reload");
+    assert.equal(second.store.get().threads["s1"]?.fold.meta.approvalMode, "denyUnmatched", "and so does the thread's own mode");
+    stopSecond();
+  });
+
+  it("keeps the failed-thread toast singular for exactly one thread", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    await controller.setYoloEnabled(true);
+    client.approvalModeFailFor = new Set(["s1"]);
+    await controller.setYoloEnabled(false);
+    // The mode push is fire-and-forget from setYoloEnabled's own promise, so the toast it ends in
+    // lands a tick later than the flip itself.
+    await flushMicrotasks();
+    assert.match(controller.store.get().toasts.at(-1)?.detail ?? "", /^1 thread kept full access\.$/);
+    stop();
+  });
+
+  it("pluralizes the failed-thread toast for more than one thread", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    await controller.loadThread("s2");
+    await controller.setYoloEnabled(true);
+    client.approvalModeFailFor = new Set(["s1", "s2"]);
+    await controller.setYoloEnabled(false);
+    await flushMicrotasks();
+    assert.match(controller.store.get().toasts.at(-1)?.detail ?? "", /^2 threads kept full access\.$/);
+    stop();
+  });
+
+  it("refuses /permissions full while YOLO is on, without opening the confirm dialog", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    await controller.setYoloEnabled(true);
+    await controller.send("/permissions full");
+    assert.equal(controller.store.get().picker, null, "the confirm dialog never opens");
+    assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /YOLO is on/);
+    stop();
+  });
+
+  it("still announces a rule-only approval even while a bypass is armed", async () => {
+    const client = new FakeClient();
+    const shown: string[] = [];
+    const { controller, stop } = await started(client);
+    controller.attachNotifier({
+      permission: async () => "granted",
+      request: async () => "granted",
+      show: async (note) => {
+        shown.push(note.tag);
+      },
+    });
+    controller.setPrefs({ notifications: true });
+    await controller.setYoloEnabled(true);
+    // A rule-only choice gives autoAllow nothing to click, so it stays pending for the user.
+    client.handler?.({
+      type: "msp",
+      sessionId: "s1",
+      method: "approval/requested",
+      params: {
+        approvalId: "a1",
+        sessionId: "s1",
+        availableChoices: [{ choiceId: "c1", label: "Always allow", decision: "approved", scope: "rule", rulePreview: "echo *" }],
+        subject: { kind: "shell" },
+      },
+      at: 1,
+    });
+    await settle();
+    client.handler?.({
+      type: "session-status",
+      sessionId: "s1",
+      live: {
+        activeTurnId: null,
+        turnStartedAt: null,
+        pendingApprovals: 1,
+        pendingInputs: 0,
+        lastTerminal: null,
+        lastError: null,
+      } as never,
+    });
+    await settle();
+    assert.deepEqual(shown, ["approval:s1"], "a rule-only approval still needs the user, even armed");
     stop();
   });
 

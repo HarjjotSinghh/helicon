@@ -302,6 +302,8 @@ export class HeliconController {
   ) {
     const fallback = defaultPrefs(new Date(platform.now()).toISOString());
     this.store = new Store(initialState(revivePrefs(platform.loadPrefs(), fallback)));
+    // Carries a pre-YOLO snapshot over a reload: the field itself is per-launch, but prefs are not.
+    this.preYolo = this.state.prefs.preYolo;
   }
 
   private get state(): AppState {
@@ -541,15 +543,23 @@ export class HeliconController {
 
   private async loadYoloSettings(): Promise<void> {
     const rev = ++this.yoloSettingsRev;
+    // Held onto before the update overwrites it: another client can flip YOLO off without this one
+    // ever calling `setYoloEnabled`, and that edge only shows up by comparing what this load replaces.
+    const wasEnabled = this.state.yoloSettings?.enabled === true;
     try {
       const yoloSettings = await this.client.getYoloSettings();
       if (rev === this.yoloSettingsRev) {
         this.update((s) => ({ ...s, yoloSettings }));
-        // Boot lands threads and settings in either order; a thread that loaded first still joins YOLO.
         if (yoloSettings.enabled) {
+          // Boot lands threads and settings in either order; a thread that loaded first still joins YOLO.
           for (const sessionId of Object.keys(this.state.threads)) {
             this.convergeThread(sessionId);
           }
+        } else if (wasEnabled && this.preYolo === null) {
+          // Another client turned YOLO off. This one never armed it locally, so there is no local
+          // snapshot to restore from, but it must still stop auto-approving: the same restore path
+          // `setYoloEnabled` uses on a genuine flip, minus the snapshot it would otherwise consume.
+          this.applyYoloApprovals(false);
         }
       }
     } catch {
@@ -775,6 +785,10 @@ export class HeliconController {
         } else if (event.state === "restarted") {
           this.update((s) => ({ ...s, hostError: null }));
           this.toast("info", "Muse hosts restarted", event.message);
+          // A restart follows any settings PATCH, including one from a different client. Reload both
+          // so this client's posture (and any thread it owns) tracks what actually took effect.
+          void this.loadYoloSettings();
+          void this.loadSandboxSettings();
         }
         break;
     }
@@ -1005,14 +1019,17 @@ export class HeliconController {
     this.setBusy("start", true);
     try {
       const { defaultMode, defaultModelId } = this.state.prefs;
+      // YOLO owns every thread's posture while it is on, new or old: a stale default from before it
+      // was armed must never seed a thread that asks when the rest of the app does not.
+      const approvalMode: ApprovalMode = this.state.yoloSettings?.enabled === true ? "allowAll" : defaultMode;
       const session = await this.client.startSession(cwd, {
-        approvalMode: defaultMode,
+        approvalMode,
         modelId: defaultModelId ?? undefined,
       });
       const base = emptyFold();
       const fold: ThreadFold = {
         ...base,
-        meta: { ...base.meta, modelId: session.modelId ?? defaultModelId, approvalMode: defaultMode },
+        meta: { ...base.meta, modelId: session.modelId ?? defaultModelId, approvalMode },
       };
       this.update((s) => ({
         ...s,
@@ -1250,8 +1267,14 @@ export class HeliconController {
     if (!manager || !after) {
       return;
     }
-    // An armed thread answers its own approvals, so "needs you" would be a lie told a second before the bypass lands.
-    if ((after.pendingApprovals ?? 0) > 0 && (before?.pendingApprovals ?? 0) === 0 && !this.bypassArmed(sessionId)) {
+    // An armed thread answers its own approvals, so "needs you" would be a lie told a second before the
+    // bypass lands. But a rule-only request offers the bypass nothing to click, so it is left for the
+    // user exactly as `autoAllow` leaves it: that one still needs the announcement.
+    if (
+      (after.pendingApprovals ?? 0) > 0 &&
+      (before?.pendingApprovals ?? 0) === 0 &&
+      (!this.bypassArmed(sessionId) || this.hasUnanswerableApproval(sessionId))
+    ) {
       void manager.announce({ kind: "approval", sessionId, thread });
     }
     if ((after.pendingInputs ?? 0) > 0 && (before?.pendingInputs ?? 0) === 0) {
@@ -1303,6 +1326,19 @@ export class HeliconController {
     // Only a choice that leaves nothing behind. Where the sole way to allow is to remember a rule, the
     // request stays for the user: a rule in Muse's own config would outlive the bypass that wrote it.
     return choices.find((choice) => choice.decision === "approved" && !choice.rulePreview)?.choiceId ?? null;
+  }
+
+  /**
+   * True when a known pending approval in this thread has no plain approve choice for `autoAllow` to
+   * take, only a rule preview or nothing at all. `announce` uses this to still speak up for a request
+   * an armed bypass will leave sitting there, using the same predicate `autoAllow` answers with.
+   */
+  private hasUnanswerableApproval(sessionId: string): boolean {
+    const thread = this.state.threads[sessionId];
+    if (!thread) {
+      return false;
+    }
+    return Object.values(thread.fold.approvals).some((request) => this.allowOnce(request) === null);
   }
 
   /** Answers what is pending in every armed thread; a request offering no approval is left to the user. */
@@ -1490,9 +1526,10 @@ export class HeliconController {
       this.capturePreYolo();
     }
     this.update((s) => ({ ...s, yoloSettings: { enabled } }));
-    this.applyYoloApprovals(enabled);
-    // The rev below drops stale responses but cannot order the requests. Queue the PATCHes
-    // so a slow enable can never persist after a faster disable.
+    // The PATCH queues a host restart on the server, and `hostFor` awaits `restartChain`, so an
+    // approval mode pushed before the PATCH lands would be applied before the restart, not after
+    // it: the host would come back up and immediately see a session with the wrong posture. Wait
+    // for the PATCH to resolve before touching any thread's approval mode.
     const run = this.yoloSettingsChain.then(() => this.client.setYoloSettings({ enabled }));
     this.yoloSettingsChain = run.then(
       () => undefined,
@@ -1502,22 +1539,23 @@ export class HeliconController {
       const yoloSettings = await run;
       if (rev === this.yoloSettingsRev) {
         this.update((s) => ({ ...s, yoloSettings }));
+        this.applyYoloApprovals(enabled);
       }
     } catch (error) {
       if (rev === this.yoloSettingsRev) {
+        // The flip never reached the server, so no mode was ever pushed: only the optimistic
+        // flag comes back, nothing to unwind on the approvals side.
         this.update((s) => ({ ...s, yoloSettings: previous }));
-        // Rolling back to on re-arms from the restored modes; rolling back to off consumes
-        // the snapshot inside applyYoloApprovals, landing exactly where arming started.
-        if (previous?.enabled === true && this.preYolo === null) {
-          this.capturePreYolo();
-        }
-        this.applyYoloApprovals(previous?.enabled === true);
         this.toast("error", "Could not change the YOLO setting", errorMessage(error));
       }
     }
   }
 
-  /** Approval modes as they stand now, so switching YOLO back off restores them. */
+  /**
+   * Approval modes as they stand now, so switching YOLO back off restores them. Saved into prefs too,
+   * so a reload while YOLO is on does not lose it: the in-memory field starts fresh on every launch,
+   * but the snapshot it would have captured just now is exactly what boot already persisted.
+   */
   private capturePreYolo(): void {
     this.preYolo = {
       defaultMode: this.state.prefs.defaultMode,
@@ -1525,6 +1563,7 @@ export class HeliconController {
         Object.entries(this.state.threads).map(([id, thread]) => [id, thread.fold.meta.approvalMode ?? null]),
       ),
     };
+    this.setPrefs({ preYolo: this.preYolo });
   }
 
   /** Threads YOLO may flip: open ones owned here, never another session's read-only thread. */
@@ -1548,12 +1587,20 @@ export class HeliconController {
     }
     const prev = this.preYolo;
     this.preYolo = null;
-    const defaultMode = prev?.defaultMode ?? "onRequest";
-    this.setPrefs({ defaultMode });
+    this.setPrefs({ preYolo: null });
+    if (prev) {
+      this.setPrefs({ defaultMode: prev.defaultMode });
+    } else if (this.state.prefs.defaultMode === "allowAll") {
+      // No snapshot to restore from. Only clean up a default this same client forced to Full access;
+      // a default the user set some other way, before YOLO was armed elsewhere, is not ours to touch.
+      this.setPrefs({ defaultMode: "onRequest" });
+    }
     const modes: Record<string, ApprovalMode> = {};
     const fallback: Record<string, ApprovalMode | null> = {};
     for (const sessionId of this.yoloThreadIds()) {
-      const mode = prev?.threads[sessionId] ?? defaultMode;
+      // A thread the snapshot never saw (opened after arming) falls back to that snapshot's default;
+      // with no snapshot at all, every thread goes to Ask first rather than guessing at the live default.
+      const mode = prev ? (prev.threads[sessionId] ?? prev.defaultMode) : "onRequest";
       this.patchMeta(sessionId, { approvalMode: mode });
       modes[sessionId] = mode;
       fallback[sessionId] = "allowAll";
@@ -1584,7 +1631,7 @@ export class HeliconController {
       }
     });
     if (failed > 0) {
-      this.toast("error", "Could not change permissions for every thread", `${failed} thread${failed === 1 ? "s" : ""} kept ${kept}.`);
+      this.toast("error", "Could not change permissions for every thread", `${failed} thread${failed === 1 ? "" : "s"} kept ${kept}.`);
     }
   }
 
@@ -2161,6 +2208,12 @@ export class HeliconController {
           return false;
         }
         if (mode === "allowAll") {
+          // YOLO already owns full access host-wide; opening the confirm dialog here would promise a
+          // thread-scoped change setMode itself refuses once the dialog says yes.
+          if (this.state.yoloSettings?.enabled === true) {
+            this.toast("info", "YOLO is on", "Switch YOLO off to change permissions.");
+            return true;
+          }
           // Full access always goes through its confirmation.
           this.setPicker("confirmFullAccess");
           return true;
