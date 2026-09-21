@@ -1,9 +1,11 @@
 import {
   HeliconError,
+  parseAccounts,
   parseModelList,
   parseSandboxSettings,
   parseTitleSettings,
   parseYoloSettings,
+  type AccountView,
   type ApprovalDecisionInput,
   type ApprovalMode,
   type AttachmentView,
@@ -19,6 +21,7 @@ import {
   type ModelOption,
   type OutputRange,
   type PlanUsage,
+  type PlanUsageByAccount,
   type ProjectView,
   type ReasoningEffort,
   type SandboxSettings,
@@ -220,11 +223,15 @@ export class WebHeliconClient implements HeliconClient {
     await call("POST", "/api/discover", cwd ? { cwd } : {});
   }
 
-  async startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string }): Promise<SessionSummary> {
+  async startSession(
+    cwd: string,
+    options?: { approvalMode?: ApprovalMode; modelId?: string; accountId?: string | null },
+  ): Promise<SessionSummary> {
     const result = await call<{ session: SessionSummary }>("POST", "/api/sessions", {
       cwd,
       approvalMode: options?.approvalMode,
       modelId: options?.modelId,
+      accountId: options?.accountId ?? undefined,
     });
     return result.session;
   }
@@ -302,6 +309,31 @@ export class WebHeliconClient implements HeliconClient {
     return parseSandboxSettings(await call<unknown>("PATCH", "/api/sandbox-settings", patch));
   }
 
+  async listAccounts(): Promise<AccountView[]> {
+    return parseAccounts(await call<unknown>("GET", "/api/accounts"));
+  }
+
+  async createAccount(id: string, options?: { name?: string; seedFromDefault?: boolean }): Promise<{ id: string; name: string }> {
+    const res = await call<{ account: { id: string; name: string } }>("POST", "/api/accounts", {
+      id,
+      name: options?.name,
+      seedFromDefault: options?.seedFromDefault ?? false,
+    });
+    return res.account;
+  }
+
+  async renameAccount(id: string, name: string): Promise<void> {
+    await call("PATCH", `/api/accounts/${enc(id)}`, { name });
+  }
+
+  async removeAccount(id: string): Promise<void> {
+    await call("DELETE", `/api/accounts/${enc(id)}`);
+  }
+
+  async setProjectDefaultAccount(cwd: string, accountId: string | null): Promise<void> {
+    await call("PATCH", "/api/projects/default-account", { cwd, accountId });
+  }
+
   async getYoloSettings(): Promise<YoloSettings> {
     return parseYoloSettings(await call<unknown>("GET", "/api/yolo-settings"));
   }
@@ -373,8 +405,9 @@ export class WebHeliconClient implements HeliconClient {
     return (await call<{ output: OutputRange }>("GET", path)).output;
   }
 
-  async planUsage(): Promise<PlanUsage | null> {
-    return (await call<{ usage: PlanUsage | null }>("GET", "/api/plan-usage")).usage;
+  async planUsage(): Promise<{ usage: PlanUsage | null; byAccount: PlanUsageByAccount }> {
+    const res = await call<{ usage: PlanUsage | null; byAccount?: PlanUsageByAccount }>("GET", "/api/plan-usage");
+    return { usage: res.usage, byAccount: res.byAccount ?? {} };
   }
 
   listFiles(cwd: string, path: string): Promise<FileListing> {

@@ -15,6 +15,7 @@ import {
   ShieldQuestion,
   Square,
   SquareTerminal,
+  Zap,
 } from "lucide-react";
 import {
   forwardRef,
@@ -734,6 +735,10 @@ function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
   const bypass = useApp((s) => s.bypassAll);
   const confirmingBypass = useApp((s) => s.picker === "confirmBypass");
   const bypassId = useId();
+  const yolo = useApp((s) => s.yoloSettings?.enabled === true);
+  const yoloLoaded = useApp((s) => s.yoloSettings !== null);
+  const confirmingYolo = useApp((s) => s.picker === "confirmYolo");
+  const yoloId = useId();
   const preferred = useApp((s) => s.prefs.defaultMode);
   const threadMode = useApp((s) => (props.sessionId ? (s.threads[props.sessionId]?.fold.meta.approvalMode ?? null) : null));
   const current = (props.sessionId ? threadMode : null) ?? preferred;
@@ -744,14 +749,33 @@ function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
       <Menu open={open} onOpenChange={(next) => (next ? controller.setPicker("permissions") : controller.closePicker("permissions"))}>
         <MenuTrigger asChild>
           <ToolbarTrigger
-            aria-label={`Permissions: ${mode?.label}`}
-            icon={mode?.icon}
-            label={mode?.label}
-            tone={current === "allowAll" || bypass ? "warn" : undefined}
+            aria-label={yolo ? "Permissions: YOLO mode" : `Permissions: ${mode?.label}`}
+            icon={yolo ? <Zap size={14} /> : mode?.icon}
+            label={yolo ? "YOLO" : mode?.label}
+            tone={yolo || current === "allowAll" || bypass ? "warn" : undefined}
           />
         </MenuTrigger>
         <MenuContent side={props.side} className="w-[300px]">
           <MenuLabel>Permissions</MenuLabel>
+          {/* The `muse --yolo` posture: no approvals, no sandbox, trusted workspace. Above the modes because it owns them while on. */}
+          <div className="flex items-start gap-3 px-2 pt-1 pb-2.5">
+            <label htmlFor={yoloId} className="min-w-0 flex-1 cursor-default">
+              <span className="flex items-center gap-1.5 text-sm text-fg">
+                <Zap size={14} className="text-warn-text" aria-hidden="true" />
+                YOLO mode
+              </span>
+              <span className="block text-xs text-muted">Nothing asks, new threads run unsandboxed. Restarts Muse hosts.</span>
+            </label>
+            <Switch.Root
+              id={yoloId}
+              checked={yolo}
+              disabled={!yoloLoaded}
+              onCheckedChange={(on) => (on ? controller.setPicker("confirmYolo") : void controller.setYoloEnabled(false))}
+              className="relative mt-0.5 inline-flex h-[18px] w-8 shrink-0 items-center rounded-full bg-line-strong outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 data-[state=checked]:bg-accent"
+            >
+              <Switch.Thumb className="block size-3.5 translate-x-0.5 rounded-full bg-white shadow-[0_1px_2px_oklch(0_0_0/0.3)] transition-transform duration-150 ease-out data-[state=checked]:translate-x-4" />
+            </Switch.Root>
+          </div>
           <MenuRadioGroup
             value={current}
             onValueChange={(value) => {
@@ -763,9 +787,10 @@ function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
             }}
           >
             {MODES.map((m) => (
-              <MenuOption key={m.value} value={m.value} icon={m.icon} label={m.label} description={m.description} />
+              <MenuOption key={m.value} value={m.value} icon={m.icon} label={m.label} description={m.description} disabled={yolo} />
             ))}
           </MenuRadioGroup>
+          {yolo ? <p className="px-2 pt-1 text-xs text-subtle">YOLO owns every thread&apos;s mode while it is on. Switch it off to choose.</p> : null}
           {/* Muse asks whenever it cannot resolve a command's argv, whatever mode it is in. This answers those. */}
           <div className="mt-1 flex items-start gap-3 border-t border-line px-2 pt-2.5 pb-1">
             <label htmlFor={bypassId} className="min-w-0 flex-1 cursor-default">
@@ -787,7 +812,7 @@ function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
         open={confirming}
         onOpenChange={setConfirming}
         title="Give Muse full access?"
-        description="Every tool call, including shell commands and file writes, will run without asking you first. The OS sandbox still confines shells unless this thread started while sandboxing was switched off in Settings. Use this only in a disposable environment."
+        description="Every tool call, including shell commands and file writes, will run without asking you first. The OS sandbox still confines shells unless this thread started while sandboxing was switched off, or with YOLO mode on, in Settings. Use this only in a disposable environment."
       >
         <div className="mt-6 flex justify-end gap-2">
           <Button
@@ -797,7 +822,7 @@ function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
               controller.navigate({ kind: "settings" });
             }}
           >
-            Sandbox settings
+            Settings
           </Button>
           <Button variant="ghost" onClick={() => setConfirming(false)}>
             Keep asking
@@ -831,6 +856,27 @@ function AccessPicker(props: { sessionId: string | null; side: PickerSide }) {
             }}
           >
             Answer them for me
+          </Button>
+        </div>
+      </Modal>
+      <Modal
+        open={confirmingYolo}
+        onOpenChange={(next) => (next ? controller.setPicker("confirmYolo") : controller.closePicker("confirmYolo"))}
+        title="Turn on YOLO mode?"
+        description="Like muse --yolo: nothing asks for approval in any thread, new threads run without sandbox confinement, and workspaces are trusted. The running Muse hosts restart, interrupting their turns, and threads already open keep the sandbox posture they started with. This stays on until you switch it off."
+      >
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => controller.closePicker("confirmYolo")}>
+            Keep asking
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              controller.closePicker("confirmYolo");
+              void controller.setYoloEnabled(true);
+            }}
+          >
+            Turn on YOLO
           </Button>
         </div>
       </Modal>

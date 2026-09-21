@@ -22,6 +22,7 @@ function session(id: string, patch: Partial<SessionSummary> = {}, live: Partial<
     settledAt: null,
     unsettledAt: null,
     sandboxDisabled: false,
+    accountId: null,
     live: live
       ? { activeTurnId: null, turnStartedAt: null, pendingApprovals: 0, pendingInputs: 0, lastTerminal: null, lastError: null, ...live }
       : null,
@@ -56,8 +57,8 @@ describe("threadStatus", () => {
 
 describe("sidebar grouping", () => {
   const projects: ProjectView[] = [
-    { cwd: "/work/a", displayName: "a", pinned: false, activityAt: BASE },
-    { cwd: "/work/b", displayName: "b", pinned: false, activityAt: BASE },
+    { cwd: "/work/a", displayName: "a", pinned: false, activityAt: BASE, defaultAccountId: null },
+    { cwd: "/work/b", displayName: "b", pinned: false, activityAt: BASE, defaultAccountId: null },
   ];
   const entries: SidebarEntry[] = [
     { session: session("old", { createdAt: "2026-09-01T01:00:00.000Z", activityAt: "2026-09-09T00:00:00.000Z" }), status: "idle" },

@@ -22,6 +22,7 @@ const SESSION: SessionSummary = {
   settledAt: null,
   unsettledAt: null,
   sandboxDisabled: false,
+  accountId: null,
   live: null,
 };
 
@@ -56,8 +57,11 @@ class FakeClient implements HeliconClient {
   async probeEnvironment() {
     return { platform: "linux", wslAvailable: false, defaultDistro: null, museFound: true, musePath: "/usr/bin/muse", version: "0.2.0", persistent: true };
   }
+  projects: import("../src/types.js").ProjectView[] = [
+    { cwd: "/work/app", displayName: "app", pinned: false, activityAt: SESSION.activityAt, defaultAccountId: null },
+  ];
   async listProjects() {
-    return [{ cwd: "/work/app", displayName: "app", pinned: false, activityAt: SESSION.activityAt }];
+    return [...this.projects];
   }
   async addProject(cwd: string) {
     return { cwd, warning: null };
@@ -78,10 +82,10 @@ class FakeClient implements HeliconClient {
     return [SESSION];
   }
   async discover() {}
-  startCalls: { cwd: string; approvalMode?: string; modelId?: string }[] = [];
-  async startSession(cwd: string, options?: { approvalMode?: string; modelId?: string }) {
-    this.startCalls.push({ cwd, approvalMode: options?.approvalMode, modelId: options?.modelId });
-    return SESSION;
+  startCalls: { cwd: string; approvalMode?: string; modelId?: string; accountId: string | null }[] = [];
+  async startSession(cwd: string, options?: { approvalMode?: string; modelId?: string; accountId?: string | null }) {
+    this.startCalls.push({ cwd, approvalMode: options?.approvalMode, modelId: options?.modelId, accountId: options?.accountId ?? null });
+    return { ...SESSION, accountId: options?.accountId ?? null };
   }
   loadTranscript() {
     return this.transcript();
@@ -254,8 +258,39 @@ class FakeClient implements HeliconClient {
     return { content: offset === 0 ? "first " : "second", encoding: "utf8", mediaType: "text/plain", offsetBytes: offset, byteLen: 6, eof: offset > 0 };
   }
   plan: import("../src/types.js").PlanUsage | null = null;
+  planByAccount: Record<string, import("../src/types.js").PlanUsage> = {};
   async planUsage() {
-    return this.plan;
+    return { usage: this.plan, byAccount: this.planByAccount };
+  }
+  accounts: import("../src/types.js").AccountView[] = [];
+  accountCalls: { kind: "create" | "rename" | "remove" | "default"; id?: string; cwd?: string; accountId?: string | null; name?: string }[] = [];
+  async listAccounts() {
+    return [...this.accounts];
+  }
+  async createAccount(id: string, options?: { name?: string; seedFromDefault?: boolean }) {
+    this.accountCalls.push({ kind: "create", id, name: options?.name });
+    this.accounts.push({ id, name: options?.name ?? id, hasLogin: false, email: null, lastUsedAt: null });
+    return { id, name: options?.name ?? id };
+  }
+  async renameAccount(id: string, name: string) {
+    this.accountCalls.push({ kind: "rename", id, name });
+    const account = this.accounts.find((a) => a.id === id);
+    if (account) {
+      account.name = name;
+    }
+  }
+  async removeAccount(id: string) {
+    this.accountCalls.push({ kind: "remove", id });
+    this.accounts = this.accounts.filter((a) => a.id !== id);
+  }
+  setProjectDefaultAccountError: Error | null = null;
+  async setProjectDefaultAccount(cwd: string, accountId: string | null) {
+    this.accountCalls.push({ kind: "default", cwd, accountId });
+    if (this.setProjectDefaultAccountError) {
+      const error = this.setProjectDefaultAccountError;
+      this.setProjectDefaultAccountError = null;
+      throw error;
+    }
   }
   writes: { path: string; content: string; baseMtimeMs: number | null }[] = [];
   writeError: Error | null = null;
@@ -1308,10 +1343,155 @@ describe("HeliconController", () => {
     client.plan = reading(20, 100);
     const { controller, stop } = await started(client);
     assert.equal(controller.store.get().planUsage?.window.usedPercent, 20);
-    client.handler?.({ type: "plan-usage", usage: reading(35, 200) });
+    client.handler?.({ type: "plan-usage", usage: reading(35, 200), accountId: null });
     assert.equal(controller.store.get().planUsage?.window.usedPercent, 35);
-    client.handler?.({ type: "plan-usage", usage: reading(1, 150) });
+    client.handler?.({ type: "plan-usage", usage: reading(1, 150), accountId: null });
     assert.equal(controller.store.get().planUsage?.window.usedPercent, 35, "an older reading does not replace a newer one");
+    stop();
+  });
+
+  it("keeps per-account plan usage from the event stream, and still keeps the global reading", async () => {
+    const client = new FakeClient();
+    const reading = (percent: number, at: number) => ({
+      tier: "high",
+      observedAtMs: at,
+      window: { usedPercent: percent, resetsAtMs: at + 1, windowDurationMins: 300 },
+      weekly: { usedPercent: 3, resetsAtMs: at + 2, windowDurationMins: null },
+    });
+    const { controller, stop } = await started(client);
+    client.handler?.({ type: "plan-usage", usage: reading(40, 300), accountId: "work" });
+    assert.equal(controller.store.get().planUsageByAccount["work"]?.window.usedPercent, 40);
+    assert.equal(controller.store.get().planUsage?.window.usedPercent, 40, "a per-account reading still updates the global");
+    client.handler?.({ type: "plan-usage", usage: reading(10, 250), accountId: "work" });
+    assert.equal(
+      controller.store.get().planUsageByAccount["work"]?.window.usedPercent,
+      40,
+      "an older per-account reading does not replace a newer one",
+    );
+    stop();
+  });
+
+  it("merges per-account plan usage from the boot load", async () => {
+    const client = new FakeClient();
+    client.planByAccount = {
+      work: {
+        tier: "high",
+        observedAtMs: 500,
+        window: { usedPercent: 60, resetsAtMs: 501, windowDurationMins: 300 },
+        weekly: { usedPercent: 5, resetsAtMs: 502, windowDurationMins: null },
+      },
+    };
+    const { controller, stop } = await started(client);
+    assert.equal(controller.store.get().planUsageByAccount["work"]?.window.usedPercent, 60);
+    stop();
+  });
+
+  it("does not let a stale boot-load snapshot clobber a fresher per-account reading", async () => {
+    const client = new FakeClient();
+    const reading = (percent: number, at: number) => ({
+      tier: "high",
+      observedAtMs: at,
+      window: { usedPercent: percent, resetsAtMs: at + 1, windowDurationMins: 300 },
+      weekly: { usedPercent: 3, resetsAtMs: at + 2, windowDurationMins: null },
+    });
+    const { controller, stop } = await started(client);
+    client.handler?.({ type: "plan-usage", usage: reading(77, 200), accountId: "work" });
+    assert.equal(controller.store.get().planUsageByAccount["work"]?.window.usedPercent, 77);
+    client.planByAccount = { work: reading(10, 100) };
+    await controller.loadPlanUsage();
+    assert.equal(
+      controller.store.get().planUsageByAccount["work"]?.window.usedPercent,
+      77,
+      "a stale byAccount snapshot from a boot GET does not replace a newer event-derived reading",
+    );
+    stop();
+  });
+
+  it("loads the account list and creates an account", async () => {
+    const client = new FakeClient();
+    const controller = new HeliconController(client, platform());
+    await controller.loadAccounts();
+    assert.deepEqual(controller.store.get().accounts?.map((a) => a.id), []);
+    assert.equal(await controller.createAccount("work", "Work"), true);
+    assert.ok(client.accountCalls.some((c) => c.kind === "create" && c.id === "work"));
+    assert.deepEqual(controller.store.get().accounts?.map((a) => a.id), ["work"]);
+  });
+
+  it("renames and removes accounts, reloading the list each time", async () => {
+    const client = new FakeClient();
+    client.accounts = [{ id: "default", name: "Default", hasLogin: true, email: "a@b.com", lastUsedAt: null }];
+    const { controller, stop } = await started(client);
+    assert.deepEqual(controller.store.get().accounts?.map((a) => a.id), ["default"]);
+
+    assert.equal(await controller.createAccount("work", "Work"), true);
+    assert.deepEqual(controller.store.get().accounts?.map((a) => a.id), ["default", "work"]);
+
+    assert.equal(await controller.renameAccount("work", "Work Account"), true);
+    assert.equal(controller.store.get().accounts?.find((a) => a.id === "work")?.name, "Work Account");
+
+    assert.equal(await controller.removeAccount("work"), true);
+    assert.deepEqual(controller.store.get().accounts?.map((a) => a.id), ["default"]);
+    stop();
+  });
+
+  it("sets a project's default account optimistically, and rolls back on failure", async () => {
+    const client = new FakeClient();
+    client.projects = [{ cwd: "/work/app", displayName: "app", pinned: false, activityAt: SESSION.activityAt, defaultAccountId: null }];
+    const { controller, stop } = await started(client);
+
+    await controller.setProjectDefaultAccount("/work/app", "work");
+    assert.equal(controller.store.get().projects.find((p) => p.cwd === "/work/app")?.defaultAccountId, "work");
+    assert.ok(client.accountCalls.some((c) => c.kind === "default" && c.cwd === "/work/app" && c.accountId === "work"));
+
+    client.setProjectDefaultAccount = async () => {
+      throw new Error("nope");
+    };
+    await controller.setProjectDefaultAccount("/work/app", null);
+    assert.equal(
+      controller.store.get().projects.find((p) => p.cwd === "/work/app")?.defaultAccountId,
+      "work",
+      "a refused default rolls back",
+    );
+    assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /Could not set the default account/);
+    stop();
+  });
+
+  it("does not let a stale rollback clobber a newer overlapping default-account write", async () => {
+    const client = new FakeClient();
+    client.projects = [{ cwd: "/work/app", displayName: "app", pinned: false, activityAt: SESSION.activityAt, defaultAccountId: null }];
+    const { controller, stop } = await started(client);
+
+    client.setProjectDefaultAccountError = new Error("nope");
+    // Fired without awaiting: the first PATCH is queued to fail, the second to succeed. The chain
+    // means the server sees them in order, so the first's rejection lands after the second's optimism.
+    const first = controller.setProjectDefaultAccount("/work/app", "alpha");
+    const second = controller.setProjectDefaultAccount("/work/app", "beta");
+    await Promise.all([first, second]);
+
+    assert.equal(
+      controller.store.get().projects.find((p) => p.cwd === "/work/app")?.defaultAccountId,
+      "beta",
+      "the second call's value stands; the stale rollback from the first call's failure is dropped",
+    );
+    assert.equal(
+      controller.store.get().toasts.some((t) => /Could not set the default account/.test(t.title)),
+      false,
+      "a stale rollback does not toast either",
+    );
+    stop();
+  });
+
+  it("starts a new thread on the project's default account", async () => {
+    const client = new FakeClient();
+    client.projects = [{ cwd: "/work/app", displayName: "app", pinned: false, activityAt: SESSION.activityAt, defaultAccountId: "work" }];
+    const { controller, stop } = await started(client, "");
+    controller.newThread("/work/app");
+    assert.equal(await controller.send("hello"), true);
+    assert.equal(client.startCalls.at(-1)?.accountId, "work");
+    const route = controller.store.get().route;
+    assert.equal(route.kind, "thread");
+    const sessionId = route.kind === "thread" ? route.sessionId : "";
+    assert.equal(controller.store.get().sessions[sessionId]?.accountId, "work", "the seeded session carries the account the server confirmed");
     stop();
   });
 
@@ -1496,7 +1676,7 @@ describe("HeliconController", () => {
 
   it("reorders projects by drag, and puts them back when the server refuses", async () => {
     const client = new FakeClient();
-    const project = (cwd: string) => ({ cwd, displayName: cwd.slice(6), pinned: false, activityAt: SESSION.activityAt });
+    const project = (cwd: string) => ({ cwd, displayName: cwd.slice(6), pinned: false, activityAt: SESSION.activityAt, defaultAccountId: null });
     client.listProjects = async () => [project("/work/a"), project("/work/b"), project("/work/c")];
     const { controller, stop } = await started(client);
     const order = () => controller.store.get().projects.map((p) => p.cwd);

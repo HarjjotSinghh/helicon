@@ -12,6 +12,7 @@ import type {
   ShellRun,
   SkillEntry,
   TitleSettings,
+  YoloSettings,
 } from "../types";
 import type { EchoAttachment, ThreadFold } from "./fold";
 import type { UpdateState } from "./updates";
@@ -104,6 +105,11 @@ export interface Prefs {
   lastSeenVersion: string | null;
   /** Session statistics pills above the composer: turns, speed and token usage for the open thread. */
   showTelemetry: boolean;
+  /**
+   * Approval modes from before YOLO was armed, survived across a reload so switching YOLO off still
+   * restores them instead of falling back to onRequest. Null when YOLO has never been armed here.
+   */
+  preYolo: { defaultMode: ApprovalMode; threads: Record<string, ApprovalMode | null> } | null;
 }
 
 export const DEFAULT_FILES_WIDTH = 480;
@@ -155,6 +161,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     filesWidth: DEFAULT_FILES_WIDTH,
     lastSeenVersion: null,
     showTelemetry: false,
+    preYolo: null,
   };
 }
 
@@ -208,6 +215,8 @@ export interface AppState {
   titleSettings: TitleSettings | null;
   /** Server-owned sandbox posture; null until the first boot load answers. */
   sandboxSettings: SandboxSettings | null;
+  /** Server-owned YOLO mode; null until the first boot load answers. */
+  yoloSettings: YoloSettings | null;
   prefs: Prefs;
   toasts: Toast[];
   paletteOpen: boolean;
@@ -235,6 +244,10 @@ export interface AppState {
   picker: ComposerPicker | null;
   /** The subscription window Muse last reported; null until a host has seen one. */
   planUsage: PlanUsage | null;
+  /** Every account Helicon can run; null until the first load answers. */
+  accounts: import("../types").AccountView[] | null;
+  /** The plan window per account, from `GET /api/plan-usage` and the `plan-usage` event. */
+  planUsageByAccount: import("../types").PlanUsageByAccount;
   /** Each thread's file viewer. */
   filePanels: Record<string, FilePanel>;
   /** Unsaved edits, by `fileKey(cwd, path)`. */
@@ -246,7 +259,7 @@ export interface AppState {
 }
 
 /** `confirmFullAccess` is the full-access confirmation, which `/permissions full` must still pass through. */
-export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAccess" | "confirmBypass";
+export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAccess" | "confirmBypass" | "confirmYolo";
 
 export interface SkillsState {
   status: "loading" | "ready" | "error";
@@ -271,6 +284,7 @@ export function initialState(prefs: Prefs): AppState {
     models: [],
     titleSettings: null,
     sandboxSettings: null,
+    yoloSettings: null,
     prefs,
     toasts: [],
     paletteOpen: false,
@@ -281,6 +295,8 @@ export function initialState(prefs: Prefs): AppState {
     bypassThreads: [],
     hostError: null,
     planUsage: null,
+    accounts: null,
+    planUsageByAccount: {},
     filePanels: {},
     fileDrafts: {},
     fileVersions: {},
@@ -304,6 +320,24 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
   }
   const pick = <K extends keyof Prefs>(key: K, valid: (v: unknown) => boolean): Prefs[K] =>
     valid(r[key]) ? (r[key] as Prefs[K]) : fallback[key];
+  const isApprovalMode = (v: unknown): boolean =>
+    v === "onRequest" || v === "promptUnmatched" || v === "denyUnmatched" || v === "allowAll";
+  const isPreYolo = (v: unknown): boolean => {
+    if (v === null) {
+      return true;
+    }
+    if (typeof v !== "object") {
+      return false;
+    }
+    const snapshot = v as { defaultMode?: unknown; threads?: unknown };
+    return (
+      isApprovalMode(snapshot.defaultMode) &&
+      typeof snapshot.threads === "object" &&
+      snapshot.threads !== null &&
+      !Array.isArray(snapshot.threads) &&
+      Object.values(snapshot.threads).every((mode) => mode === null || isApprovalMode(mode))
+    );
+  };
   return {
     groupBy: pick("groupBy", (v) => v === "project" || v === "status"),
     theme: pick("theme", (v) => v === "system" || v === "light" || v === "dark"),
@@ -330,5 +364,6 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     filesWidth: pick("filesWidth", (v) => typeof v === "number" && v >= FILES_WIDTH_MIN && v <= FILES_WIDTH_MAX),
     lastSeenVersion: pick("lastSeenVersion", (v) => v === null || typeof v === "string"),
     showTelemetry: pick("showTelemetry", (v) => typeof v === "boolean"),
+    preYolo: pick("preYolo", isPreYolo),
   };
 }

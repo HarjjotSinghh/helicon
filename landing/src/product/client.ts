@@ -22,6 +22,7 @@ import type {
   TranscriptLoad,
   UserInputAnswer,
   WorkflowAction,
+  YoloSettings,
 } from "./types";
 import { listedPrice } from "./model/pricing";
 
@@ -85,7 +86,7 @@ export interface HeliconClient {
   usage(days?: number): Promise<import("./types").UsageReport>;
   listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]>;
   discover(cwd?: string): Promise<void>;
-  startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string }): Promise<SessionSummary>;
+  startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string; accountId?: string | null }): Promise<SessionSummary>;
   loadTranscript(sessionId: string): Promise<TranscriptLoad>;
   /**
    * A server path the browser loads by itself, like an attachment's bytes, returned with whatever the
@@ -110,6 +111,16 @@ export interface HeliconClient {
   setTitleSettings(patch: { enabled?: boolean; modelId?: string | null }): Promise<TitleSettings>;
   getSandboxSettings(): Promise<SandboxSettings>;
   setSandboxSettings(patch: { disabled?: boolean }): Promise<SandboxSettings>;
+  /** Every aonia profile Helicon can run, with its non-secret identity. */
+  listAccounts(): Promise<import("./types").AccountView[]>;
+  /** Makes a profile; `seedFromDefault` copies settings.json and trust.json from the default login. */
+  createAccount(id: string, options?: { name?: string; seedFromDefault?: boolean }): Promise<{ id: string; name: string }>;
+  renameAccount(id: string, name: string): Promise<void>;
+  removeAccount(id: string): Promise<void>;
+  /** Sets which account new threads in a project default to; null clears it. */
+  setProjectDefaultAccount(cwd: string, accountId: string | null): Promise<void>;
+  getYoloSettings(): Promise<YoloSettings>;
+  setYoloSettings(patch: { enabled?: boolean }): Promise<YoloSettings>;
   setSessionModel(sessionId: string, modelId: string): Promise<void>;
   setApprovalMode(sessionId: string, mode: ApprovalMode): Promise<void>;
   /** `noop` when Muse had nothing to summarize; `reason` is its snake_case explanation. */
@@ -137,8 +148,8 @@ export interface HeliconClient {
   workflow(sessionId: string, action: WorkflowAction, workflowRunId: string, child?: { childId: string; attempt: number }): Promise<void>;
   /** One page of a tool's full stored output, from `offset` bytes in. */
   readOutput(sessionId: string, itemId: string, outputRef: string, offset?: number): Promise<OutputRange>;
-  /** The subscription window Muse last saw; null until a host has seen one. */
-  planUsage(): Promise<PlanUsage | null>;
+  /** The window Muse last saw for the default login, plus a per-account map; empty until a host has seen one. */
+  planUsage(): Promise<{ usage: PlanUsage | null; byAccount: import("./types").PlanUsageByAccount }>;
   /** One folder of a project, folders first. `path` is relative to the project; "" is its root. */
   listFiles(cwd: string, path: string): Promise<FileListing>;
   /** A project file: text inline, media described. `path` may also be absolute inside the project. */
@@ -169,6 +180,35 @@ export function parseSandboxSettings(value: unknown): SandboxSettings {
   const r = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
   return {
     disabled: r["disabled"] === true,
+  };
+}
+
+/** Parse the accounts endpoint; malformed entries and non-string ids are dropped. */
+export function parseAccounts(value: unknown): import("./types").AccountView[] {
+  const list = (value as { accounts?: unknown })?.accounts;
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return list.flatMap((raw) => {
+    const a = raw as Record<string, unknown>;
+    if (typeof a["id"] !== "string") {
+      return [];
+    }
+    return [{
+      id: a["id"],
+      name: typeof a["name"] === "string" ? a["name"] : a["id"],
+      hasLogin: a["hasLogin"] === true,
+      email: typeof a["email"] === "string" ? a["email"] : null,
+      lastUsedAt: typeof a["lastUsedAt"] === "string" ? a["lastUsedAt"] : null,
+    }];
+  });
+}
+
+/** Parse the yolo-settings endpoint; malformed answers fall back to YOLO-off. */
+export function parseYoloSettings(value: unknown): YoloSettings {
+  const r = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  return {
+    enabled: r["enabled"] === true,
   };
 }
 

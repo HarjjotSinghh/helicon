@@ -21,6 +21,8 @@ export interface ProjectView {
   displayName: string;
   pinned: boolean;
   activityAt: string;
+  /** The account new threads here default to; null for the default login. */
+  defaultAccountId: string | null;
 }
 
 /** Server-tracked live state for a session; null until the server has seen it run. */
@@ -53,6 +55,8 @@ export interface SessionSummary {
   unsettledAt: string | null;
   /** Sandbox posture at creation; null for threads recorded before tracking. */
   sandboxDisabled: boolean | null;
+  /** The aonia profile this thread runs under; null for the default login. */
+  accountId: string | null;
   live: LiveView | null;
 }
 
@@ -406,6 +410,16 @@ export interface PlanUsage {
   weekly: PlanWindow;
 }
 
+export type PlanUsageByAccount = Record<string, PlanUsage>;
+
+export interface AccountView {
+  id: string;
+  name: string;
+  hasLogin: boolean;
+  email: string | null;
+  lastUsedAt: string | null;
+}
+
 /** What the file viewer does with a file: text and markdown come inline, media is loaded from its own URL. */
 export type FileKind = "text" | "markdown" | "image" | "video" | "audio" | "pdf" | "binary";
 
@@ -472,6 +486,6 @@ export type HeliconEvent =
   | { type: "session-status"; sessionId: string; live: LiveView | null }
   | { type: "sessions-changed" }
   | { type: "shell-run"; sessionId: string; run: ShellRun }
-  | { type: "plan-usage"; usage: PlanUsage }
+  | { type: "plan-usage"; usage: PlanUsage; accountId: string | null }
   | { type: "host"; key: string; state: string; message: string }
   | { type: "connection"; state: "open" | "lost" };
