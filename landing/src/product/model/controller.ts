@@ -1787,6 +1787,17 @@ export class HeliconController {
     } catch {
       /* opening Settings retries the load */
     }
+    void this.loadAccountsHealth();
+  }
+
+  /** Whether META_API_KEY in the environment makes every account share one Meta login. A server without the route leaves this false. */
+  async loadAccountsHealth(): Promise<void> {
+    try {
+      const res = await this.client.accountsHealth();
+      this.update((s) => ({ ...s, metaApiKeyInherited: res.metaApiKeyInherited }));
+    } catch {
+      /* a server without the route leaves the flag false */
+    }
   }
 
   async createAccount(id: string, name?: string, seedFromDefault?: boolean): Promise<boolean> {

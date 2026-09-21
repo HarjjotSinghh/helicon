@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowLeft, Minus, Pencil, Plus, RefreshCw, RotateCw, ScrollText, Trash2 } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft, Minus, Pencil, Plus, RefreshCw, RotateCw, ScrollText, Trash2, TriangleAlert } from "lucide-react";
 import { Switch } from "radix-ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context";
@@ -65,13 +65,15 @@ function Section(props: { title: string; children: ReactNode }) {
   );
 }
 
-function Row(props: { label: string; description?: string; children?: ReactNode }) {
+function Row(props: { label: ReactNode; description?: string; descriptionClassName?: string; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-t border-line px-4 py-3 first:border-t-0">
       {/* A floor on the label, or a wide row of choices squeezes it to one word per line instead of wrapping. */}
       <div className="min-w-[13rem] flex-1 basis-64">
         <p className="text-sm text-fg">{props.label}</p>
-        {props.description ? <p className="mt-0.5 text-xs text-pretty text-muted">{props.description}</p> : null}
+        {props.description ? (
+          <p className={cn("mt-0.5 text-xs text-pretty", props.descriptionClassName ?? "text-muted")}>{props.description}</p>
+        ) : null}
       </div>
       {props.children ? <div className="min-w-0 w-full @min-[520px]:w-auto">{props.children}</div> : null}
     </div>
@@ -243,6 +245,7 @@ export function SettingsPage() {
   const prefs = useApp((s) => s.prefs);
   const models = useApp((s) => s.models);
   const accounts = useApp((s) => s.accounts);
+  const metaApiKeyInherited = useApp((s) => s.metaApiKeyInherited);
   const titleSettings = useApp((s) => s.titleSettings);
   const sandboxSettings = useApp((s) => s.sandboxSettings);
   const env = useApp((s) => s.env);
@@ -368,6 +371,18 @@ export function SettingsPage() {
         </Section>
 
         <Section title="Accounts">
+          {metaApiKeyInherited ? (
+            <Row
+              label={
+                <span className="inline-flex items-center gap-1.5">
+                  <TriangleAlert size={14} className="text-warn-text" />
+                  Accounts share one login
+                </span>
+              }
+              description="META_API_KEY is set in Helicon's environment. Every account inherits it, so they all use the same Meta login. Unset it in your environment to keep accounts separate."
+              descriptionClassName="text-warn-text"
+            />
+          ) : null}
           <Row label="Add account" description="Separate logins for work, personal, or a client. Each runs under its own Muse profile.">
             {accounts === null ? (
               <p className="text-xs text-subtle">Loading…</p>
