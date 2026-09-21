@@ -197,4 +197,36 @@ describe("HeliconStore", () => {
     const unknown = store.recordSession({ id: "s2", projectId: project.id });
     assert.equal(unknown.sandboxDisabled, null, "sessions recorded before tracking stay unknown");
   });
+
+  it("records a session's account and reads it back, defaulting to null", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/proj");
+    const noAccount = store.recordSession({ id: "s1", projectId: project.id });
+    assert.equal(noAccount.accountId, null);
+    const withAccount = store.recordSession({ id: "s2", projectId: project.id, accountId: "work" });
+    assert.equal(withAccount.accountId, "work");
+    assert.equal(store.findSession("s2")?.session.accountId, "work");
+    assert.equal(store.findSession("s1")?.session.accountId, null);
+  });
+
+  it("never overwrites a session's account on a later touch", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/proj");
+    store.recordSession({ id: "s1", projectId: project.id, accountId: "work" });
+    store.recordSession({ id: "s1", projectId: project.id, title: "Renamed" });
+    assert.equal(store.findSession("s1")?.session.accountId, "work");
+  });
+
+  it("sets and clears a project's default account", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/proj");
+    assert.equal(project.defaultAccountId, null);
+    store.setDefaultAccount("/work/proj", "work");
+    assert.equal(store.listProjects().find((p) => p.cwd === "/work/proj")?.defaultAccountId, "work");
+    store.setDefaultAccount("/work/proj", null);
+    assert.equal(store.listProjects().find((p) => p.cwd === "/work/proj")?.defaultAccountId, null);
+  });
 });

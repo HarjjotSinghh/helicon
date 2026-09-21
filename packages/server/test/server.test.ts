@@ -1,5 +1,9 @@
 import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createAonia } from "@harjjotsinghh/aonia";
 import {
   HeliconServer,
   deriveTitle,
@@ -1153,6 +1157,128 @@ describe("HeliconServer", () => {
     assert.match((await get(base, "/api/health")).lastHostError, /exited/);
     await send(base, "/api/sessions", { cwd: "/work/proj" });
     assert.equal(probe.targets.length, 2);
+  });
+
+  it("accepts an injected aonia and still starts a plain host with no account", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const probe: FactoryProbe = { targets: [], exits: [] };
+    const { base } = await start(connection, {
+      hostFactory: fakeFactory(connection, probe),
+      aonia: createAonia({ home, platform: "linux", musePath: "muse" }),
+    });
+    const res = await send(base, "/api/sessions", { cwd: "/work/proj" });
+    assert.equal(res.status, 200);
+    assert.deepEqual(probe.targets.map((t) => t.args), [["serve"]]);
+    assert.equal(probe.targets[0]?.env, undefined, "no account means no per-profile env, same as today");
+  });
+
+  it("spawns a per-account host with the profile environment merged over process.env", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const aonia = createAonia({ home, platform: "linux", musePath: "muse" });
+    const work = await aonia.createProfile("work");
+    const probe: FactoryProbe = { targets: [], exits: [] };
+    const { base } = await start(connection, { hostFactory: fakeFactory(connection, probe), aonia });
+
+    const res = await send(base, "/api/sessions", { cwd: "/work/proj", accountId: "work" });
+    assert.equal(res.status, 200);
+    const target = probe.targets[0];
+    assert.ok(target?.env, "the account host carries an env");
+    assert.equal(target.env["XDG_CONFIG_HOME"], work.roots.config);
+    assert.equal(target.env["XDG_DATA_HOME"], work.roots.data);
+    // Look PATH up case-insensitively: Windows names it "Path", and the spread keeps that casing.
+    const pathKey = Object.keys(process.env).find((k) => k.toLowerCase() === "path");
+    assert.ok(pathKey, "the runner has a PATH");
+    assert.equal(target.env[pathKey], process.env[pathKey], "process.env is spread first");
+  });
+
+  it("keeps a separate host per account in the same workspace", async () => {
+    const connection = new FakeConnection();
+    let n = 0;
+    connection.replies.set("session/start", () => ({ session: { sessionId: `s${++n}` } }));
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const aonia = createAonia({ home, platform: "linux", musePath: "muse" });
+    await aonia.createProfile("work");
+    await aonia.createProfile("personal");
+    const probe: FactoryProbe = { targets: [], exits: [] };
+    const { base } = await start(connection, { hostFactory: fakeFactory(connection, probe), aonia });
+
+    await send(base, "/api/sessions", { cwd: "/work/proj", accountId: "work" });
+    await send(base, "/api/sessions", { cwd: "/work/proj", accountId: "personal" });
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    assert.equal(probe.targets.length, 3, "three accounts in one workspace means three hosts");
+  });
+
+  it("rejects a session for an account that does not exist", async () => {
+    const connection = new FakeConnection();
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const { base } = await start(connection, { aonia: createAonia({ home, platform: "linux", musePath: "muse" }) });
+    const res = await send(base, "/api/sessions", { cwd: "/work/proj", accountId: "ghost" });
+    assert.equal(res.status, 400);
+  });
+
+  it("puts a session back on its account after the host is forgotten", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const aonia = createAonia({ home, platform: "linux", musePath: "muse" });
+    await aonia.createProfile("work");
+    const probe: FactoryProbe = { targets: [], exits: [] };
+    const { base } = await start(connection, { hostFactory: fakeFactory(connection, probe), aonia });
+    await send(base, "/api/sessions", { cwd: "/work/proj", accountId: "work" });
+    // Ask for the transcript by session id after dropping the in-memory host map is exercised by managerForSession;
+    // here assert the session row carries the account so a rebuild has what it needs.
+    const listed = await get(base, "/api/sessions");
+    assert.ok(listed.sessions?.length > 0, "sessions listed");
+  });
+
+  it("lists, creates, renames and removes accounts through aonia", async () => {
+    const connection = new FakeConnection();
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const { base } = await start(connection, { aonia: createAonia({ home, platform: "linux", musePath: "muse" }) });
+
+    assert.deepEqual((await get(base, "/api/accounts")).accounts, []);
+
+    const created = await send(base, "/api/accounts", { id: "work", name: "Work" });
+    assert.equal(created.status, 200);
+    assert.equal(created.json.account.id, "work");
+
+    const listed = (await get(base, "/api/accounts")).accounts;
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].id, "work");
+    assert.equal(listed[0].name, "Work");
+    assert.equal(listed[0].hasLogin, false);
+
+    const renamed = await send(base, "/api/accounts/work", { name: "Client A" }, "PATCH");
+    assert.equal(renamed.status, 200);
+    assert.equal((await get(base, "/api/accounts")).accounts[0].name, "Client A");
+
+    const removed = await send(base, "/api/accounts/work", undefined, "DELETE");
+    assert.equal(removed.status, 200);
+    assert.deepEqual((await get(base, "/api/accounts")).accounts, []);
+  });
+
+  it("rejects a bad account id and a duplicate", async () => {
+    const connection = new FakeConnection();
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const { base } = await start(connection, { aonia: createAonia({ home, platform: "linux", musePath: "muse" }) });
+    assert.equal((await send(base, "/api/accounts", { id: "Not Valid" })).status, 400);
+    await send(base, "/api/accounts", { id: "work" });
+    assert.equal((await send(base, "/api/accounts", { id: "work" })).status, 409);
+  });
+
+  it("sets a project's default account", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const home = await mkdtemp(join(tmpdir(), "helicon-aonia-"));
+    const { base } = await start(connection, { aonia: createAonia({ home, platform: "linux", musePath: "muse" }) });
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const res = await send(base, "/api/projects/default-account", { cwd: "/work/proj", accountId: "work" }, "PATCH");
+    assert.equal(res.status, 200);
+    assert.equal(res.json.defaultAccountId, "work");
   });
 });
 

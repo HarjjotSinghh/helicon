@@ -10,6 +10,8 @@ export interface Project {
   updatedAt: string;
   /** Latest activity across the project's visible sessions, or its creation time. */
   activityAt: string;
+  /** The aonia profile new threads in this project default to; null for the default login. */
+  defaultAccountId: string | null;
 }
 
 /** How a session title was chosen; a higher rank is never overwritten by a lower one. */
@@ -36,6 +38,8 @@ export interface SessionRecord {
   unsettledAt: string | null;
   /** Sandbox posture at creation: null for sessions recorded before tracking. */
   sandboxDisabled: boolean | null;
+  /** The aonia profile a session was created under; null for the default login. Set once, never changed. */
+  accountId: string | null;
 }
 
 export type SettledOverride = "settled" | "active";
@@ -60,6 +64,8 @@ export interface RecordSessionInput {
   activityAt?: string;
   /** Creation posture; later touches never overwrite it. */
   sandboxDisabled?: boolean | null;
+  /** Creation account; later touches never overwrite it. */
+  accountId?: string | null;
 }
 
 export interface SessionPatch {
@@ -210,6 +216,9 @@ const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: "sessions", column: "unsettled_at", ddl: "ALTER TABLE sessions ADD COLUMN unsettled_at TEXT" },
   // NULL for sessions recorded before posture tracking; only new rows carry a value.
   { table: "sessions", column: "sandbox_disabled", ddl: "ALTER TABLE sessions ADD COLUMN sandbox_disabled INTEGER" },
+  // NULL = the default Muse login, i.e. today's behaviour; only sessions started under a profile carry an id.
+  { table: "sessions", column: "account_id", ddl: "ALTER TABLE sessions ADD COLUMN account_id TEXT" },
+  { table: "projects", column: "default_account_id", ddl: "ALTER TABLE projects ADD COLUMN default_account_id TEXT" },
 ];
 
 type Row = Record<string, string | number | null>;
@@ -536,6 +545,13 @@ export class HeliconStore {
       .run(hidden ? 1 : 0, nowIso(), cwd);
   }
 
+  /** Which account new threads here default to; null clears it back to the default login. */
+  setDefaultAccount(cwd: string, accountId: string | null): void {
+    this.db
+      .prepare(`UPDATE projects SET default_account_id = ?, updated_at = ? WHERE cwd = ?`)
+      .run(accountId, nowIso(), cwd);
+  }
+
   /**
    * Files the user attached to a prompt. Muse keeps only their metadata on the view, so the bytes live here
    * and a reopened thread can still show what was sent.
@@ -599,8 +615,8 @@ export class HeliconStore {
       this.db
         .prepare(
           `INSERT INTO sessions (id, project_id, title, title_source, status, turn_count, model_id, origin,
-             archived, sandbox_disabled, created_at, updated_at, activity_at)
-           VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 0, ?, ?, ?, ?)`,
+             archived, sandbox_disabled, account_id, created_at, updated_at, activity_at)
+           VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
         )
         .run(
           input.id,
@@ -611,6 +627,7 @@ export class HeliconStore {
           input.modelId ?? null,
           input.origin ?? "helicon",
           input.sandboxDisabled === undefined || input.sandboxDisabled === null ? null : input.sandboxDisabled ? 1 : 0,
+          input.accountId ?? null,
           input.createdAt ?? now,
           now,
           input.activityAt ?? input.createdAt ?? now,
@@ -782,6 +799,7 @@ export class HeliconStore {
       createdAt: String(row["created_at"]),
       updatedAt: String(row["updated_at"]),
       activityAt: String(row["activity_at"] ?? row["created_at"]),
+      defaultAccountId: row["default_account_id"] === null || row["default_account_id"] === undefined ? null : String(row["default_account_id"]),
     };
   }
 
@@ -804,6 +822,7 @@ export class HeliconStore {
       settledAt: row["settled_at"] === null || row["settled_at"] === undefined ? null : String(row["settled_at"]),
       unsettledAt: row["unsettled_at"] === null || row["unsettled_at"] === undefined ? null : String(row["unsettled_at"]),
       sandboxDisabled: row["sandbox_disabled"] === null || row["sandbox_disabled"] === undefined ? null : Number(row["sandbox_disabled"]) === 1,
+      accountId: row["account_id"] === null || row["account_id"] === undefined ? null : String(row["account_id"]),
     };
   }
 }

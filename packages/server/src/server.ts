@@ -43,6 +43,7 @@ import {
 import { FileError, listFolder, readProjectFile, resolveInRoot, searchProjectFiles, serveProjectFile, writeProjectFile } from "./files.js";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
 import { buildThreadTitlePrompt, deriveTitle, parseExecTitle, sanitizeThreadTitle } from "./threadTitles.js";
+import { AoniaError, createAonia, type Aonia } from "@harjjotsinghh/aonia";
 
 export const HELICON_VERSION = "0.15.0";
 
@@ -94,6 +95,8 @@ export interface ServerOptions {
   platform?: string;
   distro?: string;
   musePath?: string | null;
+  /** Named Muse profiles. Defaults to a real aonia over ~/.aonia; injected in tests. */
+  aonia?: Aonia;
   /** On Windows: `native` runs Windows Muse, `wsl` runs Muse in WSL, `auto` (the default) prefers native once installed. */
   runtime?: RuntimePreference;
   /** Finds native Windows Muse; the real install folders by default. */
@@ -112,6 +115,7 @@ export interface ServerOptions {
 
 interface ManagedHost {
   key: string;
+  accountId: string | null;
   target: ServeTarget;
   handle: HostHandle;
   manager: SessionManager;
@@ -606,6 +610,7 @@ interface PreparedAttachment {
 export class HeliconServer {
   private readonly server: Server;
   private readonly store: HeliconStore;
+  private readonly aonia: Aonia;
   private readonly hosts = new Map<string, ManagedHost>();
   private readonly starting = new Map<string, Promise<ManagedHost>>();
   /** Restarts queued by a settings flip, oldest first. Hosts are only acquired past the tail. */
@@ -646,7 +651,10 @@ export class HeliconServer {
   private runtimeKnown: MuseRuntime | null = null;
   private closed = false;
   private readonly options: Required<
-    Omit<ServerOptions, "staticDir" | "token" | "platform" | "distro" | "musePath" | "hostFactory" | "opener" | "exec" | "findNativeMuse">
+    Omit<
+      ServerOptions,
+      "staticDir" | "token" | "platform" | "distro" | "musePath" | "hostFactory" | "opener" | "exec" | "findNativeMuse" | "aonia"
+    >
   > &
     Pick<ServerOptions, "staticDir" | "token" | "findNativeMuse"> & {
       platform: string;
@@ -679,6 +687,7 @@ export class HeliconServer {
     this.store = new HeliconStore(
       this.options.dataDir === ":memory:" ? ":memory:" : join(this.options.dataDir, "helicon.db"),
     );
+    this.aonia = options.aonia ?? createAonia(this.options.musePath ? { musePath: this.options.musePath } : {});
     this.server = createServer((req, res) => {
       void this.route(req, res).catch((error) => this.fail(res, 500, String(error)));
     });
@@ -1101,10 +1110,15 @@ export class HeliconServer {
       if (mode !== undefined && mode !== null && !isApprovalMode(mode)) {
         throw new HttpError(400, "Unknown approvalMode.");
       }
+      const accountRaw = body["accountId"];
+      if (accountRaw !== undefined && accountRaw !== null && typeof accountRaw !== "string") {
+        throw new HttpError(400, "accountId must be a string.");
+      }
       const session = await this.startSession(
         normalizeCwd(raw),
         mode === undefined || mode === null ? undefined : (mode as ApprovalMode),
         str(body["modelId"]) ?? undefined,
+        typeof accountRaw === "string" && accountRaw.length > 0 ? accountRaw : null,
       );
       this.json(res, 200, { session });
       return true;
@@ -1390,6 +1404,70 @@ export class HeliconServer {
         this.restartChain = run.catch(() => undefined);
       }
       this.json(res, 200, next);
+      return true;
+    }
+    if (method === "GET" && path === "/api/accounts") {
+      this.json(res, 200, { accounts: await this.accountList() });
+      return true;
+    }
+    if (method === "POST" && path === "/api/accounts") {
+      const body = await this.readBody(req);
+      const id = str(body["id"]);
+      if (!id) {
+        throw new HttpError(400, "id is required.");
+      }
+      const name = str(body["name"]);
+      const seed = body["seedFromDefault"] === true;
+      try {
+        const profile = await this.aonia.createProfile(id, {
+          ...(name ? { name } : {}),
+          seedFromDefault: seed,
+        });
+        this.json(res, 200, { account: { id: profile.id, name: profile.name } });
+      } catch (error) {
+        throw this.accountError(error);
+      }
+      return true;
+    }
+    if (method === "PATCH" && path.startsWith("/api/accounts/")) {
+      const id = decodeURIComponent(path.slice("/api/accounts/".length));
+      const body = await this.readBody(req);
+      const name = str(body["name"]);
+      if (!name) {
+        throw new HttpError(400, "name is required.");
+      }
+      try {
+        await this.aonia.renameProfile(id, name);
+      } catch (error) {
+        throw this.accountError(error);
+      }
+      this.json(res, 200, { ok: true });
+      return true;
+    }
+    if (method === "DELETE" && path.startsWith("/api/accounts/")) {
+      const id = decodeURIComponent(path.slice("/api/accounts/".length));
+      try {
+        await this.aonia.removeProfile(id);
+      } catch (error) {
+        throw this.accountError(error);
+      }
+      this.json(res, 200, { ok: true });
+      return true;
+    }
+    if (method === "PATCH" && path === "/api/projects/default-account") {
+      const body = await this.readBody(req);
+      const cwd = str(body["cwd"]);
+      if (!cwd) {
+        throw new HttpError(400, "cwd is required.");
+      }
+      const accountRaw = body["accountId"];
+      if (accountRaw !== undefined && accountRaw !== null && typeof accountRaw !== "string") {
+        throw new HttpError(400, "accountId must be a string or null.");
+      }
+      const accountId = typeof accountRaw === "string" && accountRaw.length > 0 ? accountRaw : null;
+      this.store.upsertProject(normalizeCwd(cwd));
+      this.store.setDefaultAccount(normalizeCwd(cwd), accountId);
+      this.json(res, 200, { defaultAccountId: accountId });
       return true;
     }
     if (method === "GET" && path === "/api/usage") {
@@ -1814,6 +1892,11 @@ export class HeliconServer {
     return cwd;
   }
 
+  /** One host per (account, workspace). "default" stands in for the default login so today's keys are unchanged in spirit. */
+  private hostKey(cwd: string, accountId: string | null): string {
+    return `${accountId ?? "default"}::${this.hostPathFor(cwd) || "__default__"}`;
+  }
+
   private storePathFor(remoteRoot: string): string {
     if (this.options.platform === "win32" && isWindowsAbs(remoteRoot)) {
       // Native Muse may spell a folder `d:/work`; the store keeps one spelling, `D:\\work`.
@@ -2024,10 +2107,15 @@ export class HeliconServer {
     return this.summary(record, found.cwd);
   }
 
-  private async startSession(cwd: string, approvalMode?: ApprovalMode, modelId?: string): Promise<Record<string, unknown>> {
+  private async startSession(
+    cwd: string,
+    approvalMode?: ApprovalMode,
+    modelId?: string,
+    accountId: string | null = null,
+  ): Promise<Record<string, unknown>> {
     const project = this.store.upsertProject(cwd);
     this.store.setHidden(cwd, false);
-    const host = await this.hostFor(cwd);
+    const host = await this.hostFor(cwd, accountId);
     const started = await host.manager.startSession({
       workspaceRoot: this.hostPathFor(cwd),
       approvalMode,
@@ -2042,8 +2130,12 @@ export class HeliconServer {
       createdAt: normalizeIso(raw?.["createdAt"]),
       // The creating host's own flags, not the live switch: a flip's restart may still be closing the old host.
       sandboxDisabled: host.target.args.includes("--disable-sandbox"),
+      accountId,
     });
     this.sessionHosts.set(started.sessionId, host.key);
+    if (accountId) {
+      await this.aonia.touch(accountId).catch(() => undefined);
+    }
     this.liveFor(started.sessionId);
     this.sessionsChanged();
     return this.summary(record, cwd);
@@ -2303,7 +2395,7 @@ export class HeliconServer {
     // A goal change can land while this load is in flight; history must not then write the older goal back.
     const goalSeqAtStart = this.liveFor(sessionId).goalSeq;
     const found = this.store.findSession(sessionId);
-    const host = await this.hostFor(found?.cwd ?? "");
+    const host = await this.hostFor(found?.cwd ?? "", found?.session.accountId ?? null);
     const manager = host.manager;
     let readOnly = false;
     let readOnlyReason: string | null = null;
@@ -2633,16 +2725,16 @@ export class HeliconServer {
       return loaded.manager;
     }
     const found = this.store.findSession(sessionId);
-    return (await this.hostFor(found?.cwd ?? "")).manager;
+    return (await this.hostFor(found?.cwd ?? "", found?.session.accountId ?? null)).manager;
   }
 
-  private async hostFor(cwd: string): Promise<ManagedHost> {
+  private async hostFor(cwd: string, accountId: string | null = null): Promise<ManagedHost> {
     await this.museRuntime();
     // A flip's restart runs past its PATCH response. Wait it out so a new session never
     // starts on a host with the previous posture. Starts never wait for the chain, so this
     // cannot deadlock against the restart awaiting them.
     await this.restartChain;
-    const key = this.hostPathFor(cwd) || "__default__";
+    const key = this.hostKey(cwd, accountId);
     const existing = this.hosts.get(key);
     if (existing) {
       return existing;
@@ -2654,7 +2746,7 @@ export class HeliconServer {
     if (this.closed) {
       throw new HttpError(503, "Helicon is shutting down.");
     }
-    const startup = this.spawnHost(key, cwd);
+    const startup = this.spawnHost(key, cwd, accountId);
     this.starting.set(key, startup);
     try {
       return await startup;
@@ -2663,8 +2755,8 @@ export class HeliconServer {
     }
   }
 
-  private async spawnHost(key: string, cwd: string): Promise<ManagedHost> {
-    const target = await this.serveTargetFor(cwd);
+  private async spawnHost(key: string, cwd: string, accountId: string | null): Promise<ManagedHost> {
+    const target = await this.serveTargetFor(cwd, accountId);
     const handle = this.options.hostFactory(target);
     let started: { fingerprintWarning?: unknown; initializeResult?: unknown } | null;
     try {
@@ -2691,6 +2783,7 @@ export class HeliconServer {
     const serverInfo = asRecord(asRecord(started?.initializeResult)?.["serverInfo"]);
     const managed: ManagedHost = {
       key,
+      accountId,
       target,
       handle,
       manager,
@@ -2762,7 +2855,44 @@ export class HeliconServer {
     }
   }
 
-  private async serveTargetFor(cwd: string): Promise<ServeTarget> {
+  private async accountList(): Promise<Record<string, unknown>[]> {
+    const profiles = await this.aonia.listProfiles();
+    return Promise.all(
+      profiles.map(async (profile) => {
+        const identity = await this.aonia.identityOf(profile);
+        return {
+          id: profile.id,
+          name: profile.name,
+          hasLogin: identity.hasLogin,
+          email: identity.email,
+          lastUsedAt: profile.lastUsedAt,
+        };
+      }),
+    );
+  }
+
+  /** Turns an aonia error into the right HTTP status: a duplicate is 409, a bad id or missing profile is 400. */
+  private accountError(error: unknown): HttpError {
+    if (error instanceof AoniaError) {
+      if (error.code === "profile_exists") {
+        return new HttpError(409, error.message);
+      }
+      return new HttpError(400, error.message);
+    }
+    return new HttpError(500, error instanceof Error ? error.message : String(error));
+  }
+
+  private async serveTargetFor(cwd: string, accountId: string | null = null): Promise<ServeTarget> {
+    let profileEnv: Record<string, string> | null = null;
+    if (accountId) {
+      let profile;
+      try {
+        profile = await this.aonia.getProfile(accountId);
+      } catch (error) {
+        throw new HttpError(400, error instanceof Error ? error.message : `Unknown account "${accountId}".`);
+      }
+      profileEnv = this.aonia.envFor(profile);
+    }
     // Sandbox posture is fixed at spawn: every host carries the settings as they stand now.
     const sandboxDisabled = this.store.getSandboxSettings().disabled;
     const yoloEnabled = this.store.getYoloSettings().enabled;
@@ -2772,7 +2902,12 @@ export class HeliconServer {
       ...(yoloEnabled ? ["--trust-workspace"] : []),
     ];
     if (this.options.platform !== "win32") {
-      return { command: this.options.musePath ?? "muse", args: serveArgs, cwd: cwd || process.cwd() };
+      return {
+        command: this.options.musePath ?? "muse",
+        args: serveArgs,
+        cwd: cwd || process.cwd(),
+        ...(profileEnv ? { env: { ...process.env, ...profileEnv } } : {}),
+      };
     }
     const runtime = await this.museRuntime();
     let musePath = this.options.musePath ?? null;
@@ -2789,9 +2924,12 @@ export class HeliconServer {
         command: musePath,
         args: serveArgs,
         cwd: this.spawnCwdFor(cwd) || process.cwd(),
-        ...(releaseInfo ? { env: { ...process.env, MUSE_RELEASE_INFO: releaseInfo } } : {}),
+        ...(releaseInfo || profileEnv
+          ? { env: { ...process.env, ...(releaseInfo ? { MUSE_RELEASE_INFO: releaseInfo } : {}), ...(profileEnv ?? {}) } }
+          : {}),
       };
     }
+    // WSL profile env passthrough is P3 (needs WSLENV); accounts on WSL are a later change.
     const plan = planServe({
       platform: "win32",
       distro: this.options.distro ?? "Ubuntu",
