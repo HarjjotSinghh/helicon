@@ -512,7 +512,7 @@ export class HeliconController {
     this.update((s) => ({ ...s, discovering: true }));
     try {
       await this.client.discover();
-      await this.refresh();
+      await Promise.all([this.refresh(), this.loadPlanUsage()]);
       if (!silent) {
         this.toast("success", "Threads refreshed");
       }
