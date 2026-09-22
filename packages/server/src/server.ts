@@ -46,7 +46,7 @@ import { PathError, createDirectory, listDirectory, resolveUserPath, type PathCo
 import { buildThreadTitlePrompt, deriveTitle, parseExecTitle, sanitizeThreadTitle } from "./threadTitles.js";
 import { AoniaError, createAonia, parseLoginOutput, type Aonia, type Profile } from "@harjjotsinghh/aonia";
 
-export const HELICON_VERSION = "0.15.0";
+export const HELICON_VERSION = "0.16.0";
 
 export interface HostExit {
   code: number | null;

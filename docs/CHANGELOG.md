@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.16.0
+
+### New
+
+- **More than one Muse login** ([#45](https://github.com/HarjjotSinghh/helicon/issues/45)). Settings has an Accounts panel: add a named profile, rename it, remove it, and sign in to it without leaving the app. Helicon runs `muse login` under that profile and shows you the device link and code; when Muse runs in WSL it gives you the one command to run in a terminal instead. Each project remembers which account its new threads start on, set from a picker beside the model picker, and threads running under a named profile carry a small chip in the sidebar. The usage page shows a plan meter per account, and when the account you are about to use is near its cap and another has room, the new-thread screen says so; nothing switches on its own. Profiles are managed by [aonia](https://github.com/HarjjotSinghh/aonia), so the CLI still owns every login and Helicon stores no credentials. If `META_API_KEY` is set, every profile inherits it and shares one login, and Settings warns you. With no profiles configured, nothing changes.
+- **YOLO mode** (built by [@margantcovka](https://github.com/margantcovka) in [#46](https://github.com/HarjjotSinghh/helicon/pull/46)). One switch for the full `muse --yolo` posture: no approvals, no sandbox, trusted workspace. It sits in the permissions menu and in Settings, behind a confirmation. Approvals turn off for every open thread at once; the sandbox part applies to new threads only, for the same reason as the sandbox switch in 0.15.0. Switching it off restores the modes you had before.
+
+### Fixed
+
+- **Refreshing threads also refreshes plan usage** ([#50](https://github.com/HarjjotSinghh/helicon/issues/50), fixed by [@aminamos](https://github.com/aminamos) in [#51](https://github.com/HarjjotSinghh/helicon/pull/51)). The refresh button re-read your sessions but not your usage, so work done in the terminal never moved the meter until something else did.
+
 ## 0.15.0
 
 ### New
