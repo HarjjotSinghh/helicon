@@ -601,6 +601,19 @@ function RowMeta(props: { session: SessionSummary; showProject?: boolean }) {
   );
 }
 
+function AccountBadge({ accountId }: { accountId: string | null }) {
+  const account = useApp((s) => s.accounts?.find((a) => a.id === accountId) ?? null);
+  if (!accountId || !account) return null;
+  return (
+    <span
+      title={`Account: ${account.name}`}
+      className="max-w-[7rem] shrink-0 truncate rounded bg-active px-1 py-px text-2xs font-medium text-muted"
+    >
+      {account.name}
+    </span>
+  );
+}
+
 export const ThreadRow = memo(
   function ThreadRow(props: { entry: SidebarEntry; active: boolean; now: number; showProject?: boolean; settled?: boolean }) {
     const controller = useController();
@@ -651,10 +664,11 @@ export const ThreadRow = memo(
                     <ShieldOff size={12} aria-hidden="true" />
                   </span>
                 ) : null}
+                <AccountBadge accountId={session.accountId} />
                 <span className="min-w-0 flex-1 truncate">{session.title}</span>
               </span>
               {props.settled ? null : <RowMeta session={session} showProject={props.showProject} />}
-              <span className="sr-only">{`, ${STATUS_LABEL[status]}${session.sandboxDisabled === true ? ", sandbox off" : ""}`}</span>
+              <span className="sr-only">{`, ${STATUS_LABEL[status]}${session.sandboxDisabled === true ? ", sandbox off" : ""}${session.accountId ? ", using a separate account" : ""}`}</span>
             </button>
           )}
           {renaming ? null : (

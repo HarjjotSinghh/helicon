@@ -13,6 +13,7 @@ import {
   ShieldQuestion,
   Square,
   SquareTerminal,
+  UserRound,
   Zap,
 } from "lucide-react";
 import {
@@ -449,6 +450,7 @@ export function Composer(props: ComposerProps) {
         <ModelPicker sessionId={props.sessionId} side={props.variant === "home" ? "bottom" : "top"} />
         <EffortPicker side={props.variant === "home" ? "bottom" : "top"} />
         <AccessPicker sessionId={props.sessionId} side={props.variant === "home" ? "bottom" : "top"} />
+        <AccountPicker sessionId={props.sessionId} cwd={props.cwd} variant={props.variant} />
         <span className="min-w-2 flex-1" />
         {props.sessionId ? <SpeedReadout sessionId={props.sessionId} /> : null}
         {props.sessionId ? <CostMeter sessionId={props.sessionId} /> : null}
@@ -570,6 +572,41 @@ function ModelPicker(props: { sessionId: string | null; side: PickerSide }) {
             ))}
           </MenuRadioGroup>
         )}
+      </MenuContent>
+    </Menu>
+  );
+}
+
+/**
+ * Sets the project's default account for new threads (`startThread` reads `project.defaultAccountId`); no
+ * transient state of its own. Shows only on the new-thread composer, and only once accounts exist. On an
+ * existing thread the account is fixed at spawn and shown by the sidebar badge instead.
+ */
+function AccountPicker(props: { sessionId: string | null; cwd: string | null; variant: "thread" | "home" }) {
+  const controller = useController();
+  const accounts = useApp((s) => s.accounts);
+  const open = useApp((s) => s.picker === "account");
+  const current = useApp((s) => s.projects.find((p) => p.cwd === props.cwd)?.defaultAccountId ?? null);
+  if (props.sessionId !== null || !props.cwd || !(accounts && accounts.length > 0)) {
+    return null;
+  }
+  const label = accounts.find((a) => a.id === current)?.name ?? "Default login";
+  return (
+    <Menu open={open} onOpenChange={(next) => (next ? controller.setPicker("account") : controller.closePicker("account"))}>
+      <MenuTrigger asChild>
+        <ToolbarTrigger aria-label={`Account: ${label}`} icon={<UserRound size={13} />} label={<span className="truncate">{label}</span>} />
+      </MenuTrigger>
+      <MenuContent side={props.variant === "home" ? "bottom" : "top"} className="w-[300px]">
+        <MenuLabel>Account</MenuLabel>
+        <MenuRadioGroup
+          value={current ?? ""}
+          onValueChange={(value) => void controller.setProjectDefaultAccount(props.cwd as string, value || null)}
+        >
+          <MenuOption value="" label="Default login" />
+          {accounts.map((a) => (
+            <MenuOption key={a.id} value={a.id} label={a.name} description={a.hasLogin ? (a.email ?? "Signed in") : "Not signed in"} />
+          ))}
+        </MenuRadioGroup>
       </MenuContent>
     </Menu>
   );

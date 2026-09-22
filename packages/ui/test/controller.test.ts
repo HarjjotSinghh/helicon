@@ -292,6 +292,19 @@ class FakeClient implements HeliconClient {
       throw error;
     }
   }
+  metaApiKeyInherited = false;
+  async accountsHealth() {
+    return { metaApiKeyInherited: this.metaApiKeyInherited };
+  }
+  loginAccountResult: { url: string; code: string | null } | { fallback: string } = {
+    url: "https://auth.meta.com/oauth/device/?code=TEST-CODE",
+    code: "TEST-CODE",
+  };
+  loginAccountCalls: string[] = [];
+  async loginAccount(id: string) {
+    this.loginAccountCalls.push(id);
+    return this.loginAccountResult;
+  }
   writes: { path: string; content: string; baseMtimeMs: number | null }[] = [];
   writeError: Error | null = null;
   async listFiles(_cwd: string, path: string) {
@@ -1415,6 +1428,82 @@ describe("HeliconController", () => {
     assert.equal(await controller.createAccount("work", "Work"), true);
     assert.ok(client.accountCalls.some((c) => c.kind === "create" && c.id === "work"));
     assert.deepEqual(controller.store.get().accounts?.map((a) => a.id), ["work"]);
+  });
+
+  it("flips metaApiKeyInherited when the client reports it", async () => {
+    const client = new FakeClient();
+    const controller = new HeliconController(client, platform());
+    assert.equal(controller.store.get().metaApiKeyInherited, false);
+    client.metaApiKeyInherited = true;
+    await controller.loadAccountsHealth();
+    assert.equal(controller.store.get().metaApiKeyInherited, true);
+  });
+
+  it("refreshes metaApiKeyInherited as part of loadAccounts", async () => {
+    const client = new FakeClient();
+    client.metaApiKeyInherited = true;
+    const controller = new HeliconController(client, platform());
+    await controller.loadAccounts();
+    await settle();
+    assert.equal(controller.store.get().metaApiKeyInherited, true);
+  });
+
+  it("begins a device-code login, waits, then flips to done once hasLogin turns true", async () => {
+    const client = new FakeClient();
+    client.accounts = [{ id: "work", name: "Work", hasLogin: false, email: null, lastUsedAt: null }];
+    const controller = new HeliconController(client, platform());
+
+    const login = controller.beginLogin("work");
+    // The modal opens right away with an empty marker, before the server has answered.
+    const pending = controller.store.get().accountLogin;
+    assert.equal(pending?.accountId, "work");
+
+    await login;
+    const waiting = controller.store.get().accountLogin;
+    assert.ok(waiting && "status" in waiting && waiting.status === "waiting", "resolves to the waiting device shape");
+    assert.equal((waiting as { url: string }).url, "https://auth.meta.com/oauth/device/?code=TEST-CODE");
+    assert.equal((waiting as { code: string | null }).code, "TEST-CODE");
+    assert.equal(client.loginAccountCalls.length, 1);
+
+    const account = client.accounts.find((a) => a.id === "work");
+    assert.ok(account);
+    account.hasLogin = true;
+
+    await settle();
+    const done = controller.store.get().accountLogin;
+    assert.ok(done && "status" in done && done.status === "done", "the poll flips status to done once hasLogin is true");
+  });
+
+  it("stores the fallback shape when the login route reports one", async () => {
+    const client = new FakeClient();
+    client.accounts = [{ id: "work", name: "Work", hasLogin: false, email: null, lastUsedAt: null }];
+    client.loginAccountResult = { fallback: "In-app login is not available when Muse runs in WSL." };
+    const controller = new HeliconController(client, platform());
+
+    await controller.beginLogin("work");
+    const login = controller.store.get().accountLogin;
+    assert.ok(login && !("status" in login));
+    assert.equal((login as { fallback: string }).fallback, "In-app login is not available when Muse runs in WSL.");
+  });
+
+  it("cancelLogin clears the state and stops the poll", async () => {
+    const client = new FakeClient();
+    client.accounts = [{ id: "work", name: "Work", hasLogin: false, email: null, lastUsedAt: null }];
+    const controller = new HeliconController(client, platform());
+
+    await controller.beginLogin("work");
+    assert.ok(controller.store.get().accountLogin);
+
+    controller.cancelLogin();
+    assert.equal(controller.store.get().accountLogin, null);
+
+    // The poll must not resurrect state after cancel, and must not call loginAccount again.
+    const account = client.accounts.find((a) => a.id === "work");
+    assert.ok(account);
+    account.hasLogin = true;
+    await settle();
+    assert.equal(controller.store.get().accountLogin, null);
+    assert.equal(client.loginAccountCalls.length, 1);
   });
 
   it("renames and removes accounts, reloading the list each time", async () => {
