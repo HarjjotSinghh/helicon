@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.0
+
+### Changed
+
+- **New icons, one set everywhere** ([#16](https://github.com/HarjjotSinghh/helicon/issues/16)). Helicon now uses [Phosphor](https://phosphoricons.com) icons throughout, the same family as the website, so the app, the web build and the live demos on helicon.sh finally match. Every icon keeps its meaning and place; they are slightly rounder and a touch more solid. The stop button is a filled square, and the Windows, macOS, Linux and GitHub marks on the site come from the same set.
+
 ## 0.16.1
 
 ### Fixed

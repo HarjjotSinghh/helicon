@@ -9,6 +9,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    "version": "0.17.0",
+    "body": "### Changed\n\n- **New icons, one set everywhere** ([#16](https://github.com/HarjjotSinghh/helicon/issues/16)). Helicon now uses [Phosphor](https://phosphoricons.com) icons throughout, the same family as the website, so the app, the web build and the live demos on helicon.sh finally match. Every icon keeps its meaning and place; they are slightly rounder and a touch more solid. The stop button is a filled square, and the Windows, macOS, Linux and GitHub marks on the site come from the same set."
+  },
+  {
     "version": "0.16.1",
     "body": "### Fixed\n\n- **A turn waiting on your answer is no longer treated as stuck** ([#54](https://github.com/HarjjotSinghh/helicon/issues/54), reported by [@ntindle](https://github.com/ntindle)). When Muse asked a question and you took more than a minute or so to answer, Helicon read the quiet as a dead connection: it reloaded the thread twice, then said the thread had stopped receiving updates, and could show the turn as failed even though it carried on as soon as you answered. A thread waiting on a question or an approval is now left alone for as long as it waits."
   },
