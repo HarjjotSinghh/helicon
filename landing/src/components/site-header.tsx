@@ -12,6 +12,7 @@ import { REPO_URL } from "@/lib/site";
 import type { PageCopy } from "@/lib/copy";
 import { GitHubLogo } from "./os-logos";
 import { MobileNav } from "./mobile-nav";
+import { SiteSearch } from "./seo/site-search";
 import { ThemeToggle } from "./theme-toggle";
 import { Logo, Rule, buttonClass } from "./ui";
 import { TrackedLink } from "./tracked-link";
@@ -77,6 +78,7 @@ export function SiteHeader({
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
+          <SiteSearch />
           <ThemeToggle className="max-sm:hidden" />
           <TrackedLink
             href={REPO_URL}
