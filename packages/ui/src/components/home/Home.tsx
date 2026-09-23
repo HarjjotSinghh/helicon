@@ -1,4 +1,4 @@
-import { Check, ChevronDown, FolderPlus, RefreshCw } from "lucide-react";
+import { ArrowsClockwiseIcon, CaretDownIcon, CheckIcon, FolderPlusIcon } from "../ui/icons.js";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { relativeTime, shortenPath } from "../../model/format.js";
@@ -133,7 +133,7 @@ function ProjectSwitcher(props: { project: ProjectView; projects: ProjectView[] 
           className="inline-flex items-baseline gap-1 rounded-md text-accent-text underline decoration-dotted decoration-[1.5px] underline-offset-[7px] outline-offset-4 transition-colors hover:decoration-solid data-[state=open]:decoration-solid"
         >
           {props.project.displayName}
-          <ChevronDown size={22} strokeWidth={1.75} className="translate-y-[3px] self-center" aria-hidden="true" />
+          <CaretDownIcon weight="regular" size={22} className="translate-y-[3px] self-center" aria-hidden="true" />
         </button>
       </MenuTrigger>
       <MenuContent className="w-[320px]">
@@ -152,7 +152,7 @@ function ProjectSwitcher(props: { project: ProjectView; projects: ProjectView[] 
           ))}
         </MenuRadioGroup>
         <MenuSeparator />
-        <MenuItem icon={<FolderPlus size={14} />} onSelect={() => controller.setAddProjectOpen(true)}>
+        <MenuItem icon={<FolderPlusIcon size={14} />} onSelect={() => controller.setAddProjectOpen(true)}>
           Add project
         </MenuItem>
       </MenuContent>
@@ -281,7 +281,7 @@ export function Onboarding() {
                 )}
                 aria-label={step.ok === true ? "Done" : step.ok === false ? "Needs attention" : "Check yourself"}
               >
-                {step.ok === true ? <Check size={13} strokeWidth={3} /> : index + 1}
+                {step.ok === true ? <CheckIcon size={13} /> : index + 1}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-fg">{step.title}</p>
@@ -298,7 +298,7 @@ export function Onboarding() {
         </ol>
         <div className="mt-6">
           <Button variant="primary" onClick={() => controller.retryBoot()} loading={checking}>
-            <RefreshCw size={14} /> Check again
+            <ArrowsClockwiseIcon size={14} /> Check again
           </Button>
         </div>
       </div>
@@ -330,7 +330,7 @@ export function BootError() {
         <p className="mt-3 text-sm break-words text-muted">{message ?? "The local Helicon server did not answer."}</p>
         <div className="mt-6">
           <Button variant="primary" onClick={() => controller.retryBoot()}>
-            <RefreshCw size={14} /> Try again
+            <ArrowsClockwiseIcon size={14} /> Try again
           </Button>
         </div>
       </div>

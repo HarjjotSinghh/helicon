@@ -1,18 +1,4 @@
-import {
-  ArrowDownToLine,
-  ArrowLeft,
-  CircleCheck,
-  ExternalLink,
-  LogIn,
-  Minus,
-  Pencil,
-  Plus,
-  RefreshCw,
-  RotateCw,
-  ScrollText,
-  Trash2,
-  TriangleAlert,
-} from "lucide-react";
+import { ArrowClockwiseIcon, ArrowLeftIcon, ArrowLineDownIcon, ArrowSquareOutIcon, ArrowsClockwiseIcon, CheckCircleIcon, MinusIcon, PencilSimpleIcon, PlusIcon, ScrollIcon, SignInIcon, TrashIcon, WarningIcon } from "../ui/icons";
 import { Switch } from "radix-ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context";
@@ -298,7 +284,7 @@ function DeviceLoginModal(props: { login: AccountLoginState | null; controller: 
       {login && !isFallback && "status" in login ? (
         isDone ? (
           <p className="mt-4 flex items-center gap-2 text-sm text-fg">
-            <CircleCheck size={16} className="text-ok-text" /> Signed in.
+            <CheckCircleIcon size={16} className="text-ok-text" /> Signed in.
           </p>
         ) : (
           <div className="mt-4 flex flex-col gap-3">
@@ -315,7 +301,7 @@ function DeviceLoginModal(props: { login: AccountLoginState | null; controller: 
               </Button>
               {login.url ? (
                 <OpenLinkButton href={login.url}>
-                  <ExternalLink size={14} /> Open sign-in page
+                  <ArrowSquareOutIcon size={14} /> Open sign-in page
                 </OpenLinkButton>
               ) : null}
             </div>
@@ -362,7 +348,7 @@ export function SettingsPage() {
       <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
       <header {...drag} className="mx-auto flex w-full max-w-[720px] shrink-0 items-center gap-3 px-4 pt-8 pb-1 @min-[520px]:px-6">
         <Button size="sm" variant="ghost" onClick={() => controller.goBack()}>
-          <ArrowLeft size={14} /> Back
+          <ArrowLeftIcon size={14} /> Back
         </Button>
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold text-fg">Settings</h1>
@@ -388,7 +374,7 @@ export function SettingsPage() {
           >
             <div className="flex items-center gap-1">
               <IconButton label="Zoom out" size="xs" onClick={() => controller.zoomOut()} disabled={prefs.zoom <= ZOOM_MIN}>
-                <Minus size={14} />
+                <MinusIcon size={14} />
               </IconButton>
               <button
                 type="button"
@@ -399,7 +385,7 @@ export function SettingsPage() {
                 {Math.round(prefs.zoom * 100)}%
               </button>
               <IconButton label="Zoom in" size="xs" onClick={() => controller.zoomIn()} disabled={prefs.zoom >= ZOOM_MAX}>
-                <Plus size={14} />
+                <PlusIcon size={14} />
               </IconButton>
             </div>
           </Row>
@@ -463,7 +449,7 @@ export function SettingsPage() {
             <Row
               label={
                 <span className="inline-flex items-center gap-1.5">
-                  <TriangleAlert size={14} className="text-warn-text" />
+                  <WarningIcon size={14} className="text-warn-text" />
                   Accounts share one login
                 </span>
               }
@@ -476,7 +462,7 @@ export function SettingsPage() {
               <p className="text-xs text-subtle">Loading…</p>
             ) : (
               <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
-                <Plus size={13} /> Add account
+                <PlusIcon size={13} /> Add account
               </Button>
             )}
           </Row>
@@ -485,14 +471,14 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 {!account.hasLogin ? (
                   <Button size="sm" variant="secondary" onClick={() => void controller.beginLogin(account.id)}>
-                    <LogIn size={13} /> Log in
+                    <SignInIcon size={13} /> Log in
                   </Button>
                 ) : null}
                 <Button size="sm" variant="secondary" onClick={() => setRenaming(account)}>
-                  <Pencil size={13} /> Rename
+                  <PencilSimpleIcon size={13} /> Rename
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setRemoving(account)}>
-                  <Trash2 size={13} /> Remove account
+                  <TrashIcon size={13} /> Remove account
                 </Button>
               </div>
             </Row>
@@ -625,16 +611,16 @@ export function SettingsPage() {
               <div className="flex flex-wrap items-center gap-2">
                 {updates.status === "ready" ? (
                   <Button size="sm" variant="primary" onClick={() => controller.restartToUpdate()}>
-                    <RotateCw size={13} /> Restart to update
+                    <ArrowClockwiseIcon size={13} /> Restart to update
                   </Button>
                 ) : null}
                 {updates.status === "available" ? (
                   <Button size="sm" variant="secondary" onClick={() => controller.downloadUpdate()}>
-                    <ArrowDownToLine size={13} /> Download
+                    <ArrowLineDownIcon size={13} /> Download
                   </Button>
                 ) : null}
                 <Button size="sm" variant="secondary" disabled={busy} onClick={() => controller.checkForUpdates()}>
-                  <RefreshCw size={13} className={cn(updates.status === "checking" && "animate-spin")} /> Check now
+                  <ArrowsClockwiseIcon size={13} className={cn(updates.status === "checking" && "animate-spin")} /> Check now
                 </Button>
               </div>
             </Row>
@@ -651,7 +637,7 @@ export function SettingsPage() {
         <Section title="Environment">
           <Row label="What's new" description="The release notes for this version, as they appear after Helicon updates itself.">
             <Button size="sm" variant="secondary" onClick={() => controller.setWhatsNewOpen(true)}>
-              <ScrollText size={13} /> Read
+              <ScrollIcon size={13} /> Read
             </Button>
           </Row>
           <Fact label="Helicon" value={env?.version ?? "Unknown"} />

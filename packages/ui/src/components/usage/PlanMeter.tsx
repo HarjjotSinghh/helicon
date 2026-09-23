@@ -1,4 +1,4 @@
-import { Gauge } from "lucide-react";
+import { GaugeIcon } from "../ui/icons.js";
 import { useEffect, useMemo } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { relativeTime } from "../../model/format.js";
@@ -40,7 +40,7 @@ export function PlanMeter() {
     return (
       <section aria-label="Plan usage" className="rounded-2xl bg-raised px-4 py-3.5 shadow-card">
         <div className="flex items-center gap-2 text-sm font-medium text-fg">
-          <Gauge size={15} className="text-subtle" /> Plan usage
+          <GaugeIcon size={15} className="text-subtle" /> Plan usage
         </div>
         <p className="mt-1 text-xs text-pretty text-muted">
           Muse reports your plan's allowance with each model call. Send a prompt in any thread and it shows up here.
@@ -57,7 +57,7 @@ function MeterCard(props: { view: PlanView; title: string; now: number }) {
   return (
     <section aria-label={title} className="rounded-2xl bg-raised px-4 py-3.5 shadow-card">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Gauge size={15} className="shrink-0 text-subtle" />
+        <GaugeIcon size={15} className="shrink-0 text-subtle" />
         <h2 className="text-sm font-medium text-fg">{title}</h2>
         {view.tier ? <span className="rounded-md bg-active px-1.5 py-px text-2xs font-medium text-muted">{view.tier}</span> : null}
         <span className="flex-1" />
@@ -145,7 +145,7 @@ export function PlanPill() {
           TEXT[first.tone],
         )}
       >
-        <Gauge size={12} />
+        <GaugeIcon size={12} />
         {first.percent}%
       </button>
     </Tip>

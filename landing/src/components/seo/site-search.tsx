@@ -126,12 +126,12 @@ export function SiteSearch({ className }: { className?: string }) {
           type="button"
           onClick={() => trackEvent("site_search_open", { source: "button" })}
           aria-label="Search the site"
-          className={cn(buttonClass("ghost", "sm", "gap-2 px-2.5 text-muted max-sm:size-9 max-sm:px-0"), className)}
+          className={cn(buttonClass("ghost", "sm", "gap-2 px-2.5 text-muted max-xl:size-9 max-xl:px-0"), className)}
         >
           <MagnifyingGlass weight="bold" aria-hidden="true" />
-          <span className="max-lg:sr-only">Search</span>
+          <span className="max-xl:sr-only">Search</span>
           {os ? (
-            <kbd className="ml-1 hidden rounded-md bg-sunken px-1.5 py-0.5 font-mono text-[11px] text-subtle shadow-[inset_0_0_0_1px_var(--border)] lg:inline">
+            <kbd className="ml-1 hidden rounded-md bg-sunken px-1.5 py-0.5 font-mono text-[11px] text-subtle shadow-[inset_0_0_0_1px_var(--border)] xl:inline">
               {os === "macos" ? "⌘K" : "Ctrl K"}
             </kbd>
           ) : null}
