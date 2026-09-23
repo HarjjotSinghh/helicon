@@ -20,9 +20,35 @@ export function splitBrowsePath(input: string): BrowsePath {
   return { directory: input.slice(0, index + 1), leaf: input.slice(index + 1), separator: input[index] === "\\" ? "\\" : "/" };
 }
 
-/** Whether the text is a full path the server can list: `~/`, `/`, `C:\` or a network share. */
+/** Whether the text is a full path the server can list: `~/`, `/`, `C:\`, a network share, or `ssh://host/`. */
 export function isFullPath(input: string): boolean {
-  return /^(~[\\/]|\/|[A-Za-z]:[\\/]|\\\\)/.test(input);
+  return /^(~[\\/]|\/|ssh:\/\/|[A-Za-z]:[\\/]|\\\\)/.test(input);
+}
+
+/** Whether a path names a folder on an SSH host. */
+export function isSshPath(path: string): boolean {
+  return path.startsWith("ssh://");
+}
+
+/**
+ * An SSH host as the picker accepts it: `hostname` or `user@hostname`, with
+ * the host part lowercased. Null when invalid. Mirrors `validateSshHost` in
+ * the server's ssh module; keep the two in sync.
+ */
+export function parseSshHost(input: string): string | null {
+  const value = input.trim();
+  if (!value || value.length > 255) {
+    return null;
+  }
+  const match = /^(?:([A-Za-z0-9_.-]+)@)?([A-Za-z0-9_.-]+)$/.exec(value);
+  if (!match) {
+    return null;
+  }
+  const host = (match[2] as string).toLowerCase();
+  if (/^[.-]|[.-]$/.test(host) || host.includes("..")) {
+    return null;
+  }
+  return match[1] ? `${match[1]}@${host}` : host;
 }
 
 export function withTrailingSeparator(path: string, separator: string): string {

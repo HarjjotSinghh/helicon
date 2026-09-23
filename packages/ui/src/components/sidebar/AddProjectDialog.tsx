@@ -1,18 +1,21 @@
-import { ArrowElbowLeftUpIcon, ArrowLeftIcon, FolderIcon, FolderPlusIcon, LinkIcon } from "../ui/icons.js";
+import { ArrowElbowLeftUpIcon, ArrowLeftIcon, FolderIcon, FolderPlusIcon, LinkIcon, TerminalWindowIcon } from "../ui/icons.js";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useApp, useController } from "../../app/context.js";
 import { errorMessage } from "../../client.js";
-import { cloneUrl, isFullPath, parentFolder, repoName, sameFolder, splitBrowsePath, withTrailingSeparator } from "../../model/paths.js";
+import { cloneUrl, isFullPath, parentFolder, parseSshHost, repoName, sameFolder, splitBrowsePath, withTrailingSeparator } from "../../model/paths.js";
 import type { DirectoryListing } from "../../types.js";
 import { Modal } from "../ui/overlays.js";
 import { Kbd, MOD, Spinner, cn } from "../ui/primitives.js";
 
 type Provider = "git" | "github";
 
+type SourceId = "local" | "ssh" | Provider;
+
 type View =
   | { kind: "sources" }
   | { kind: "browse"; initial?: string }
   | { kind: "remote"; provider: Provider }
+  | { kind: "ssh" }
   | { kind: "destination"; url: string; name: string };
 
 const INPUT = "h-11 min-w-0 flex-1 bg-transparent text-[15px] text-fg outline-none placeholder:text-subtle";
@@ -49,7 +52,7 @@ function ProjectPicker() {
   if (view.kind === "sources") {
     return (
       <Sources
-        onPick={(id) => setView(id === "local" ? { kind: "browse" } : { kind: "remote", provider: id })}
+        onPick={(id) => setView(id === "local" ? { kind: "browse" } : id === "ssh" ? { kind: "ssh" } : { kind: "remote", provider: id })}
         onPath={(path) => setView({ kind: "browse", initial: path })}
         onClone={clone}
       />
@@ -57,6 +60,14 @@ function ProjectPicker() {
   }
   if (view.kind === "remote") {
     return <RemoteInput provider={view.provider} onBack={() => setView({ kind: "sources" })} onContinue={clone} />;
+  }
+  if (view.kind === "ssh") {
+    return (
+      <SshInput
+        onBack={() => setView({ kind: "sources" })}
+        onContinue={(host) => setView({ kind: "browse", initial: `ssh://${host}/~/` })}
+      />
+    );
   }
   if (view.kind === "destination") {
     return <FolderBrowser key="destination" initial={`${base}${view.name}`} clone={view.url} onBack={() => setView({ kind: "sources" })} />;
@@ -72,8 +83,9 @@ function GitHubMark() {
   );
 }
 
-const SOURCES: { id: "local" | Provider; label: string; description: string; icon: ReactNode }[] = [
+const SOURCES: { id: SourceId; label: string; description: string; icon: ReactNode }[] = [
   { id: "local", label: "Local folder", description: "Browse a folder on disk", icon: <FolderPlusIcon size={17} /> },
+  { id: "ssh", label: "SSH host", description: "Browse folders on a remote host", icon: <TerminalWindowIcon size={17} /> },
   { id: "git", label: "Git URL", description: "Clone from a remote URL", icon: <LinkIcon size={17} /> },
   { id: "github", label: "GitHub repository", description: "Clone GitHub owner/repo", icon: <GitHubMark /> },
 ];
@@ -82,13 +94,13 @@ const SOURCES: { id: "local" | Provider; label: string; description: string; ico
  * The first step takes a folder path or a Git URL directly: a full path switches straight to
  * browsing, a URL or `owner/repo` offers to clone, and the source rows cover the rest.
  */
-function Sources(props: { onPick: (id: "local" | Provider) => void; onPath: (path: string) => void; onClone: (url: string) => void }) {
+function Sources(props: { onPick: (id: SourceId) => void; onPath: (path: string) => void; onClone: (url: string) => void }) {
   const windows = useApp((s) => s.env?.platform === "win32");
   const [value, setValue] = useState("");
   const [highlight, setHighlight] = useState(0);
   const listId = useId();
   const url = value.trim() ? cloneUrl(value) : null;
-  const rows: { id: "local" | Provider | "clone"; label: string; description: string; icon: ReactNode }[] = url
+  const rows: { id: SourceId | "clone"; label: string; description: string; icon: ReactNode }[] = url
     ? [{ id: "clone", label: `Clone ${url}`, description: "Next, pick where to clone it", icon: <LinkIcon size={17} /> }]
     : SOURCES;
   const active = Math.min(highlight, rows.length - 1);
@@ -226,6 +238,61 @@ function RemoteInput(props: { provider: Provider; onBack: () => void; onContinue
           </p>
         )}
         {url ? <p className="mt-1.5 truncate font-mono text-xs text-subtle">{url}</p> : null}
+      </div>
+      <Footer
+        hints={[
+          { keys: ["Enter"], label: "Continue" },
+          { keys: ["Backspace"], label: "Back" },
+          { keys: ["Esc"], label: "Close" },
+        ]}
+      />
+    </>
+  );
+}
+
+function SshInput(props: { onBack: () => void; onContinue: (host: string) => void }) {
+  const [value, setValue] = useState("");
+  const [tried, setTried] = useState(false);
+  const host = parseSshHost(value);
+  const submit = () => {
+    setTried(true);
+    if (host) {
+      props.onContinue(host);
+    }
+  };
+  return (
+    <>
+      <Header onBack={props.onBack} action={<ActionButton label="Continue" keys={["Enter"]} disabled={!host} onClick={submit} />}>
+        <input
+          autoFocus
+          value={value}
+          spellCheck={false}
+          autoComplete="off"
+          aria-label="SSH hostname"
+          placeholder="devbox.example.com or deploy@db1"
+          onChange={(event) => setValue(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              submit();
+            } else if (event.key === "Backspace" && value === "") {
+              event.preventDefault();
+              props.onBack();
+            }
+          }}
+          className={INPUT}
+        />
+      </Header>
+      <div className="px-4 py-5 text-sm">
+        {tried && !host ? (
+          <p className="text-danger-text">That does not look like a hostname. Use host or user@host.</p>
+        ) : (
+          <p className="text-muted">
+            Passwordless SSH only: <span className="font-mono">ssh {value.trim() || "<host>"}</span> must already work without
+            a password. Port and key come from your SSH config.
+          </p>
+        )}
+        {host ? <p className="mt-1.5 truncate font-mono text-xs text-subtle">ssh://{host}/</p> : null}
       </div>
       <Footer
         hints={[
@@ -481,7 +548,7 @@ function FolderBrowser(props: { initial: string; clone: string | null; onBack: (
           { keys: ["Esc"], label: "Close" },
         ]}
         right={
-          data?.exists ? (
+          data?.exists && !data.directory.startsWith("ssh://") ? (
             <button
               type="button"
               onClick={() => void controller.revealPath(data.directory)}

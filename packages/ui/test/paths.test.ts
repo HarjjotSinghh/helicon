@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { cloneUrl, isFullPath, parentFolder, repoName, sameFolder, splitBrowsePath, withTrailingSeparator } from "../src/model/paths.js";
+import { cloneUrl, isFullPath, isSshPath, parentFolder, parseSshHost, repoName, sameFolder, splitBrowsePath, withTrailingSeparator } from "../src/model/paths.js";
 
 describe("picker paths", () => {
   it("splits typed text into the folder to list and a filter", () => {
@@ -11,11 +11,27 @@ describe("picker paths", () => {
   });
 
   it("recognizes full paths only", () => {
-    for (const path of ["~/", "/home/dev", "D:\\", "c:/x", "\\\\server\\share"]) {
+    for (const path of ["~/", "/home/dev", "D:\\", "c:/x", "\\\\server\\share", "ssh://h/", "ssh://deploy@db1/srv"]) {
       assert.equal(isFullPath(path), true, path);
     }
     for (const path of ["~", "projects", "D:", ""]) {
       assert.equal(isFullPath(path), false, path);
+    }
+  });
+
+  it("browses ssh:// paths with the same split", () => {
+    assert.deepEqual(splitBrowsePath("ssh://h/srv/ap"), { directory: "ssh://h/srv/", leaf: "ap", separator: "/" });
+    assert.deepEqual(splitBrowsePath("ssh://h/~/"), { directory: "ssh://h/~/", leaf: "", separator: "/" });
+    assert.equal(isSshPath("ssh://h/app"), true);
+    assert.equal(isSshPath("/srv/app"), false);
+  });
+
+  it("validates SSH hostnames", () => {
+    assert.equal(parseSshHost("devbox.example.com"), "devbox.example.com");
+    assert.equal(parseSshHost("Example.COM"), "example.com");
+    assert.equal(parseSshHost("deploy@DB1"), "deploy@db1");
+    for (const bad of ["", "a b", "host;rm", "host|ls", "-h", ".h", "a..b", "ssh://h/x", "h/x"]) {
+      assert.equal(parseSshHost(bad), null, bad);
     }
   });
 

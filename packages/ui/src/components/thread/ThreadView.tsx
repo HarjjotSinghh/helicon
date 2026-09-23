@@ -26,6 +26,7 @@ export function ThreadView(props: { sessionId: string }) {
     return <MissingThread />;
   }
   const running = thread ? thread.fold.activeTurnId !== null : Boolean(session.live?.activeTurnId);
+  const ssh = session.cwd.startsWith("ssh://");
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
       <ThreadHeader session={session} thread={thread} running={running} />
@@ -34,9 +35,22 @@ export function ThreadView(props: { sessionId: string }) {
           {thread ? <Transcript sessionId={props.sessionId} thread={thread} /> : <div className="min-h-0 flex-1" />}
           <Dock session={session} thread={thread} running={running} />
         </div>
-        {filesOpen ? <FilesPanel sessionId={props.sessionId} cwd={session.cwd} /> : null}
+        {filesOpen ? (ssh ? <SshFilesNote /> : <FilesPanel sessionId={props.sessionId} cwd={session.cwd} />) : null}
       </div>
     </div>
+  );
+}
+
+/** SSH projects run on a remote host, which the local file viewer cannot read in this version. */
+function SshFilesNote() {
+  return (
+    <aside
+      aria-label="Files"
+      className="relative flex h-full shrink-0 flex-col border-l border-line bg-bg"
+      style={{ width: "min(320px, 70%)" }}
+    >
+      <p className="px-4 py-6 text-sm text-muted">The file viewer is not available for SSH projects in this version.</p>
+    </aside>
   );
 }
 
