@@ -245,6 +245,44 @@ describe("thread fold against a real muse transcript", () => {
     assert.equal(fold.meta.approvalMode, "onRequest", "events win over the resume snapshot");
   });
 
+  it("does not show a prompt twice when the thread reloads while it is in flight (#55)", () => {
+    const load = (events: ViewEvent[]) => ({
+      session: null,
+      msp: { status: "running", activeTurnId: "t2", modelId: "m", approvalMode: "onRequest", workspaceRoot: "/w", turnCount: 2 },
+      events,
+      truncated: false,
+      pending: { approvals: [], userInputs: [] },
+      readOnly: false,
+      readOnlyReason: null,
+    });
+    const said = (itemId: string, turnId: string, text: string): ViewEvent => ({
+      at: 1,
+      method: "item/completed",
+      params: { item: { itemId, kind: "userMessage", status: "completed", revision: 1, turnId, text } },
+    });
+    let previous = addEcho(emptyFold(), { localId: "l1", text: "continue", turnId: "t2", disposition: "started", createdAt: 1 });
+    previous = addEcho(previous, { localId: "l2", text: "later", turnId: "t3", disposition: "queued", createdAt: 2 });
+    previous = addEcho(previous, { localId: "l3", text: "continue", turnId: null, disposition: "sending", createdAt: 3 });
+
+    const fold = foldFromLoad(
+      load([
+        { at: 1, method: "turn/started", params: { turnId: "t1" } },
+        said("u1", "t1", "continue"),
+        { at: 1, method: "turn/completed", params: { turnId: "t1", terminal: "completed" } },
+        { at: 1, method: "turn/started", params: { turnId: "t2" } },
+        said("u2", "t2", "continue"),
+      ]),
+      previous,
+    );
+    assert.deepEqual(
+      fold.echoes.map((e) => e.localId),
+      ["l2", "l3"],
+      "the acknowledged echo the history already holds goes; a queued one and an unacknowledged one stay",
+    );
+    const shown = buildTurns(fold).filter((t) => t.prompt?.text === "continue").length + fold.echoes.filter((e) => e.text === "continue" && e.disposition !== "queued").length;
+    assert.equal(shown, 3, "two prompts from history plus the one still being sent, each exactly once");
+  });
+
   it("returns the same fold for an empty batch", () => {
     const fold = emptyFold();
     assert.equal(applyEvents(fold, []), fold);

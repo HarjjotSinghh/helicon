@@ -659,6 +659,38 @@ export function applyEvent(fold: ThreadFold, event: ViewEvent): ThreadFold {
   return applyEvents(fold, [event]);
 }
 
+/**
+ * The local echoes worth keeping across a reload. History is replayed onto an empty fold, so nothing
+ * in it clears an echo the way the live stream would, and an echo whose prompt the history already
+ * holds used to render alongside it (#55). Only echoes the server acknowledged with a turn id are
+ * matched: an unacknowledged one could otherwise pair with an older prompt that shares its text, the
+ * way a second "continue" would, and vanish while still in flight.
+ */
+function carriedEchoes(fold: ThreadFold, echoes: readonly LocalEcho[]): LocalEcho[] {
+  const kept: LocalEcho[] = [];
+  for (const echo of echoes) {
+    const turnId = echo.turnId;
+    if (!turnId) {
+      kept.push(echo);
+      continue;
+    }
+    if (fold.turns[turnId]?.terminal) {
+      continue;
+    }
+    const text = normalizeText(echo.text);
+    const landed = fold.order.some((id) => {
+      const item = fold.items[id];
+      return item?.kind === "userMessage" && (item.turnId === turnId || item.commandId === turnId) && promptTexts(item).has(text);
+    });
+    if (landed) {
+      continue;
+    }
+    // A queued prompt whose turn history shows started is running now, as the live stream would have said.
+    kept.push(echo.disposition === "queued" && fold.turns[turnId] ? { ...echo, disposition: "started" } : echo);
+  }
+  return kept;
+}
+
 /** Build a fold from a resume response; the server's pending set is authoritative. */
 export function foldFromLoad(load: TranscriptLoad, previous?: ThreadFold | null): ThreadFold {
   let fold = applyEvents(emptyFold(), load.events);
@@ -675,7 +707,7 @@ export function foldFromLoad(load: TranscriptLoad, previous?: ThreadFold | null)
     approvals,
     userInputs,
     activeTurnId: load.msp ? load.msp.activeTurnId : fold.activeTurnId,
-    echoes: previous?.echoes ?? [],
+    echoes: carriedEchoes(fold, previous?.echoes ?? []),
     meta: {
       ...fold.meta,
       // History pages carry no context readings; the session's own fill in until the next live one.
