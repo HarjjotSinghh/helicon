@@ -9,6 +9,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    "version": "0.17.1",
+    "body": "### Fixed\n\n- **A message you sent no longer shows up twice** ([#55](https://github.com/HarjjotSinghh/helicon/issues/55), reported by [@transformingegg](https://github.com/transformingegg)). When a thread reloaded while your message was on its way, the reload showed both the copy from Muse's history and Helicon's own local copy of it, so the same message appeared twice. The local copy is now dropped once the history has it. If you still see a message three times, or Muse answering the same message more than once, please add to the issue."
+  },
+  {
     "version": "0.17.0",
     "body": "### Changed\n\n- **New icons, one set everywhere** ([#16](https://github.com/HarjjotSinghh/helicon/issues/16)). Helicon now uses [Phosphor](https://phosphoricons.com) icons throughout, the same family as the website, so the app, the web build and the live demos on helicon.sh finally match. Every icon keeps its meaning and place; they are slightly rounder and a touch more solid. The stop button is a filled square, and the Windows, macOS, Linux and GitHub marks on the site come from the same set."
   },
