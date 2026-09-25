@@ -5,6 +5,8 @@ export type Audience = "windows" | "macos" | "default";
 
 export const VISITOR_OS_HEADER = "x-helicon-os";
 export const ANON_COOKIE = "helicon-anon";
+/** Set by visiting any page with ?internal=1: the maintainer's own browser, left out of every count. */
+export const INTERNAL_COOKIE = "helicon-internal";
 
 export function parseVisitorOs(ua: string, hints?: { platform?: string; mobile?: boolean }): VisitorOs {
   const platform = (hints?.platform ?? "").toLowerCase();

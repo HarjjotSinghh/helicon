@@ -47,6 +47,9 @@ export function DemoVideo({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hideTimer = useRef<number>(0);
   const userTouched = useRef(false);
+  // Watch-through milestones already reported on this page view, and whether autoplay was counted.
+  const reported = useRef(new Set<number>());
+  const autoplayCounted = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [started, setStarted] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -95,6 +98,10 @@ export function DemoVideo({
             if (userTouched.current || !videoRef.current) return;
             videoRef.current.muted = true;
             setMuted(true);
+            if (!autoplayCounted.current) {
+              autoplayCounted.current = true;
+              trackEvent("demo_play", { source: "autoplay", video: src });
+            }
             // Scrolling away pauses the video before play() settles, which rejects it with AbortError; that is expected.
             videoRef.current.play().catch(() => undefined);
           }, 2500);
@@ -112,7 +119,7 @@ export function DemoVideo({
       io.disconnect();
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [src]);
 
   const togglePlay = useCallback(() => {
     const node = videoRef.current;
@@ -120,7 +127,7 @@ export function DemoVideo({
     userTouched.current = true;
     if (node.ended) node.currentTime = 0;
     if (node.paused) {
-      trackEvent("demo_play", { source: "user" });
+      trackEvent("demo_play", { source: "user", video: src });
       node.muted = false;
       setMuted(false);
       node.play().catch((error: unknown) => {
@@ -134,7 +141,7 @@ export function DemoVideo({
     } else {
       node.pause();
     }
-  }, []);
+  }, [src]);
 
   const toggleMute = useCallback(() => {
     const node = videoRef.current;
@@ -142,7 +149,8 @@ export function DemoVideo({
     userTouched.current = true;
     node.muted = !node.muted;
     setMuted(node.muted);
-  }, []);
+    if (!node.muted) trackEvent("demo_unmute", { video: src, at: Math.round(node.currentTime) });
+  }, [src]);
 
   const toggleFullscreen = useCallback(async () => {
     const root = rootRef.current;
@@ -217,7 +225,18 @@ export function DemoVideo({
           setPlaying(false);
           setControls(true);
         }}
-        onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
+        onTimeUpdate={(event) => {
+          const node = event.currentTarget;
+          setCurrent(node.currentTime);
+          if (!node.duration) return;
+          const percent = (node.currentTime / node.duration) * 100;
+          for (const mark of [25, 50, 75, 95]) {
+            if (percent >= mark && !reported.current.has(mark)) {
+              reported.current.add(mark);
+              trackEvent("demo_progress", { percent: mark, muted: node.muted, video: src });
+            }
+          }
+        }}
         onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
         onDurationChange={(event) => {
           const value = event.currentTarget.duration;

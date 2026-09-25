@@ -36,7 +36,7 @@ The posts: [Alexandr Wang](https://x.com/alexandr_wang/status/210059073362771568
 
 **Sidebar-first:** all projects grouped by working directory, each with its tasks and sessions - resume anything, including sessions started from the `muse` terminal TUI.
 
-[![Helicon walkthrough: open a CLI thread, send a fix, then usage](docs/assets/demo.gif)](https://helicon.sh)
+[![Helicon walkthrough: open a CLI thread, send a fix, then usage](docs/assets/demo.gif)](https://helicon.sh/?utm_source=github&utm_medium=readme&utm_campaign=readme)
 
 <details>
 <summary>Usage and settings</summary>
@@ -116,7 +116,7 @@ Helicon updates itself, so there is nothing to subscribe to for that. If you wou
 
 ## Docs
 
-Longer versions of everything above live on [helicon.sh](https://helicon.sh). Every page has a
+Longer versions of everything above live on [helicon.sh](https://helicon.sh/?utm_source=github&utm_medium=readme&utm_campaign=readme). Every page has a
 Markdown twin at the same path with `.md` appended, for anyone reading this with an agent.
 
 | | |

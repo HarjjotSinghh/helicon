@@ -1,5 +1,5 @@
 import posthog from "posthog-js";
-import { ANON_COOKIE, parseVisitorOs } from "./lib/os";
+import { ANON_COOKIE, INTERNAL_COOKIE, parseVisitorOs } from "./lib/os";
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
 
@@ -19,7 +19,24 @@ function isLocalHost(hostname: string) {
   );
 }
 
-if (key && !isLocalHost(window.location.hostname)) {
+/**
+ * The maintainer's own browsers. Opening any page with ?internal=1 marks this browser for good (and
+ * ?internal=0 undoes it), so our own visits stop inflating the numbers. The cookie also reaches the
+ * server, which skips the download events it sends for us.
+ */
+function isInternalBrowser() {
+  const flag = new URLSearchParams(window.location.search).get("internal");
+  if (flag === "1") {
+    document.cookie = `${INTERNAL_COOKIE}=1; Max-Age=${60 * 60 * 24 * 365 * 5}; Path=/; SameSite=Lax; Secure`;
+  } else if (flag === "0") {
+    document.cookie = `${INTERNAL_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax; Secure`;
+  }
+  return readCookie(INTERNAL_COOKIE) === "1";
+}
+
+const internal = isInternalBrowser();
+
+if (key && !isLocalHost(window.location.hostname) && !internal) {
   const persisted = readCookie(`ph_${key}_posthog`);
   const anon = readCookie(ANON_COOKIE);
 

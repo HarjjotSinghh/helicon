@@ -2,7 +2,7 @@
  * Website-only events. No-ops until a Helicon PostHog key is set.
  * Do not call this from the desktop/web app; Helicon itself stays telemetry-free.
  */
-import { ANON_COOKIE, parseVisitorOs, type VisitorOs } from "./os";
+import { ANON_COOKIE, INTERNAL_COOKIE, parseVisitorOs, type VisitorOs } from "./os";
 
 function projectKey() {
   return (
@@ -93,6 +93,11 @@ export function isBotRequest(request: Request): boolean {
   return BOT_AGENTS.test(agent);
 }
 
+/** The maintainer's own browser, marked by visiting the site with ?internal=1. */
+export function isInternalRequest(request: Request): boolean {
+  return cookieValue(request.headers.get("cookie") ?? "", INTERNAL_COOKIE) === "1";
+}
+
 export async function track(
   event: string,
   properties: Record<string, unknown>,
@@ -101,7 +106,7 @@ export async function track(
   request: Request,
 ) {
   const key = projectKey();
-  if (!key || isLocalRequest(request)) return;
+  if (!key || isLocalRequest(request) || isInternalRequest(request)) return;
 
   const host = (process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com").replace(/\/$/, "");
   try {
