@@ -97,9 +97,9 @@ export function Hero({
 
       <div id="demo">
         <DemoVideo
-          src="/demo/a1.mp4"
-          poster="/demo/a1.jpg"
-          label="Helicon walkthrough: open a CLI thread, send a fix, then usage and settings"
+          src="/demo/launch.mp4"
+          poster="/demo/launch.jpg"
+          label="Helicon in 30 seconds: approvals you can read, diffs where the edit happened, and what each thread would have cost"
         />
       </div>
 

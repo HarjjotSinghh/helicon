@@ -18,9 +18,9 @@
 
 > **Helicon** - home of the Muses. An open-source desktop + web ADE for Meta's **Muse Code CLI** (`muse`), in the spirit of the Claude Code desktop app and the Codex / ChatGPT desktop app.
 
-### Helicon in 15 seconds
+### Helicon in 30 seconds
 
-[![Helicon in 15 seconds: approvals you can read, diffs where the edit happened, and what each thread would have cost](docs/assets/launch.gif)](docs/assets/helicon-launch.mp4)
+[![Helicon in 30 seconds: approvals you can read, diffs where the edit happened, and what each thread would have cost](docs/assets/launch.gif)](docs/assets/helicon-launch.mp4)
 
 Click through for the full-quality video with sound. The cost figures in it are sample data.
 
