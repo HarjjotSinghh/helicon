@@ -30,7 +30,7 @@ describe("picker paths", () => {
     assert.equal(parseSshHost("devbox.example.com"), "devbox.example.com");
     assert.equal(parseSshHost("Example.COM"), "example.com");
     assert.equal(parseSshHost("deploy@DB1"), "deploy@db1");
-    for (const bad of ["", "a b", "host;rm", "host|ls", "-h", ".h", "a..b", "ssh://h/x", "h/x"]) {
+    for (const bad of ["", "a b", "host;rm", "host|ls", "-h", ".h", "a..b", "ssh://h/x", "h/x", "-Elog@h", "-deploy@db1"]) {
       assert.equal(parseSshHost(bad), null, bad);
     }
   });

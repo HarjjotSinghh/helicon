@@ -30,7 +30,12 @@ export interface SshProject {
   remotePath: string;
 }
 
-const HOST_PATTERN = /^(?:([A-Za-z0-9_.-]+)@)?([A-Za-z0-9_.-]+)$/;
+/**
+ * The username must not start with a hyphen: `-Elog@h` would otherwise reach
+ * OpenSSH as the `-E` option (CWE-88 argument injection), and `"--"` below is
+ * only the second line of defense. Mirrored in the UI picker's `parseSshHost`.
+ */
+const HOST_PATTERN = /^(?:([A-Za-z0-9_][A-Za-z0-9_.-]*)@)?([A-Za-z0-9_.-]+)$/;
 
 /**
  * A validated SSH host (`hostname` or `user@hostname`) with its host part
@@ -137,12 +142,13 @@ export function resolveSshPath(host: string, input: string, home: string | null)
 
 /** `ssh` argv for running one remote command, as a single shell string. No shell quoting happens locally. */
 export function sshArgv(host: string, remoteCommand: string): string[] {
-  return [...SSH_OPTS, host, remoteCommand];
+  // "--" ends option processing: a validated host never starts with `-`, and this keeps it that way by construction.
+  return [...SSH_OPTS, "--", host, remoteCommand];
 }
 
-/** `ssh` argv whose remote end is the agent: `ssh [opts] host muse serve ...`. */
+/** `ssh` argv whose remote end is the agent: `ssh [opts] -- host muse serve ...`. */
 export function sshServeArgs(host: string, musePath: string, serveArgs: string[]): string[] {
-  return [...SSH_OPTS, host, musePath, ...serveArgs];
+  return [...SSH_OPTS, "--", host, musePath, ...serveArgs];
 }
 
 /** Single-quotes a value for a remote POSIX shell. */
@@ -157,11 +163,13 @@ const NOTDIR = "__helicon_notdir__";
  * One remote command listing a folder's subfolders, reporting missing ones with a sentinel.
  * `command` bypasses aliases and shell functions, so an `ls` alias from a remote rc file
  * (colorize flags, exa wrappers) cannot change the output shape. `-A` keeps hidden folders,
- * matching the local picker's `readdir` behavior.
+ * matching the local picker's `readdir` behavior. The script runs under `sh`, not the remote
+ * login shell: fish/csh cannot parse POSIX syntax, which surfaced as a misleading 502.
  */
 export function remoteListScript(absPath: string): string {
   const quoted = shellQuote(absPath);
-  return `p=${quoted}; if [ -d "$p" ]; then command ls -1 -p -A -- "$p" 2>/dev/null || true; elif [ -e "$p" ]; then printf '%s' ${NOTDIR}; else printf '%s' ${NOENT}; fi`;
+  const script = `p=${quoted}; if [ -d "$p" ]; then command ls -1 -p -A -- "$p" 2>/dev/null || true; elif [ -e "$p" ]; then printf '%s' ${NOTDIR}; else printf '%s' ${NOENT}; fi`;
+  return `sh -c ${shellQuote(script)}`;
 }
 
 /** Strips ANSI color sequences, so a colorized `ls` from any source still parses. */
@@ -211,6 +219,23 @@ export async function listSshDirectory(host: string, absPath: string, exec: Exec
     return { exists: true, entries: [] };
   }
   return parseSshLs(result.stdout);
+}
+
+/**
+ * The stored project root for a session Muse reports during discovery.
+ * A remote host reports a bare absolute path; when the discovery ran for an
+ * SSH project, that path belongs to the remote host and is re-keyed onto it
+ * instead of becoming a bogus local project. Anything else passes through,
+ * preserving the local `reported ?? cwd ?? ""` behavior.
+ */
+export function discoveredProjectRoot(cwd: string | undefined, reported: string | null | undefined): string {
+  if (cwd) {
+    const parsed = parseSshProject(cwd);
+    if (parsed && reported && reported.startsWith("/")) {
+      return `ssh://${parsed.host}${reported}`;
+    }
+  }
+  return reported ?? cwd ?? "";
 }
 
 /** The full picker listing for a normalized `ssh://host/abs/path` directory. */

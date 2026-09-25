@@ -46,6 +46,7 @@ import { PathError, createDirectory, listDirectory, resolveUserPath, type Direct
 import {
   SSH_HOME_CACHE_MS,
   SshError,
+  discoveredProjectRoot,
   isSshCwd,
   listSshDirectory,
   needsSshHome,
@@ -2055,7 +2056,10 @@ export class HeliconServer {
   private async canonicalCwd(raw: string, create: boolean): Promise<string> {
     const trimmed = raw.trim();
     if (trimmed.startsWith("ssh://")) {
-      // No remote mkdir in this version: `create` is ignored and the folder is only normalized.
+      // No remote mkdir in this version: creating a remote folder is refused loudly.
+      if (create) {
+        throw new SshError(400, "Creating folders on an SSH host is not available in this version. Create it over SSH first.");
+      }
       const parsed = parseSshProject(trimmed);
       if (!parsed) {
         throw new SshError(400, "SSH projects look like ssh://host/absolute/path.");
@@ -2712,7 +2716,8 @@ export class HeliconServer {
       if (!session || !sessionId) {
         continue;
       }
-      const root = this.storePathFor(firstString(session, ["workspaceRoot"]) ?? cwd ?? "");
+      const reported = firstString(session, ["workspaceRoot"]);
+      const root = this.storePathFor(discoveredProjectRoot(cwd, reported));
       if (!root) {
         continue;
       }
@@ -3147,10 +3152,11 @@ export class HeliconServer {
         throw new HttpError(400, "SSH projects look like ssh://host/absolute/path.");
       }
       // MSP rides the SSH connection's stdio. The login on the remote host applies;
-      // local profile env cannot cross SSH, so none is attached.
+      // local profile env cannot cross SSH, so none is attached. The local
+      // --muse path names a local binary, so the remote resolves `muse` itself.
       return {
         command: "ssh",
-        args: sshServeArgs(parsed.host, this.options.musePath ?? "muse", serveArgs),
+        args: sshServeArgs(parsed.host, "muse", serveArgs),
         cwd: process.cwd(),
       };
     }

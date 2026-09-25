@@ -5,6 +5,7 @@ import type { ExecFn, ServeTarget } from "@helicon/daemon";
 import {
   SSH_OPTS,
   SshError,
+  discoveredProjectRoot,
   isSshCwd,
   listSshDirectory,
   normalizeSshCwd,
@@ -26,7 +27,7 @@ describe("ssh paths", () => {
     assert.equal(validateSshHost("deploy@db1"), "deploy@db1");
     assert.equal(validateSshHost("Example.COM"), "example.com");
     assert.equal(validateSshHost("deploy@DB1"), "deploy@db1");
-    for (const bad of ["", "  ", "a b", "a;b", "a|b", "a&b", "a$b", "-h", ".h", "h-", "h.", "a..b", "ssh://h/x", "h/x", "-oFoo", "x".repeat(256)]) {
+    for (const bad of ["", "  ", "a b", "a;b", "a|b", "a&b", "a$b", "-h", ".h", "h-", "h.", "a..b", "ssh://h/x", "h/x", "-oFoo", "-Elog@h", "-deploy@h", "x".repeat(256)]) {
       assert.equal(validateSshHost(bad), null, bad);
     }
   });
@@ -66,22 +67,31 @@ describe("ssh paths", () => {
   });
 
   it("builds strict ssh argv for the agent", () => {
-    assert.deepEqual(sshServeArgs("h", "muse", ["serve"]), [...SSH_OPTS, "h", "muse", "serve"]);
+    assert.deepEqual(sshServeArgs("h", "muse", ["serve"]), [...SSH_OPTS, "--", "h", "muse", "serve"]);
     assert.deepEqual(sshServeArgs("deploy@h", "/opt/muse", ["serve", "--disable-sandbox"]), [
       ...SSH_OPTS,
+      "--",
       "deploy@h",
       "/opt/muse",
       "serve",
       "--disable-sandbox",
     ]);
-    assert.deepEqual(sshArgv("h", "ls"), [...SSH_OPTS, "h", "ls"]);
+    assert.deepEqual(sshArgv("h", "ls"), [...SSH_OPTS, "--", "h", "ls"]);
   });
 
   it("quotes remote paths for a single remote shell string", () => {
     assert.equal(shellQuote("/srv/app"), "'/srv/app'");
     assert.equal(shellQuote("/srv/o'clock"), "'/srv/o'\\''clock'");
+  });
+
+  it("runs the listing under sh, not the remote login shell", () => {
+    // fish/csh cannot parse the POSIX script, so it travels as one `sh -c` argument.
+    // (Exact nested quoting belongs to shellQuote's own test above.)
     const script = remoteListScript("/srv/o'clock");
-    assert.match(script, /^p='\/srv\/o'\\''clock'; if/);
+    assert.match(script, /^sh -c '/);
+    assert.match(script, /'$/);
+    assert.match(script, /command ls -1 -p -A -- "\$p"/);
+    assert.match(script, /\/srv\/o/);
   });
 
   it("parses remote listings, keeping folders only", () => {
@@ -98,13 +108,23 @@ describe("ssh paths", () => {
     // `command` bypasses aliases and functions, so `alias ls='ls --color=always'`
     // (or an exa wrapper) cannot change the output shape. `-A` keeps hidden folders.
     const script = remoteListScript("/srv/app");
-    assert.match(script, /p='\/srv\/app'; .*command ls -1 -p -A -- "\$p"/);
+    assert.match(script, /^sh -c '/);
+    assert.match(script, /command ls -1 -p -A -- "\$p"/);
     // Belt and braces: color codes from any source still parse.
     assert.equal(stripAnsiCodes("\x1b[01;34mproj/\x1b[0m"), "proj/");
     assert.deepEqual(parseSshLs("\x1b[01;34mproj/\x1b[0m\nnotes.txt\n\x1b[01;34m.hidden/\x1b[0m\n"), {
       exists: true,
       entries: [{ name: ".hidden" }, { name: "proj" }],
     });
+  });
+
+  it("re-keys discovered remote roots onto their ssh:// project", () => {
+    assert.equal(discoveredProjectRoot("ssh://h/MyApp", "/MyApp"), "ssh://h/MyApp");
+    assert.equal(discoveredProjectRoot("ssh://deploy@h/a", "/x"), "ssh://deploy@h/x");
+    assert.equal(discoveredProjectRoot("/local", "/MyApp"), "/MyApp");
+    assert.equal(discoveredProjectRoot("ssh://h/a", "relative"), "relative");
+    assert.equal(discoveredProjectRoot("ssh://h/a", null), "ssh://h/a");
+    assert.equal(discoveredProjectRoot(undefined, undefined), "");
   });
 
   it("lists over ssh and reports an unreachable host", async () => {
@@ -246,7 +266,7 @@ describe("ssh routes", () => {
     assert.equal(started.status, 200);
     assert.equal(started.json.session.sessionId, "s1");
     assert.equal(probe.targets[0]?.command, "ssh");
-    assert.deepEqual(probe.targets[0]?.args, [...SSH_OPTS, "h", "muse", "serve"]);
+    assert.deepEqual(probe.targets[0]?.args, [...SSH_OPTS, "--", "h", "muse", "serve"]);
     assert.equal(
       connection.calls.find((c) => c.method === "session/start")?.params["workspaceRoot"],
       "/MyApp",
@@ -258,6 +278,68 @@ describe("ssh routes", () => {
 
     const proxy = await request(base, "/api/sessions/s1/shell-proxy", { command: "ls" });
     assert.equal(proxy.status, 400);
+  });
+
+  it("files discovered remote sessions under their ssh:// project", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/list", {
+      sessions: [{ sessionId: "s9", workspaceRoot: "/MyApp", name: "Remote work" }],
+      nextCursor: null,
+    });
+    const server = new HeliconServer({
+      port: 0,
+      dataDir: ":memory:",
+      platform: "linux",
+      musePath: "muse",
+      hostFactory: fakeFactory(connection),
+      opener: async () => {},
+      exec: async () => ({ stdout: "", exitCode: 127 }),
+    });
+    after(() => server.close());
+    const base = `http://127.0.0.1:${(await server.listen()).port}`;
+
+    const found = await request(base, "/api/discover", { cwd: "ssh://h/MyApp" });
+    assert.equal(found.status, 200);
+    assert.equal(found.json.sessions[0]?.cwd, "ssh://h/MyApp");
+    const projects = (await (await fetch(`${base}/api/projects`)).json()) as { projects: { cwd: string }[] };
+    assert.deepEqual(projects.projects.map((p) => p.cwd), ["ssh://h/MyApp"]);
+  });
+
+  it("refuses to create remote folders", async () => {
+    const server = new HeliconServer({
+      port: 0,
+      dataDir: ":memory:",
+      platform: "linux",
+      musePath: "muse",
+      hostFactory: () => {
+        throw new Error("no Muse host in this test");
+      },
+      opener: async () => {},
+      exec: async () => ({ stdout: "", exitCode: 127 }),
+    });
+    after(() => server.close());
+    const base = `http://127.0.0.1:${(await server.listen()).port}`;
+    assert.equal((await request(base, "/api/projects", { cwd: "ssh://h/fresh", create: true })).status, 400);
+  });
+
+  it("runs the remote agent from the remote PATH, not the local muse path", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const probe: Probe = { targets: [] };
+    const server = new HeliconServer({
+      port: 0,
+      dataDir: ":memory:",
+      platform: "linux",
+      musePath: "/opt/homebrew/bin/muse",
+      hostFactory: fakeFactory(connection, probe),
+      opener: async () => {},
+      exec: async () => ({ stdout: "", exitCode: 127 }),
+    });
+    after(() => server.close());
+    const base = `http://127.0.0.1:${(await server.listen()).port}`;
+    assert.equal((await request(base, "/api/sessions", { cwd: "ssh://h/app" })).status, 200);
+    assert.equal(probe.targets[0]?.command, "ssh");
+    assert.deepEqual(probe.targets[0]?.args, [...SSH_OPTS, "--", "h", "muse", "serve"]);
   });
 
   it("rejects malformed ssh:// projects", async () => {

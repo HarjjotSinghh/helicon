@@ -40,7 +40,7 @@ export function parseSshHost(input: string): string | null {
   if (!value || value.length > 255) {
     return null;
   }
-  const match = /^(?:([A-Za-z0-9_.-]+)@)?([A-Za-z0-9_.-]+)$/.exec(value);
+  const match = /^(?:([A-Za-z0-9_][A-Za-z0-9_.-]*)@)?([A-Za-z0-9_.-]+)$/.exec(value);
   if (!match) {
     return null;
   }

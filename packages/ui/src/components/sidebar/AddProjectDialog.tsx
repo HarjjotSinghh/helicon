@@ -2,7 +2,7 @@ import { ArrowElbowLeftUpIcon, ArrowLeftIcon, FolderIcon, FolderPlusIcon, LinkIc
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useApp, useController } from "../../app/context.js";
 import { errorMessage } from "../../client.js";
-import { cloneUrl, isFullPath, parentFolder, parseSshHost, repoName, sameFolder, splitBrowsePath, withTrailingSeparator } from "../../model/paths.js";
+import { cloneUrl, isFullPath, isSshPath, parentFolder, parseSshHost, repoName, sameFolder, splitBrowsePath, withTrailingSeparator } from "../../model/paths.js";
 import type { DirectoryListing } from "../../types.js";
 import { Modal } from "../ui/overlays.js";
 import { Kbd, MOD, Spinner, cn } from "../ui/primitives.js";
@@ -46,8 +46,12 @@ export function AddProjectDialog() {
 function ProjectPicker() {
   const projects = useApp((s) => s.projects);
   const [view, setView] = useState<View>({ kind: "sources" });
-  // Browsing starts next to the most recent project; the very first project starts at home.
-  const [base] = useState(() => (projects[0] ? parentFolder(projects[0].cwd) : null) ?? "~/");
+  // Browsing starts next to the most recent local project; SSH projects live on
+  // another machine, so they never seed the local browse start or clone target.
+  const [base] = useState(() => {
+    const local = projects.find((p) => !isSshPath(p.cwd));
+    return (local ? parentFolder(local.cwd) : null) ?? "~/";
+  });
   const clone = (url: string) => setView({ kind: "destination", url, name: repoName(url) });
   if (view.kind === "sources") {
     return (
