@@ -95,7 +95,8 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - name: Install Tauri Linux dependencies
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev squashfs-tools
+        # xvfb/strace/patchelf are quick-sharun inputs: strace mode executes the GUI app.
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev squashfs-tools xvfb strace patchelf
       - run: npm ci
       - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
       # Pinned to a commit: this step holds the updater signing key, so a moved tag must not change what runs.
@@ -117,14 +118,22 @@ jobs:
           # GitHub sometimes refuses a large asset upload ("Error saving asset"); retrying saves a manual job rerun.
           retryAttempts: 3
           args: --target x86_64-unknown-linux-gnu
-      # linuxdeploy bundles Ubuntu 22.04's libwayland-*. Newer host Mesa fails EGL init
-      # against the stale copy, so WebKitGTK aborts with EGL_BAD_ALLOC before the window
-      # opens (tauri-apps/tauri#15665). Repack without those libraries so the AppImage
-      # uses the host ones, then re-sign and republish it.
-      - name: Strip bundled Wayland libraries from AppImage
+      # The classic (linuxdeploy) runtime exports LD_LIBRARY_PATH into every child the app spawns, so
+      # system tools inherit the bundle's older libraries (e.g. git dying on a missing libnghttp2 symbol),
+      # and it bundles Ubuntu 22.04's libwayland-*, which newer host Mesa rejects with EGL_BAD_ALLOC before
+      # the window opens (tauri-apps/tauri#15665). Re-bundle with sharun instead: it passes --library-path
+      # to its own interpreter, so nothing leaks to child processes, and it bundles the libraries the app
+      # actually loads. Then re-sign and republish under the same asset name, so the updater URLs in
+      # latest.json keep working.
+      #
+      # quick-sharun is pinned to a commit AND its sha256 is checked: an unpinned download has hung CI
+      # before (readest#4909). Bump both together.
+      - name: Re-bundle with sharun and republish AppImage
         env:
           RELEASE_TAG: ${{ github.ref_name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          QUICK_SHARUN_REF: 2db1440b1ebfe4b760d8a8f87aa7f02819e185cc
+          QUICK_SHARUN_SHA256: 9147547560b7be7284cbc2be67f6bbbc1f23158650139c613163a1a73e32d383
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
@@ -137,13 +146,36 @@ jobs:
           appimage=(Helicon_*_amd64.AppImage)
           # A downloaded release asset does not keep its executable bit.
           chmod +x "${appimage[0]}"
-          "./${appimage[0]}" --appimage-extract
-          rm -f squashfs-root/usr/lib/libwayland-client.so.0 squashfs-root/usr/lib/libwayland-cursor.so.0 \
-            squashfs-root/usr/lib/libwayland-egl.so.1 squashfs-root/usr/lib/libwayland-server.so.0
-          curl -sSL --fail -o appimagetool https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
-          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool" | sha256sum --check
-          chmod +x appimagetool
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run squashfs-root "${appimage[0]}"
+          "./${appimage[0]}" --appimage-extract >/dev/null
+          root="$work/squashfs-root"
+          test -x "$root/usr/bin/helicon" || { echo "no helicon binary in the classic bundle"; exit 1; }
+          desktop=$(find "$root" -maxdepth 3 -name '*.desktop' -print -quit)
+          test -n "$desktop" || { echo "no .desktop file in the classic bundle"; exit 1; }
+          icon=$(find "$root" -name 'helicon.png' -print -quit)
+          test -n "$icon" || icon=$(find "$root" -name '*.png' -print -quit)
+          test -n "$icon" || { echo "no icon in the classic bundle"; exit 1; }
+          curl -sSL --fail -o quick-sharun.sh \
+            "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/${QUICK_SHARUN_REF}/useful-tools/quick-sharun.sh"
+          echo "${QUICK_SHARUN_SHA256}  quick-sharun.sh" | sha256sum --check
+          chmod +x quick-sharun.sh
+          # Phase 1: deploy into an AppDir without packaging, so the Tauri resources (plain data files
+          # quick-sharun would not pick up) can be copied in with the same relative layout first.
+          # Strace mode executes the GUI app, so both runs happen under xvfb.
+          export APPDIR="$work/AppDir" MAIN_BIN=helicon DESKTOP="$desktop" ICON="$icon"
+          xvfb-run -a ./quick-sharun.sh "$root/usr/bin/helicon" "$root/usr/bin/node"
+          # Mirror the Tauri data files (server.cjs, frontend, ...) with the same paths relative
+          # to the bundle root: the binary resolves its resources relative to its own location.
+          (cd "$root" && find . \( -name server.cjs -o -name frontend \) -exec cp --parents -r {} "$APPDIR" \;)
+          find "$APPDIR" -name server.cjs -print -quit | grep . || { echo "server.cjs missing from the sharun AppDir"; exit 1; }
+          # Phase 2: re-running with OUTPUT_APPIMAGE=1 redeploys (idempotent; downloads are cached)
+          # and then packs the AppImage into a separate dir so it cannot be confused with the classic one.
+          mkdir -p "$work/out"
+          export OUTPUT_APPIMAGE=1 OUTPATH="$work/out"
+          xvfb-run -a ./quick-sharun.sh "$root/usr/bin/helicon" "$root/usr/bin/node"
+          packed=("$work"/out/*.AppImage)
+          if [ "${#packed[@]}" -ne 1 ]; then echo "expected one sharun AppImage, found ${#packed[@]}"; exit 1; fi
+          # Keep the release asset name; only the signature changes below.
+          mv "${packed[0]}" "${appimage[0]}"
           "${{ github.workspace }}/node_modules/.bin/tauri" signer sign "${appimage[0]}"
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "latest.json" --clobber
           SIG_FILE="${appimage[0]}.sig" node -e '

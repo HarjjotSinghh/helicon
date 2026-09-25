@@ -1,8 +1,15 @@
 name: Linux AppImage smoke test
 
-# A packaged AppImage lays its files out differently from a `tauri build --no-bundle` tree, and that layout is
-# what decides whether the app finds its bundled Node.js at all. Building the desktop app takes minutes, so this
-# runs only when something that shapes the bundle changes.
+# The shipped Linux bundle is a sharun AppImage. The classic (linuxdeploy) runtime exports
+# LD_LIBRARY_PATH into every child the app spawns, so system tools inherit the bundle's older
+# libraries — e.g. git dying on a missing libnghttp2 symbol — and it carries Ubuntu 22.04's
+# libwayland, which newer Mesa rejects (tauri-apps/tauri#15665). sharun instead passes
+# --library-path to its own interpreter, so nothing leaks to child processes, and it bundles
+# the libraries the app actually loads. This job rebuilds that bundle from the Tauri output
+# and proves the app boots and serves from it.
+#
+# quick-sharun is pinned to a commit AND its sha256 is checked: an unpinned download has hung
+# CI before (readest#4909). Bump both together.
 on:
   pull_request:
     paths:
@@ -17,10 +24,14 @@ on:
       - ".github/workflows/linux-appimage.yml"
   workflow_dispatch:
 
+env:
+  QUICK_SHARUN_REF: 2db1440b1ebfe4b760d8a8f87aa7f02819e185cc
+  QUICK_SHARUN_SHA256: 9147547560b7be7284cbc2be67f6bbbc1f23158650139c613163a1a73e32d383
+
 jobs:
   appimage:
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Skip until Linux bundling lands
@@ -41,42 +52,94 @@ jobs:
         if: steps.guard.outputs.ready == 'true'
       - name: Install Tauri and test dependencies
         if: steps.guard.outputs.ready == 'true'
-        # xvfb stands in for a display; the webkit runtime is what the window needs once it opens.
+        # xvfb stands in for a display (quick-sharun straces the GUI app, and the smoke test
+        # launches the result); strace/patchelf are quick-sharun inputs.
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev \
-            libayatana-appindicator3-dev librsvg2-dev xvfb
+            libayatana-appindicator3-dev librsvg2-dev xvfb strace patchelf
       - run: npm ci
         if: steps.guard.outputs.ready == 'true'
       - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
         if: steps.guard.outputs.ready == 'true'
-      - name: Build the AppImage
+      - name: Build the classic AppImage as sharun input
         if: steps.guard.outputs.ready == 'true'
         env:
           HELICON_NODE_TARGET: x86_64-unknown-linux-gnu
         # No updater signing key on a pull request, so the updater artifacts are left out.
+        # The classic runtime never ships: quick-sharun re-bundles the binaries below.
         run: npm run tauri --workspace helicon-desktop -- build --target x86_64-unknown-linux-gnu --bundles appimage --config '{"bundle":{"createUpdaterArtifacts":false}}'
-      - name: Check what the bundle contains
+      - name: Fetch pinned quick-sharun
+        if: steps.guard.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          curl -sSL --fail -o /tmp/quick-sharun.sh \
+            "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/${QUICK_SHARUN_REF}/useful-tools/quick-sharun.sh"
+          echo "${QUICK_SHARUN_SHA256}  /tmp/quick-sharun.sh" | sha256sum --check
+          chmod +x /tmp/quick-sharun.sh
+      - name: Re-bundle with sharun
         if: steps.guard.outputs.ready == 'true'
         run: |
           set -euo pipefail
           bundle=apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage
-          image=$(ls "$bundle"/*.AppImage)
-          echo "Built $image"
-          # --appimage-extract writes squashfs-root into the working directory, so the path has to survive the cd.
-          image=$(realpath "$image")
-          (cd "$bundle" && "$image" --appimage-extract >/dev/null)
-          root="$bundle/squashfs-root"
-          test -x "$root/usr/bin/helicon" || { echo "no helicon binary in the bundle"; exit 1; }
-          test -x "$root/usr/bin/node" || { echo "the Node.js sidecar is missing from the bundle"; exit 1; }
-          "$root/usr/bin/node" --version
+          classic=$(realpath "$bundle"/*.AppImage)
+          work="$(mktemp -d)"
+          # Kept for the smoke and artifact steps; cleaned by the runner.
+          echo "SHARUN_WORK=$work" >> "$GITHUB_ENV"
+          (cd "$work" && "$classic" --appimage-extract >/dev/null)
+          root="$work/squashfs-root"
+          test -x "$root/usr/bin/helicon" || { echo "no helicon binary in the classic bundle"; exit 1; }
+          desktop=$(find "$root" -maxdepth 3 -name '*.desktop' -print -quit)
+          test -n "$desktop" || { echo "no .desktop file in the classic bundle"; exit 1; }
+          icon=$(find "$root" -name 'helicon.png' -print -quit)
+          test -n "$icon" || icon=$(find "$root" -name '*.png' -print -quit)
+          test -n "$icon" || { echo "no icon in the classic bundle"; exit 1; }
+          # Phase 1: deploy into an AppDir without packaging, so the Tauri resources (plain data
+          # files quick-sharun would not pick up) can be copied in with the same relative layout first.
+          # Strace mode executes the GUI app, so both runs happen under xvfb.
+          export APPDIR="$work/AppDir" MAIN_BIN=helicon DESKTOP="$desktop" ICON="$icon"
+          xvfb-run -a /tmp/quick-sharun.sh "$root/usr/bin/helicon" "$root/usr/bin/node"
+          # Mirror the Tauri data files (server.cjs, frontend, ...) with the same paths relative
+          # to the bundle root: the binary resolves its resources relative to its own location.
+          (cd "$root" && find . \( -name server.cjs -o -name frontend \) -exec cp --parents -r {} "$APPDIR" \;)
+          find "$APPDIR" -name server.cjs -print -quit | grep . || { echo "server.cjs missing from the sharun AppDir"; exit 1; }
+          # Phase 2: re-running with OUTPUT_APPIMAGE=1 redeploys (idempotent; downloads are cached)
+          # and then packs the AppImage into a separate dir so it cannot be confused with the classic one.
+          mkdir -p "$work/out"
+          export OUTPUT_APPIMAGE=1 OUTPATH="$work/out"
+          xvfb-run -a /tmp/quick-sharun.sh "$root/usr/bin/helicon" "$root/usr/bin/node"
+          packed=("$work"/out/*.AppImage)
+          if [ "${#packed[@]}" -ne 1 ]; then echo "expected one sharun AppImage, found ${#packed[@]}"; exit 1; fi
+          echo "SHARUN_IMAGE=${packed[0]}" >> "$GITHUB_ENV"
+          ls "$work"/out/*.AppImage
+      - name: Check what the bundle contains
+        if: steps.guard.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          echo "Built $SHARUN_IMAGE"
+          dir="$(mktemp -d)"
+          (cd "$dir" && "$SHARUN_IMAGE" --appimage-extract >/dev/null)
+          root="$dir/squashfs-root"
+          # sharun lays binaries out under its own dirs, so locate rather than assume paths.
+          helicon_bin=$(find "$root" -name helicon -type f -executable -print -quit)
+          node_bin=$(find "$root" -name node -type f -executable -print -quit)
+          test -n "$helicon_bin" || { echo "no helicon binary in the bundle"; exit 1; }
+          test -n "$node_bin" || { echo "the Node.js sidecar is missing from the bundle"; exit 1; }
+          "$node_bin" --version
           find "$root" -name server.cjs -print -quit | grep . || { echo "server.cjs is missing from the bundle"; exit 1; }
+          # sharun resolves bundled libs via --library-path instead of exporting LD_LIBRARY_PATH
+          # (see $APPDIR/.env); the classic runtime's export is what leaks stale libraries into
+          # spawned children, so fail if present.
+          if [ -f "$root/.env" ] && grep -q LD_LIBRARY_PATH "$root/.env"; then
+            echo "LD_LIBRARY_PATH leaks out of the bundle"
+            exit 1
+          fi
+          rm -rf "$dir"
       - name: Start it and wait for its server
         if: steps.guard.outputs.ready == 'true'
         run: |
           set -uo pipefail
-          root=apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/squashfs-root
-          xvfb-run -a "$root/AppRun" > /tmp/helicon-stdout.log 2>&1 &
+          xvfb-run -a "$SHARUN_IMAGE" > /tmp/helicon-stdout.log 2>&1 &
           app=$!
           # The app writes its port file next to its database once the server is listening.
           for _ in $(seq 1 60); do
@@ -97,3 +160,11 @@ jobs:
           find "$HOME/.local/share" -name "server.log" -exec cat {} \; 2>/dev/null || true
           kill "$app" 2>/dev/null || true
           exit 1
+      - name: Upload the sharun AppImage
+        # Even on failure the artifact is worth keeping: download it with `gh run download`
+        # and inspect the bundle locally instead of re-running the whole job.
+        if: ${{ steps.guard.outputs.ready == 'true' && always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: helicon-sharun-appimage
+          path: ${{ env.SHARUN_WORK }}/out/*.AppImage
