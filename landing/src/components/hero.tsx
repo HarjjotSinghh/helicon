@@ -98,7 +98,7 @@ export function Hero({
       <div id="demo">
         <DemoVideo
           src="/demo/launch.mp4"
-          poster="/demo/launch.jpg"
+          poster="/demo/launch-poster.jpg"
           label="Helicon in 30 seconds: approvals you can read, diffs where the edit happened, and what each thread would have cost"
         />
       </div>
