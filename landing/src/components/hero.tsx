@@ -98,7 +98,7 @@ export function Hero({
       <div id="demo">
         <DemoVideo
           src="/demo/launch.mp4"
-          poster="/demo/launch-poster.jpg"
+          poster={{ light: "/demo/launch-poster-light.jpg", dark: "/demo/launch-poster-dark.jpg" }}
           label="Helicon in 30 seconds: approvals you can read, diffs where the edit happened, and what each thread would have cost"
         />
       </div>

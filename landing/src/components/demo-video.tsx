@@ -39,7 +39,8 @@ export function DemoVideo({
   label,
 }: {
   src: string;
-  poster: string;
+  /** One frame per site theme; the video element takes a single poster, so these are drawn over it until playback starts. */
+  poster: { light: string; dark: string };
   label: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -47,6 +48,7 @@ export function DemoVideo({
   const hideTimer = useRef<number>(0);
   const userTouched = useRef(false);
   const [playing, setPlaying] = useState(false);
+  const [started, setStarted] = useState(false);
   const [muted, setMuted] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -202,13 +204,13 @@ export function DemoVideo({
       <video
         ref={videoRef}
         className="block aspect-video h-auto w-full bg-black"
-        poster={poster}
         playsInline
         preload="metadata"
         aria-label={label}
         onClick={togglePlay}
         onPlay={() => {
           setPlaying(true);
+          setStarted(true);
           showControls();
         }}
         onPause={() => {
@@ -228,6 +230,15 @@ export function DemoVideo({
       >
         <source src={src} type="video/mp4" />
       </video>
+
+      {!started ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element -- a poster frame, sized by the video box */}
+          <img src={poster.light} alt="" aria-hidden="true" className="theme-light-only pointer-events-none absolute inset-0 size-full object-cover" />
+          {/* eslint-disable-next-line @next/next/no-img-element -- a poster frame, sized by the video box */}
+          <img src={poster.dark} alt="" aria-hidden="true" className="theme-dark-only pointer-events-none absolute inset-0 size-full object-cover" />
+        </>
+      ) : null}
 
       {!playing ? (
         <button
