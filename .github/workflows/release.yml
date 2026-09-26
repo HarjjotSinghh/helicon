@@ -87,6 +87,8 @@ jobs:
       contents: write
     needs: desktop-macos
     runs-on: ubuntu-22.04
+    # A hang must not leave Linux on the old AppImage for the 6h default.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -126,59 +128,53 @@ jobs:
       # actually loads. Then re-sign and republish under the same asset name, so the updater URLs in
       # latest.json keep working.
       #
-      # quick-sharun is pinned to a commit AND its sha256 is checked: an unpinned download has hung CI
-      # before (readest#4909). Bump both together.
-      - name: Re-bundle with sharun and republish AppImage
+      # The pins live in the script; the smoke workflow calls it too, so CI covers what ships.
+      - name: Download the published AppImage
         env:
           RELEASE_TAG: ${{ github.ref_name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          QUICK_SHARUN_REF: 2db1440b1ebfe4b760d8a8f87aa7f02819e185cc
-          QUICK_SHARUN_SHA256: 9147547560b7be7284cbc2be67f6bbbc1f23158650139c613163a1a73e32d383
+        run: |
+          set -euo pipefail
+          dl="$RUNNER_TEMP/classic"
+          mkdir -p "$dl"
+          # gh infers the repository from the git remote, and the token stays in this step:
+          # the repack step below runs the app itself and must not see any secrets.
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "*.AppImage" --clobber --dir "$dl"
+          echo "CLASSIC_DIR=$dl" >> "$GITHUB_ENV"
+      - name: Re-bundle with sharun
+        # Deliberately secret-free: this step executes the downloaded script, four downloaded
+        # binaries and the packaged app, so the signing key and release token stay out of its env.
+        run: |
+          set -euo pipefail
+          count=0
+          classic=""
+          for f in "$CLASSIC_DIR"/Helicon_*_amd64.AppImage; do
+            [ -e "$f" ] || break
+            count=$((count + 1))
+            classic="$f"
+          done
+          [ "$count" -eq 1 ] || { echo "expected one classic AppImage, found $count"; exit 1; }
+          # A downloaded release asset does not keep its executable bit.
+          chmod +x "$classic"
+          work="$(mktemp -d)"
+          # The packed image path below is kept for the sign step; cleaned by the runner.
+          (cd "$work" && "$classic" --appimage-extract >/dev/null)
+          packed="$(sh "${{ github.workspace }}/apps/desktop/scripts/sharun-repack.sh" "$work/squashfs-root" "$work/out")"
+          # Keep the release asset name; only the signature changes below.
+          base="$(basename "$classic")"
+          mv "$packed" "$work/$base"
+          echo "PACKED_IMAGE=$work/$base" >> "$GITHUB_ENV"
+      - name: Sign and republish the AppImage
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          work="$(mktemp -d)"
-          trap 'rm -rf "$work"' EXIT
-          cd "$work"
-          # gh infers the repository from the git remote, and $work is not a checkout.
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "*.AppImage" --clobber
-          appimage=(Helicon_*_amd64.AppImage)
-          # A downloaded release asset does not keep its executable bit.
-          chmod +x "${appimage[0]}"
-          "./${appimage[0]}" --appimage-extract >/dev/null
-          root="$work/squashfs-root"
-          test -x "$root/usr/bin/helicon" || { echo "no helicon binary in the classic bundle"; exit 1; }
-          desktop=$(find "$root" -maxdepth 3 -name '*.desktop' -print -quit)
-          test -n "$desktop" || { echo "no .desktop file in the classic bundle"; exit 1; }
-          icon=$(find "$root" -name 'helicon.png' -print -quit)
-          test -n "$icon" || icon=$(find "$root" -name '*.png' -print -quit)
-          test -n "$icon" || { echo "no icon in the classic bundle"; exit 1; }
-          curl -sSL --fail -o quick-sharun.sh \
-            "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/${QUICK_SHARUN_REF}/useful-tools/quick-sharun.sh"
-          echo "${QUICK_SHARUN_SHA256}  quick-sharun.sh" | sha256sum --check
-          chmod +x quick-sharun.sh
-          # Phase 1: deploy into an AppDir without packaging, so the Tauri resources (plain data files
-          # quick-sharun would not pick up) can be copied in with the same relative layout first.
-          # Strace mode executes the GUI app, so both runs happen under xvfb.
-          export APPDIR="$work/AppDir" MAIN_BIN=helicon DESKTOP="$desktop" ICON="$icon"
-          xvfb-run -a ./quick-sharun.sh "$root/usr/bin/helicon" "$root/usr/bin/node"
-          # Mirror the Tauri data files (server.cjs, frontend, ...) with the same paths relative
-          # to the bundle root: the binary resolves its resources relative to its own location.
-          (cd "$root" && find . \( -name server.cjs -o -name frontend \) -exec cp --parents -r {} "$APPDIR" \;)
-          find "$APPDIR" -name server.cjs -print -quit | grep . || { echo "server.cjs missing from the sharun AppDir"; exit 1; }
-          # Phase 2: re-running with OUTPUT_APPIMAGE=1 redeploys (idempotent; downloads are cached)
-          # and then packs the AppImage into a separate dir so it cannot be confused with the classic one.
-          mkdir -p "$work/out"
-          export OUTPUT_APPIMAGE=1 OUTPATH="$work/out"
-          xvfb-run -a ./quick-sharun.sh "$root/usr/bin/helicon" "$root/usr/bin/node"
-          packed=("$work"/out/*.AppImage)
-          if [ "${#packed[@]}" -ne 1 ]; then echo "expected one sharun AppImage, found ${#packed[@]}"; exit 1; fi
-          # Keep the release asset name; only the signature changes below.
-          mv "${packed[0]}" "${appimage[0]}"
-          "${{ github.workspace }}/node_modules/.bin/tauri" signer sign "${appimage[0]}"
+          "${{ github.workspace }}/node_modules/.bin/tauri" signer sign "$PACKED_IMAGE"
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "latest.json" --clobber
-          SIG_FILE="${appimage[0]}.sig" node -e '
+          SIG_FILE="$PACKED_IMAGE.sig" node -e '
             const fs = require("fs");
             const latest = JSON.parse(fs.readFileSync("latest.json", "utf8"));
             const signature = fs.readFileSync(process.env.SIG_FILE, "utf8").trim();
@@ -187,4 +183,4 @@ jobs:
             }
             fs.writeFileSync("latest.json", JSON.stringify(latest, null, 2));
           '
-          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "${appimage[0]}" "${appimage[0]}.sig" latest.json --clobber
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "$PACKED_IMAGE" "$PACKED_IMAGE.sig" latest.json --clobber

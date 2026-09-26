@@ -24,14 +24,12 @@ on:
       - ".github/workflows/linux-appimage.yml"
   workflow_dispatch:
 
-env:
-  QUICK_SHARUN_REF: 2db1440b1ebfe4b760d8a8f87aa7f02819e185cc
-  QUICK_SHARUN_SHA256: 9147547560b7be7284cbc2be67f6bbbc1f23158650139c613163a1a73e32d383
-
 jobs:
   appimage:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Skip until Linux bundling lands
@@ -69,16 +67,9 @@ jobs:
         # No updater signing key on a pull request, so the updater artifacts are left out.
         # The classic runtime never ships: quick-sharun re-bundles the binaries below.
         run: npm run tauri --workspace helicon-desktop -- build --target x86_64-unknown-linux-gnu --bundles appimage --config '{"bundle":{"createUpdaterArtifacts":false}}'
-      - name: Fetch pinned quick-sharun
-        if: steps.guard.outputs.ready == 'true'
-        run: |
-          set -euo pipefail
-          curl -sSL --fail -o /tmp/quick-sharun.sh \
-            "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/${QUICK_SHARUN_REF}/useful-tools/quick-sharun.sh"
-          echo "${QUICK_SHARUN_SHA256}  /tmp/quick-sharun.sh" | sha256sum --check
-          chmod +x /tmp/quick-sharun.sh
       - name: Re-bundle with sharun
         if: steps.guard.outputs.ready == 'true'
+        # The pins live in the script; both workflows call it so the smoke test covers what ships.
         run: |
           set -euo pipefail
           bundle=apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage
@@ -87,30 +78,8 @@ jobs:
           # Kept for the smoke and artifact steps; cleaned by the runner.
           echo "SHARUN_WORK=$work" >> "$GITHUB_ENV"
           (cd "$work" && "$classic" --appimage-extract >/dev/null)
-          root="$work/squashfs-root"
-          test -x "$root/usr/bin/helicon" || { echo "no helicon binary in the classic bundle"; exit 1; }
-          desktop=$(find "$root" -maxdepth 3 -name '*.desktop' -print -quit)
-          test -n "$desktop" || { echo "no .desktop file in the classic bundle"; exit 1; }
-          icon=$(find "$root" -name 'helicon.png' -print -quit)
-          test -n "$icon" || icon=$(find "$root" -name '*.png' -print -quit)
-          test -n "$icon" || { echo "no icon in the classic bundle"; exit 1; }
-          # Phase 1: deploy into an AppDir without packaging, so the Tauri resources (plain data
-          # files quick-sharun would not pick up) can be copied in with the same relative layout first.
-          # Strace mode executes the GUI app, so both runs happen under xvfb.
-          export APPDIR="$work/AppDir" MAIN_BIN=helicon DESKTOP="$desktop" ICON="$icon"
-          xvfb-run -a /tmp/quick-sharun.sh "$root/usr/bin/helicon" "$root/usr/bin/node"
-          # Mirror the Tauri data files (server.cjs, frontend, ...) with the same paths relative
-          # to the bundle root: the binary resolves its resources relative to its own location.
-          (cd "$root" && find . \( -name server.cjs -o -name frontend \) -exec cp --parents -r {} "$APPDIR" \;)
-          find "$APPDIR" -name server.cjs -print -quit | grep . || { echo "server.cjs missing from the sharun AppDir"; exit 1; }
-          # Phase 2: re-running with OUTPUT_APPIMAGE=1 redeploys (idempotent; downloads are cached)
-          # and then packs the AppImage into a separate dir so it cannot be confused with the classic one.
-          mkdir -p "$work/out"
-          export OUTPUT_APPIMAGE=1 OUTPATH="$work/out"
-          xvfb-run -a /tmp/quick-sharun.sh "$root/usr/bin/helicon" "$root/usr/bin/node"
-          packed=("$work"/out/*.AppImage)
-          if [ "${#packed[@]}" -ne 1 ]; then echo "expected one sharun AppImage, found ${#packed[@]}"; exit 1; fi
-          echo "SHARUN_IMAGE=${packed[0]}" >> "$GITHUB_ENV"
+          packed="$(sh apps/desktop/scripts/sharun-repack.sh "$work/squashfs-root" "$work/out")"
+          echo "SHARUN_IMAGE=$packed" >> "$GITHUB_ENV"
           ls "$work"/out/*.AppImage
       - name: Check what the bundle contains
         if: steps.guard.outputs.ready == 'true'
@@ -139,14 +108,23 @@ jobs:
         if: steps.guard.outputs.ready == 'true'
         run: |
           set -uo pipefail
+          # A fresh HOME so a stale server-port from an earlier run cannot satisfy the wait (the
+          # app writes the file when it picks a port, before the server listens, and reuses it
+          # across launches), and a minimal PATH so a pass proves the bundled node is used, not
+          # setup-node's.
+          export HOME="$(mktemp -d)" PATH="/usr/bin:/bin"
           xvfb-run -a "$SHARUN_IMAGE" > /tmp/helicon-stdout.log 2>&1 &
           app=$!
-          # The app writes its port file next to its database once the server is listening.
+          port=""
           for _ in $(seq 1 60); do
-            if find "$HOME/.local/share" -name server-port -print -quit 2>/dev/null | grep -q .; then
-              echo "The server came up: $(find "$HOME/.local/share" -name server-port -exec cat {} \;)"
-              kill "$app" 2>/dev/null || true
-              exit 0
+            port_file="$(find "$HOME/.local/share" -name server-port -print -quit 2>/dev/null)"
+            if [ -n "$port_file" ]; then
+              candidate="$(cat "$port_file")"
+              # --fail rejects non-2xx; the body proves the server itself answered.
+              if curl --fail --silent "http://127.0.0.1:$candidate/api/health" | grep -q '"ok":true'; then
+                port="$candidate"
+                break
+              fi
             fi
             if ! kill -0 "$app" 2>/dev/null; then
               echo "The app exited before its server started."
@@ -154,12 +132,30 @@ jobs:
             fi
             sleep 2
           done
-          echo "--- app output"
-          cat /tmp/helicon-stdout.log || true
-          echo "--- server log"
-          find "$HOME/.local/share" -name "server.log" -exec cat {} \; 2>/dev/null || true
+          if [ -z "$port" ]; then
+            echo "--- app output"
+            cat /tmp/helicon-stdout.log || true
+            echo "--- server log"
+            find "$HOME/.local/share" -name "server.log" -exec cat {} \; 2>/dev/null || true
+            kill "$app" 2>/dev/null || true
+            exit 1
+          fi
+          echo "The server answered on $port"
+          # The regression is what a spawned child inherits, not the image's .env.
+          server_pid="$(pgrep -f server.cjs | head -n 1)"
+          if [ -z "$server_pid" ]; then
+            echo "The server answered but its child process was not found."
+            kill "$app" 2>/dev/null || true
+            exit 1
+          fi
+          if tr '\0' '\n' < "/proc/$server_pid/environ" | grep -q "^LD_LIBRARY_PATH="; then
+            echo "LD_LIBRARY_PATH leaked into the server child (pid $server_pid)."
+            kill "$app" 2>/dev/null || true
+            exit 1
+          fi
+          echo "No LD_LIBRARY_PATH in the server child env."
           kill "$app" 2>/dev/null || true
-          exit 1
+          exit 0
       - name: Upload the sharun AppImage
         # Even on failure the artifact is worth keeping: download it with `gh run download`
         # and inspect the bundle locally instead of re-running the whole job.
