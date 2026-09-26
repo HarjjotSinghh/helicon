@@ -90,7 +90,12 @@ jobs:
     # A hang must not leave Linux on the old AppImage for the 6h default.
     timeout-minutes: 60
     steps:
+      # No persisted credentials: the repack step below executes downloaded code with this
+      # checkout as its working directory, and the default would leave the write-scoped
+      # GITHUB_TOKEN in .git/config. The gh steps get the token through their own step env.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
