@@ -1,5 +1,5 @@
+import { spawn } from "node:child_process";
 import { posix } from "node:path";
-import type { ExecFn } from "@helicon/daemon";
 import type { DirectoryListing } from "./paths.js";
 
 /**
@@ -18,8 +18,107 @@ export class SshError extends Error {
   }
 }
 
-/** Keeps SSH non-interactive: never prompt, stay quiet, fail fast. */
-export const SSH_OPTS = ["-o", "BatchMode=yes", "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=10"];
+/**
+ * Keeps SSH non-interactive: never prompt, stay quiet, fail fast. `-T` and `RequestTTY=no` keep a pty
+ * off the MSP stream even when the user's config says `RequestTTY force`; the keepalives let a host
+ * whose network went away (a sleeping laptop, a dropped VPN) die within about 45 seconds.
+ */
+export const SSH_OPTS = [
+  "-T",
+  "-o",
+  "BatchMode=yes",
+  "-o",
+  "LogLevel=ERROR",
+  "-o",
+  "ConnectTimeout=10",
+  "-o",
+  "RequestTTY=no",
+  "-o",
+  "ServerAliveInterval=15",
+  "-o",
+  "ServerAliveCountMax=3",
+];
+
+/** How long one short `ssh` command (a listing, a `$HOME` lookup) may take. */
+export const SSH_RUN_TIMEOUT_MS = 30_000;
+
+/** What one short `ssh` command returned. */
+export interface SshRunResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  /** `ssh` itself could not be started: not installed, or not on PATH. */
+  missing: boolean;
+}
+
+/** Runs `ssh` with these arguments, writing `input` to its stdin. */
+export type SshRunFn = (args: string[], input?: string) => Promise<SshRunResult>;
+
+/** The real `ssh` runner. Never rejects: a failure to start comes back as `missing`. */
+export const defaultSshRun: SshRunFn = (args, input) =>
+  new Promise((resolvePromise) => {
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let settled = false;
+    const child = spawn("ssh", args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, SSH_RUN_TIMEOUT_MS);
+    const finish = (result: SshRunResult) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolvePromise(result);
+      }
+    };
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => (stdout += chunk));
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => (stderr += chunk));
+    child.on("error", (error: NodeJS.ErrnoException) =>
+      finish({ stdout, stderr: stderr || error.message, exitCode: 127, missing: error.code === "ENOENT" }),
+    );
+    child.on("close", (code) =>
+      finish({
+        stdout,
+        stderr: timedOut ? `ssh did not finish within ${SSH_RUN_TIMEOUT_MS / 1000} seconds.` : stderr,
+        exitCode: code ?? 255,
+        missing: false,
+      }),
+    );
+    // ssh may exit before it reads its input (an unreachable host); that is reported through `close`.
+    child.stdin.on("error", () => undefined);
+    child.stdin.end(input ?? "");
+  });
+
+/** The last non-empty line ssh wrote to stderr, without a trailing period. */
+function lastErrorLine(stderr: string): string {
+  const lines = stripAnsiCodes(stderr)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return (lines[lines.length - 1] ?? "").replace(/\.$/, "");
+}
+
+/**
+ * The error for an `ssh` command that did not get its answer back, in words that say what to fix:
+ * a missing `ssh` binary, an unknown or changed host key, a login that needs a password, or
+ * whatever ssh itself reported.
+ */
+export function sshFailure(host: string, result: SshRunResult, action: string): SshError {
+  if (result.missing) {
+    return new SshError(502, "Could not find ssh on this machine. Install OpenSSH, or add it to PATH, and try again.");
+  }
+  const detail = lastErrorLine(result.stderr);
+  const said = detail ? `: ${detail}.` : ` (ssh exited with code ${result.exitCode}).`;
+  if (/host key verification failed|remote host identification has changed|no matching host key/i.test(result.stderr)) {
+    return new SshError(502, `Could not ${action} "${host}"${said} Run \`ssh ${host}\` once in a terminal to check and accept its host key.`);
+  }
+  if (/permission denied/i.test(result.stderr)) {
+    return new SshError(502, `Could not ${action} "${host}"${said} Helicon needs \`ssh ${host}\` to work without a password, through a key or an agent.`);
+  }
+  return new SshError(502, `Could not ${action} "${host}" over SSH${said} Check that \`ssh ${host}\` works without a password.`);
+}
 
 /** How long a remote `$HOME` answer is trusted. */
 export const SSH_HOME_CACHE_MS = 60_000;
@@ -146,9 +245,14 @@ export function sshArgv(host: string, remoteCommand: string): string[] {
   return [...SSH_OPTS, "--", host, remoteCommand];
 }
 
-/** `ssh` argv whose remote end is the agent: `ssh [opts] -- host muse serve ...`. */
-export function sshServeArgs(host: string, musePath: string, serveArgs: string[]): string[] {
-  return [...SSH_OPTS, "--", host, musePath, ...serveArgs];
+/**
+ * `ssh` argv whose remote end is the agent, started inside the project folder:
+ * `ssh [opts] -- host 'cd <path> && exec muse serve ...'`. Starting there keeps anything Muse
+ * scopes to its working directory (workspace trust, the sandbox root) on the project, not `$HOME`.
+ * `muse` resolves on the remote PATH: the local `--muse` path names a local binary.
+ */
+export function sshServeArgs(host: string, remotePath: string, serveArgs: string[]): string[] {
+  return [...SSH_OPTS, "--", host, `cd ${shellQuote(remotePath)} && exec muse ${serveArgs.join(" ")}`];
 }
 
 /** Single-quotes a value for a remote POSIX shell. */
@@ -158,19 +262,46 @@ export function shellQuote(value: string): string {
 
 const NOENT = "__helicon_noent__";
 const NOTDIR = "__helicon_notdir__";
+const BEGIN = "__helicon_begin__";
+const END = "__helicon_end__";
 
 /**
- * One remote command listing a folder's subfolders, reporting missing ones with a sentinel.
- * `command` bypasses aliases and shell functions, so an `ls` alias from a remote rc file
- * (colorize flags, exa wrappers) cannot change the output shape. `-A` keeps hidden folders,
- * matching the local picker's `readdir` behavior. The script runs under `sh`, not the remote
- * login shell: fish/csh cannot parse POSIX syntax, which surfaced as a misleading 502.
+ * The remote command for every short script: `sh -s` reads the script from stdin. The login shell
+ * only ever parses `sh -s`, so csh's `!` history expansion and fish's quoting rules never touch
+ * a path, and the script itself always runs under POSIX `sh`.
+ */
+export const REMOTE_SCRIPT_COMMAND = "sh -s";
+
+/** Wraps a script's output in markers, so rc-file noise printed around it is never mistaken for it. */
+export function framedScript(body: string): string {
+  return `printf '%s\\n' ${BEGIN}\n${body}\nprintf '\\n%s\\n' ${END}\n`;
+}
+
+/** The output between the markers, or null when the script never ran to its end. */
+export function extractFramed(stdout: string): string | null {
+  const text = stripAnsiCodes(stdout).replace(/\r\n/g, "\n");
+  const begin = text.indexOf(`${BEGIN}\n`);
+  const end = text.lastIndexOf(`\n${END}`);
+  if (begin < 0 || end < begin + BEGIN.length) {
+    return null;
+  }
+  return text.slice(begin + BEGIN.length + 1, end);
+}
+
+/**
+ * The script listing a folder's subfolders, reporting missing ones with a sentinel. It travels on
+ * stdin (see REMOTE_SCRIPT_COMMAND). `command` bypasses aliases and shell functions, so an `ls`
+ * alias from a remote rc file (colorize flags, exa wrappers) cannot change the output shape. `-A`
+ * keeps hidden folders, matching the local picker's `readdir` behavior.
  */
 export function remoteListScript(absPath: string): string {
-  const quoted = shellQuote(absPath);
-  const script = `p=${quoted}; if [ -d "$p" ]; then command ls -1 -p -A -- "$p" 2>/dev/null || true; elif [ -e "$p" ]; then printf '%s' ${NOTDIR}; else printf '%s' ${NOENT}; fi`;
-  return `sh -c ${shellQuote(script)}`;
+  return framedScript(
+    `p=${shellQuote(absPath)}\nif [ -d "$p" ]; then command ls -1 -p -A -- "$p" 2>/dev/null || true; elif [ -e "$p" ]; then printf '%s\\n' ${NOTDIR}; else printf '%s\\n' ${NOENT}; fi`,
+  );
 }
+
+/** The script printing the remote `$HOME`. */
+export const REMOTE_HOME_SCRIPT = framedScript(`printf '%s\\n' "$HOME"`);
 
 /** Strips ANSI color sequences, so a colorized `ls` from any source still parses. */
 export function stripAnsiCodes(value: string): string {
@@ -204,21 +335,30 @@ export function parseSshLs(stdout: string): { exists: boolean; entries: { name: 
 }
 
 /**
- * Lists a remote folder's subfolders over SSH. Throws SshError: 502 when the
- * host is unreachable, with the sentinel parse deciding missing vs. present.
+ * Lists a remote folder's subfolders over SSH. Throws SshError (502, with ssh's own reason) when
+ * the script did not run to its end marker; the sentinel parse decides missing vs. present.
  */
-export async function listSshDirectory(host: string, absPath: string, exec: ExecFn): Promise<{ exists: boolean; entries: { name: string }[] }> {
-  const result = await exec("ssh", sshArgv(host, remoteListScript(absPath)));
-  if (!result.stdout.trim()) {
-    if (result.exitCode !== 0) {
-      throw new SshError(
-        502,
-        `Could not list folders on "${host}" (ssh exited with code ${result.exitCode}). Check that \`ssh ${host}\` works without a password.`,
-      );
-    }
-    return { exists: true, entries: [] };
+export async function listSshDirectory(host: string, absPath: string, run: SshRunFn): Promise<{ exists: boolean; entries: { name: string }[] }> {
+  const result = await run(sshArgv(host, REMOTE_SCRIPT_COMMAND), remoteListScript(absPath));
+  const body = extractFramed(result.stdout);
+  if (body === null) {
+    throw sshFailure(host, result, "list folders on");
   }
-  return parseSshLs(result.stdout);
+  return parseSshLs(body);
+}
+
+/** The remote `$HOME` on an SSH host. Throws SshError when the host cannot be reached. */
+export async function readSshHome(host: string, run: SshRunFn): Promise<string> {
+  const result = await run(sshArgv(host, REMOTE_SCRIPT_COMMAND), REMOTE_HOME_SCRIPT);
+  const body = extractFramed(result.stdout);
+  if (body === null) {
+    throw sshFailure(host, result, "reach");
+  }
+  const home = body.trim();
+  if (!home.startsWith("/")) {
+    throw new SshError(502, `Could not read the home folder on "${host}" over SSH.`);
+  }
+  return home;
 }
 
 /**

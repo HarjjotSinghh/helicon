@@ -2,6 +2,7 @@ import { ArrowsClockwiseIcon, CaretDownIcon, CheckIcon, FolderPlusIcon } from ".
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { relativeTime, shortenPath } from "../../model/format.js";
+import { isSshPath } from "../../model/paths.js";
 import { planView } from "../../model/plan.js";
 import type { AccountView, PlanUsage, PlanUsageByAccount, ProjectView } from "../../types.js";
 import { TopBar } from "../chrome.js";
@@ -90,7 +91,8 @@ function nearCapHint(
   planUsageByAccount: PlanUsageByAccount,
   now: number,
 ): string | null {
-  if (!accounts || accounts.length < 1) {
+  // Local plan meters say nothing about the login an SSH project runs on.
+  if (!accounts || accounts.length < 1 || isSshPath(project.cwd)) {
     return null;
   }
   const candidates: { id: string | null; name: string; percent: number }[] = [];

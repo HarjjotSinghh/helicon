@@ -1,25 +1,56 @@
 import { after, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { HeliconServer, type HostExit, type HostHandle } from "../src/server.js";
-import type { ExecFn, ServeTarget } from "@helicon/daemon";
+import type { ServeTarget } from "@helicon/daemon";
 import {
+  REMOTE_HOME_SCRIPT,
+  REMOTE_SCRIPT_COMMAND,
   SSH_OPTS,
   SshError,
   discoveredProjectRoot,
+  extractFramed,
   isSshCwd,
   listSshDirectory,
   normalizeSshCwd,
   parseSshLs,
   parseSshProject,
+  readSshHome,
   remoteListScript,
   resolveSshPath,
   shellQuote,
   sshArgv,
+  sshFailure,
   stripAnsiCodes,
   sshParent,
   sshServeArgs,
   validateSshHost,
+  type SshRunFn,
+  type SshRunResult,
 } from "../src/ssh.js";
+
+/** What a remote script prints, with rc-file noise around the markers like a chatty login shell. */
+function framedOutput(body: string): string {
+  return `Welcome to devbox\n__helicon_begin__\n${body}\n__helicon_end__\nbye\n`;
+}
+
+/** A reachable host whose scripts answer through `reply`, keyed on the script it was sent. */
+function remote(reply: (script: string) => string, calls?: { args: string[]; input: string }[]): SshRunFn {
+  return async (args, input = "") => {
+    calls?.push({ args, input });
+    return { stdout: framedOutput(reply(input)), stderr: "", exitCode: 0, missing: false };
+  };
+}
+
+/** A host that never runs the script, with what ssh said on stderr. */
+function failing(stderr: string, extra: Partial<SshRunResult> = {}): SshRunFn {
+  return async () => ({ stdout: "", stderr, exitCode: 255, missing: false, ...extra });
+}
+
+const unreachable = failing("ssh: connect to host h port 22: Connection refused");
 
 describe("ssh paths", () => {
   it("validates hostnames without letting options or shell through", () => {
@@ -66,17 +97,22 @@ describe("ssh paths", () => {
     assert.throws(() => resolveSshPath("h", "~/x", null), (e) => e instanceof SshError && e.status === 502);
   });
 
-  it("builds strict ssh argv for the agent", () => {
-    assert.deepEqual(sshServeArgs("h", "muse", ["serve"]), [...SSH_OPTS, "--", "h", "muse", "serve"]);
-    assert.deepEqual(sshServeArgs("deploy@h", "/opt/muse", ["serve", "--disable-sandbox"]), [
+  it("builds strict ssh argv for the agent, started inside the project folder", () => {
+    assert.deepEqual(sshServeArgs("h", "/srv/app", ["serve"]), [...SSH_OPTS, "--", "h", "cd '/srv/app' && exec muse serve"]);
+    assert.deepEqual(sshServeArgs("deploy@h", "/srv/o'clock", ["serve", "--disable-sandbox"]), [
       ...SSH_OPTS,
       "--",
       "deploy@h",
-      "/opt/muse",
-      "serve",
-      "--disable-sandbox",
+      "cd '/srv/o'\\''clock' && exec muse serve --disable-sandbox",
     ]);
     assert.deepEqual(sshArgv("h", "ls"), [...SSH_OPTS, "--", "h", "ls"]);
+  });
+
+  it("keeps a pty off the stream and notices a host that went away", () => {
+    assert.equal(SSH_OPTS[0], "-T");
+    for (const option of ["BatchMode=yes", "RequestTTY=no", "ServerAliveInterval=15", "ServerAliveCountMax=3"]) {
+      assert.ok(SSH_OPTS.includes(option), option);
+    }
   });
 
   it("quotes remote paths for a single remote shell string", () => {
@@ -84,14 +120,43 @@ describe("ssh paths", () => {
     assert.equal(shellQuote("/srv/o'clock"), "'/srv/o'\\''clock'");
   });
 
-  it("runs the listing under sh, not the remote login shell", () => {
-    // fish/csh cannot parse the POSIX script, so it travels as one `sh -c` argument.
-    // (Exact nested quoting belongs to shellQuote's own test above.)
-    const script = remoteListScript("/srv/o'clock");
-    assert.match(script, /^sh -c '/);
-    assert.match(script, /'$/);
+  it("sends scripts on stdin to sh, so the login shell never parses a path", () => {
+    // csh expands `!` even inside single quotes and fish reads backslashes its own way; the
+    // login shell only ever sees `sh -s`.
+    assert.equal(REMOTE_SCRIPT_COMMAND, "sh -s");
+    const script = remoteListScript("/srv/o'clock!");
+    assert.ok(script.includes(`p=${shellQuote("/srv/o'clock!")}`));
     assert.match(script, /command ls -1 -p -A -- "\$p"/);
-    assert.match(script, /\/srv\/o/);
+    assert.match(script, /^printf '%s\\n' __helicon_begin__\n/);
+    assert.match(script, /__helicon_end__\n$/);
+  });
+
+  it("reads only what the script printed between its markers", () => {
+    assert.equal(extractFramed("motd\n__helicon_begin__\na/\nb/\n\n__helicon_end__\n"), "a/\nb/\n");
+    assert.equal(extractFramed("__helicon_begin__\n\n__helicon_end__\n"), "");
+    // rc output alone, or a script cut off before its end, is not an empty folder.
+    assert.equal(extractFramed("Last login: today\n"), null);
+    assert.equal(extractFramed("__helicon_begin__\na/\n"), null);
+  });
+
+  it("runs the real listing script under a POSIX sh", { skip: process.platform === "win32" }, () => {
+    const root = mkdtempSync(join(tmpdir(), "helicon-ssh-"));
+    const folder = join(root, "o'clock!");
+    mkdirSync(join(folder, "b"), { recursive: true });
+    mkdirSync(join(folder, ".hidden"));
+    writeFileSync(join(folder, "notes.txt"), "");
+    writeFileSync(join(root, "file"), "");
+    const run = (path: string) => {
+      const out = spawnSync("sh", ["-s"], { input: remoteListScript(path), encoding: "utf8" }).stdout;
+      const body = extractFramed(out);
+      assert.notEqual(body, null, out);
+      return parseSshLs(body as string);
+    };
+    assert.deepEqual(run(folder), { exists: true, entries: [{ name: ".hidden" }, { name: "b" }] });
+    assert.deepEqual(run(join(root, "missing")), { exists: false, entries: [] });
+    assert.deepEqual(run(join(root, "file")), { exists: false, entries: [] });
+    const home = spawnSync("sh", ["-s"], { input: REMOTE_HOME_SCRIPT, encoding: "utf8", env: { ...process.env, HOME: "/home/dev" } });
+    assert.equal(extractFramed(home.stdout)?.trim(), "/home/dev");
   });
 
   it("parses remote listings, keeping folders only", () => {
@@ -108,7 +173,6 @@ describe("ssh paths", () => {
     // `command` bypasses aliases and functions, so `alias ls='ls --color=always'`
     // (or an exa wrapper) cannot change the output shape. `-A` keeps hidden folders.
     const script = remoteListScript("/srv/app");
-    assert.match(script, /^sh -c '/);
     assert.match(script, /command ls -1 -p -A -- "\$p"/);
     // Belt and braces: color codes from any source still parse.
     assert.equal(stripAnsiCodes("\x1b[01;34mproj/\x1b[0m"), "proj/");
@@ -128,12 +192,42 @@ describe("ssh paths", () => {
   });
 
   it("lists over ssh and reports an unreachable host", async () => {
-    const ok: ExecFn = async () => ({ stdout: "proj/\nnotes.txt\n", exitCode: 0 });
-    assert.deepEqual(await listSshDirectory("h", "/srv", ok), { exists: true, entries: [{ name: "proj" }] });
-    const down: ExecFn = async () => ({ stdout: "", exitCode: 255 });
-    await assert.rejects(() => listSshDirectory("h", "/srv", down), (e) => e instanceof SshError && e.status === 502);
-    const missing: ExecFn = async () => ({ stdout: "__helicon_noent__", exitCode: 0 });
-    assert.deepEqual(await listSshDirectory("h", "/nope", missing), { exists: false, entries: [] });
+    const calls: { args: string[]; input: string }[] = [];
+    assert.deepEqual(await listSshDirectory("h", "/srv", remote(() => "proj/\nnotes.txt\n", calls)), {
+      exists: true,
+      entries: [{ name: "proj" }],
+    });
+    assert.deepEqual(calls[0]?.args, [...SSH_OPTS, "--", "h", "sh -s"]);
+    assert.equal(calls[0]?.input, remoteListScript("/srv"));
+    await assert.rejects(() => listSshDirectory("h", "/srv", unreachable), (e) => e instanceof SshError && e.status === 502);
+    assert.deepEqual(await listSshDirectory("h", "/nope", remote(() => "__helicon_noent__")), { exists: false, entries: [] });
+    assert.deepEqual(await listSshDirectory("h", "/empty", remote(() => "")), { exists: true, entries: [] });
+    assert.equal(await readSshHome("h", remote(() => "/home/dev\n")), "/home/dev");
+    await assert.rejects(() => readSshHome("h", remote(() => "")), (e) => e instanceof SshError && e.status === 502);
+  });
+
+  it("says why ssh failed, in words that say what to fix", async () => {
+    const said = async (run: SshRunFn) => {
+      const error = await listSshDirectory("devbox", "/srv", run).then(
+        () => assert.fail("expected a failure"),
+        (e: unknown) => e as SshError,
+      );
+      assert.equal(error.status, 502);
+      return error.message;
+    };
+    const hostKey = await said(failing("Host key verification failed.\r\n"));
+    assert.match(hostKey, /Host key verification failed/);
+    assert.match(hostKey, /ssh devbox`? once in a terminal/);
+    const password = await said(failing("deploy@devbox: Permission denied (publickey,password).\n"));
+    assert.match(password, /Permission denied/);
+    assert.match(password, /without a password/);
+    const refused = await said(unreachable);
+    assert.match(refused, /Connection refused/);
+    const missing = await said(failing("spawn ssh ENOENT", { exitCode: 127, missing: true }));
+    assert.match(missing, /Could not find ssh on this machine/);
+    assert.doesNotMatch(missing, /without a password/);
+    // Nothing on stderr still names the exit code rather than guessing.
+    assert.match(sshFailure("h", { stdout: "", stderr: "", exitCode: 255, missing: false }, "reach").message, /code 255/);
   });
 });
 
@@ -150,7 +244,15 @@ class FakeConnection {
     return this.command(method, params);
   }
 
-  onNotification(): void {}
+  handler: ((n: { method: string; params?: unknown }) => void) | null = null;
+
+  onNotification(handler: (n: { method: string; params?: unknown }) => void): void {
+    this.handler = handler;
+  }
+
+  notify(method: string, params: Record<string, unknown>): void {
+    this.handler?.({ method, params });
+  }
 }
 
 interface Probe {
@@ -180,14 +282,8 @@ async function request(base: string, path: string, body?: unknown, method = body
 
 describe("ssh routes", () => {
   it("browses remote folders through the picker endpoint, caching the remote home", async () => {
-    const execCalls: { command: string; args: string[] }[] = [];
-    const exec: ExecFn = async (command, args) => {
-      execCalls.push({ command, args });
-      if (args[args.length - 1] === 'printf %s "$HOME"') {
-        return { stdout: "/home/dev\n", exitCode: 0 };
-      }
-      return { stdout: "proj/\nnotes.txt\n", exitCode: 0 };
-    };
+    const calls: { args: string[]; input: string }[] = [];
+    const sshRun = remote((script) => (script === REMOTE_HOME_SCRIPT ? "/home/dev\n" : "proj/\nnotes.txt\n"), calls);
     const server = new HeliconServer({
       port: 0,
       dataDir: ":memory:",
@@ -197,7 +293,8 @@ describe("ssh routes", () => {
         throw new Error("no Muse host in this test");
       },
       opener: async () => {},
-      exec,
+      exec: async () => ({ stdout: "", exitCode: 127 }),
+      sshRun,
     });
     after(() => server.close());
     const base = `http://127.0.0.1:${(await server.listen()).port}`;
@@ -212,11 +309,7 @@ describe("ssh routes", () => {
 
     const second = await request(base, `/api/fs/list?path=${encodeURIComponent("ssh://h/~/")}`);
     assert.equal(second.status, 200);
-    assert.equal(
-      execCalls.filter((c) => c.args[c.args.length - 1] === 'printf %s "$HOME"').length,
-      1,
-      "the remote home is cached",
-    );
+    assert.equal(calls.filter((c) => c.input === REMOTE_HOME_SCRIPT).length, 1, "the remote home is cached");
 
     assert.equal((await request(base, `/api/fs/list?path=${encodeURIComponent("ssh://bad;host/x")}`)).status, 400);
   });
@@ -231,12 +324,14 @@ describe("ssh routes", () => {
         throw new Error("no Muse host in this test");
       },
       opener: async () => {},
-      exec: async () => ({ stdout: "", exitCode: 255 }),
+      exec: async () => ({ stdout: "", exitCode: 127 }),
+      sshRun: failing("Host key verification failed."),
     });
     after(() => server.close());
     const base = `http://127.0.0.1:${(await server.listen()).port}`;
     const res = await request(base, `/api/fs/list?path=${encodeURIComponent("ssh://h/srv")}`);
     assert.equal(res.status, 502);
+    assert.match(res.json.error ?? res.json.message ?? "", /Host key verification failed/);
   });
 
   it("adds ssh:// projects and starts their threads through ssh", async () => {
@@ -266,7 +361,7 @@ describe("ssh routes", () => {
     assert.equal(started.status, 200);
     assert.equal(started.json.session.sessionId, "s1");
     assert.equal(probe.targets[0]?.command, "ssh");
-    assert.deepEqual(probe.targets[0]?.args, [...SSH_OPTS, "--", "h", "muse", "serve"]);
+    assert.deepEqual(probe.targets[0]?.args, [...SSH_OPTS, "--", "h", "cd '/MyApp' && exec muse serve"]);
     assert.equal(
       connection.calls.find((c) => c.method === "session/start")?.params["workspaceRoot"],
       "/MyApp",
@@ -339,7 +434,84 @@ describe("ssh routes", () => {
     const base = `http://127.0.0.1:${(await server.listen()).port}`;
     assert.equal((await request(base, "/api/sessions", { cwd: "ssh://h/app" })).status, 200);
     assert.equal(probe.targets[0]?.command, "ssh");
-    assert.deepEqual(probe.targets[0]?.args, [...SSH_OPTS, "--", "h", "muse", "serve"]);
+    assert.deepEqual(probe.targets[0]?.args, [...SSH_OPTS, "--", "h", "cd '/app' && exec muse serve"]);
+  });
+
+  it("keeps SSH projects on the remote host's own login", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const probe: Probe = { targets: [] };
+    const server = new HeliconServer({
+      port: 0,
+      dataDir: ":memory:",
+      platform: "linux",
+      musePath: "muse",
+      hostFactory: fakeFactory(connection, probe),
+      opener: async () => {},
+      exec: async () => ({ stdout: "", exitCode: 127 }),
+    });
+    after(() => server.close());
+    const base = `http://127.0.0.1:${(await server.listen()).port}`;
+    const started = await request(base, "/api/sessions", { cwd: "ssh://h/app", accountId: "work" });
+    assert.equal(started.status, 400);
+    assert.match(started.json.error ?? started.json.message ?? "", /remote host's own Muse login/);
+    assert.equal(probe.targets.length, 0, "no host spawned for a refused account");
+    const pinned = await request(base, "/api/projects/default-account", { cwd: "ssh://h/app", accountId: "work" }, "PATCH");
+    assert.equal(pinned.status, 400);
+    assert.equal((await request(base, "/api/projects/default-account", { cwd: "ssh://h/app", accountId: null }, "PATCH")).status, 200);
+  });
+
+  it("never sends an SSH thread's first prompt to a local title call", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const execCalls: string[][] = [];
+    const server = new HeliconServer({
+      port: 0,
+      dataDir: ":memory:",
+      platform: "linux",
+      musePath: "muse",
+      hostFactory: fakeFactory(connection),
+      opener: async () => {},
+      exec: async (command, args) => {
+        execCalls.push([command, ...args]);
+        return { stdout: "", exitCode: 127 };
+      },
+    });
+    after(() => server.close());
+    const base = `http://127.0.0.1:${(await server.listen()).port}`;
+    assert.equal((await request(base, "/api/sessions", { cwd: "ssh://h/app" })).status, 200);
+    connection.notify("item/completed", {
+      sessionId: "s1",
+      item: { itemId: "i1", kind: "userMessage", revision: 1, status: "completed", text: "summarize the secrets in config/prod.env" },
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(
+      execCalls.filter((call) => call.includes("exec")).length,
+      0,
+      "no local muse exec for a remote thread",
+    );
+  });
+
+  it("reports whether an ssh client is installed", async () => {
+    const env = async (sshRun: SshRunFn) => {
+      const server = new HeliconServer({
+        port: 0,
+        dataDir: ":memory:",
+        platform: "linux",
+        musePath: "muse",
+        hostFactory: () => {
+          throw new Error("no Muse host in this test");
+        },
+        opener: async () => {},
+        exec: async () => ({ stdout: "", exitCode: 127 }),
+        sshRun,
+      });
+      after(() => server.close());
+      const base = `http://127.0.0.1:${(await server.listen()).port}`;
+      return (await request(base, "/api/env")).json;
+    };
+    assert.equal((await env(failing("OpenSSH_9.6p1", { exitCode: 0 }))).sshFound, true);
+    assert.equal((await env(failing("spawn ssh ENOENT", { exitCode: 127, missing: true }))).sshFound, false);
   });
 
   it("rejects malformed ssh:// projects", async () => {

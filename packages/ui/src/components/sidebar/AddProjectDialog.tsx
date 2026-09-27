@@ -100,13 +100,15 @@ const SOURCES: { id: SourceId; label: string; description: string; icon: ReactNo
  */
 function Sources(props: { onPick: (id: SourceId) => void; onPath: (path: string) => void; onClone: (url: string) => void }) {
   const windows = useApp((s) => s.env?.platform === "win32");
+  // SSH projects run `ssh` where the server runs; without a client the option would only fail later.
+  const sshMissing = useApp((s) => s.env?.sshFound === false);
   const [value, setValue] = useState("");
   const [highlight, setHighlight] = useState(0);
   const listId = useId();
   const url = value.trim() ? cloneUrl(value) : null;
   const rows: { id: SourceId | "clone"; label: string; description: string; icon: ReactNode }[] = url
     ? [{ id: "clone", label: `Clone ${url}`, description: "Next, pick where to clone it", icon: <LinkIcon size={17} /> }]
-    : SOURCES;
+    : SOURCES.filter((source) => !(sshMissing && source.id === "ssh"));
   const active = Math.min(highlight, rows.length - 1);
   const pick = (id: (typeof rows)[number]["id"]) => {
     if (id === "clone") {
@@ -255,6 +257,7 @@ function RemoteInput(props: { provider: Provider; onBack: () => void; onContinue
 }
 
 function SshInput(props: { onBack: () => void; onContinue: (host: string) => void }) {
+  const windows = useApp((s) => s.env?.platform === "win32");
   const [value, setValue] = useState("");
   const [tried, setTried] = useState(false);
   const host = parseSshHost(value);
@@ -294,6 +297,13 @@ function SshInput(props: { onBack: () => void; onContinue: (host: string) => voi
           <p className="text-muted">
             Passwordless SSH only: <span className="font-mono">ssh {value.trim() || "<host>"}</span> must already work without
             a password. Port and key come from your SSH config.
+            {windows ? (
+              <>
+                {" "}
+                Helicon uses Windows' own <span className="font-mono">ssh.exe</span>, so keys and config come from{" "}
+                <span className="font-mono">%USERPROFILE%\.ssh</span>, not from WSL.
+              </>
+            ) : null}
           </p>
         )}
         {host ? <p className="mt-1.5 truncate font-mono text-xs text-subtle">ssh://{host}/</p> : null}

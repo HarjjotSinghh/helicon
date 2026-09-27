@@ -12,6 +12,8 @@ export interface EnvironmentStatus {
   defaultDistro: string | null;
   museFound: boolean;
   musePath: string | null;
+  /** Whether an `ssh` client runs where the server does, which SSH projects need. Older servers leave it out. */
+  sshFound?: boolean;
   version: string;
   persistent: boolean;
 }

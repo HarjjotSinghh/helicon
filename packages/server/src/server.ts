@@ -46,16 +46,18 @@ import { PathError, createDirectory, listDirectory, resolveUserPath, type Direct
 import {
   SSH_HOME_CACHE_MS,
   SshError,
+  defaultSshRun,
   discoveredProjectRoot,
   isSshCwd,
   listSshDirectory,
   needsSshHome,
   normalizeSshCwd,
   parseSshProject,
+  readSshHome,
   resolveSshPath,
-  sshArgv,
   sshDirectoryListing,
   sshServeArgs,
+  type SshRunFn,
 } from "./ssh.js";
 import { buildThreadTitlePrompt, deriveTitle, parseExecTitle, sanitizeThreadTitle } from "./threadTitles.js";
 import { AoniaError, createAonia, parseLoginOutput, type Aonia, type Profile } from "@harjjotsinghh/aonia";
@@ -143,6 +145,8 @@ export interface ServerOptions {
   autoSettleDays?: number | null;
   /** Runs `muse` CLI calls, like listing skills; the real process runner by default. */
   exec?: ExecFn;
+  /** Runs short `ssh` commands for SSH projects (folder listings, the remote `$HOME`); the real `ssh` by default. */
+  sshRun?: SshRunFn;
   /** Runs the user's own `!` commands; spawns a real process by default. */
   shellRunner?: ShellRunner;
   /** Spawns `muse login` for the device-code route; a thin wrapper over `node:child_process` spawn by default. */
@@ -366,6 +370,10 @@ export function normalizeIso(value: unknown): string | undefined {
   return Number.isNaN(time) ? undefined : new Date(time).toISOString();
 }
 
+/** Why an SSH project cannot run on a named account. */
+const SSH_ACCOUNT_MESSAGE =
+  "SSH projects run on the remote host's own Muse login, so they cannot use a local account. Use the default login.";
+
 function normalizeCwd(value: string): string {
   const trimmed = value.trim();
   if (trimmed.startsWith("ssh://")) {
@@ -539,6 +547,8 @@ interface EnvView {
   defaultDistro: string | null;
   museFound: boolean;
   musePath: string | null;
+  /** Whether an `ssh` client runs here, which SSH projects need. */
+  sshFound: boolean;
   version: string;
   persistent: boolean;
 }
@@ -745,6 +755,7 @@ export class HeliconServer {
       home: options.home ?? homedir(),
       autoSettleDays: options.autoSettleDays === undefined ? 3 : options.autoSettleDays,
       exec: options.exec ?? defaultExec,
+      sshRun: options.sshRun ?? defaultSshRun,
       shellRunner: options.shellRunner ?? ((command, args) => runCapture(command, args, undefined, SHELL_TIMEOUT_MS)),
       loginSpawn: options.loginSpawn ?? defaultLoginSpawn,
     };
@@ -1565,6 +1576,9 @@ export class HeliconServer {
         throw new HttpError(400, "accountId must be a string or null.");
       }
       const accountId = typeof accountRaw === "string" && accountRaw.length > 0 ? accountRaw : null;
+      if (accountId && isSshCwd(cwd)) {
+        throw new HttpError(400, SSH_ACCOUNT_MESSAGE);
+      }
       this.store.upsertProject(normalizeCwd(cwd));
       this.store.setDefaultAccount(normalizeCwd(cwd), accountId);
       this.json(res, 200, { defaultAccountId: accountId });
@@ -1768,6 +1782,7 @@ export class HeliconServer {
       defaultDistro: probe.defaultDistro,
       museFound: probe.musePath !== null,
       musePath: probe.musePath,
+      sshFound: !(await this.options.sshRun(["-V"])).missing,
       version: HELICON_VERSION,
       persistent: this.options.dataDir !== ":memory:",
     };
@@ -2004,8 +2019,9 @@ export class HeliconServer {
   /** One host per (account, workspace). "default" stands in for the default login so today's keys are unchanged in spirit. */
   private hostKey(cwd: string, accountId: string | null): string {
     if (isSshCwd(cwd)) {
-      // The full SSH key addresses the host: translating it would point at the wrong machine.
-      return `${accountId ?? "default"}::${normalizeCwd(cwd)}`;
+      // The full SSH key addresses the host: translating it would point at the wrong machine. The remote
+      // host's own login always applies, so a local account never splits one SSH folder into two hosts.
+      return `default::${normalizeCwd(cwd)}`;
     }
     return `${accountId ?? "default"}::${this.hostPathFor(cwd) || "__default__"}`;
   }
@@ -2090,14 +2106,7 @@ export class HeliconServer {
     if (cached && Date.now() - cached.at < SSH_HOME_CACHE_MS) {
       return cached.home;
     }
-    const result = await this.options.exec("ssh", sshArgv(host, 'printf %s "$HOME"'));
-    const home = result.stdout.trim();
-    if (result.exitCode !== 0 || !home.startsWith("/")) {
-      throw new SshError(
-        502,
-        `Could not reach "${host}" over SSH${result.exitCode ? ` (ssh exited with code ${result.exitCode})` : ""}. Check that \`ssh ${host}\` works without a password.`,
-      );
-    }
+    const home = await readSshHome(host, this.options.sshRun);
     this.sshHomeCache.set(host, { home, at: Date.now() });
     return home;
   }
@@ -2110,7 +2119,7 @@ export class HeliconServer {
     }
     const home = needsSshHome(parsed.remotePath) ? await this.sshHome(parsed.host) : null;
     const abs = resolveSshPath(parsed.host, parsed.remotePath, home);
-    const listed = await listSshDirectory(parsed.host, abs, this.options.exec);
+    const listed = await listSshDirectory(parsed.host, abs, this.options.sshRun);
     return sshDirectoryListing(parsed.host, abs, listed);
   }
 
@@ -2290,6 +2299,9 @@ export class HeliconServer {
     modelId?: string,
     accountId: string | null = null,
   ): Promise<Record<string, unknown>> {
+    if (accountId && isSshCwd(cwd)) {
+      throw new HttpError(400, SSH_ACCOUNT_MESSAGE);
+    }
     const project = this.store.upsertProject(cwd);
     this.store.setHidden(cwd, false);
     const host = await this.hostFor(cwd, accountId);
@@ -2841,7 +2853,9 @@ export class HeliconServer {
         return;
       }
       const before = this.store.getSession(sessionId);
-      if (!before || before.titleSource !== "auto" || !firstText.trim()) {
+      // The title runs a local `muse exec`: an SSH thread's first prompt would reach the local login.
+      const remote = isSshCwd(this.store.findSession(sessionId)?.cwd ?? "");
+      if (!before || before.titleSource !== "auto" || !firstText.trim() || remote) {
         this.titleUpgradePending.delete(sessionId);
         return;
       }
@@ -3152,11 +3166,10 @@ export class HeliconServer {
         throw new HttpError(400, "SSH projects look like ssh://host/absolute/path.");
       }
       // MSP rides the SSH connection's stdio. The login on the remote host applies;
-      // local profile env cannot cross SSH, so none is attached. The local
-      // --muse path names a local binary, so the remote resolves `muse` itself.
+      // local profile env cannot cross SSH, so none is attached.
       return {
         command: "ssh",
-        args: sshServeArgs(parsed.host, "muse", serveArgs),
+        args: sshServeArgs(parsed.host, parsed.remotePath, serveArgs),
         cwd: process.cwd(),
       };
     }
