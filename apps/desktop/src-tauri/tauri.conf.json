@@ -28,6 +28,11 @@
   },
   "bundle": {
     "active": true,
+    "category": "DeveloperTool",
+    "shortDescription": "Open-source, self-hosted API client with local AI mock server",
+    "longDescription": "Helicon is an open-source, self-hosted API client that combines a modern workspace with an intelligent local mock server. Design, test, document, and mock APIs directly from your desktop.",
+    "homepage": "https://helicon.sh",
+    "license": "MIT",
     "targets": ["nsis"],
     "icon": ["icons/icon.png"],
     "resources": ["resources/server.cjs", "resources/frontend"],
