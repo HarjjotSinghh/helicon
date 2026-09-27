@@ -25,7 +25,7 @@ type GithubRelease = {
 
 const repoPath = REPO_URL.replace("https://github.com/", "");
 
-function matchAsset(kind: InstallerKind, name: string) {
+export function matchAsset(kind: InstallerKind, name: string) {
   if (kind === "windows") return /setup\.exe$/i.test(name) && !/\.sig$/i.test(name);
   return /\.dmg$/i.test(name) && !/\.sig$/i.test(name);
 }
@@ -175,7 +175,7 @@ export type ReleaseNotes = ReleaseSummary & { changes: ChangeGroups; commitCount
  * are there; this repository mostly writes prose subjects, so the verb decides the rest. Release
  * commits, merges and pure chores are dropped: nobody reading a changelog wants "bump deps".
  */
-function classify(subject: string): keyof ChangeGroups | null {
+export function classify(subject: string): keyof ChangeGroups | null {
   const s = subject.trim();
   if (/^Release\s+v?\d/i.test(s)) return null;
   if (/^Merge (pull request|branch|remote)/i.test(s)) return null;
@@ -204,17 +204,17 @@ function classify(subject: string): keyof ChangeGroups | null {
  * the capital that the prefix was carrying. `fix: stop the view freezing (#32) (#41)` becomes
  * `Stop the view freezing`.
  */
-function cleanSubject(subject: string) {
-  const text = subject
-    .replace(/^(\w+)(\([^)]*\))?!?:\s*/, "")
-    .replace(/\s*\((?:#\d+(?:,\s*)?)+\)\s*$/g, "")
-    .replace(/\s*\((?:#\d+(?:,\s*)?)+\)\s*$/g, "")
-    .replace(/\.$/, "")
-    .trim();
+export function cleanSubject(subject: string) {
+  let text = subject.replace(/^(\w+)(\([^)]*\))?!?:\s*/, "");
+  const trailingPrRegex = /\s*\((?:#\d+(?:,\s*)?)+\)\s*$/;
+  while (trailingPrRegex.test(text)) {
+    text = text.replace(trailingPrRegex, "");
+  }
+  text = text.replace(/\.$/, "").trim();
   return text ? text[0].toUpperCase() + text.slice(1) : text;
 }
 
-function parseCommit(message: string, sha: string): { group: keyof ChangeGroups | null; change: Change } {
+export function parseCommit(message: string, sha: string): { group: keyof ChangeGroups | null; change: Change } {
   const [subject, ...rest] = message.split("\n");
   const body = rest.join("\n");
   const prMatch = [...subject.matchAll(/#(\d+)/g)];
