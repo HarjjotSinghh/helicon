@@ -18,6 +18,7 @@ import { Popover, Slider, Switch } from "radix-ui";
 import { shallowEqual, useApp, useController } from "../../app/context.js";
 import { useSampled } from "../../app/sampled.js";
 import { basename, formatDuration, formatSpeed, formatTokens, modelDisplayName } from "../../model/format.js";
+import { isSshPath } from "../../model/paths.js";
 import { matchSlash, parseSlash, resolveSlash, slashCommands, type SlashCommand } from "../../model/slash.js";
 import type { SkillsState } from "../../model/store.js";
 import { lastTurnSpeed, streamingSpeed } from "../../model/usage.js";
@@ -570,7 +571,8 @@ function AccountPicker(props: { sessionId: string | null; cwd: string | null; va
   const accounts = useApp((s) => s.accounts);
   const open = useApp((s) => s.picker === "account");
   const current = useApp((s) => s.projects.find((p) => p.cwd === props.cwd)?.defaultAccountId ?? null);
-  if (props.sessionId !== null || !props.cwd || !(accounts && accounts.length > 0)) {
+  // An SSH project runs on the remote host's own login; a local account cannot reach it.
+  if (props.sessionId !== null || !props.cwd || isSshPath(props.cwd) || !(accounts && accounts.length > 0)) {
     return null;
   }
   const label = accounts.find((a) => a.id === current)?.name ?? "Default login";

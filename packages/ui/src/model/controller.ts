@@ -20,6 +20,7 @@ import type {
 import { describeTool, modelDisplayName } from "./format.js";
 import { fileKey, fileTarget, type LineRange } from "./files.js";
 import { goalPrompt } from "./goal.js";
+import { isSshPath } from "./paths.js";
 import {
   INIT_PROMPT,
   findModel,
@@ -1062,7 +1063,8 @@ export class HeliconController {
       // was armed must never seed a thread that asks when the rest of the app does not.
       const approvalMode: ApprovalMode = this.state.yoloSettings?.enabled === true ? "allowAll" : defaultMode;
       const project = this.state.projects.find((p) => p.cwd === cwd);
-      const accountId = project?.defaultAccountId ?? null;
+      // SSH projects always run on the remote host's own login.
+      const accountId = isSshPath(cwd) ? null : (project?.defaultAccountId ?? null);
       const session = await this.client.startSession(cwd, {
         approvalMode,
         modelId: defaultModelId ?? undefined,

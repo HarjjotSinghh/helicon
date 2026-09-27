@@ -42,7 +42,23 @@ import {
   type TurnImage,
 } from "@helicon/daemon";
 import { FileError, listFolder, readProjectFile, resolveInRoot, searchProjectFiles, serveProjectFile, writeProjectFile } from "./files.js";
-import { PathError, createDirectory, listDirectory, resolveUserPath, type PathContext } from "./paths.js";
+import { PathError, createDirectory, listDirectory, resolveUserPath, type DirectoryListing, type PathContext } from "./paths.js";
+import {
+  SSH_HOME_CACHE_MS,
+  SshError,
+  defaultSshRun,
+  discoveredProjectRoot,
+  isSshCwd,
+  listSshDirectory,
+  needsSshHome,
+  normalizeSshCwd,
+  parseSshProject,
+  readSshHome,
+  resolveSshPath,
+  sshDirectoryListing,
+  sshServeArgs,
+  type SshRunFn,
+} from "./ssh.js";
 import { buildThreadTitlePrompt, deriveTitle, parseExecTitle, sanitizeThreadTitle } from "./threadTitles.js";
 import { AoniaError, createAonia, parseLoginOutput, type Aonia, type Profile } from "@harjjotsinghh/aonia";
 
@@ -129,6 +145,8 @@ export interface ServerOptions {
   autoSettleDays?: number | null;
   /** Runs `muse` CLI calls, like listing skills; the real process runner by default. */
   exec?: ExecFn;
+  /** Runs short `ssh` commands for SSH projects (folder listings, the remote `$HOME`); the real `ssh` by default. */
+  sshRun?: SshRunFn;
   /** Runs the user's own `!` commands; spawns a real process by default. */
   shellRunner?: ShellRunner;
   /** Spawns `muse login` for the device-code route; a thin wrapper over `node:child_process` spawn by default. */
@@ -352,8 +370,19 @@ export function normalizeIso(value: unknown): string | undefined {
   return Number.isNaN(time) ? undefined : new Date(time).toISOString();
 }
 
+/** Why an SSH project cannot run on a named account. */
+const SSH_ACCOUNT_MESSAGE =
+  "SSH projects run on the remote host's own Muse login, so they cannot use a local account. Use the default login.";
+
 function normalizeCwd(value: string): string {
   const trimmed = value.trim();
+  if (trimmed.startsWith("ssh://")) {
+    const normal = normalizeSshCwd(trimmed);
+    if (!normal) {
+      throw new PathError("SSH projects look like ssh://host/absolute/path.");
+    }
+    return normal;
+  }
   if (/^[A-Za-z]:[\\/]?$/.test(trimmed) || trimmed === "/") {
     return trimmed;
   }
@@ -380,6 +409,9 @@ function errorInfo(error: unknown): { status: number; message: string; kind: str
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof PathError) {
     return { status: 400, message, kind: null };
+  }
+  if (error instanceof SshError) {
+    return { status: error.status, message, kind: null };
   }
   if (error instanceof FileError) {
     return { status: error.status, message, kind: error.kind };
@@ -515,6 +547,8 @@ interface EnvView {
   defaultDistro: string | null;
   museFound: boolean;
   musePath: string | null;
+  /** Whether an `ssh` client runs here, which SSH projects need. */
+  sshFound: boolean;
   version: string;
   persistent: boolean;
 }
@@ -653,6 +687,8 @@ export class HeliconServer {
   private settleTimer: ReturnType<typeof setInterval> | null = null;
   private envCache: { at: number; value: EnvView } | null = null;
   private readonly skillCache = new Map<string, SkillListing>();
+  /** Remote `$HOME` answers per SSH host, so `~` expansion costs one round trip a minute at most. */
+  private readonly sshHomeCache = new Map<string, { home: string; at: number }>();
   /** The newest subscription window any host reported; `usage/changed` carries no session, so it lives here. */
   private planUsage: SubscriptionUsage | null = null;
   /** The newest window per account, keyed by aonia profile id. The default login is not keyed here. */
@@ -719,6 +755,7 @@ export class HeliconServer {
       home: options.home ?? homedir(),
       autoSettleDays: options.autoSettleDays === undefined ? 3 : options.autoSettleDays,
       exec: options.exec ?? defaultExec,
+      sshRun: options.sshRun ?? defaultSshRun,
       shellRunner: options.shellRunner ?? ((command, args) => runCapture(command, args, undefined, SHELL_TIMEOUT_MS)),
       loginSpawn: options.loginSpawn ?? defaultLoginSpawn,
     };
@@ -1052,6 +1089,10 @@ export class HeliconServer {
     }
     if (method === "GET" && path === "/api/fs/list") {
       const target = url.searchParams.get("path") ?? "";
+      if (target.trim().startsWith("ssh://")) {
+        this.json(res, 200, await this.listSshFolder(target));
+        return true;
+      }
       this.json(res, 200, await listDirectory(target, await this.pathContext(target)));
       return true;
     }
@@ -1063,6 +1104,9 @@ export class HeliconServer {
       const target = str(body["path"]);
       if (!target) {
         throw new HttpError(400, "path is required.");
+      }
+      if (target.trim().startsWith("ssh://")) {
+        throw new HttpError(400, "Opening remote folders is not available for SSH projects in this version.");
       }
       const resolved = resolveUserPath(target, await this.pathContext(target));
       const info = await stat(resolved.local).catch(() => null);
@@ -1175,6 +1219,9 @@ export class HeliconServer {
       const found = this.store.findSession(sessionId);
       if (!found) {
         throw new HttpError(404, "Unknown session.");
+      }
+      if (isSshCwd(found.cwd)) {
+        throw new HttpError(400, "The shell proxy is not available for SSH projects in this version. Run the command with ! in the thread instead.");
       }
       const result = await this.runInWorkspace(found.cwd, command);
       const run = this.store.addShellRun({
@@ -1529,6 +1576,9 @@ export class HeliconServer {
         throw new HttpError(400, "accountId must be a string or null.");
       }
       const accountId = typeof accountRaw === "string" && accountRaw.length > 0 ? accountRaw : null;
+      if (accountId && isSshCwd(cwd)) {
+        throw new HttpError(400, SSH_ACCOUNT_MESSAGE);
+      }
       this.store.upsertProject(normalizeCwd(cwd));
       this.store.setDefaultAccount(normalizeCwd(cwd), accountId);
       this.json(res, 200, { defaultAccountId: accountId });
@@ -1699,6 +1749,9 @@ export class HeliconServer {
       if (!cwd || !this.store.getProject(cwd)) {
         throw new HttpError(404, "Unknown project folder.");
       }
+      if (isSshCwd(cwd)) {
+        throw new HttpError(400, "Opening remote folders is not available for SSH projects in this version.");
+      }
       const target: OpenTarget = body["target"] === "editor" ? "editor" : "files";
       await this.opener(this.localPathFor(cwd), target);
       this.json(res, 200, { ok: true });
@@ -1729,6 +1782,7 @@ export class HeliconServer {
       defaultDistro: probe.defaultDistro,
       museFound: probe.musePath !== null,
       musePath: probe.musePath,
+      sshFound: !(await this.options.sshRun(["-V"])).missing,
       version: HELICON_VERSION,
       persistent: this.options.dataDir !== ":memory:",
     };
@@ -1923,7 +1977,8 @@ export class HeliconServer {
   }
 
   private spawnCwdFor(cwd: string): string {
-    if (!cwd) {
+    if (!cwd || isSshCwd(cwd)) {
+      // An SSH host spawns locally only as `ssh`: the local folder is meaningless.
       return process.cwd();
     }
     if (this.options.platform !== "win32") {
@@ -1941,6 +1996,10 @@ export class HeliconServer {
 
   /** The workspace path as Muse sees it: `/mnt/d/...` for Muse in WSL, `D:\\...` for native Windows Muse. */
   private hostPathFor(cwd: string): string {
+    if (isSshCwd(cwd)) {
+      // Stored SSH keys are always absolute, so this is the remote path itself.
+      return parseSshProject(cwd)?.remotePath ?? cwd;
+    }
     if (!cwd || this.options.platform !== "win32") {
       return cwd;
     }
@@ -1959,10 +2018,18 @@ export class HeliconServer {
 
   /** One host per (account, workspace). "default" stands in for the default login so today's keys are unchanged in spirit. */
   private hostKey(cwd: string, accountId: string | null): string {
+    if (isSshCwd(cwd)) {
+      // The full SSH key addresses the host: translating it would point at the wrong machine. The remote
+      // host's own login always applies, so a local account never splits one SSH folder into two hosts.
+      return `default::${normalizeCwd(cwd)}`;
+    }
     return `${accountId ?? "default"}::${this.hostPathFor(cwd) || "__default__"}`;
   }
 
   private storePathFor(remoteRoot: string): string {
+    if (isSshCwd(remoteRoot)) {
+      return normalizeCwd(remoteRoot);
+    }
     if (this.options.platform === "win32" && isWindowsAbs(remoteRoot)) {
       // Native Muse may spell a folder `d:/work`; the store keeps one spelling, `D:\\work`.
       const normal = win32.normalize(remoteRoot);
@@ -2003,6 +2070,24 @@ export class HeliconServer {
 
   /** The stored form of a project folder: absolute, `~` expanded, one separator style. */
   private async canonicalCwd(raw: string, create: boolean): Promise<string> {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("ssh://")) {
+      // No remote mkdir in this version: creating a remote folder is refused loudly.
+      if (create) {
+        throw new SshError(400, "Creating folders on an SSH host is not available in this version. Create it over SSH first.");
+      }
+      const parsed = parseSshProject(trimmed);
+      if (!parsed) {
+        throw new SshError(400, "SSH projects look like ssh://host/absolute/path.");
+      }
+      const home = needsSshHome(parsed.remotePath) ? await this.sshHome(parsed.host) : null;
+      const abs = resolveSshPath(parsed.host, parsed.remotePath, home);
+      const normal = normalizeSshCwd(`ssh://${parsed.host}${abs}`);
+      if (!normal) {
+        throw new SshError(400, "SSH projects look like ssh://host/absolute/path.");
+      }
+      return normal;
+    }
     const ctx = await this.pathContext(raw);
     try {
       const resolved = create ? await createDirectory(raw, ctx) : resolveUserPath(raw, ctx);
@@ -2013,6 +2098,29 @@ export class HeliconServer {
       }
       return normalizeCwd(raw);
     }
+  }
+
+  /** The remote `$HOME` on an SSH host, cached. Throws SshError when the host is unreachable. */
+  private async sshHome(host: string): Promise<string> {
+    const cached = this.sshHomeCache.get(host);
+    if (cached && Date.now() - cached.at < SSH_HOME_CACHE_MS) {
+      return cached.home;
+    }
+    const home = await readSshHome(host, this.options.sshRun);
+    this.sshHomeCache.set(host, { home, at: Date.now() });
+    return home;
+  }
+
+  /** The add-project picker's listing for an `ssh://host/path` folder. */
+  private async listSshFolder(raw: string): Promise<DirectoryListing> {
+    const parsed = parseSshProject(raw);
+    if (!parsed) {
+      throw new SshError(400, "SSH folders look like ssh://host/absolute/path.");
+    }
+    const home = needsSshHome(parsed.remotePath) ? await this.sshHome(parsed.host) : null;
+    const abs = resolveSshPath(parsed.host, parsed.remotePath, home);
+    const listed = await listSshDirectory(parsed.host, abs, this.options.sshRun);
+    return sshDirectoryListing(parsed.host, abs, listed);
   }
 
   private async addProjectFolder(cwd: string): Promise<Record<string, unknown>> {
@@ -2030,6 +2138,9 @@ export class HeliconServer {
   }
 
   private async cloneRepository(remote: string, target: string): Promise<string> {
+    if (target.trim().startsWith("ssh://")) {
+      throw new HttpError(400, "Cloning onto an SSH host is not available in this version.");
+    }
     const ctx = await this.pathContext(target);
     const resolved = resolveUserPath(target, ctx);
     const existing = await readdir(resolved.local).catch(() => null);
@@ -2079,6 +2190,16 @@ export class HeliconServer {
 
   private async listCliSkills(cwd: string): Promise<SkillListing> {
     const key = cwd || "__default__";
+    if (isSshCwd(cwd)) {
+      const listing: SkillListing = {
+        at: Date.now(),
+        skills: [],
+        paths: new Map(),
+        error: "Skills are not listed for SSH projects in this version.",
+      };
+      this.skillCache.set(key, listing);
+      return listing;
+    }
     const cached = this.skillCache.get(key);
     if (cached && !cached.error && Date.now() - cached.at < SKILL_CACHE_MS) {
       return cached;
@@ -2178,6 +2299,9 @@ export class HeliconServer {
     modelId?: string,
     accountId: string | null = null,
   ): Promise<Record<string, unknown>> {
+    if (accountId && isSshCwd(cwd)) {
+      throw new HttpError(400, SSH_ACCOUNT_MESSAGE);
+    }
     const project = this.store.upsertProject(cwd);
     this.store.setHidden(cwd, false);
     const host = await this.hostFor(cwd, accountId);
@@ -2249,6 +2373,9 @@ export class HeliconServer {
       }
       if (!cwd) {
         throw new HttpError(400, `${name} needs a workspace to land in.`);
+      }
+      if (isSshCwd(cwd)) {
+        throw new HttpError(400, `${name} cannot land in an SSH project in this version. Images can still be attached.`);
       }
       const written = await this.writeIntoWorkspace(cwd, name, bytes);
       mentions.push(`@${[...ATTACHMENT_DIR, written].join("/")}`);
@@ -2601,7 +2728,8 @@ export class HeliconServer {
       if (!session || !sessionId) {
         continue;
       }
-      const root = this.storePathFor(firstString(session, ["workspaceRoot"]) ?? cwd ?? "");
+      const reported = firstString(session, ["workspaceRoot"]);
+      const root = this.storePathFor(discoveredProjectRoot(cwd, reported));
       if (!root) {
         continue;
       }
@@ -2725,7 +2853,9 @@ export class HeliconServer {
         return;
       }
       const before = this.store.getSession(sessionId);
-      if (!before || before.titleSource !== "auto" || !firstText.trim()) {
+      // The title runs a local `muse exec`: an SSH thread's first prompt would reach the local login.
+      const remote = isSshCwd(this.store.findSession(sessionId)?.cwd ?? "");
+      if (!before || before.titleSource !== "auto" || !firstText.trim() || remote) {
         this.titleUpgradePending.delete(sessionId);
         return;
       }
@@ -3030,6 +3160,19 @@ export class HeliconServer {
       ...(sandboxDisabled || yoloEnabled ? ["--disable-sandbox"] : []),
       ...(yoloEnabled ? ["--trust-workspace"] : []),
     ];
+    if (isSshCwd(cwd)) {
+      const parsed = parseSshProject(cwd);
+      if (!parsed) {
+        throw new HttpError(400, "SSH projects look like ssh://host/absolute/path.");
+      }
+      // MSP rides the SSH connection's stdio. The login on the remote host applies;
+      // local profile env cannot cross SSH, so none is attached.
+      return {
+        command: "ssh",
+        args: sshServeArgs(parsed.host, parsed.remotePath, serveArgs),
+        cwd: process.cwd(),
+      };
+    }
     if (this.options.platform !== "win32") {
       return {
         command: this.options.musePath ?? "muse",
@@ -3280,6 +3423,9 @@ export class HeliconServer {
     const cwd = str(body["cwd"]) ?? url.searchParams.get("cwd");
     if (!cwd || !this.store.getProject(cwd)) {
       throw new HttpError(404, "Unknown project folder.");
+    }
+    if (isSshCwd(cwd)) {
+      throw new HttpError(400, "The file viewer is not available for SSH projects in this version.");
     }
     let root: string;
     try {
