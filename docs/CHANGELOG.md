@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.0
+
+### New
+
+- **Projects on another machine, over SSH** ([#56](https://github.com/HarjjotSinghh/helicon/pull/56), by [@dinhvh](https://github.com/dinhvh)). Add project has a new source, SSH host: type `host` or `user@host`, browse that machine's folders, and add one as a project. Its threads run Muse on the remote machine over `ssh`, so the code never has to leave it. It needs `ssh <host>` to already work without a password (a key or an agent); port, user and key come from your SSH config. On Windows, Helicon uses Windows' own `ssh.exe`, so keys and config live in `%USERPROFILE%\.ssh`, not in WSL. SSH projects always use the Muse login on the remote machine, so the account picker is hidden for them, and their threads keep the first message as the title instead of asking your local login for one. The file viewer, the skills list, file attachments (images still work), creating folders and cloning are not available for SSH projects yet. When the connection fails, the error now says why: an unknown host key, a login that needs a password, or `ssh` not installed.
+
+### Also
+
+- The helicon.sh 404 page has a "Skip to content" link, and the demo video player now has a name and reads its position as a time for screen readers ([#87](https://github.com/HarjjotSinghh/helicon/pull/87), by [@GhostCoder6969](https://github.com/GhostCoder6969)).
+- Contributors can run the whole interface without Muse: `npm run dev:demo --workspace @helicon/web` uses sample projects and threads. See [CONTRIBUTING.md](https://github.com/HarjjotSinghh/helicon/blob/prod/CONTRIBUTING.md).
+
 ## 0.17.1
 
 ### Fixed
