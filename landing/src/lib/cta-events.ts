@@ -20,10 +20,10 @@ export function classifyCta(href: string): {
       properties: { target_os: "undecided", href: url },
     };
   }
-  if (url === ISSUES_URL || url.includes("/issues")) {
+  if (url === ISSUES_URL || url.startsWith(`${REPO_URL}/issues`)) {
     return { event: "github_click", properties: { destination: "issues", href: url } };
   }
-  if (url === RELEASES_URL || url.includes("/releases")) {
+  if (url === RELEASES_URL || url.startsWith(`${REPO_URL}/releases`)) {
     return { event: "github_click", properties: { destination: "releases", href: url } };
   }
   if (url === REPO_URL || url.startsWith(`${REPO_URL}/`)) {
