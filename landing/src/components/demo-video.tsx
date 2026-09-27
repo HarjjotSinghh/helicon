@@ -12,6 +12,11 @@ function formatTime(seconds: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+/** What a screen reader announces for the seek slider, e.g. "0:12 of 1:05". */
+export function seekValueText(current: number, duration: number) {
+  return `${formatTime(current)} of ${formatTime(duration)}`;
+}
+
 /** Play triangle with its centroid on the viewBox center, so it sits optically in a circle. */
 function PlayGlyph({ className }: { className?: string }) {
   return (
@@ -203,6 +208,8 @@ export function DemoVideo({
       ref={rootRef}
       className="demo-player group/player relative bg-black text-white outline-none"
       tabIndex={0}
+      role="region"
+      aria-label="Video player. Press Space to play or pause"
       onKeyDown={onKeyDown}
       onPointerMove={() => showControls()}
       onPointerLeave={() => {
@@ -284,6 +291,7 @@ export function DemoVideo({
             max={duration || 0}
             step={0.05}
             value={current}
+            aria-valuetext={seekValueText(current, duration)}
             style={{ ["--demo-progress" as string]: `${progress * 100}%` }}
             onChange={(event) => seekTo(Number(event.currentTarget.value))}
             onPointerDown={() => showControls(true)}

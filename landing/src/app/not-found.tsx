@@ -31,6 +31,13 @@ const ROUTES = [
 export default function NotFound() {
   const copy = getPageCopy("other");
   return (
+    <>
+      <a
+        href="#main"
+        className="sr-only z-50 rounded-lg bg-btn px-4 py-2 font-medium text-btn-fg focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+      >
+        Skip to content
+      </a>
     <div className="page-frame relative mx-auto min-h-dvh w-full max-w-[1200px] border-line bg-bg max-[360px]:border-x-0 min-[361px]:w-[calc(100%-1rem)] min-[361px]:border-x sm:w-[calc(100%-3rem)] pb-[env(safe-area-inset-bottom)]">
       <SiteHeader copy={copy} nav={docLinks} homeHref="/" />
       <main id="main" className="relative z-0 px-6 py-20 sm:px-12 sm:py-28">
@@ -84,5 +91,6 @@ export default function NotFound() {
       </main>
       <SiteFooter />
     </div>
+    </>
   );
 }
