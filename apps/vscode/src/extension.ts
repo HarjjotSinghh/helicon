@@ -39,6 +39,8 @@ export function activate(context: vscode.ExtensionContext): HeliconApi {
       void sideView?.post(message);
       void editorPanel?.webview.postMessage(message);
     }),
+    // A different folder means a different panel: reload it on the new one.
+    vscode.workspace.onDidChangeWorkspaceFolders(() => void sideView?.load()),
     vscode.commands.registerCommand("helicon.open", () => focusPanel()),
     vscode.commands.registerCommand("helicon.newThread", () => newThreadInPanel()),
     vscode.commands.registerCommand("helicon.openInEditor", () => openEditor(context)),
@@ -146,6 +148,7 @@ class PanelView implements vscode.WebviewViewProvider {
   async resolveWebviewView(view: vscode.WebviewView): Promise<void> {
     this.view = view;
     view.webview.options = { enableScripts: true };
+    view.webview.onDidReceiveMessage(onFrameMessage);
     view.onDidDispose(() => {
       if (this.view === view) {
         this.view = null;
@@ -170,7 +173,7 @@ class PanelView implements vscode.WebviewViewProvider {
       }
       const query = new URLSearchParams({ view: "panel", theme: editorTheme(), ...(cwd ? { cwd } : {}) });
       this.loadedSrc = `${base}/?${query.toString()}`;
-      view.webview.html = frameHtml(base, this.loadedSrc);
+      view.webview.html = frameHtml(base, this.loadedSrc, "sideBar");
     } catch (error) {
       view.webview.html = messageHtml(
         `Helicon could not start: ${error instanceof Error ? error.message : String(error)}. Run “Helicon: Show Log” for details, or “Helicon: Restart Server”.`,
@@ -256,7 +259,8 @@ async function openEditor(context: vscode.ExtensionContext, hash = ""): Promise<
     retainContextWhenHidden: true,
   });
   editorPanel.iconPath = vscode.Uri.joinPath(context.extensionUri, "media", "icon.png");
-  editorPanel.webview.html = frameHtml(base, `${base}/?${new URLSearchParams({ theme: editorTheme() }).toString()}${hash}`);
+  editorPanel.webview.html = frameHtml(base, `${base}/?${new URLSearchParams({ theme: editorTheme() }).toString()}${hash}`, "editor");
+  editorPanel.webview.onDidReceiveMessage(onFrameMessage);
   editorPanel.onDidDispose(() => {
     editorPanel = null;
   });
@@ -287,11 +291,41 @@ async function restart(): Promise<void> {
   await sideView?.load();
 }
 
+/** Editor theme colors forwarded into the frame so Helicon matches the editor around it. */
+const HOST_VARS = [
+  "font-family",
+  "font-size",
+  "sideBar-background",
+  "editor-background",
+  "sideBar-foreground",
+  "foreground",
+  "descriptionForeground",
+  "disabledForeground",
+  "input-background",
+  "input-border",
+  "editorWidget-background",
+  "list-hoverBackground",
+  "toolbar-hoverBackground",
+  "list-inactiveSelectionBackground",
+  "widget-border",
+  "panel-border",
+  "sideBarSectionHeader-border",
+  "editorGroup-border",
+  "contrastBorder",
+  "button-background",
+  "button-hoverBackground",
+  "button-foreground",
+  "focusBorder",
+  "textLink-foreground",
+  "scrollbarSlider-background",
+];
+
 /**
  * A full-bleed frame around the server's own page, which keeps its origin, storage and cookies.
- * The small script forwards theme changes and navigation from the extension into the frame.
+ * The script passes the editor's theme (its CSS variables) into the frame, forwards navigation
+ * from the extension, and relays the few commands the page can't run itself, like opening a folder.
  */
-function frameHtml(origin: string, src: string): string {
+function frameHtml(origin: string, src: string, surface: "sideBar" | "editor"): string {
   const nonce = randomBytes(16).toString("base64");
   const frameOrigin = new URL(origin).origin;
   return `<!DOCTYPE html>
@@ -300,19 +334,47 @@ function frameHtml(origin: string, src: string): string {
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src ${frameOrigin}; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--vscode-${surface}-background, var(--vscode-editor-background)); }
   iframe { display: block; width: 100%; height: 100%; border: 0; }
 </style>
 </head>
 <body>
 <iframe id="app" src="${src}" title="Helicon" allow="clipboard-read; clipboard-write"></iframe>
 <script nonce="${nonce}">
+  const vscode = acquireVsCodeApi();
   const frame = document.getElementById("app");
   const origin = ${JSON.stringify(frameOrigin)};
+  const names = ${JSON.stringify(HOST_VARS)};
+  const surface = ${JSON.stringify(surface)};
+  function hostStyle() {
+    const css = getComputedStyle(document.documentElement);
+    const vars = {};
+    for (const name of names) {
+      const value = css.getPropertyValue("--vscode-" + name).trim();
+      if (value) vars[name] = value;
+    }
+    vars.surface = vars[surface + "-background"] || vars["editor-background"] || "";
+    const cls = document.body.classList;
+    const kind = cls.contains("vscode-light") || cls.contains("vscode-high-contrast-light") ? "light" : "dark";
+    return { type: "helicon-host-style", kind, vars };
+  }
+  function sendStyle() {
+    if (frame.contentWindow) frame.contentWindow.postMessage(hostStyle(), origin);
+  }
+  frame.addEventListener("load", sendStyle);
+  // VS Code rewrites these variables in place when the theme changes.
+  const watch = new MutationObserver(sendStyle);
+  watch.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] });
+  watch.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   window.addEventListener("message", (event) => {
     const data = event.data;
     if (!data || typeof data !== "object") return;
-    if (data.type === "helicon-theme") frame.contentWindow.postMessage(data, origin);
+    if (event.source === frame.contentWindow) {
+      if (data.type === "helicon-host-ready") sendStyle();
+      if (data.type === "helicon-command" && typeof data.command === "string") vscode.postMessage({ type: "command", command: data.command });
+      return;
+    }
+    if (data.type === "helicon-theme") sendStyle();
     if (data.type === "navigate-hash") {
       const url = new URL(frame.src);
       url.hash = data.hash;
@@ -322,6 +384,14 @@ function frameHtml(origin: string, src: string): string {
 </script>
 </body>
 </html>`;
+}
+
+/** Commands the framed page may ask for; anything else is ignored. */
+function onFrameMessage(message: unknown): void {
+  const data = message as { type?: unknown; command?: unknown } | null;
+  if (data?.type === "command" && data.command === "openFolder") {
+    void vscode.commands.executeCommand("vscode.openFolder");
+  }
 }
 
 /** A plain message in the editor's own font and colors, for starting up and for errors. */

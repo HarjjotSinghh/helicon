@@ -18,6 +18,7 @@ import type { AppUpdater } from "../model/updates.js";
 import { zoomStepFromKey, type ZoomStep } from "../model/zoom-shortcut.js";
 import { ControllerProvider, useApp, useController } from "./context.js";
 import { PanelContext, type PanelMode } from "./panel.js";
+import { useHostTheme } from "./host.js";
 import { PanelShell } from "../components/panel/Panel.js";
 import { FrameProvider, FrameStrip, WindowControls, type WindowFrame } from "./frame.js";
 
@@ -78,28 +79,6 @@ export function HeliconApp(props: HeliconAppProps) {
       </PanelContext.Provider>
     </ControllerProvider>
   );
-}
-
-/**
- * The host's theme, starting from the prop and following `helicon-theme` messages from the parent
- * frame, which is how an editor extension passes on a theme switch without reloading the page.
- */
-function useHostTheme(initial: "light" | "dark" | undefined): "light" | "dark" | null {
-  const [theme, setTheme] = useState<"light" | "dark" | null>(initial ?? null);
-  useEffect(() => {
-    if (!initial || window.parent === window) {
-      return;
-    }
-    const onMessage = (event: MessageEvent) => {
-      const data = event.data as { type?: unknown; theme?: unknown } | null;
-      if (event.source === window.parent && data?.type === "helicon-theme" && (data.theme === "light" || data.theme === "dark")) {
-        setTheme(data.theme);
-      }
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [initial]);
-  return theme;
 }
 
 function ThemeSync(props: { hostTheme: "light" | "dark" | null }) {

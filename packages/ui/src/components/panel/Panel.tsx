@@ -1,6 +1,7 @@
 import { ArchiveIcon, ArrowsInIcon, ChartBarIcon, ClockCounterClockwiseIcon, DotsThreeIcon, GearSixIcon, MagnifyingGlassIcon, PencilSimpleIcon, PlusIcon, XIcon } from "../ui/icons.js";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
+import { postToHost } from "../../app/host.js";
 import { inFolder, usePanel } from "../../app/panel.js";
 import { basename, relativeTime } from "../../model/format.js";
 import { STATUS_LABEL, threadStatus, type ThreadStatus } from "../../model/status.js";
@@ -36,6 +37,8 @@ export function PanelShell() {
     body = <UsagePage />;
   } else if (route.kind === "settings") {
     body = <SettingsPage />;
+  } else if (!cwd) {
+    body = <NoFolder />;
   } else {
     body = <PanelNew cwd={cwd} onHistory={() => setHistoryOpen(true)} />;
   }
@@ -362,6 +365,24 @@ function useFolderSessions(cwd: string | null): SessionSummary[] {
         .filter((s) => !s.archived && inFolder(s.cwd, cwd))
         .sort((a, b) => (a.activityAt < b.activityAt ? 1 : -1)),
     [sessions, cwd],
+  );
+}
+
+/** The editor has no folder open, so there is nothing to scope the panel to yet. */
+function NoFolder() {
+  return (
+    <div className="flex flex-1 flex-col items-start gap-3 px-4 pt-6">
+      <div className="flex items-center gap-2">
+        <Logo size={20} />
+        <h1 className="text-sm font-semibold text-fg">Open a folder to start</h1>
+      </div>
+      <p className="text-xs text-pretty text-muted">
+        Helicon works on the folder you have open: its threads show up here as tabs, and new threads start in it.
+      </p>
+      <Button size="sm" variant="accent" onClick={() => postToHost({ type: "helicon-command", command: "openFolder" })}>
+        Open Folder
+      </Button>
+    </div>
   );
 }
 
