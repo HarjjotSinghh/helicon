@@ -1,3 +1,4 @@
+import { copyText } from "../../app/host.js";
 import { CheckIcon, CopyIcon } from "./icons.js";
 import { Children, createContext, isValidElement, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { looksLikeFilePath, type FileTarget } from "../../model/files.js";
@@ -18,7 +19,7 @@ export function useCopy(timeout = 1400): [boolean, (text: string) => void] {
     }
   }, []);
   const copy = (text: string) => {
-    void navigator.clipboard?.writeText(text).then(() => {
+    void copyText(text).then(() => {
       setCopied(true);
       if (timer.current !== null) {
         window.clearTimeout(timer.current);

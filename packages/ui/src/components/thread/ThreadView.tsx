@@ -1,3 +1,4 @@
+import { copyText } from "../../app/host.js";
 import { ArchiveIcon, ArrowsInIcon, CodeIcon, CopyIcon, DotsThreeIcon, FolderIcon, FolderOpenIcon, GitBranchIcon, LockIcon, NotePencilIcon, PencilSimpleIcon, ShieldSlashIcon, SquareHalfBottomIcon, SquareIcon, StopCircleIcon, TreeStructureIcon } from "../ui/icons.js";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
@@ -166,7 +167,7 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
           <MenuItem icon={<FolderOpenIcon size={14} />} onSelect={() => void controller.openFolder(session.cwd, "files")}>
             {revealLabel()}
           </MenuItem>
-          <MenuItem icon={<CopyIcon size={14} />} onSelect={() => void navigator.clipboard?.writeText(session.sessionId)}>
+          <MenuItem icon={<CopyIcon size={14} />} onSelect={() => void copyText(session.sessionId)}>
             Copy session ID
           </MenuItem>
           <MenuSeparator />

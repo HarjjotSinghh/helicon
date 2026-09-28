@@ -1,3 +1,4 @@
+import { copyText } from "../../app/host.js";
 import { ArchiveIcon, ArrowClockwiseIcon, ArrowLineDownIcon, ArrowUUpLeftIcon, ArrowsClockwiseIcon, CaretRightIcon, ChartBarIcon, CheckIcon, CodeIcon, CopyIcon, DotsThreeIcon, DownloadSimpleIcon, FolderIcon, FolderOpenIcon, FolderPlusIcon, FunnelSimpleIcon, GearSixIcon, GitBranchIcon, MagnifyingGlassIcon, MonitorIcon, MoonIcon, NotePencilIcon, PauseIcon, PencilSimpleIcon, PlayIcon, PushPinIcon, PushPinSlashIcon, ShieldSlashIcon, SidebarSimpleIcon, StackIcon, SunIcon, TargetIcon, XIcon } from "../ui/icons.js";
 import { memo, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { shallowEqual, useApp, useController, useNow } from "../../app/context.js";
@@ -717,7 +718,7 @@ function ThreadMenu(props: { session: SessionSummary; onRename: () => void }) {
         <MenuItem icon={<PencilSimpleIcon size={14} />} onSelect={props.onRename}>
           Rename
         </MenuItem>
-        <MenuItem icon={<CopyIcon size={14} />} onSelect={() => void navigator.clipboard?.writeText(props.session.sessionId)}>
+        <MenuItem icon={<CopyIcon size={14} />} onSelect={() => void copyText(props.session.sessionId)}>
           Copy session ID
         </MenuItem>
         <MenuItem icon={<FolderOpenIcon size={14} />} onSelect={() => void controller.openFolder(props.session.cwd, "files")}>
@@ -766,7 +767,7 @@ function ProjectMenu(props: { project: ProjectView }) {
         <MenuItem icon={<CodeIcon size={14} />} onSelect={() => void controller.openFolder(project.cwd, "editor")}>
           Open in VS Code
         </MenuItem>
-        <MenuItem icon={<CopyIcon size={14} />} onSelect={() => void navigator.clipboard?.writeText(project.cwd)}>
+        <MenuItem icon={<CopyIcon size={14} />} onSelect={() => void copyText(project.cwd)}>
           Copy path
         </MenuItem>
         <MenuItem icon={<ArrowsClockwiseIcon size={14} />} onSelect={() => void controller.refreshProject(project.cwd)}>

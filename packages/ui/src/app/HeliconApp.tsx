@@ -18,7 +18,7 @@ import type { AppUpdater } from "../model/updates.js";
 import { zoomStepFromKey, type ZoomStep } from "../model/zoom-shortcut.js";
 import { ControllerProvider, useApp, useController } from "./context.js";
 import { PanelContext, type PanelMode } from "./panel.js";
-import { postToHost, useHostTheme } from "./host.js";
+import { installEditorClipboard, postToHost, setEditorHosted, useHostTheme } from "./host.js";
 import { PanelShell } from "../components/panel/Panel.js";
 import { FrameProvider, FrameStrip, WindowControls, type WindowFrame } from "./frame.js";
 
@@ -58,11 +58,13 @@ export function HeliconApp(props: HeliconAppProps) {
       created.attachNotifier(props.notifier);
     }
     if (props.editorHost) {
+      setEditorHosted(true);
       created.setExternalFileOpener((cwd, path, line) => postToHost({ type: "helicon-command", command: "openFile", args: { cwd, path, line } }));
     }
     return created;
   });
   useEffect(() => controller.start(), [controller]);
+  useEffect(() => (props.editorHost ? installEditorClipboard(isMac) : undefined), [props.editorHost]);
   const hostTheme = useHostTheme(props.hostTheme);
   const panel = props.panel ?? null;
   return (

@@ -65,6 +65,120 @@ function framed(): boolean {
   return typeof window !== "undefined" && window.parent !== window;
 }
 
+let editorHosted = false;
+
+/** Marks the page as framed by an editor, which then handles copying and opening files. */
+export function setEditorHosted(hosted: boolean): void {
+  editorHosted = hosted;
+}
+
+/**
+ * Copies text. Inside an editor's webview the browser clipboard is blocked for framed pages, so
+ * the editor copies it instead; elsewhere this is the ordinary clipboard API.
+ */
+export function copyText(text: string): Promise<void> {
+  if (editorHosted && framed()) {
+    postToHost({ type: "helicon-command", command: "copy", args: { text } });
+    return Promise.resolve();
+  }
+  return navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error("No clipboard"));
+}
+
+type Editable = HTMLInputElement | HTMLTextAreaElement;
+
+function editableTarget(): Editable | null {
+  const el = document.activeElement;
+  if (el instanceof HTMLTextAreaElement) {
+    return el;
+  }
+  if (el instanceof HTMLInputElement && /^(text|search|url|email|password|tel|number)$/.test(el.type)) {
+    return el;
+  }
+  return null;
+}
+
+let pasteSeq = 0;
+const pastes = new Map<number, (text: string) => void>();
+
+/** Asks the editor for its clipboard text; resolves with "" if it doesn't answer. */
+function readHostClipboard(): Promise<string> {
+  const id = ++pasteSeq;
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(() => {
+      pastes.delete(id);
+      resolve("");
+    }, 2000);
+    pastes.set(id, (text) => {
+      window.clearTimeout(timer);
+      resolve(text);
+    });
+    postToHost({ type: "helicon-command", command: "paste", args: { id } });
+  });
+}
+
+/** Types text at the caret the way a paste would, so React sees an ordinary input event. */
+function insertText(el: Editable, text: string): void {
+  el.focus();
+  if (!document.execCommand("insertText", false, text)) {
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? start;
+    el.setRangeText(text, start, end, "end");
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+}
+
+/**
+ * Inside an editor's webview the editor handles Cmd+C/X/V/A itself and never reaches a framed
+ * page, so neither copying a selection nor pasting into the composer works. With an editor host,
+ * Helicon takes those four keys and goes through the editor's clipboard instead.
+ */
+export function installEditorClipboard(isMac: boolean): () => void {
+  const onKey = (event: KeyboardEvent) => {
+    const mod = isMac ? event.metaKey : event.ctrlKey;
+    if (!mod || event.altKey || event.shiftKey) {
+      return;
+    }
+    const key = event.key.toLowerCase();
+    const field = editableTarget();
+    if (key === "c" || key === "x") {
+      const text = field
+        ? field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0)
+        : (window.getSelection()?.toString() ?? "");
+      if (!text) {
+        return;
+      }
+      event.preventDefault();
+      void copyText(text);
+      if (key === "x" && field) {
+        insertText(field, "");
+      }
+    } else if (key === "v" && field) {
+      event.preventDefault();
+      void readHostClipboard().then((text) => {
+        if (text) {
+          insertText(field, text);
+        }
+      });
+    } else if (key === "a" && field) {
+      event.preventDefault();
+      field.select();
+    }
+  };
+  const onMessage = (event: MessageEvent) => {
+    const data = event.data as { type?: unknown; id?: unknown; text?: unknown } | null;
+    if (event.source === window.parent && data?.type === "helicon-paste" && typeof data.id === "number") {
+      pastes.get(data.id)?.(typeof data.text === "string" ? data.text : "");
+      pastes.delete(data.id);
+    }
+  };
+  window.addEventListener("keydown", onKey, true);
+  window.addEventListener("message", onMessage);
+  return () => {
+    window.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("message", onMessage);
+  };
+}
+
 /** Sends a message to the page framing Helicon, when there is one. */
 export function postToHost(message: { type: string; [key: string]: unknown }): void {
   if (framed()) {

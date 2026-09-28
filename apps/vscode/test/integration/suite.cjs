@@ -48,6 +48,11 @@ exports.run = async function run() {
   await waitFor(() => vscode.window.activeTextEditor?.document.uri.fsPath.endsWith("README.md"), "README.md to open in the editor");
   console.log("file link opens in editor");
 
+  // Copy goes through the editor's clipboard, since framed pages can't reach the browser's.
+  api.frameMessage({ type: "command", command: "copy", args: { text: "copied from helicon" } });
+  await waitFor(async () => (await vscode.env.clipboard.readText()) === "copied from helicon", "the editor clipboard");
+  console.log("copy ok");
+
   // The full app still opens in an editor tab.
   await vscode.commands.executeCommand("helicon.openInEditor");
   await waitFor(() => vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.label === "Helicon"), "the editor tab");

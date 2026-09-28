@@ -155,7 +155,7 @@ class PanelView implements vscode.WebviewViewProvider {
   async resolveWebviewView(view: vscode.WebviewView): Promise<void> {
     this.view = view;
     view.webview.options = { enableScripts: true };
-    view.webview.onDidReceiveMessage(onFrameMessage);
+    view.webview.onDidReceiveMessage((message) => onFrameMessage(message, view.webview));
     view.onDidDispose(() => {
       if (this.view === view) {
         this.view = null;
@@ -276,7 +276,8 @@ async function openEditor(context: vscode.ExtensionContext, hash = ""): Promise<
   });
   editorPanel.iconPath = vscode.Uri.joinPath(context.extensionUri, "media", "icon.png");
   editorPanel.webview.html = frameHtml(base, `${base}/?${new URLSearchParams({ host: "editor", theme: editorTheme() }).toString()}${hash}`, "editor");
-  editorPanel.webview.onDidReceiveMessage(onFrameMessage);
+  const panelWebview = editorPanel.webview;
+  panelWebview.onDidReceiveMessage((message) => onFrameMessage(message, panelWebview));
   editorPanel.onDidDispose(() => {
     editorPanel = null;
   });
@@ -393,6 +394,7 @@ function frameHtml(origin: string, src: string, surface: "sideBar" | "editor", b
       return;
     }
     if (data.type === "helicon-theme") sendStyle();
+    if (data.type === "helicon-paste" && frame.contentWindow) frame.contentWindow.postMessage(data, origin);
     if (data.type === "navigate-hash") {
       const url = new URL(frame.src);
       url.hash = data.hash;
@@ -405,12 +407,18 @@ function frameHtml(origin: string, src: string, surface: "sideBar" | "editor", b
 }
 
 /** Commands the framed page may ask for; anything else is ignored. */
-function onFrameMessage(message: unknown): void {
+function onFrameMessage(message: unknown, webview?: vscode.Webview): void {
   const data = message as { type?: unknown; command?: unknown; args?: unknown } | null;
   if (data?.type !== "command") {
     return;
   }
-  if (data.command === "openFolder") {
+  const args = (data.args ?? {}) as { text?: unknown; id?: unknown };
+  if (data.command === "copy" && typeof args.text === "string") {
+    void vscode.env.clipboard.writeText(args.text);
+  } else if (data.command === "paste" && typeof args.id === "number" && webview) {
+    const id = args.id;
+    void vscode.env.clipboard.readText().then((text) => webview.postMessage({ type: "helicon-paste", id, text }));
+  } else if (data.command === "openFolder") {
     void vscode.commands.executeCommand("vscode.openFolder");
   } else if (data.command === "openFile") {
     void openFileInEditor(data.args);
