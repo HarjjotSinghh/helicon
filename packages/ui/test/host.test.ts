@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hostStylesheet } from "../src/app/host.js";
+import { hostStylesheet, isTranslucent } from "../src/app/host.js";
 
 test("hostStylesheet maps editor colors onto Helicon's tokens", () => {
   const css = hostStylesheet({
@@ -26,4 +26,16 @@ test("hostStylesheet falls back through sources and ignores blanks", () => {
   assert.match(hostStylesheet({ "sideBar-foreground": " ", foreground: "#eee" }), /--fg: #eee/);
   assert.equal(hostStylesheet({}), "");
   assert.doesNotMatch(hostStylesheet({ "font-size": "abc", surface: "#000" }), /font-size/);
+});
+
+test("hostStylesheet never takes a see-through color for surfaces things float over", () => {
+  const css = hostStylesheet({ "editorHoverWidget-background": "#ffffff0d", "editorWidget-background": "#202020" });
+  assert.match(css, /--bg-raised: #202020 !important;/);
+  assert.equal(isTranslucent("#ffffff0d"), true);
+  assert.equal(isTranslucent("#fff8"), true);
+  assert.equal(isTranslucent("#202020"), false);
+  assert.equal(isTranslucent("#202020ff"), false);
+  assert.equal(isTranslucent("rgba(0, 0, 0, 0.4)"), true);
+  assert.equal(isTranslucent("rgb(0 0 0 / 50%)"), true);
+  assert.equal(isTranslucent("rgb(10, 10, 10)"), false);
 });

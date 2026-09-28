@@ -13,7 +13,7 @@ export type HostVars = Partial<Record<string, string>>;
 const TOKEN_SOURCES: Record<string, string[]> = {
   "--bg": ["surface"],
   "--bg-sidebar": ["surface"],
-  "--bg-raised": ["input-background", "editorWidget-background"],
+  "--bg-raised": ["editorHoverWidget-background", "editorWidget-background", "menu-background", "dropdown-background", "quickInput-background"],
   "--bg-sunken": ["input-background"],
   "--bg-hover": ["list-hoverBackground", "toolbar-hoverBackground"],
   "--bg-active": ["list-inactiveSelectionBackground", "list-hoverBackground"],
@@ -29,11 +29,36 @@ const TOKEN_SOURCES: Record<string, string[]> = {
   "--scrollbar": ["scrollbarSlider-background"],
 };
 
+/** Surfaces other content sits on or floats over (popovers, cards), which must stay opaque. */
+const OPAQUE = new Set(["--bg", "--bg-sidebar", "--bg-raised"]);
+
+/** Whether a CSS color is see-through: #rgba / #rrggbbaa below full alpha, or rgba()/hsla() below 1. */
+export function isTranslucent(color: string): boolean {
+  const value = color.trim().toLowerCase();
+  const hex = /^#([0-9a-f]{4}|[0-9a-f]{8})$/.exec(value);
+  if (hex) {
+    const alpha = (hex[1] as string).length === 4 ? (hex[1] as string)[3] : (hex[1] as string).slice(6);
+    return alpha !== "f" && alpha !== "ff";
+  }
+  const fn = /^(?:rgba?|hsla?)\((.*)\)$/.exec(value);
+  if (fn) {
+    const parts = (fn[1] as string).split(/[\s,/]+/).filter(Boolean);
+    if (parts.length === 4) {
+      const alpha = parts[3] as string;
+      const n = alpha.endsWith("%") ? Number.parseFloat(alpha) / 100 : Number.parseFloat(alpha);
+      return Number.isFinite(n) && n < 1;
+    }
+  }
+  return value === "transparent";
+}
+
 /** The stylesheet that maps editor colors onto Helicon's tokens, or "" to use Helicon's own. */
 export function hostStylesheet(vars: HostVars): string {
   const rules: string[] = [];
   for (const [token, sources] of Object.entries(TOKEN_SOURCES)) {
-    const value = sources.map((name) => vars[name]).find((v) => typeof v === "string" && v.trim() !== "");
+    const value = sources
+      .map((name) => vars[name])
+      .find((v) => typeof v === "string" && v.trim() !== "" && !(OPAQUE.has(token) && isTranslucent(v)));
     if (value) {
       rules.push(`${token}: ${value.trim()} !important;`);
     }
