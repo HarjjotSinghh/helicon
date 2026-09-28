@@ -418,4 +418,88 @@ export const INSTALL_PAGES: SeoPage[] = [
     ],
     related: ["install/windows", "guides/muse-code-windows-without-wsl", "use-cases/windows-developers"],
   },
+  {
+    slug: "install/vscode",
+    icon: "code",
+    section: "install",
+    label: "VS Code and Cursor",
+    title: "Muse Code in VS Code and Cursor: the Helicon extension",
+    h1: "Helicon for VS Code, Cursor, Windsurf and Antigravity",
+    description:
+      "A Muse Code side panel inside your editor: threads as tabs, readable approvals, the files each thread changed. Uses your own muse login. Free and open source.",
+    answer:
+      "Install Helicon from the VS Code Marketplace in VS Code, or from Open VSX in Cursor, Windsurf and Antigravity, then click the Helicon icon in the activity bar. It opens a side panel for the folder you have open and drives the muse CLI you already use, with your own login and subscription and no API key.",
+    keywords: [
+      "muse code vscode extension",
+      "muse code cursor",
+      "muse code vs code",
+      "muse code extension",
+      "muse code windsurf",
+      "muse code antigravity",
+    ],
+    updated: "2026-09-28",
+    blocks: [
+      { kind: "h2", text: "Install it" },
+      {
+        kind: "table",
+        head: ["Editor", "Where to get it"],
+        rows: [
+          ["VS Code", "[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=harjjotsinghh.helicon), or search \"Helicon\" in the Extensions view"],
+          ["Cursor, Windsurf, Antigravity, VSCodium", "[Open VSX](https://open-vsx.org/extension/harjjotsinghh/helicon), or search \"Helicon\" in the Extensions view"],
+        ],
+      },
+      {
+        kind: "p",
+        text: "You need the muse CLI installed and signed in once with `muse login`. The extension uses that login; it never asks for an API key.",
+      },
+      { kind: "h2", text: "What the panel gives you" },
+      {
+        kind: "ul",
+        items: [
+          "The threads you have open in this folder, as tabs across the top.",
+          "History: every earlier thread in the folder, searchable and grouped by day.",
+          "Approvals you can read before a command or an edit runs.",
+          "The files each thread changed, with line counts, one click from opening in the editor.",
+          "Your editor's theme and font, so it looks like part of the editor.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "Drag the panel to the right-hand side bar if you prefer it there. For every project at once, run Helicon: Open Full Helicon in Editor to get the whole app in an editor tab.",
+      },
+      { kind: "h2", text: "How it works" },
+      {
+        kind: "p",
+        text: "The extension runs Helicon's local server on your editor's own Node runtime, bound to 127.0.0.1, and shows the Helicon interface in the side panel. The server runs `muse serve` and talks to it over MSP, so Muse Code stays the agent: the same models, tools and approval rules. The extension is about 1 MB and has no telemetry.",
+      },
+      {
+        kind: "note",
+        text: "Helicon needs an editor built on Node 22 or newer: VS Code 1.101 or later, and current Cursor, Windsurf and Antigravity releases.",
+      },
+    ],
+    howTo: {
+      name: "Use Muse Code in VS Code or Cursor with Helicon",
+      steps: [
+        { name: "Install and sign in to the muse CLI", text: "Helicon uses your existing login.", code: "muse login" },
+        { name: "Install the Helicon extension", text: "From the VS Code Marketplace, or Open VSX for Cursor, Windsurf and Antigravity." },
+        { name: "Open your project folder", text: "The panel works on the folder you have open." },
+        { name: "Click the Helicon icon", text: "Start a thread from the composer at the bottom of the panel." },
+      ],
+    },
+    faqs: [
+      {
+        q: "Does it work in Cursor?",
+        a: "Yes. Cursor installs extensions from Open VSX; search for Helicon in its Extensions view.",
+      },
+      {
+        q: "Do I need the desktop app too?",
+        a: "No. The extension carries its own copy of Helicon. You can use both; they keep separate lists of projects.",
+      },
+      {
+        q: "Does it replace Cursor's own agent?",
+        a: "No. It is a panel for Muse Code, running next to whatever else your editor has.",
+      },
+    ],
+    related: ["install/windows", "install/macos", "guides/muse-code-over-ssh"],
+  },
 ];

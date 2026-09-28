@@ -3,6 +3,7 @@
 import {
   Check,
   CheckCircle,
+  Code,
   Copy,
   DownloadSimple,
   ListChecks,
@@ -11,7 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { AppleLogo, LinuxLogo, WindowsLogo } from "./os-logos";
-import { osesFor, type OsId } from "@/lib/site";
+import { OPEN_VSX_URL, VSCODE_MARKETPLACE_URL, osesFor, type OsId } from "@/lib/site";
 import { installerPath } from "@/lib/downloads";
 import { parseVisitorOs } from "@/lib/os";
 import { trackEvent } from "@/lib/client-analytics";
@@ -240,6 +241,27 @@ export function Install({ version }: { version: string | null }) {
               </li>
             ))}
           </ul>
+
+          <div data-reveal className="mt-8 rounded-[12px] bg-surface p-4 shadow-[inset_0_0_0_1px_var(--border)] sm:p-5">
+            <p className="flex items-center gap-2.5 text-[15px] font-semibold text-fg">
+              <Code aria-hidden="true" weight="duotone" className="size-5 text-accent-text" />
+              Prefer your editor?
+            </p>
+            <p className="mt-1.5 text-[14px] leading-relaxed text-muted">
+              Helicon is also an extension for VS Code, Cursor, Windsurf and Antigravity: a side panel for the folder you have open.
+            </p>
+            <div className="mt-3.5 flex flex-wrap gap-2">
+              <TrackedLink href={VSCODE_MARKETPLACE_URL} placement="install-extension" eventLabel="VS Code Marketplace" className={buttonClass("outline", "sm")}>
+                VS Code
+              </TrackedLink>
+              <TrackedLink href={OPEN_VSX_URL} placement="install-extension" eventLabel="Open VSX" className={buttonClass("outline", "sm")}>
+                Cursor, Windsurf, Antigravity
+              </TrackedLink>
+            </div>
+            <a href="/install/vscode" className="mt-3 inline-block text-[13.5px] text-accent-text hover:underline">
+              How the extension works
+            </a>
+          </div>
         </aside>
       </CellGrid>
     </section>

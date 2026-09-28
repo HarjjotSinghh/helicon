@@ -8,6 +8,8 @@
 [![Contributors](https://img.shields.io/github/contributors/HarjjotSinghh/helicon.svg)](https://github.com/HarjjotSinghh/helicon/graphs/contributors)
 [![Downloads](https://img.shields.io/github/downloads/HarjjotSinghh/helicon/total.svg?label=installer%20downloads)](https://github.com/HarjjotSinghh/helicon/releases)
 [![Latest release](https://img.shields.io/github/v/release/HarjjotSinghh/helicon.svg?label=latest)](https://github.com/HarjjotSinghh/helicon/releases/latest)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/harjjotsinghh.helicon.svg?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=harjjotsinghh.helicon)
+[![Open VSX](https://img.shields.io/open-vsx/v/harjjotsinghh/helicon.svg?label=Open%20VSX)](https://open-vsx.org/extension/harjjotsinghh/helicon)
 [![Stars](https://img.shields.io/github/stars/HarjjotSinghh/helicon.svg?style=social)](https://github.com/HarjjotSinghh/helicon/stargazers)
 [![Hacktoberfest](https://img.shields.io/badge/Hacktoberfest-2026-ff8ae2.svg)](https://github.com/HarjjotSinghh/helicon/issues?q=is%3Aissue+is%3Aopen+label%3Ahacktoberfest)
 [![Good first issues](https://img.shields.io/github/issues/HarjjotSinghh/helicon/good%20first%20issue.svg?label=good%20first%20issues&color=7057ff)](https://github.com/HarjjotSinghh/helicon/contribute)
@@ -113,6 +115,8 @@ Helicon bundles its own Node.js, so you only need the `muse` CLI with `muse logi
 Linux: download the AppImage (x86_64) from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest). It runs on most distributions (it needs FUSE, `libfuse2`, on some of them) and updates itself from then on. Before the first launch, make it executable and run it (`chmod +x Helicon_*.AppImage`, then `./Helicon_*.AppImage`), or right-click it in your file manager and allow executing it as a program.
 
 Helicon bundles its own Node.js, so you only need the `muse` CLI with `muse login` done once, however you installed it. Helicon uses the login you already have and never stores credentials of its own.
+
+**VS Code, Cursor, Windsurf, Antigravity:** install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=harjjotsinghh.helicon) or, in Cursor and the other VS Code-based editors, from [Open VSX](https://open-vsx.org/extension/harjjotsinghh/helicon) (or search "Helicon" in the Extensions view). It opens a side panel for the folder you have open: your threads as tabs, History for the earlier ones, readable approvals, and the files each thread changed. Same `muse` login, nothing else to install. Source in [`apps/vscode`](apps/vscode); more at [helicon.sh/install/vscode](https://helicon.sh/install/vscode).
 
 Helicon updates itself, so there is nothing to subscribe to for that. If you would rather read what changed before it lands, use **Watch → Custom → Releases** at the top of this page: GitHub then tells you about each release and nothing else. [Discussions](https://github.com/HarjjotSinghh/helicon/discussions) is the place for questions and for what you are building with it.
 

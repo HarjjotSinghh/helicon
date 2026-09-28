@@ -82,6 +82,9 @@ export const SITE_KEYWORDS = [
 export const REPO_URL = "https://github.com/HarjjotSinghh/helicon";
 export const RELEASES_URL = `${REPO_URL}/releases/latest`;
 export const ISSUES_URL = `${REPO_URL}/issues`;
+/** The editor extension: one listing per registry. Cursor, Windsurf and Antigravity install from Open VSX. */
+export const VSCODE_MARKETPLACE_URL = "https://marketplace.visualstudio.com/items?itemName=harjjotsinghh.helicon";
+export const OPEN_VSX_URL = "https://open-vsx.org/extension/harjjotsinghh/helicon";
 
 /**
  * How to reach the people behind Helicon, and where they are. Published in the Organization
