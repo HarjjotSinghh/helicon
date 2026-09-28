@@ -2126,6 +2126,8 @@ export class HeliconServer {
   private async addProjectFolder(cwd: string): Promise<Record<string, unknown>> {
     this.store.upsertProject(cwd);
     this.store.setHidden(cwd, false);
+    // Say so now: discovery below starts Muse and can take many seconds, and the project can show before its threads.
+    this.sessionsChanged();
     let warning: string | null = null;
     let sessions: Record<string, unknown>[] = [];
     try {

@@ -176,7 +176,9 @@ class PanelView implements vscode.WebviewViewProvider {
       const base = await externalUrl();
       const cwd = workspaceFolder();
       if (cwd) {
-        await addProject(cwd);
+        // Not awaited: adding a folder also lists its threads through Muse, which can take many seconds,
+        // and the panel shows the folder as soon as the server has recorded it.
+        void addProject(cwd);
       }
       const query = new URLSearchParams({ view: "panel", host: "editor", theme: editorTheme(), ...(cwd ? { cwd } : {}) });
       this.loadedSrc = `${base}/?${query.toString()}`;

@@ -394,13 +394,19 @@ function PanelNew(props: { cwd: string | null; onHistory: () => void }) {
   const recent = useFolderSessions(props.cwd).slice(0, 5);
   const statuses = useStatuses(recent);
 
-  // The host opened a folder Helicon doesn't know yet: add it once, quietly.
+  // The host opened a folder Helicon doesn't know yet. The extension adds it on load, so give that a moment
+  // to land before adding it from here, which would start a second, slow discovery of the same folder.
   const adding = useRef(false);
   useEffect(() => {
-    if (props.cwd && !project && !adding.current) {
-      adding.current = true;
-      void controller.addProject(props.cwd);
+    if (!props.cwd || project || adding.current) {
+      return;
     }
+    const cwd = props.cwd;
+    const timer = window.setTimeout(() => {
+      adding.current = true;
+      void controller.addProject(cwd);
+    }, 2500);
+    return () => window.clearTimeout(timer);
   }, [props.cwd, project, controller]);
 
   if (!project) {
