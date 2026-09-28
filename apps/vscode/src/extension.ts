@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import * as vscode from "vscode";
 
 /**
@@ -24,6 +24,8 @@ let sideView: PanelView | null = null;
 export interface HeliconApi {
   serverUrl(): Promise<string>;
   panelLoaded(): string | null;
+  /** Handles a message as if the Helicon frame had sent it. */
+  frameMessage(message: unknown): void;
 }
 
 export function activate(context: vscode.ExtensionContext): HeliconApi {
@@ -54,7 +56,7 @@ export function activate(context: vscode.ExtensionContext): HeliconApi {
     vscode.commands.registerCommand("helicon.restart", () => restart()),
     vscode.commands.registerCommand("helicon.showLog", () => output.show()),
   );
-  return { serverUrl: () => (server as ServerHost).url(), panelLoaded: () => sideView?.loadedSrc ?? null };
+  return { serverUrl: () => (server as ServerHost).url(), panelLoaded: () => sideView?.loadedSrc ?? null, frameMessage: onFrameMessage };
 }
 
 export function deactivate(): void {
@@ -176,7 +178,7 @@ class PanelView implements vscode.WebviewViewProvider {
       if (cwd) {
         await addProject(cwd);
       }
-      const query = new URLSearchParams({ view: "panel", theme: editorTheme(), ...(cwd ? { cwd } : {}) });
+      const query = new URLSearchParams({ view: "panel", host: "editor", theme: editorTheme(), ...(cwd ? { cwd } : {}) });
       this.loadedSrc = `${base}/?${query.toString()}`;
       view.webview.html = frameHtml(base, this.loadedSrc, "sideBar", panelBorder());
     } catch (error) {
@@ -273,7 +275,7 @@ async function openEditor(context: vscode.ExtensionContext, hash = ""): Promise<
     retainContextWhenHidden: true,
   });
   editorPanel.iconPath = vscode.Uri.joinPath(context.extensionUri, "media", "icon.png");
-  editorPanel.webview.html = frameHtml(base, `${base}/?${new URLSearchParams({ theme: editorTheme() }).toString()}${hash}`, "editor");
+  editorPanel.webview.html = frameHtml(base, `${base}/?${new URLSearchParams({ host: "editor", theme: editorTheme() }).toString()}${hash}`, "editor");
   editorPanel.webview.onDidReceiveMessage(onFrameMessage);
   editorPanel.onDidDispose(() => {
     editorPanel = null;
@@ -387,7 +389,7 @@ function frameHtml(origin: string, src: string, surface: "sideBar" | "editor", b
     if (!data || typeof data !== "object") return;
     if (event.source === frame.contentWindow) {
       if (data.type === "helicon-host-ready") sendStyle();
-      if (data.type === "helicon-command" && typeof data.command === "string") vscode.postMessage({ type: "command", command: data.command });
+      if (data.type === "helicon-command" && typeof data.command === "string") vscode.postMessage({ type: "command", command: data.command, args: data.args });
       return;
     }
     if (data.type === "helicon-theme") sendStyle();
@@ -404,10 +406,43 @@ function frameHtml(origin: string, src: string, surface: "sideBar" | "editor", b
 
 /** Commands the framed page may ask for; anything else is ignored. */
 function onFrameMessage(message: unknown): void {
-  const data = message as { type?: unknown; command?: unknown } | null;
-  if (data?.type === "command" && data.command === "openFolder") {
-    void vscode.commands.executeCommand("vscode.openFolder");
+  const data = message as { type?: unknown; command?: unknown; args?: unknown } | null;
+  if (data?.type !== "command") {
+    return;
   }
+  if (data.command === "openFolder") {
+    void vscode.commands.executeCommand("vscode.openFolder");
+  } else if (data.command === "openFile") {
+    void openFileInEditor(data.args);
+  }
+}
+
+/** Opens a file a reply named in an editor tab, at its line when the reply gave one. */
+async function openFileInEditor(args: unknown): Promise<void> {
+  const { cwd, path, line } = (args ?? {}) as { cwd?: unknown; path?: unknown; line?: { start?: unknown; end?: unknown } | null };
+  if (typeof cwd !== "string" || typeof path !== "string" || !path) {
+    return;
+  }
+  // SSH projects live on another machine; the editor can't open their files by path.
+  if (cwd.startsWith("ssh://")) {
+    void vscode.window.showInformationMessage("Files in SSH projects can't be opened in the editor yet.");
+    return;
+  }
+  const absolute = isAbsolute(path) ? path : join(cwd, path);
+  const uri = vscode.Uri.file(absolute);
+  try {
+    await vscode.workspace.fs.stat(uri);
+  } catch {
+    void vscode.window.showWarningMessage(`Helicon: ${path} was not found in ${cwd}.`);
+    return;
+  }
+  const start = typeof line?.start === "number" && line.start > 0 ? line.start - 1 : null;
+  const end = typeof line?.end === "number" && line.end > 0 ? line.end - 1 : start;
+  const options: vscode.TextDocumentShowOptions = { preview: false, viewColumn: vscode.ViewColumn.Active };
+  if (start !== null) {
+    options.selection = new vscode.Range(start, 0, end ?? start, 0);
+  }
+  await vscode.commands.executeCommand("vscode.open", uri, options);
 }
 
 /** A plain message in the editor's own font and colors, for starting up and for errors. */

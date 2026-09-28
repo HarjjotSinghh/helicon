@@ -26,6 +26,7 @@ exports.run = async function run() {
   assert.match(url, /^http:\/\/127\.0\.0\.1:\d+$/);
   const params = new URL(src).searchParams;
   assert.equal(params.get("view"), "panel");
+  assert.equal(params.get("host"), "editor");
   assert.match(params.get("theme"), /^(light|dark)$/);
   const folder = process.env.HELICON_TEST_WORKSPACE;
   assert.equal(realpathSync(params.get("cwd")), realpathSync(folder));
@@ -41,6 +42,11 @@ exports.run = async function run() {
 
   const env = await (await fetch(`${url}/api/env`)).json();
   console.log(`museFound=${env.museFound}`);
+
+  // A file a reply names opens in an editor tab, at its line.
+  api.frameMessage({ type: "command", command: "openFile", args: { cwd: folder, path: "README.md", line: { start: 1, end: 1 } } });
+  await waitFor(() => vscode.window.activeTextEditor?.document.uri.fsPath.endsWith("README.md"), "README.md to open in the editor");
+  console.log("file link opens in editor");
 
   // The full app still opens in an editor tab.
   await vscode.commands.executeCommand("helicon.openInEditor");

@@ -18,7 +18,7 @@ import type { AppUpdater } from "../model/updates.js";
 import { zoomStepFromKey, type ZoomStep } from "../model/zoom-shortcut.js";
 import { ControllerProvider, useApp, useController } from "./context.js";
 import { PanelContext, type PanelMode } from "./panel.js";
-import { useHostTheme } from "./host.js";
+import { postToHost, useHostTheme } from "./host.js";
 import { PanelShell } from "../components/panel/Panel.js";
 import { FrameProvider, FrameStrip, WindowControls, type WindowFrame } from "./frame.js";
 
@@ -43,6 +43,8 @@ export interface HeliconAppProps {
   panel?: PanelMode;
   /** The host's color scheme, when it has its own (an editor theme); overrides the system one. */
   hostTheme?: "light" | "dark";
+  /** The page is framed by an editor, which opens files a reply names in its own tabs. */
+  editorHost?: boolean;
 }
 
 /** The whole Helicon interface. Web and desktop shells mount this with their transport. */
@@ -54,6 +56,9 @@ export function HeliconApp(props: HeliconAppProps) {
     }
     if (props.notifier) {
       created.attachNotifier(props.notifier);
+    }
+    if (props.editorHost) {
+      created.setExternalFileOpener((cwd, path, line) => postToHost({ type: "helicon-command", command: "openFile", args: { cwd, path, line } }));
     }
     return created;
   });

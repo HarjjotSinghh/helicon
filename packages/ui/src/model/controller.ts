@@ -2834,6 +2834,10 @@ export class HeliconController {
     if (!cwd || !target || !target.path) {
       return false;
     }
+    if (this.externalFileOpener) {
+      this.externalFileOpener(cwd, target.path, line ?? target.line);
+      return true;
+    }
     this.patchPanel(sessionId, (panel) => ({
       tabs: panel.tabs.includes(target.path) ? panel.tabs : [...panel.tabs, target.path],
       active: target.path,
@@ -2844,6 +2848,13 @@ export class HeliconController {
       this.setPrefs({ filesOpen: true });
     }
     return true;
+  }
+
+  /** Set when a host (an editor extension) opens files itself: file links then go there, not to the viewer. */
+  private externalFileOpener: ((cwd: string, path: string, line: LineRange | null) => void) | null = null;
+
+  setExternalFileOpener(opener: ((cwd: string, path: string, line: LineRange | null) => void) | null): void {
+    this.externalFileOpener = opener;
   }
 
   showFileTree(sessionId: string, tree: boolean): void {

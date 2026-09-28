@@ -19,14 +19,16 @@ if (!root) {
 
 /**
  * `?view=panel&cwd=<folder>&theme=<light|dark>` asks for the compact layout an editor extension shows
- * in its side panel: one folder, threads as tabs. Read once, at load.
+ * in its side panel: one folder, threads as tabs. `host=editor` hands file links to the editor.
+ * Read once, at load.
  */
-function hostOptions(): { panel?: { cwd: string | null }; hostTheme?: "light" | "dark" } {
+function hostOptions(): { panel?: { cwd: string | null }; hostTheme?: "light" | "dark"; editorHost?: boolean } {
   const params = new URLSearchParams(window.location.search);
   const theme = params.get("theme");
   return {
     ...(params.get("view") === "panel" ? { panel: { cwd: params.get("cwd") || null } } : {}),
     ...(theme === "light" || theme === "dark" ? { hostTheme: theme } : {}),
+    ...(params.get("host") === "editor" ? { editorHost: true } : {}),
   };
 }
 
