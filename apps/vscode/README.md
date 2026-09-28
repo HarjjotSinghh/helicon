@@ -1,6 +1,6 @@
 # Helicon for VS Code
 
-**A GUI for the Muse Code CLI, right in your editor.** Threads in a sidebar, approvals you can actually read, diffs where the edit happened, session history, and what each thread would have cost. Helicon drives the `muse` CLI you already have, with your own login and subscription: no API key, no credentials stored.
+**A GUI for the Muse Code CLI, right in your editor.** A side panel for the folder you have open, with your threads as tabs, approvals you can actually read, diffs where the edit happened, session history, and what each thread would have cost. Helicon drives the `muse` CLI you already have, with your own login and subscription: no API key, no credentials stored.
 
 ![Helicon in 30 seconds](https://raw.githubusercontent.com/HarjjotSinghh/helicon/prod/docs/assets/launch.gif)
 
@@ -8,7 +8,8 @@ Works in VS Code, Cursor, Windsurf, Antigravity and other VS Code-based editors,
 
 ## What you get
 
-- **Every Muse Code thread in one place**, grouped by project, including the ones you started in the terminal.
+- **A panel built for the side bar:** the threads you have open in this folder as tabs across the top, and every earlier one under History, searchable and grouped by day. Drag it to the right-hand side bar if you prefer it there.
+- **Every Muse Code thread for the folder,** including the ones you started in the terminal.
 - **Approvals you can read:** see the exact command or edit before it runs, then allow or deny it, or let the thread run without asking until you close Helicon.
 - **Inline diffs** at the point in the thread where the change happened.
 - **Session history:** reopen any past thread with its turns, tool calls and diffs.
@@ -19,12 +20,13 @@ Works in VS Code, Cursor, Windsurf, Antigravity and other VS Code-based editors,
 ## Get started
 
 1. Install the `muse` CLI and run `muse login` once. ([Help if it isn't found](https://helicon.sh/guides/muse-cli-not-found))
-2. Click the Helicon icon in the activity bar, then **Open Helicon**, or run **Helicon: Open Helicon** from the command palette (`Cmd+Alt+H` / `Ctrl+Alt+H`).
-3. To start in the folder you have open: **Helicon: New Thread in This Folder**, or right-click a folder in the Explorer.
+2. Click the Helicon icon in the activity bar, or press `Cmd+Alt+H` / `Ctrl+Alt+H`. The panel opens on the folder you have open.
+3. Type what you want changed. New threads open as tabs; the clock icon shows every earlier thread in the folder.
+4. Want every project at once? **Helicon: Open Full Helicon in Editor** opens the full app, sidebar and all, in an editor tab.
 
 ## How it works
 
-The extension starts Helicon's local server on your editor's own Node runtime, bound to `127.0.0.1` only, and opens the Helicon UI in an editor tab. The server runs `muse serve` and talks to it over MSP, the protocol Muse Code speaks to its clients, so Muse Code stays the agent: same models, same tools, same approval rules. Nothing is sent anywhere except to Muse Code itself, and the extension has no telemetry.
+The extension starts Helicon's local server on your editor's own Node runtime, bound to `127.0.0.1` only, and shows the Helicon UI in the side panel. The server runs `muse serve` and talks to it over MSP, the protocol Muse Code speaks to its clients, so Muse Code stays the agent: same models, same tools, same approval rules. Nothing is sent anywhere except to Muse Code itself, and the extension has no telemetry.
 
 In a Remote-SSH, WSL or dev container window the extension runs on the remote side, next to your code and its `muse` install, and the editor forwards the port for you.
 
@@ -32,8 +34,10 @@ In a Remote-SSH, WSL or dev container window the extension runs on the remote si
 
 | Command | What it does |
 |---|---|
-| Helicon: Open Helicon | Open the Helicon tab |
-| Helicon: New Thread in This Folder | Add the folder as a project and start a thread there |
+| Helicon: Open Helicon | Show the Helicon panel |
+| Helicon: New Thread | Start a new thread in the panel |
+| Helicon: Open Full Helicon in Editor | The full app, with every project, in an editor tab |
+| Helicon: New Thread in This Folder | From the Explorer's right-click menu: start a thread in any folder |
 | Helicon: Open in Browser | Open the same session in your browser |
 | Helicon: Restart Server | Restart the local server |
 | Helicon: Show Log | Server output, for bug reports |

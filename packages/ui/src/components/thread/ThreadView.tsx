@@ -18,7 +18,8 @@ import { Button, IconButton, MOD, Spinner } from "../ui/primitives.js";
 import { FilesPanel } from "../files/FilesPanel.js";
 import { Transcript } from "./Transcript.js";
 
-export function ThreadView(props: { sessionId: string }) {
+/** `bare` drops the header and the files panel, for the compact panel whose tabs stand in for the header. */
+export function ThreadView(props: { sessionId: string; bare?: boolean }) {
   const session = useApp((s) => s.sessions[props.sessionId] ?? null);
   const thread = useApp((s) => s.threads[props.sessionId] ?? null);
   const filesOpen = useApp((s) => s.prefs.filesOpen);
@@ -29,13 +30,13 @@ export function ThreadView(props: { sessionId: string }) {
   const ssh = session.cwd.startsWith("ssh://");
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-      <ThreadHeader session={session} thread={thread} running={running} />
+      {props.bare ? null : <ThreadHeader session={session} thread={thread} running={running} />}
       <div className="flex min-h-0 flex-1">
         <div className="@container flex min-w-0 flex-1 flex-col">
           {thread ? <Transcript sessionId={props.sessionId} thread={thread} /> : <div className="min-h-0 flex-1" />}
           <Dock session={session} thread={thread} running={running} />
         </div>
-        {filesOpen ? (ssh ? <SshFilesNote /> : <FilesPanel sessionId={props.sessionId} cwd={session.cwd} />) : null}
+        {filesOpen && !props.bare ? (ssh ? <SshFilesNote /> : <FilesPanel sessionId={props.sessionId} cwd={session.cwd} />) : null}
       </div>
     </div>
   );
@@ -284,7 +285,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
   const showPlan = planShown(todo, props.running);
   return (
     <div className="shrink-0">
-      <div className="mx-auto flex w-full max-w-[776px] flex-col gap-2 px-4 pb-2 @min-[520px]:px-6">
+      <div className="mx-auto flex w-full max-w-[776px] flex-col gap-2 px-3 pb-2 @min-[400px]:px-4 @min-[520px]:px-6">
         {thread?.readOnly ? (
           <ReadOnlyNotice
             reason={thread.readOnlyReason}

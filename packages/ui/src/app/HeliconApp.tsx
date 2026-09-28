@@ -17,6 +17,8 @@ import type { Notifier } from "../model/notify.js";
 import type { AppUpdater } from "../model/updates.js";
 import { zoomStepFromKey, type ZoomStep } from "../model/zoom-shortcut.js";
 import { ControllerProvider, useApp, useController } from "./context.js";
+import { PanelContext, type PanelMode } from "./panel.js";
+import { PanelShell } from "../components/panel/Panel.js";
 import { FrameProvider, FrameStrip, WindowControls, type WindowFrame } from "./frame.js";
 
 declare global {
@@ -36,6 +38,10 @@ export interface HeliconAppProps {
   updater?: AppUpdater;
   /** How this shell raises a system notification; absent where it cannot. */
   notifier?: Notifier;
+  /** The compact layout for a narrow host, such as an editor extension's side panel. */
+  panel?: PanelMode;
+  /** The host's color scheme, when it has its own (an editor theme); overrides the system one. */
+  hostTheme?: "light" | "dark";
 }
 
 /** The whole Helicon interface. Web and desktop shells mount this with their transport. */
@@ -51,27 +57,55 @@ export function HeliconApp(props: HeliconAppProps) {
     return created;
   });
   useEffect(() => controller.start(), [controller]);
+  const hostTheme = useHostTheme(props.hostTheme);
+  const panel = props.panel ?? null;
   return (
     <ControllerProvider controller={controller}>
-      <FrameProvider frame={props.frame} overlay={props.titlebarOverlay}>
-        <TooltipProvider>
-          <ThemeSync />
-          <ZoomSync />
-          <GlobalShortcuts />
-          <Shell />
-          <CommandPalette />
-          <AddProjectDialog />
-          <WhatsNew />
-          <Toasts />
-          <WindowControls />
-        </TooltipProvider>
-      </FrameProvider>
+      <PanelContext.Provider value={panel}>
+        <FrameProvider frame={props.frame} overlay={props.titlebarOverlay}>
+          <TooltipProvider>
+            <ThemeSync hostTheme={hostTheme} />
+            <ZoomSync />
+            <GlobalShortcuts panel={panel !== null} />
+            {panel ? <PanelShell /> : <Shell />}
+            {panel ? null : <CommandPalette />}
+            {panel ? null : <AddProjectDialog />}
+            {panel ? null : <WhatsNew />}
+            <Toasts />
+            <WindowControls />
+          </TooltipProvider>
+        </FrameProvider>
+      </PanelContext.Provider>
     </ControllerProvider>
   );
 }
 
-function ThemeSync() {
-  const theme = useApp((s) => s.prefs.theme);
+/**
+ * The host's theme, starting from the prop and following `helicon-theme` messages from the parent
+ * frame, which is how an editor extension passes on a theme switch without reloading the page.
+ */
+function useHostTheme(initial: "light" | "dark" | undefined): "light" | "dark" | null {
+  const [theme, setTheme] = useState<"light" | "dark" | null>(initial ?? null);
+  useEffect(() => {
+    if (!initial || window.parent === window) {
+      return;
+    }
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: unknown; theme?: unknown } | null;
+      if (event.source === window.parent && data?.type === "helicon-theme" && (data.theme === "light" || data.theme === "dark")) {
+        setTheme(data.theme);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [initial]);
+  return theme;
+}
+
+function ThemeSync(props: { hostTheme: "light" | "dark" | null }) {
+  const pref = useApp((s) => s.prefs.theme);
+  // A host theme stands in for "system": an explicit light or dark choice in Settings still wins.
+  const theme = pref === "system" && props.hostTheme ? props.hostTheme : pref;
   const codeTheme = useApp((s) => s.prefs.codeTheme);
   useEffect(() => {
     document.documentElement.dataset["codeTheme"] = codeTheme;
@@ -129,10 +163,14 @@ function applyZoomStep(controller: HeliconController, step: ZoomStep) {
   }
 }
 
-function GlobalShortcuts() {
+function GlobalShortcuts(props: { panel: boolean }) {
   const controller = useController();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      // Inside an editor the editor owns these chords (Cmd+B, Cmd+K, Cmd+Shift+E...); only zoom stays.
+      if (props.panel && !zoomStepFromKey(event, isMac)) {
+        return;
+      }
       const mod = isMac ? event.metaKey : event.ctrlKey;
       const key = event.key.toLowerCase();
       const zoom = zoomStepFromKey(event, isMac);
@@ -180,7 +218,7 @@ function GlobalShortcuts() {
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("helicon-zoom-step", onMenuZoom);
     };
-  }, [controller]);
+  }, [controller, props.panel]);
   return null;
 }
 

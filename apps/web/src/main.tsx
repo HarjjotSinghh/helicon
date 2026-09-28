@@ -18,6 +18,21 @@ if (!root) {
 }
 
 /**
+ * `?view=panel&cwd=<folder>&theme=<light|dark>` asks for the compact layout an editor extension shows
+ * in its side panel: one folder, threads as tabs. Read once, at load.
+ */
+function hostOptions(): { panel?: { cwd: string | null }; hostTheme?: "light" | "dark" } {
+  const params = new URLSearchParams(window.location.search);
+  const theme = params.get("theme");
+  return {
+    ...(params.get("view") === "panel" ? { panel: { cwd: params.get("cwd") || null } } : {}),
+    ...(theme === "light" || theme === "dark" ? { hostTheme: theme } : {}),
+  };
+}
+
+const host = hostOptions();
+
+/**
  * `#/connect` picks the daemon this page talks to. It is read before the app mounts, because the
  * client reads its address once at module load and every open stream belongs to that address.
  */
@@ -41,6 +56,7 @@ function Root({ makeClient }: { makeClient: () => HeliconClient }) {
       titlebarOverlay={titlebarOverlay()}
       updater={desktopUpdater()}
       notifier={appNotifier()}
+      {...host}
     />
   );
 }

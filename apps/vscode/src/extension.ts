@@ -6,35 +6,48 @@ import * as vscode from "vscode";
 
 /**
  * Helicon inside the editor. The extension runs the same helicon-server the desktop app bundles,
- * on the editor's own Node runtime, and shows the same web UI in an editor tab. Nothing is
- * reimplemented: the server drives `muse serve` over MSP, and the UI talks to the server.
+ * on the editor's own Node runtime, and shows the web UI: a compact one-folder panel in the side
+ * bar, or the full app in an editor tab. Nothing is reimplemented: the server drives `muse serve`
+ * over MSP, and the UI talks to the server.
  */
 
 const LISTENING = /helicon-server listening on (http:\/\/\S+)/;
 const START_TIMEOUT_MS = 20_000;
+const VIEW_ID = "helicon.panel";
 
 let output: vscode.OutputChannel;
 let server: ServerHost | null = null;
-let panel: vscode.WebviewPanel | null = null;
+let editorPanel: vscode.WebviewPanel | null = null;
+let sideView: PanelView | null = null;
 
 /** What the extension exposes to other code: only the tests use it. */
 export interface HeliconApi {
   serverUrl(): Promise<string>;
+  panelLoaded(): string | null;
 }
 
 export function activate(context: vscode.ExtensionContext): HeliconApi {
   output = vscode.window.createOutputChannel("Helicon");
   server = new ServerHost(context);
+  sideView = new PanelView();
   context.subscriptions.push(
     output,
     { dispose: () => server?.stop() },
-    vscode.commands.registerCommand("helicon.open", () => openPanel(context)),
+    vscode.window.registerWebviewViewProvider(VIEW_ID, sideView, { webviewOptions: { retainContextWhenHidden: true } }),
+    vscode.window.onDidChangeActiveColorTheme(() => {
+      const message = { type: "helicon-theme", theme: editorTheme() };
+      void sideView?.post(message);
+      void editorPanel?.webview.postMessage(message);
+    }),
+    vscode.commands.registerCommand("helicon.open", () => focusPanel()),
+    vscode.commands.registerCommand("helicon.newThread", () => newThreadInPanel()),
+    vscode.commands.registerCommand("helicon.openInEditor", () => openEditor(context)),
     vscode.commands.registerCommand("helicon.openForFolder", (uri?: vscode.Uri) => openForFolder(context, uri)),
     vscode.commands.registerCommand("helicon.openInBrowser", () => openInBrowser()),
-    vscode.commands.registerCommand("helicon.restart", () => restart(context)),
+    vscode.commands.registerCommand("helicon.restart", () => restart()),
     vscode.commands.registerCommand("helicon.showLog", () => output.show()),
   );
-  return { serverUrl: () => (server as ServerHost).url() };
+  return { serverUrl: () => (server as ServerHost).url(), panelLoaded: () => sideView?.loadedSrc ?? null };
 }
 
 export function deactivate(): void {
@@ -124,6 +137,67 @@ class ServerHost {
   }
 }
 
+/** The side bar view: the compact one-folder layout for the workspace's first folder. */
+class PanelView implements vscode.WebviewViewProvider {
+  private view: vscode.WebviewView | null = null;
+  /** The page the frame was last pointed at; the tests read it. */
+  loadedSrc: string | null = null;
+
+  async resolveWebviewView(view: vscode.WebviewView): Promise<void> {
+    this.view = view;
+    view.webview.options = { enableScripts: true };
+    view.onDidDispose(() => {
+      if (this.view === view) {
+        this.view = null;
+        this.loadedSrc = null;
+      }
+    });
+    await this.load();
+  }
+
+  /** (Re)loads the panel, after first making sure the server runs and knows the folder. */
+  async load(): Promise<void> {
+    const view = this.view;
+    if (!view) {
+      return;
+    }
+    view.webview.html = messageHtml("Starting Helicon…");
+    try {
+      const base = await externalUrl();
+      const cwd = workspaceFolder();
+      if (cwd) {
+        await addProject(cwd);
+      }
+      const query = new URLSearchParams({ view: "panel", theme: editorTheme(), ...(cwd ? { cwd } : {}) });
+      this.loadedSrc = `${base}/?${query.toString()}`;
+      view.webview.html = frameHtml(base, this.loadedSrc);
+    } catch (error) {
+      view.webview.html = messageHtml(
+        `Helicon could not start: ${error instanceof Error ? error.message : String(error)}. Run “Helicon: Show Log” for details, or “Helicon: Restart Server”.`,
+      );
+    }
+  }
+
+  post(message: unknown): Thenable<boolean> | undefined {
+    return this.view?.webview.postMessage(message);
+  }
+}
+
+function editorTheme(): "light" | "dark" {
+  const kind = vscode.window.activeColorTheme.kind;
+  return kind === vscode.ColorThemeKind.Light || kind === vscode.ColorThemeKind.HighContrastLight ? "light" : "dark";
+}
+
+/** The first workspace folder, with a Windows drive letter uppercased the way the server stores it. */
+function workspaceFolder(): string | null {
+  const path = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  return path ? normalizeFolder(path) : null;
+}
+
+function normalizeFolder(path: string): string {
+  return path.replace(/^([a-z]):/, (_m, drive: string) => `${drive.toUpperCase()}:`);
+}
+
 /** The server URL as the webview can reach it: forwarded when the extension runs remotely. */
 async function externalUrl(): Promise<string> {
   const local = await (server as ServerHost).url();
@@ -131,43 +205,7 @@ async function externalUrl(): Promise<string> {
   return external.toString(true).replace(/\/$/, "");
 }
 
-async function openPanel(context: vscode.ExtensionContext, hash = ""): Promise<void> {
-  let base: string;
-  try {
-    base = await externalUrl();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const choice = await vscode.window.showErrorMessage(`Helicon could not start: ${message}`, "Show Log");
-    if (choice === "Show Log") {
-      output.show();
-    }
-    return;
-  }
-  if (panel) {
-    panel.reveal(vscode.ViewColumn.Active);
-    if (hash) {
-      void panel.webview.postMessage({ type: "navigate", url: `${base}/${hash}` });
-    }
-    return;
-  }
-  panel = vscode.window.createWebviewPanel("helicon", "Helicon", vscode.ViewColumn.Active, {
-    enableScripts: true,
-    retainContextWhenHidden: true,
-  });
-  panel.iconPath = vscode.Uri.joinPath(context.extensionUri, "media", "icon.png");
-  panel.webview.html = html(base, `${base}/${hash}`);
-  panel.onDidDispose(() => {
-    panel = null;
-  });
-}
-
-/** Adds the folder as a project, then opens a new thread in it. */
-async function openForFolder(context: vscode.ExtensionContext, uri?: vscode.Uri): Promise<void> {
-  const cwd = uri?.fsPath ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!cwd) {
-    await openPanel(context);
-    return;
-  }
+async function addProject(cwd: string): Promise<void> {
   try {
     const local = await (server as ServerHost).url();
     const res = await fetch(`${local}/api/projects`, {
@@ -181,7 +219,58 @@ async function openForFolder(context: vscode.ExtensionContext, uri?: vscode.Uri)
   } catch (error) {
     output.appendLine(`Adding ${cwd} as a project failed: ${String(error)}`);
   }
-  await openPanel(context, `#/new/${encodeURIComponent(cwd)}`);
+}
+
+async function focusPanel(): Promise<void> {
+  await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+}
+
+async function newThreadInPanel(): Promise<void> {
+  await focusPanel();
+  const cwd = workspaceFolder();
+  await sideView?.post({ type: "navigate-hash", hash: cwd ? `#/new/${encodeURIComponent(cwd)}` : "#/new" });
+}
+
+/** The full app, sidebar and all, in an editor tab. */
+async function openEditor(context: vscode.ExtensionContext, hash = ""): Promise<void> {
+  let base: string;
+  try {
+    base = await externalUrl();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const choice = await vscode.window.showErrorMessage(`Helicon could not start: ${message}`, "Show Log");
+    if (choice === "Show Log") {
+      output.show();
+    }
+    return;
+  }
+  if (editorPanel) {
+    editorPanel.reveal(vscode.ViewColumn.Active);
+    if (hash) {
+      void editorPanel.webview.postMessage({ type: "navigate-hash", hash });
+    }
+    return;
+  }
+  editorPanel = vscode.window.createWebviewPanel("helicon", "Helicon", vscode.ViewColumn.Active, {
+    enableScripts: true,
+    retainContextWhenHidden: true,
+  });
+  editorPanel.iconPath = vscode.Uri.joinPath(context.extensionUri, "media", "icon.png");
+  editorPanel.webview.html = frameHtml(base, `${base}/?${new URLSearchParams({ theme: editorTheme() }).toString()}${hash}`);
+  editorPanel.onDidDispose(() => {
+    editorPanel = null;
+  });
+}
+
+/** A new thread in the chosen folder: in the side panel for the workspace folder, else in the full app. */
+async function openForFolder(context: vscode.ExtensionContext, uri?: vscode.Uri): Promise<void> {
+  const chosen = uri ? normalizeFolder(uri.fsPath) : workspaceFolder();
+  if (!chosen || chosen === workspaceFolder()) {
+    await newThreadInPanel();
+    return;
+  }
+  await addProject(chosen);
+  await openEditor(context, `#/new/${encodeURIComponent(chosen)}`);
 }
 
 async function openInBrowser(): Promise<void> {
@@ -192,14 +281,17 @@ async function openInBrowser(): Promise<void> {
   }
 }
 
-async function restart(context: vscode.ExtensionContext): Promise<void> {
-  panel?.dispose();
+async function restart(): Promise<void> {
+  editorPanel?.dispose();
   server?.stop();
-  await openPanel(context);
+  await sideView?.load();
 }
 
-/** A full-bleed frame around the server's own page, which keeps its origin, storage and cookies. */
-function html(origin: string, src: string): string {
+/**
+ * A full-bleed frame around the server's own page, which keeps its origin, storage and cookies.
+ * The small script forwards theme changes and navigation from the extension into the frame.
+ */
+function frameHtml(origin: string, src: string): string {
   const nonce = randomBytes(16).toString("base64");
   const frameOrigin = new URL(origin).origin;
   return `<!DOCTYPE html>
@@ -208,7 +300,7 @@ function html(origin: string, src: string): string {
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src ${frameOrigin}; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--vscode-editor-background); }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); }
   iframe { display: block; width: 100%; height: 100%; border: 0; }
 </style>
 </head>
@@ -216,10 +308,24 @@ function html(origin: string, src: string): string {
 <iframe id="app" src="${src}" title="Helicon" allow="clipboard-read; clipboard-write"></iframe>
 <script nonce="${nonce}">
   const frame = document.getElementById("app");
+  const origin = ${JSON.stringify(frameOrigin)};
   window.addEventListener("message", (event) => {
-    if (event.data && event.data.type === "navigate") frame.src = event.data.url;
+    const data = event.data;
+    if (!data || typeof data !== "object") return;
+    if (data.type === "helicon-theme") frame.contentWindow.postMessage(data, origin);
+    if (data.type === "navigate-hash") {
+      const url = new URL(frame.src);
+      url.hash = data.hash;
+      frame.src = url.toString();
+    }
   });
 </script>
 </body>
 </html>`;
+}
+
+/** A plain message in the editor's own font and colors, for starting up and for errors. */
+function messageHtml(text: string): string {
+  const safe = text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
+  return `<!DOCTYPE html><html><body style="margin:0;padding:16px;font:12px/1.5 var(--vscode-font-family);color:var(--vscode-descriptionForeground)">${safe}</body></html>`;
 }

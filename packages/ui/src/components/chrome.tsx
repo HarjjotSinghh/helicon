@@ -1,6 +1,7 @@
 import { SidebarSimpleIcon } from "./ui/icons.js";
 import type { ReactNode } from "react";
 import { useApp, useController } from "../app/context.js";
+import { usePanel } from "../app/panel.js";
 import { CaptionSpacer, useOverlayDragProps, useTitlebarOverlay } from "../app/frame.js";
 import { Tip } from "./ui/overlays.js";
 import { IconButton, MOD, cn } from "./ui/primitives.js";
@@ -8,7 +9,8 @@ import { IconButton, MOD, cn } from "./ui/primitives.js";
 export function SidebarToggle() {
   const controller = useController();
   const collapsed = useApp((s) => s.prefs.sidebarCollapsed);
-  if (!collapsed) {
+  const panel = usePanel();
+  if (!collapsed || panel) {
     return null;
   }
   return (
