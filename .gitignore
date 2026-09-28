@@ -34,6 +34,7 @@ Thumbs.db
 !docs/assets/*.png
 !docs/assets/**/*.png
 # So are the shipped brand images: desktop icons, web favicons, social assets.
+!apps/vscode/media/*.png
 !apps/desktop/src-tauri/icons/**/*.png
 !apps/web/public/*.png
 !assets/social/*.png
@@ -52,3 +53,8 @@ apps/desktop/.cache/
 # vercel
 .vercel
 landing/seo-data/dashboard.html
+
+# VS Code extension build output
+apps/vscode/LICENSE
+apps/vscode/*.vsix
+apps/vscode/.vscode-test/
