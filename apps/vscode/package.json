@@ -123,7 +123,29 @@
         "key": "ctrl+alt+h",
         "mac": "cmd+alt+h"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Helicon",
+      "properties": {
+        "helicon.panelBorder": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "left",
+            "right",
+            "none"
+          ],
+          "default": "auto",
+          "markdownDescription": "Which edge of the Helicon side panel gets a divider line. `auto` puts it on the edge facing the editor, going by `workbench.sideBar.location`; pick `left` or `right` if you moved Helicon to the other side bar.",
+          "enumDescriptions": [
+            "The edge facing the editor, based on the side bar's location",
+            "Left edge",
+            "Right edge",
+            "No divider"
+          ]
+        }
+      }
+    }
   },
   "scripts": {
     "build": "node scripts/build.mjs",

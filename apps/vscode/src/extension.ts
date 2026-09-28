@@ -41,6 +41,11 @@ export function activate(context: vscode.ExtensionContext): HeliconApi {
     }),
     // A different folder means a different panel: reload it on the new one.
     vscode.workspace.onDidChangeWorkspaceFolders(() => void sideView?.load()),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("helicon.panelBorder") || event.affectsConfiguration("workbench.sideBar.location")) {
+        void sideView?.load();
+      }
+    }),
     vscode.commands.registerCommand("helicon.open", () => focusPanel()),
     vscode.commands.registerCommand("helicon.newThread", () => newThreadInPanel()),
     vscode.commands.registerCommand("helicon.openInEditor", () => openEditor(context)),
@@ -173,7 +178,7 @@ class PanelView implements vscode.WebviewViewProvider {
       }
       const query = new URLSearchParams({ view: "panel", theme: editorTheme(), ...(cwd ? { cwd } : {}) });
       this.loadedSrc = `${base}/?${query.toString()}`;
-      view.webview.html = frameHtml(base, this.loadedSrc, "sideBar");
+      view.webview.html = frameHtml(base, this.loadedSrc, "sideBar", panelBorder());
     } catch (error) {
       view.webview.html = messageHtml(
         `Helicon could not start: ${error instanceof Error ? error.message : String(error)}. Run “Helicon: Show Log” for details, or “Helicon: Restart Server”.`,
@@ -184,6 +189,15 @@ class PanelView implements vscode.WebviewViewProvider {
   post(message: unknown): Thenable<boolean> | undefined {
     return this.view?.webview.postMessage(message);
   }
+}
+
+/** The panel edge that faces the editor, from the setting or the side bar's location. */
+function panelBorder(): "left" | "right" | "none" {
+  const setting = vscode.workspace.getConfiguration("helicon").get<string>("panelBorder", "auto");
+  if (setting === "left" || setting === "right" || setting === "none") {
+    return setting;
+  }
+  return vscode.workspace.getConfiguration("workbench").get<string>("sideBar.location", "left") === "right" ? "left" : "right";
 }
 
 function editorTheme(): "light" | "dark" {
@@ -325,7 +339,7 @@ const HOST_VARS = [
  * The script passes the editor's theme (its CSS variables) into the frame, forwards navigation
  * from the extension, and relays the few commands the page can't run itself, like opening a folder.
  */
-function frameHtml(origin: string, src: string, surface: "sideBar" | "editor"): string {
+function frameHtml(origin: string, src: string, surface: "sideBar" | "editor", border: "left" | "right" | "none" = "none"): string {
   const nonce = randomBytes(16).toString("base64");
   const frameOrigin = new URL(origin).origin;
   return `<!DOCTYPE html>
@@ -334,8 +348,10 @@ function frameHtml(origin: string, src: string, surface: "sideBar" | "editor"): 
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src ${frameOrigin}; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--vscode-${surface}-background, var(--vscode-editor-background)); }
-  iframe { display: block; width: 100%; height: 100%; border: 0; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; box-sizing: border-box; background: var(--vscode-${surface}-background, var(--vscode-editor-background)); }
+  body { display: flex; }
+  ${border === "none" ? "" : `body { border-${border}: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border, var(--vscode-editorGroup-border, var(--vscode-widget-border, rgba(128, 128, 128, 0.25))))); }`}
+  iframe { display: block; flex: 1; min-width: 0; height: 100%; border: 0; }
 </style>
 </head>
 <body>

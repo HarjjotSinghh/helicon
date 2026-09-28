@@ -42,6 +42,8 @@ In a Remote-SSH, WSL or dev container window the extension runs on the remote si
 | Helicon: Restart Server | Restart the local server |
 | Helicon: Show Log | Server output, for bug reports |
 
+Setting: `helicon.panelBorder` puts the panel's divider line on the edge facing the editor (`auto`), or on the `left` or `right` edge if you moved Helicon to the other side bar.
+
 ## Also available
 
 - **Desktop app** for Windows, macOS and Linux: [helicon.sh](https://helicon.sh/?utm_source=vscode&utm_medium=listing&utm_campaign=extension)
