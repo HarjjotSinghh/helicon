@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.19.0
+
+### New
+
+- **Helicon for VS Code, Cursor, Windsurf and Antigravity.** Helicon is now an editor extension too: install it from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=harjjotsinghh.helicon) or [Open VSX](https://open-vsx.org/extension/harjjotsinghh/helicon), or search "helicon" in your editor's extensions panel. It opens a side panel for the folder you have open, built for a narrow column: the threads you have open as tabs across the top, History for every earlier thread in the folder (searchable, grouped by day), and the composer at the bottom. It takes on your editor's theme and font, file links in replies open in editor tabs, and copy and paste go through the editor's clipboard. The full app, with every project, is one command away in an editor tab. It runs Helicon's server on your editor's own runtime, so the install is about 1 MB. In Remote-SSH and WSL windows it runs next to your code; that setup is less tested, so please report anything that breaks.
+- **The files a thread changed, above the composer.** A card lists every file the thread has edited, with its added and removed lines and a total. Click a file to open it. Fold the card away and it stays folded for that thread. Keeping or undoing changes from here is planned in [#94](https://github.com/HarjjotSinghh/helicon/issues/94).
+
+### Changed
+
+- **Adding a folder shows it straight away.** Adding a project also lists its past threads through Muse, which can take several seconds; the project now appears first and its threads fill in when Muse answers.
+
 ## 0.18.0
 
 ### New
