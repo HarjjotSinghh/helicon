@@ -231,6 +231,131 @@ export const GUIDE_PAGES: SeoPage[] = [
     related: ["features/remote-daemon", "install/linux", "use-cases/remote-development"],
   },
   {
+    slug: "guides/muse-code-over-ssh",
+    icon: "terminalWindow",
+    section: "guides",
+    label: "Muse Code over SSH",
+    title: "Run Muse Code on a remote server over SSH, with a GUI",
+    h1: "Run Muse Code on a remote server over SSH",
+    description:
+      "Point Helicon at a folder on a remote machine and Muse Code runs there over ssh, while you keep threads, approvals and diffs in a desktop app on your laptop.",
+    answer:
+      "Add an SSH host as a project in Helicon 0.18 or newer. Helicon runs `muse serve` on the remote machine inside the project folder over a passwordless ssh connection and speaks MSP over it, so the code never leaves the server. You need a key-based ssh login and the muse CLI signed in on the server.",
+    keywords: [
+      "muse code ssh",
+      "muse code remote server",
+      "muse code remote development",
+      "run muse code on a server",
+      "muse code gui remote",
+    ],
+    updated: "2026-09-28",
+    blocks: [
+      { kind: "h2", text: "How it works" },
+      {
+        kind: "p",
+        text: "When you start a thread in an SSH project, Helicon runs `ssh <host> 'cd /path/to/project && exec muse serve'` on your laptop. Muse Code runs on the server, inside the project folder, and talks to Helicon over the SSH connection using MSP, the same protocol it speaks to any local client. Nothing is synced or copied.",
+      },
+      {
+        kind: "ul",
+        items: [
+          "The server's Muse login is the one used. Local account profiles do not apply to SSH projects.",
+          "Your laptop has to stay connected. If it sleeps or the network drops, the session ends, and Helicon notices within about 45 seconds.",
+          "Host aliases, ports, users, jump hosts and keys come from your `~/.ssh/config`, as when you type `ssh` yourself.",
+        ],
+      },
+      { kind: "h2", text: "Make ssh work without a password" },
+      {
+        kind: "p",
+        text: "Helicon runs ssh in batch mode: it never types a password or answers a prompt. Create a key and copy it to the server.",
+      },
+      { kind: "code", lang: "bash", code: "ssh-keygen -t ed25519\nssh-copy-id you@devbox.example.com" },
+      { kind: "p", text: "Give the host a short name in `~/.ssh/config`:" },
+      {
+        kind: "code",
+        lang: "text",
+        code: "Host devbox\n  HostName devbox.example.com\n  User you\n  IdentityFile ~/.ssh/id_ed25519",
+      },
+      {
+        kind: "p",
+        text: "Then `ssh devbox echo ok` should print ok without asking anything. If it asks you to confirm the host key, answer yes once.",
+      },
+      {
+        kind: "note",
+        text: "On Windows, Helicon uses Windows' own OpenSSH (ssh.exe), not the one inside WSL. Keys and config belong in %USERPROFILE%\\.ssh.",
+      },
+      { kind: "h2", text: "Install Muse Code on the server" },
+      {
+        kind: "p",
+        text: "Install the muse CLI on the server and run `muse login` there once. Then check that `muse` is on the PATH for non-interactive ssh commands, which is what Helicon uses:",
+      },
+      { kind: "code", lang: "bash", code: "ssh devbox 'command -v muse'" },
+      {
+        kind: "p",
+        text: "If that prints nothing, your shell only sets PATH for interactive logins. Add the folder that holds muse to PATH in `~/.zshenv` for zsh, or near the top of `~/.bashrc` for bash.",
+      },
+      { kind: "h2", text: "When something goes wrong" },
+      {
+        kind: "table",
+        head: ["Helicon says", "Fix"],
+        rows: [
+          ["Host key verification failed", "Run `ssh devbox` once in a terminal and accept the host key"],
+          ["Permission denied (publickey)", "The key is not on the server: rerun ssh-copy-id or check IdentityFile"],
+          ["Could not find ssh on this machine", "Install the OpenSSH client"],
+          ["Connection refused or timed out", "Check the host, port and VPN with `ssh devbox echo ok`"],
+          ["Muse is not found when a thread starts", "Fix PATH on the server as above"],
+        ],
+      },
+      { kind: "h2", text: "What SSH projects do not do yet" },
+      {
+        kind: "ul",
+        items: [
+          "The file viewer panel.",
+          "The skills list.",
+          "Attaching files. Images still work.",
+          "Creating a remote folder or cloning a repository onto the server from Helicon.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "Threads, approvals, inline diffs and past sessions on the server all work. Create folders and clones over ssh first, then add them.",
+      },
+      { kind: "h2", text: "SSH projects or the remote daemon" },
+      {
+        kind: "p",
+        text: "With SSH projects the Helicon app runs on your laptop and only Muse runs on the server, so local and remote projects share one window. With the remote daemon the whole Helicon server runs on the remote machine and you open it in a browser, which suits reaching it from any device.",
+      },
+    ],
+    howTo: {
+      name: "Run Muse Code on a remote server over SSH with Helicon",
+      steps: [
+        { name: "Set up a key-based ssh login", text: "ssh to the host must work without a password prompt.", code: "ssh devbox echo ok" },
+        { name: "Sign in to Muse Code on the server", text: "Install the muse CLI there and sign in once.", code: "muse login" },
+        { name: "Check muse is on the remote PATH", text: "Non-interactive ssh commands must find it.", code: "ssh devbox 'command -v muse'" },
+        { name: "Add the SSH host in Helicon", text: "Add project, then SSH host, then type the host name." },
+        { name: "Pick the folder and start a thread", text: "Browse the server's folders from your home folder and choose the project." },
+      ],
+    },
+    faqs: [
+      {
+        q: "Does my code leave the server?",
+        a: "No. Muse Code runs on the server and reads the files there. Helicon only receives the conversation, tool output and diffs over the ssh connection.",
+      },
+      {
+        q: "Which Muse account do SSH projects use?",
+        a: "Whichever account is signed in with muse login on the server. Helicon's local account profiles do not apply to SSH projects.",
+      },
+      {
+        q: "Does the agent keep running if my laptop sleeps?",
+        a: "No. Muse runs as part of the ssh session, so the session ends when the connection drops. Use the remote daemon if you need it to outlive your laptop.",
+      },
+      {
+        q: "Which version of Helicon do I need?",
+        a: "0.18.0 or newer.",
+      },
+    ],
+    related: ["guides/remote-daemon-setup", "features/remote-daemon", "use-cases/remote-development"],
+  },
+  {
     slug: "guides/see-muse-code-cost",
     icon: "currency",
     section: "guides",
