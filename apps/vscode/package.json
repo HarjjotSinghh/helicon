@@ -1,7 +1,7 @@
 {
   "name": "helicon",
   "displayName": "Helicon",
-  "description": "Open-source GUI for the Muse Code CLI inside your editor: threads in a sidebar, approvals you can read, inline diffs, session history and usage. Uses your own muse login.",
+  "description": "Muse Code in a side panel for VS Code and Cursor: threads as tabs, approvals you can read, the files each thread changed. Uses your own muse login (needs a Muse Code plan; the free Muse app doesn't include it).",
   "version": "0.19.0",
   "publisher": "harjjotsinghh",
   "private": true,
