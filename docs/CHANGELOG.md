@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.20.0
+
+### New
+
+- **Muse Code's monitors, in view.** Muse Code 1.4 can watch something in the background (a pull request's checks, a build, a log) and wake up when there's something to act on, without spending model calls while it waits. Try "open the PR, watch the checks, and fix anything that fails." Helicon now shows it:
+  - A thread that's done but still watching shows an eye and "Watching in the background" in the sidebar, the tabs and the command palette, even before you open it.
+  - Above the composer, a Watching card lists each monitor with what it watches, the command, and how long it's been running, with a Stop button. Muse replies once to confirm when a monitor stops.
+  - In the transcript, the monitor reads "Watching …", and a turn a monitor started is marked "Woken by a monitor", since there's no prompt above it.
+
+  Works in the desktop app and the VS Code / Cursor extension. Scheduled prompts (`/loop`) can't be driven from outside the terminal yet; Helicon will show them once Muse Code allows it.
+
 ## 0.19.0
 
 ### New
