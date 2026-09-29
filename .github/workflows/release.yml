@@ -87,15 +87,23 @@ jobs:
       contents: write
     needs: desktop-macos
     runs-on: ubuntu-22.04
+    # A hang must not leave Linux on the old AppImage for the 6h default.
+    timeout-minutes: 60
     steps:
+      # No persisted credentials: the repack step below executes downloaded code with this
+      # checkout as its working directory, and the default would leave the write-scoped
+      # GITHUB_TOKEN in .git/config. The gh steps get the token through their own step env.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - name: Install Tauri Linux dependencies
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev squashfs-tools
+        # xvfb/strace/patchelf are quick-sharun inputs: strace mode executes the GUI app.
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev squashfs-tools xvfb strace patchelf
       - run: npm ci
       - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
       # Pinned to a commit: this step holds the updater signing key, so a moved tag must not change what runs.
@@ -117,11 +125,51 @@ jobs:
           # GitHub sometimes refuses a large asset upload ("Error saving asset"); retrying saves a manual job rerun.
           retryAttempts: 3
           args: --target x86_64-unknown-linux-gnu
-      # linuxdeploy bundles Ubuntu 22.04's libwayland-*. Newer host Mesa fails EGL init
-      # against the stale copy, so WebKitGTK aborts with EGL_BAD_ALLOC before the window
-      # opens (tauri-apps/tauri#15665). Repack without those libraries so the AppImage
-      # uses the host ones, then re-sign and republish it.
-      - name: Strip bundled Wayland libraries from AppImage
+      # The classic (linuxdeploy) runtime exports LD_LIBRARY_PATH into every child the app spawns, so
+      # system tools inherit the bundle's older libraries (e.g. git dying on a missing libnghttp2 symbol),
+      # and it bundles Ubuntu 22.04's libwayland-*, which newer host Mesa rejects with EGL_BAD_ALLOC before
+      # the window opens (tauri-apps/tauri#15665). Re-bundle with sharun instead: it passes --library-path
+      # to its own interpreter, so nothing leaks to child processes, and it bundles the libraries the app
+      # actually loads. Then re-sign and republish under the same asset name, so the updater URLs in
+      # latest.json keep working.
+      #
+      # The pins live in the script; the smoke workflow calls it too, so CI covers what ships.
+      - name: Download the published AppImage
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          dl="$RUNNER_TEMP/classic"
+          mkdir -p "$dl"
+          # gh infers the repository from the git remote, and the token stays in this step:
+          # the repack step below runs the app itself and must not see any secrets.
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "*.AppImage" --clobber --dir "$dl"
+          echo "CLASSIC_DIR=$dl" >> "$GITHUB_ENV"
+      - name: Re-bundle with sharun
+        # Deliberately secret-free: this step executes the downloaded script, four downloaded
+        # binaries and the packaged app, so the signing key and release token stay out of its env.
+        run: |
+          set -euo pipefail
+          count=0
+          classic=""
+          for f in "$CLASSIC_DIR"/Helicon_*_amd64.AppImage; do
+            [ -e "$f" ] || break
+            count=$((count + 1))
+            classic="$f"
+          done
+          [ "$count" -eq 1 ] || { echo "expected one classic AppImage, found $count"; exit 1; }
+          # A downloaded release asset does not keep its executable bit.
+          chmod +x "$classic"
+          work="$(mktemp -d)"
+          # The packed image path below is kept for the sign step; cleaned by the runner.
+          (cd "$work" && "$classic" --appimage-extract >/dev/null)
+          packed="$(sh "${{ github.workspace }}/apps/desktop/scripts/sharun-repack.sh" "$work/squashfs-root" "$work/out")"
+          # Keep the release asset name; only the signature changes below.
+          base="$(basename "$classic")"
+          mv "$packed" "$work/$base"
+          echo "PACKED_IMAGE=$work/$base" >> "$GITHUB_ENV"
+      - name: Sign and republish the AppImage
         env:
           RELEASE_TAG: ${{ github.ref_name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -129,24 +177,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          work="$(mktemp -d)"
-          trap 'rm -rf "$work"' EXIT
-          cd "$work"
-          # gh infers the repository from the git remote, and $work is not a checkout.
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "*.AppImage" --clobber
-          appimage=(Helicon_*_amd64.AppImage)
-          # A downloaded release asset does not keep its executable bit.
-          chmod +x "${appimage[0]}"
-          "./${appimage[0]}" --appimage-extract
-          rm -f squashfs-root/usr/lib/libwayland-client.so.0 squashfs-root/usr/lib/libwayland-cursor.so.0 \
-            squashfs-root/usr/lib/libwayland-egl.so.1 squashfs-root/usr/lib/libwayland-server.so.0
-          curl -sSL --fail -o appimagetool https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
-          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool" | sha256sum --check
-          chmod +x appimagetool
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run squashfs-root "${appimage[0]}"
-          "${{ github.workspace }}/node_modules/.bin/tauri" signer sign "${appimage[0]}"
+          "${{ github.workspace }}/node_modules/.bin/tauri" signer sign "$PACKED_IMAGE"
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "latest.json" --clobber
-          SIG_FILE="${appimage[0]}.sig" node -e '
+          SIG_FILE="$PACKED_IMAGE.sig" node -e '
             const fs = require("fs");
             const latest = JSON.parse(fs.readFileSync("latest.json", "utf8"));
             const signature = fs.readFileSync(process.env.SIG_FILE, "utf8").trim();
@@ -155,4 +188,4 @@ jobs:
             }
             fs.writeFileSync("latest.json", JSON.stringify(latest, null, 2));
           '
-          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "${appimage[0]}" "${appimage[0]}.sig" latest.json --clobber
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "$PACKED_IMAGE" "$PACKED_IMAGE.sig" latest.json --clobber
