@@ -19,6 +19,7 @@ import { Button, IconButton, MOD, Spinner } from "../ui/primitives.js";
 import { FilesPanel } from "../files/FilesPanel.js";
 import { Transcript } from "./Transcript.js";
 import { ChangedFiles } from "./ChangedFiles.js";
+import { Monitors } from "./Monitors.js";
 
 /** `bare` drops the header and the files panel, for the compact panel whose tabs stand in for the header. */
 export function ThreadView(props: { sessionId: string; bare?: boolean }) {
@@ -311,6 +312,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
         <GoalPanel sessionId={session.sessionId} running={props.running} readOnly={Boolean(thread?.readOnly)} />
         {showPlan && todo ? <PlanPanel sessionId={session.sessionId} items={todo} /> : null}
         {queued.length > 0 ? <QueuedList sessionId={session.sessionId} items={queued} /> : null}
+        {fold ? <Monitors sessionId={session.sessionId} /> : null}
         {fold ? <ChangedFiles sessionId={session.sessionId} /> : null}
         <TelemetryPills sessionId={session.sessionId} />
         <Composer

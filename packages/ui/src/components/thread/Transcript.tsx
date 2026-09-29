@@ -1,4 +1,5 @@
-import { ArrowCounterClockwiseIcon, ArrowDownIcon, CaretRightIcon, NotePencilIcon, SquareIcon, TerminalWindowIcon, WarningCircleIcon, XIcon } from "../ui/icons.js";
+import { ArrowCounterClockwiseIcon, ArrowDownIcon, CaretRightIcon, EyeIcon, NotePencilIcon, SquareIcon, TerminalWindowIcon, WarningCircleIcon, XIcon } from "../ui/icons.js";
+import { wakeLabels } from "../../model/monitor.js";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { useApp, useController, useNow } from "../../app/context.js";
@@ -70,6 +71,7 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
   const { thread } = props;
   const fold = thread.fold;
   const turns = useMemo(() => buildTurns(fold), [fold]);
+  const wakes = useMemo(() => wakeLabels(turns), [turns]);
   const gates = useMemo(() => gateMap(fold), [fold.approvals, fold.userInputs]);
   const answers = useMemo(() => answerMap(fold), [fold.settled]);
   const speeds = useMemo(() => turnSpeeds(fold), [fold.meta.calls, fold.turns, fold.activeTurnId]);
@@ -166,6 +168,7 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
                   readOnly={thread.readOnly}
                   speed={entry.turn.turnId ? (speeds[entry.turn.turnId] ?? null) : null}
                   cost={entry.turn.turnId ? (costs[entry.turn.turnId] ?? null) : null}
+                  wake={wakes[entry.turn.key] ?? null}
                 />
               ) : (
                 <ShellRunRow key={entry.run.id} run={entry.run} sessionId={props.sessionId} />
@@ -217,6 +220,8 @@ const TurnBlock = memo(
     readOnly: boolean;
     speed: TurnSpeed | null;
     cost: TurnCost | null;
+    /** Set when Muse started this turn itself because a monitor woke it. */
+    wake: string | null;
   }) {
     const { turn } = props;
     const info = turn.info;
@@ -228,6 +233,13 @@ const TurnBlock = memo(
     const standalone = !turn.turnId && !turn.prompt;
     return (
       <article className="flex flex-col gap-3" aria-label="Turn">
+        {props.wake ? (
+          <p className="flex items-center gap-2 text-xs text-subtle">
+            <EyeIcon size={12} className="shrink-0 text-accent-text" aria-hidden="true" />
+            <span className="min-w-0 truncate">{props.wake}</span>
+            <span aria-hidden="true" className="h-px flex-1 bg-line" />
+          </p>
+        ) : null}
         {turn.prompt ? (
           <PromptBubble item={turn.prompt} sentAt={sentTime(turn)} files={props.attachments[turn.turnId ?? ""] ?? []} />
         ) : null}
@@ -295,6 +307,7 @@ const TurnBlock = memo(
     a.isLast === b.isLast &&
     a.readOnly === b.readOnly &&
     a.attachments === b.attachments &&
+    a.wake === b.wake &&
     // Prices arrive after the catalog loads, so a turn's cost can change with nothing else about it changing.
     a.cost?.cost === b.cost?.cost &&
     a.speed?.tokensPerSecond === b.speed?.tokensPerSecond,
@@ -356,6 +369,7 @@ function summarize(entries: MspItem[]): string {
   let reads = 0;
   let searches = 0;
   let goals = 0;
+  let monitors = 0;
   let other = 0;
   for (const item of entries) {
     if (item.kind === "userShell") {
@@ -372,6 +386,8 @@ function summarize(entries: MspItem[]): string {
         searches += 1;
       } else if (kind === "goal") {
         goals += 1;
+      } else if (kind === "monitor") {
+        monitors += 1;
       } else {
         other += 1;
       }
@@ -383,6 +399,7 @@ function summarize(entries: MspItem[]): string {
   if (reads) parts.push(plural(reads, "file read", "files read"));
   if (searches) parts.push(plural(searches, "search", "searches"));
   if (goals) parts.push(plural(goals, "goal update", "goal updates"));
+  if (monitors) parts.push(plural(monitors, "monitor", "monitors"));
   if (other) parts.push(plural(other, "tool call", "tool calls"));
   return parts.join(", ");
 }

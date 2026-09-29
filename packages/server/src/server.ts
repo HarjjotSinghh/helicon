@@ -183,6 +183,8 @@ interface LiveState {
   goal: GoalBlock | null;
   /** Bumped on every live goal change, so a slow transcript load never writes an older goal over a newer one. */
   goalSeq: number;
+  /** Monitors the agent started that are still watching (a `monitor` tool call in progress), by item id. */
+  monitors: Set<string>;
 }
 
 export interface LiveView {
@@ -193,6 +195,8 @@ export interface LiveView {
   lastTerminal: string | null;
   lastError: string | null;
   goal: GoalBlock | null;
+  /** How many monitors are watching in the background; the thread can be idle while they do. */
+  monitors: number;
 }
 
 /** A `session/goalChanged` goal: null clears it; undefined means the block is not a goal (no objective). */
@@ -1860,6 +1864,7 @@ export class HeliconServer {
         lastError: null,
         goal: null,
         goalSeq: 0,
+        monitors: new Set(),
       };
       this.live.set(sessionId, state);
     }
@@ -1879,6 +1884,7 @@ export class HeliconServer {
       lastTerminal: state.lastTerminal,
       lastError: state.lastError,
       goal: state.goal,
+      monitors: state.monitors.size,
     };
   }
 
@@ -3337,11 +3343,12 @@ export class HeliconServer {
         break;
       }
       case "session/closed": {
-        changed = live.activeTurnId !== null || live.pendingApprovals.size > 0 || live.pendingInputs.size > 0;
+        changed = live.activeTurnId !== null || live.pendingApprovals.size > 0 || live.pendingInputs.size > 0 || live.monitors.size > 0;
         live.activeTurnId = null;
         live.turnStartedAt = null;
         live.pendingApprovals.clear();
         live.pendingInputs.clear();
+        live.monitors.clear();
         this.sessionHosts.delete(sessionId);
         break;
       }
@@ -3366,10 +3373,25 @@ export class HeliconServer {
         }
         break;
       }
+      case "item/started":
+      case "item/updated":
       case "item/completed": {
         const item = asRecord(params["item"]);
-        if (item && item["kind"] === "userMessage") {
+        if (method === "item/completed" && item && item["kind"] === "userMessage") {
           this.maybeTitle(sessionId, item);
+        }
+        // A monitor is a `monitor` tool call that stays in progress while it watches; stopping it cancels the item.
+        if (item && item["kind"] === "toolCall" && item["tool"] === "monitor") {
+          const id = str(item["itemId"]);
+          if (id) {
+            const before = live.monitors.size;
+            if (item["status"] === "inProgress") {
+              live.monitors.add(id);
+            } else {
+              live.monitors.delete(id);
+            }
+            changed = live.monitors.size !== before;
+          }
         }
         break;
       }

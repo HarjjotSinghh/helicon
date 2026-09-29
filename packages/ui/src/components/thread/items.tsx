@@ -1,4 +1,4 @@
-import { ArrowLineDownIcon, ArrowsInIcon, CaretRightIcon, ChatCircleDotsIcon, FileMagnifyingGlassIcon, FilePlusIcon, FileTextIcon, GlobeIcon, ListChecksIcon, MagnifyingGlassIcon, PaperPlaneRightIcon, PencilSimpleLineIcon, RobotIcon, StopCircleIcon, TargetIcon, TerminalWindowIcon, TreeStructureIcon, WarningCircleIcon, WrenchIcon } from "../ui/icons.js";
+import { ArrowLineDownIcon, EyeIcon, ArrowsInIcon, CaretRightIcon, ChatCircleDotsIcon, FileMagnifyingGlassIcon, FilePlusIcon, FileTextIcon, GlobeIcon, ListChecksIcon, MagnifyingGlassIcon, PaperPlaneRightIcon, PencilSimpleLineIcon, RobotIcon, StopCircleIcon, TargetIcon, TerminalWindowIcon, TreeStructureIcon, WarningCircleIcon, WrenchIcon } from "../ui/icons.js";
 import { Popover } from "radix-ui";
 import { memo, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp, useController } from "../../app/context.js";
@@ -43,6 +43,7 @@ const TOOL_ICONS: Record<ToolKind, (props: { size: number; className?: string })
   plan: (p) => <ListChecksIcon {...p} />,
   agent: (p) => <RobotIcon {...p} />,
   goal: (p) => <TargetIcon {...p} />,
+  monitor: (p) => <EyeIcon {...p} />,
   generic: (p) => <WrenchIcon {...p} />,
 };
 

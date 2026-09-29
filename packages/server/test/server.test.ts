@@ -402,6 +402,39 @@ describe("HeliconServer", () => {
     assert.ok(script.endsWith("\nGet-ChildItem"));
   });
 
+  it("counts the monitors a thread has watching", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const read = async () => (await get(base, "/api/sessions")).sessions[0];
+    const monitor = (status: string) => ({
+      itemId: "m1",
+      kind: "toolCall",
+      tool: "monitor",
+      turnId: "t1",
+      revision: 1,
+      status,
+      args: JSON.stringify({ command: "tail -n 0 -F log.txt", description: "watch log.txt" }),
+    });
+
+    connection.notify("turn/started", { sessionId: "s1", turnId: "t1", sourceRange: RANGE });
+    connection.notify("item/started", { sessionId: "s1", item: monitor("inProgress") });
+    connection.notify("turn/completed", { sessionId: "s1", turnId: "t1", terminal: "completed" });
+    let session = await read();
+    assert.equal(session.live.activeTurnId, null, "the turn ends while the monitor keeps watching");
+    assert.equal(session.live.monitors, 1);
+
+    connection.notify("item/completed", { sessionId: "s1", item: monitor("cancelled") });
+    session = await read();
+    assert.equal(session.live.monitors, 0);
+
+    connection.notify("item/updated", { sessionId: "s1", item: { ...monitor("inProgress"), itemId: "m2" } });
+    connection.notify("session/closed", { sessionId: "s1" });
+    session = await read();
+    assert.equal(session.live.monitors, 0, "a closed session has nothing watching");
+  });
+
   it("tracks live status and derives titles from the view stream", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });

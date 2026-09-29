@@ -1,4 +1,4 @@
-import { ChatCircleDotsIcon, ShieldWarningIcon, WarningCircleIcon } from "./icons.js";
+import { ChatCircleDotsIcon, EyeIcon, ShieldWarningIcon, WarningCircleIcon } from "./icons.js";
 import type { ThreadStatus } from "../../model/status.js";
 import { Spinner, cn } from "./primitives.js";
 
@@ -15,6 +15,8 @@ export function StatusGlyph(props: { status: ThreadStatus; className?: string })
       );
     case "failed":
       return <WarningCircleIcon size={14} className={cn("text-danger", props.className)} aria-hidden="true" />;
+    case "watching":
+      return <EyeIcon size={13} className={cn("text-accent-text", props.className)} aria-hidden="true" />;
     case "unread":
       return <span className={cn("block size-[7px] rounded-full bg-accent", props.className)} aria-hidden="true" />;
     default:

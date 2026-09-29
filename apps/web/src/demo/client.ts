@@ -231,6 +231,46 @@ function seed(now: number): Seeded[] {
     });
   }
 
+  // Muse Code's Monitor: a PR's checks watched in the background, and the turn Muse started when one failed.
+  {
+    const id = "api-ci-watch";
+    const s = new Script(id, PROJECTS.api, now - 40 * MIN);
+    let monitorItem: Record<string, unknown> = {};
+    s.turn(
+      "Open the PR, watch the checks, and fix anything that fails.",
+      [
+        (t) => s.tool(t, "bash", { command: "gh pr create --fill", description: "Open the pull request" }, "https://github.com/you/api-server/pull/42\n", 1800),
+        (t) => {
+          monitorItem = { itemId: "api-ci-monitor", kind: "toolCall", tool: "monitor", callId: uid("call"), status: "inProgress", turnId: t, args: JSON.stringify({ command: "gh pr checks 42 --watch --fail-fast", description: "Watch PR 42 checks", persistent: true }) };
+          s.item(monitorItem, 1200);
+        },
+      ],
+      "PR #42 is open. I'm watching its checks and will jump back in if one fails.",
+      { durationMs: 21_000, promptTokens: 18_200, outputTokens: 640 },
+    );
+    // No prompt: the monitor saw a failing check and Muse woke up on its own.
+    const wake = uid("turn");
+    s.push("turn/started", { turnId: wake, commandId: wake }, 6 * 60_000);
+    s.tool(wake, "bash", { command: "gh run view --log-failed", description: "Read the failing check" }, "lint  src/routes/projects.ts:14:7  'cursor' is assigned a value but never used\n", 1500);
+    s.tool(wake, "edit", { file_path: "src/routes/projects.ts", old_string: "  const cursor = req.query.cursor;\n", new_string: "" }, "Edited src/routes/projects.ts");
+    s.tool(wake, "bash", { command: "git commit -am \"Drop the unused cursor variable\" && git push", description: "Push the fix" }, "[feat/paginate 3f2c1a9] Drop the unused cursor variable\n", 1600);
+    s.item({ itemId: uid("item"), kind: "agentMessage", text: "The `lint` check failed on an unused `cursor` variable in `src/routes/projects.ts`. I removed it and pushed; still watching the rest of the checks.", turnId: wake }, 600);
+    s.push("turn/completed", { turnId: wake, terminal: "completed", durationMs: 19_000, timeToFirstTokenMs: 1500 }, 0);
+    out.push({
+      summary: summary(id, PROJECTS.api, "Open the PR and watch the checks", now - 30 * MIN, 2, {
+        activeTurnId: null,
+        turnStartedAt: null,
+        pendingApprovals: 0,
+        pendingInputs: 0,
+        lastTerminal: "completed",
+        lastError: null,
+        monitors: 1,
+      }),
+      events: s.events,
+      approvals: [],
+    });
+  }
+
   const simple: [string, string, string, number, string, string][] = [
     [
       "helicon-resize",
@@ -714,7 +754,15 @@ export class DemoClient implements HeliconClient {
   }
 
   async subagent() {}
-  async task() {}
+  /** Stopping the demo monitor cancels its tool call, the way Muse does. */
+  async task(sessionId: string, action: string, taskId?: string) {
+    const events = this.sessions.get(sessionId)?.events ?? [];
+    const found = [...events].reverse().find((e) => (e.params as { item?: { itemId?: string } }).item?.itemId === taskId);
+    const item = (found?.params as { item?: Record<string, unknown> } | undefined)?.item;
+    if (action === "stop" && item?.["tool"] === "monitor") {
+      this.emit(sessionId, "item/completed", { item: { ...item, status: "cancelled", revision: Number(item["revision"] ?? 1) + 1 } });
+    }
+  }
   async workflow() {}
 
   async readOutput(): Promise<OutputRange> {

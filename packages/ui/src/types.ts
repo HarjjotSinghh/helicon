@@ -37,6 +37,8 @@ export interface LiveView {
   lastError: string | null;
   /** The session's goal as the server last saw it, for threads the UI has not opened. */
   goal?: Goal | null;
+  /** Monitors still watching in the background, for threads the UI has not opened. Older servers leave it out. */
+  monitors?: number;
 }
 
 export interface SessionSummary {
