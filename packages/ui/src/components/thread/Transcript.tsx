@@ -1,6 +1,6 @@
 import { ArrowCounterClockwiseIcon, ArrowDownIcon, CaretRightIcon, EyeIcon, NotePencilIcon, SquareIcon, TerminalWindowIcon, WarningCircleIcon, XIcon } from "../ui/icons.js";
 import { wakeLabels } from "../../model/monitor.js";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { useSampled } from "../../app/sampled.js";
@@ -26,7 +26,7 @@ import { SentAttachments, refetchAttachments, toOutgoing, toPreview } from "../c
 import { CopyButton } from "../ui/Markdown.js";
 import { Tip } from "../ui/overlays.js";
 import { Button, IconButton, Shimmer, Spinner, cn } from "../ui/primitives.js";
-import { Collapse, PixelLoader } from "../ui/sourced.js";
+import { PixelLoader } from "../ui/sourced.js";
 import {
   AgentText,
   CompactionRow,
@@ -150,7 +150,11 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
     <FileLinksContext.Provider value={links}>
       <div className="relative min-h-0 flex-1">
         <div ref={scrollRef} className="h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-          <div ref={contentRef} className="mx-auto flex w-full max-w-[776px] flex-col gap-8 px-4 pt-8 pb-10 @min-[520px]:px-6">
+          <section
+            ref={contentRef}
+            aria-label="Conversation"
+            className="mx-auto flex w-full max-w-[776px] flex-col gap-8 px-4 pt-8 pb-10 @min-[520px]:px-6"
+          >
             {thread.truncated ? (
               <p className="text-center text-xs text-subtle">Earlier turns are not shown. Open the session in Muse to see the full history.</p>
             ) : null}
@@ -179,7 +183,7 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
             ))}
             {thread.load === "error" ? <LoadError sessionId={props.sessionId} message={thread.error} /> : null}
             {empty && thread.load === "ready" ? <EmptyThread /> : null}
-          </div>
+          </section>
         </div>
         {!isAtBottom && !empty ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
@@ -231,6 +235,49 @@ const TurnBlock = memo(
     const hasWork = turn.entries.length > 0;
     // Items outside any turn are the user's own `!` commands: shown as they are, never folded into a work log.
     const standalone = !turn.turnId && !turn.prompt;
+    // A finished turn folds its work into one line. The rows stay where they were and are only hidden, so
+    // finishing never rebuilds the turn under a screen reader: the reply it was reading keeps its place.
+    const logged = !turn.running && !standalone && hasWork;
+    const keepOpen = useApp((s) => s.prefs.expandWork);
+    const [expanded, setExpanded] = useState<boolean | null>(null);
+    const workRef = useRef<HTMLDivElement>(null);
+    const wasRunning = useRef(turn.running);
+    if (wasRunning.current !== turn.running) {
+      // Work that has focus when the turn ends stays open rather than hiding what the user is on.
+      if (wasRunning.current && expanded === null && workRef.current?.contains(document.activeElement)) {
+        setExpanded(true);
+      }
+      wasRunning.current = turn.running;
+    }
+    const open = !logged || (expanded ?? (info?.terminal === "failed" || keepOpen));
+    const rows: ReactElement[] = [];
+    if (logged) {
+      rows.push(
+        <WorkLogHeader key="log" turn={turn} open={open} onToggle={() => setExpanded(!open)} speed={turn.final ? null : props.speed} />,
+      );
+    }
+    for (const item of turn.entries) {
+      rows.push(
+        <div key={item.itemId} hidden={!open} className={logged ? "ml-[7px] border-l border-line py-0.5 pl-4" : "py-[3px]"}>
+          <Entry item={item} gate={props.gates[item.itemId]} answers={props.answers[item.itemId] ?? null} sessionId={props.sessionId} />
+        </div>,
+      );
+    }
+    if (turn.running) {
+      rows.push(<LiveStatus key="live" turn={turn} gates={props.gates} />);
+    }
+    if (logged) {
+      rows.push(<DiffChips key="diffs" entries={turn.entries} className="mt-2" sessionId={props.sessionId} />);
+    }
+    if (turn.final) {
+      // Same key and wrapper as when it streamed in as the last entry, so the reply's node carries over.
+      rows.push(
+        <div key={turn.final.itemId} className={cn("group/final flex flex-col gap-1", rows.length > 0 && "mt-3")}>
+          <Entry item={turn.final} answers={null} sessionId={props.sessionId} />
+          <TurnFooter turn={turn} speed={props.speed} cost={props.cost} />
+        </div>,
+      );
+    }
     return (
       <article className="flex flex-col gap-3" aria-label="Turn">
         {props.wake ? (
@@ -243,29 +290,9 @@ const TurnBlock = memo(
         {turn.prompt ? (
           <PromptBubble item={turn.prompt} sentAt={sentTime(turn)} files={props.attachments[turn.turnId ?? ""] ?? []} />
         ) : null}
-        {turn.running || standalone ? (
-          <div className="flex flex-col gap-1.5">
-            {turn.entries.map((item) => (
-              <Entry
-                key={item.itemId}
-                item={item}
-                gate={props.gates[item.itemId]}
-                answers={props.answers[item.itemId] ?? null}
-                sessionId={props.sessionId}
-                live
-              />
-            ))}
-            {turn.running ? <LiveStatus turn={turn} gates={props.gates} /> : null}
-          </div>
-        ) : hasWork ? (
-          <WorkLog turn={turn} gates={props.gates} answers={props.answers} sessionId={props.sessionId} speed={turn.final ? null : props.speed} />
-        ) : null}
-        {turn.final ? (
-          <div className="group/final flex flex-col gap-2">
-            <AgentText item={turn.final} />
-            <TurnFooter turn={turn} speed={props.speed} cost={props.cost} />
-          </div>
-        ) : null}
+        <div ref={workRef} className="flex flex-col">
+          {rows}
+        </div>
         {failed && !props.isLast ? (
           // A failure the thread has since moved past stays in the record, but quietly.
           <p className="flex min-w-0 items-center gap-1.5 text-xs text-subtle">
@@ -331,7 +358,7 @@ function completedTime(turn: TurnView): number | null {
   return turn.info?.completedAt ?? parseTime(turn.final?.recordedAt) ?? parseTime(turn.entries[turn.entries.length - 1]?.recordedAt);
 }
 
-function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] | null; sessionId?: string; live?: boolean }) {
+function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] | null; sessionId?: string }) {
   const { item } = props;
   switch (item.kind) {
     case "agentMessage":
@@ -419,53 +446,38 @@ function turnDuration(turn: TurnView): number | null {
 }
 
 /**
- * A finished turn's work, collapsed to one line; the files it changed stay visible as chips.
+ * The one line a finished turn's work folds into; the rows it opens are the turn's own, hidden in place.
  * Header grammar via Beautiful UI ToolChips (beautifului.dev), MIT (c) 2026 Shane Levine.
  */
-function WorkLog(props: { turn: TurnView; gates: GateMap; answers: AnswerMap; sessionId: string; speed?: TurnSpeed | null }) {
+function WorkLogHeader(props: { turn: TurnView; open: boolean; onToggle: () => void; speed?: TurnSpeed | null }) {
   const { turn } = props;
-  const failed = turn.info?.terminal === "failed";
-  const [open, setOpen] = useState(failed);
   const duration = turnDuration(turn);
   const summary = summarize(turn.entries);
   return (
-    <div>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="group/log -mx-1.5 flex h-8 max-w-full min-w-0 items-center gap-2 overflow-hidden rounded-lg px-1.5 text-sm text-subtle transition-colors duration-100 hover:bg-hover hover:text-muted"
-      >
-        <CaretRightIcon size={13} className={cn("shrink-0 transition-transform duration-200 ease-out", open && "rotate-90")} />
-        <span className="shrink-0">{duration !== null ? `Worked for ${formatDuration(duration)}` : "Work log"}</span>
-        {summary ? (
-          <>
-            <span className="h-3 w-px shrink-0 bg-line-strong" aria-hidden="true" />
-            <span className="truncate">{summary}</span>
-          </>
-        ) : null}
-        {props.speed ? (
-          <>
-            <span className="h-3 w-px shrink-0 bg-line-strong" aria-hidden="true" />
-            <span className="shrink-0 tabular-nums">{formatSpeed(props.speed.tokensPerSecond)}</span>
-          </>
-        ) : null}
-      </button>
-      <Collapse open={open}>
-        <div className="mt-1 ml-[7px] flex flex-col gap-1 border-l border-line pl-4">
-          {turn.entries.map((item) => (
-            <Entry
-              key={item.itemId}
-              item={item}
-              gate={props.gates[item.itemId]}
-              answers={props.answers[item.itemId] ?? null}
-              sessionId={props.sessionId}
-            />
-          ))}
-        </div>
-      </Collapse>
-      <DiffChips entries={turn.entries} className="mt-2" sessionId={props.sessionId} />
-    </div>
+    <button
+      type="button"
+      aria-expanded={props.open}
+      onClick={props.onToggle}
+      className={cn(
+        "group/log -mx-1.5 flex h-8 max-w-full min-w-0 items-center gap-2 overflow-hidden rounded-lg px-1.5 text-sm text-subtle transition-colors duration-100 hover:bg-hover hover:text-muted",
+        props.open && "mb-1",
+      )}
+    >
+      <CaretRightIcon size={13} className={cn("shrink-0 transition-transform duration-200 ease-out", props.open && "rotate-90")} />
+      <span className="shrink-0">{duration !== null ? `Worked for ${formatDuration(duration)}` : "Work log"}</span>
+      {summary ? (
+        <>
+          <span className="h-3 w-px shrink-0 bg-line-strong" aria-hidden="true" />
+          <span className="truncate">{summary}</span>
+        </>
+      ) : null}
+      {props.speed ? (
+        <>
+          <span className="h-3 w-px shrink-0 bg-line-strong" aria-hidden="true" />
+          <span className="shrink-0 tabular-nums">{formatSpeed(props.speed.tokensPerSecond)}</span>
+        </>
+      ) : null}
+    </button>
   );
 }
 
@@ -492,7 +504,8 @@ function LiveStatus(props: { turn: TurnView; gates: GateMap }) {
     label = "Writing";
   }
   return (
-    <div className="flex h-8 items-center gap-2.5 text-sm" role="status">
+    // Not a live region: the label and timer change every second. The thread's announcer says what matters.
+    <div className="flex h-8 items-center gap-2.5 text-sm">
       {waiting ? (
         <>
           <span className="attention-pulse size-2 rounded-full bg-warn" />

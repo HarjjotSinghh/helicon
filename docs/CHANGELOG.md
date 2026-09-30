@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Better with VoiceOver and other screen readers.** These fixes come from a detailed VoiceOver review of the desktop app:
+  - Focus stays in the thread you're in. After you answer an approval or a question, or press Stop, focus returns to the composer instead of the top of the window. Moving to the next of Muse's questions puts focus on its first option.
+  - The thread no longer rebuilds itself when a turn finishes. The reply you're reading keeps its place, and the steps behind it fold away in place instead of being redrawn. To keep those steps listed, turn on **Settings → Appearance → Keep work expanded**.
+  - Status is announced once per change instead of every second. You hear when Muse starts, needs your approval or an answer, finishes a plan step, and finishes, fails or stops. The timer and speed readouts are no longer read out, and running steps no longer announce "Running".
+  - Each thread is a labelled region ("Thread: …") containing a Conversation region and a Composer region, so the VoiceOver rotor can jump between them.
+  - Option+Up and Option+Down no longer switch threads when pressed with Control (VoiceOver's own keys). When they do switch, the new thread's name is announced.
+  - The model picker and the other menus of choices open on the option in use and read it as "selected".
+  - Plan steps read as one item each, for example "Done: Add the route", without extra image stops.
+- **Cmd+N for a new thread and Cmd+, for Settings**, also listed in the menu bar (File → New Thread, Helicon → Settings…). Cmd+Shift+O still starts a new thread too.
+
 ## 0.20.0
 
 ### New

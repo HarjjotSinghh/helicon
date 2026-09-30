@@ -105,6 +105,8 @@ export interface Prefs {
   lastSeenVersion: string | null;
   /** Session statistics pills above the composer: turns, speed and token usage for the open thread. */
   showTelemetry: boolean;
+  /** A finished turn's steps stay listed instead of folding into one line; for reading with a screen reader. */
+  expandWork: boolean;
   /**
    * Approval modes from before YOLO was armed, survived across a reload so switching YOLO off still
    * restores them instead of falling back to onRequest. Null when YOLO has never been armed here.
@@ -161,6 +163,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     filesWidth: DEFAULT_FILES_WIDTH,
     lastSeenVersion: null,
     showTelemetry: false,
+    expandWork: false,
     preYolo: null,
   };
 }
@@ -375,6 +378,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     filesWidth: pick("filesWidth", (v) => typeof v === "number" && v >= FILES_WIDTH_MIN && v <= FILES_WIDTH_MAX),
     lastSeenVersion: pick("lastSeenVersion", (v) => v === null || typeof v === "string"),
     showTelemetry: pick("showTelemetry", (v) => typeof v === "boolean"),
+    expandWork: pick("expandWork", (v) => typeof v === "boolean"),
     preYolo: pick("preYolo", isPreYolo),
   };
 }

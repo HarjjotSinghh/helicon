@@ -101,7 +101,9 @@ export function RollingDigits(props: { value: string; className?: string }) {
 
   const chars = rolling ? to : from;
   return (
-    <span className={cn("inline-flex tabular-nums", props.className)} aria-label={props.value}>
+    <span className={cn("inline-flex tabular-nums", props.className)}>
+      {/* A label on a plain span is not read; the digits themselves are hidden while they roll. */}
+      <span className="sr-only">{props.value}</span>
       {Array.from({ length: chars.length }, (_, i) => {
         const o = from[i] ?? "";
         const n = chars[i] ?? "";

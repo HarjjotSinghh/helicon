@@ -21,10 +21,13 @@ import { PanelContext, type PanelMode } from "./panel.js";
 import { installEditorClipboard, postToHost, setEditorHosted, useHostTheme } from "./host.js";
 import { PanelShell } from "../components/panel/Panel.js";
 import { FrameProvider, FrameStrip, WindowControls, type WindowFrame } from "./frame.js";
+import { FocusKeeper, LiveAnnouncer, announce } from "./a11y.js";
 
 declare global {
   interface WindowEventMap {
     "helicon-zoom-step": CustomEvent<ZoomStep>;
+    /** A command from the desktop shell's native menu. */
+    "helicon-menu": CustomEvent<MenuCommand>;
   }
 }
 
@@ -46,6 +49,8 @@ export interface HeliconAppProps {
   /** The page is framed by an editor, which opens files a reply names in its own tabs. */
   editorHost?: boolean;
 }
+
+export type MenuCommand = "new-thread" | "settings";
 
 /** The whole Helicon interface. Web and desktop shells mount this with their transport. */
 export function HeliconApp(props: HeliconAppProps) {
@@ -81,6 +86,8 @@ export function HeliconApp(props: HeliconAppProps) {
             {panel ? null : <WhatsNew />}
             <Toasts />
             <WindowControls />
+            <LiveAnnouncer />
+            <FocusKeeper />
           </TooltipProvider>
         </FrameProvider>
       </PanelContext.Provider>
@@ -171,13 +178,27 @@ function GlobalShortcuts(props: { panel: boolean }) {
       } else if (mod && event.shiftKey && key === "o") {
         event.preventDefault();
         controller.newThread();
+      } else if (mod && !event.shiftKey && !event.altKey && key === "n") {
+        // The macOS convention, with Cmd+Shift+O kept for those used to it. A browser keeps Cmd+N for itself.
+        event.preventDefault();
+        controller.newThread();
+      } else if (mod && !event.shiftKey && !event.altKey && key === ",") {
+        event.preventDefault();
+        controller.navigate({ kind: "settings" });
       } else if (mod && !event.shiftKey && key === "b") {
         event.preventDefault();
         controller.toggleSidebar();
       } else if (mod && event.shiftKey && !event.altKey && key === "e") {
         event.preventDefault();
         controller.toggleFiles();
-      } else if (event.altKey && !mod && (event.key === "ArrowUp" || event.key === "ArrowDown") && !isTyping(event.target)) {
+      } else if (
+        event.altKey &&
+        !mod &&
+        // Control+Option is VoiceOver's own modifier: its arrow keys move the reading cursor, never the thread.
+        !event.ctrlKey &&
+        (event.key === "ArrowUp" || event.key === "ArrowDown") &&
+        !isTyping(event.target)
+      ) {
         const state = controller.store.get();
         const ordered = Object.values(state.sessions).sort((a, b) => (a.activityAt < b.activityAt ? 1 : -1));
         if (ordered.length === 0) {
@@ -187,8 +208,9 @@ function GlobalShortcuts(props: { panel: boolean }) {
         const current = state.route.kind === "thread" ? ordered.findIndex((s) => s.sessionId === (state.route as { sessionId: string }).sessionId) : -1;
         const next = event.key === "ArrowDown" ? Math.min(ordered.length - 1, current + 1) : Math.max(0, current - 1);
         const target = ordered[next];
-        if (target) {
+        if (target && target.sessionId !== (state.route.kind === "thread" ? state.route.sessionId : null)) {
           controller.openThread(target.sessionId);
+          announce(`Opened thread ${target.title}`);
         }
       }
     };
@@ -198,11 +220,21 @@ function GlobalShortcuts(props: { panel: boolean }) {
         applyZoomStep(controller, step);
       }
     };
+    const onMenu = (event: Event) => {
+      const command = (event as CustomEvent<MenuCommand>).detail;
+      if (command === "new-thread") {
+        controller.newThread();
+      } else if (command === "settings") {
+        controller.navigate({ kind: "settings" });
+      }
+    };
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("helicon-zoom-step", onMenuZoom);
+    window.addEventListener("helicon-menu", onMenu);
     return () => {
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("helicon-zoom-step", onMenuZoom);
+      window.removeEventListener("helicon-menu", onMenu);
     };
   }, [controller, props.panel]);
   return null;

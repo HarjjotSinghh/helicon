@@ -437,9 +437,17 @@ fn boot_server(app: &tauri::AppHandle) -> Result<String, BootError> {
 
 /// WKWebView swallows Cmd+/− for its own page zoom before JS sees them. A native View menu
 /// takes those keys and emits `helicon://zoom` so the UI can step Helicon's zoom instead.
+/// New Thread (Cmd+N) and Settings (Cmd+,) sit where macOS apps keep them and emit `helicon://menu`.
 #[cfg(target_os = "macos")]
 fn install_zoom_menu(app: &tauri::App) -> tauri::Result<()> {
     use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+
+    let settings = MenuItemBuilder::with_id("settings", "Settings…")
+        .accelerator("CmdOrCtrl+,")
+        .build(app)?;
+    let new_thread = MenuItemBuilder::with_id("new-thread", "New Thread")
+        .accelerator("CmdOrCtrl+N")
+        .build(app)?;
 
     let zoom_in = MenuItemBuilder::with_id("zoom-in", "Zoom In")
         .accelerator("CmdOrCtrl+=")
@@ -453,12 +461,15 @@ fn install_zoom_menu(app: &tauri::App) -> tauri::Result<()> {
     let app_menu = SubmenuBuilder::new(app, "Helicon")
         .about(None)
         .separator()
+        .item(&settings)
+        .separator()
         .hide()
         .hide_others()
         .show_all()
         .separator()
         .quit()
         .build()?;
+    let file = SubmenuBuilder::new(app, "File").item(&new_thread).build()?;
     let edit = SubmenuBuilder::new(app, "Edit")
         .undo()
         .redo()
@@ -480,13 +491,19 @@ fn install_zoom_menu(app: &tauri::App) -> tauri::Result<()> {
         .build()?;
     let menu = MenuBuilder::new(app)
         .item(&app_menu)
+        .item(&file)
         .item(&edit)
         .item(&view)
         .item(&window)
         .build()?;
     app.set_menu(menu)?;
     app.on_menu_event(|app, event| {
-        let step = match event.id().0.as_str() {
+        let id = event.id().0.as_str();
+        if matches!(id, "new-thread" | "settings") {
+            let _ = app.emit("helicon://menu", id);
+            return;
+        }
+        let step = match id {
             "zoom-in" => "in",
             "zoom-out" => "out",
             "zoom-reset" => "reset",

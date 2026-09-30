@@ -5,7 +5,7 @@ import { useApp, useController, useNow } from "../../app/context.js";
 import { basename, relativeTime } from "../../model/format.js";
 import { threadStatus } from "../../model/status.js";
 import { Modal } from "../ui/overlays.js";
-import { MOD, Shortcut } from "../ui/primitives.js";
+import { MOD, NEW_THREAD_KEYS, Shortcut } from "../ui/primitives.js";
 import { StatusGlyph } from "../ui/StatusGlyph.js";
 
 const GROUP =
@@ -65,7 +65,7 @@ export function CommandPalette() {
         <Command.List className="max-h-[min(440px,62vh)] overflow-y-auto p-1.5">
           <Command.Empty className="px-3 py-10 text-center text-sm text-muted">Nothing matches that search.</Command.Empty>
           <Command.Group heading="Actions" className={GROUP}>
-            <Item value="New thread" icon={<NotePencilIcon size={15} />} onSelect={() => run(() => controller.newThread())} hint={<Shortcut keys={[MOD, "Shift", "O"]} />}>
+            <Item value="New thread" icon={<NotePencilIcon size={15} />} onSelect={() => run(() => controller.newThread())} hint={<Shortcut keys={NEW_THREAD_KEYS} />}>
               New thread
             </Item>
             <Item value="Add project folder" icon={<FolderPlusIcon size={15} />} onSelect={() => run(() => controller.setAddProjectOpen(true))}>

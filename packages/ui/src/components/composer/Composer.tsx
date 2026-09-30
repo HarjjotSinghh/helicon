@@ -29,6 +29,7 @@ import { PixelFlow } from "../ui/PixelFlow.js";
 import { ContextMeter } from "./ContextPanel.js";
 import { SlashMenu, slashOptionId, type SlashMenuState } from "./SlashMenu.js";
 import { SwapIcon } from "../ui/sourced.js";
+import { FOCUS_HOME } from "../../app/a11y.js";
 
 const DRAFT_PREFIX = "helicon.draft.";
 
@@ -402,6 +403,7 @@ export function Composer(props: ComposerProps) {
       <textarea
         id={id}
         ref={ref}
+        {...{ [FOCUS_HOME]: "" }}
         value={text}
         rows={props.variant === "home" ? 3 : 1}
         disabled={props.readOnly}

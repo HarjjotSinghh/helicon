@@ -20,7 +20,7 @@ import { CODE_THEMES, DEFAULT_SIDEBAR_WIDTH, type CodeTheme } from "../../model/
 import type { UpdateState } from "../../model/updates.js";
 import type { ProjectView, SessionSummary } from "../../types.js";
 import { Menu, MenuCheck, MenuContent, MenuItem, MenuOption, MenuRadioGroup, MenuSeparator, MenuTrigger, Tip } from "../ui/overlays.js";
-import { IconButton, Logo, MOD, Shortcut, Spinner, cn, isMac } from "../ui/primitives.js";
+import { IconButton, Logo, MOD, NEW_THREAD_KEYS, Shortcut, Spinner, cn, isMac } from "../ui/primitives.js";
 import { StatusGlyph } from "../ui/StatusGlyph.js";
 
 const PROJECT_PREVIEW = 6;
@@ -91,7 +91,7 @@ function SidebarTop() {
       <NavRow
         icon={<NotePencilIcon size={15} />}
         label="New thread"
-        keys={[MOD, "Shift", "O"]}
+        keys={NEW_THREAD_KEYS}
         active={routeKind === "new"}
         onClick={() => controller.newThread()}
       />
@@ -838,7 +838,7 @@ function SidebarFooter() {
           <ChartBarIcon size={14} />
         </IconButton>
       </Tip>
-      <Tip label="Settings" side="top">
+      <Tip label="Settings" shortcut={[MOD, ","]} side="top">
         <IconButton label="Settings" onClick={() => controller.navigate({ kind: "settings" })}>
           <GearSixIcon size={14} />
         </IconButton>

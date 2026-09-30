@@ -13,6 +13,7 @@ declare global {
   interface WindowEventMap {
     "helicon-zoom": CustomEvent<number>;
     "helicon-zoom-step": CustomEvent<"in" | "out" | "reset">;
+    "helicon-menu": CustomEvent<"new-thread" | "settings">;
   }
 }
 
@@ -38,6 +39,10 @@ export function bindDesktopZoom(): void {
   void listen<"in" | "out" | "reset">("helicon://zoom", (event) => {
     window.dispatchEvent(new CustomEvent("helicon-zoom-step", { detail: event.payload }));
   }).catch((error: unknown) => console.error("Helicon: zoom menu listen failed", error));
+  // New Thread (Cmd+N) and Settings (Cmd+,) in the native menu bar, where macOS users and VoiceOver look for them.
+  void listen<"new-thread" | "settings">("helicon://menu", (event) => {
+    window.dispatchEvent(new CustomEvent("helicon-menu", { detail: event.payload }));
+  }).catch((error: unknown) => console.error("Helicon: menu listen failed", error));
 }
 
 /** Window controls for the desktop shell's frameless window; undefined in a browser. */

@@ -1,7 +1,9 @@
 import { copyText } from "../../app/host.js";
 import { ArchiveIcon, ArrowsInIcon, CodeIcon, CopyIcon, DotsThreeIcon, FolderIcon, FolderOpenIcon, GitBranchIcon, LockIcon, NotePencilIcon, PencilSimpleIcon, ShieldSlashIcon, SquareHalfBottomIcon, SquareIcon, StopCircleIcon, TreeStructureIcon } from "../ui/icons.js";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { announce, FOCUS_SCOPE } from "../../app/a11y.js";
 import { useApp, useController, useNow } from "../../app/context.js";
+import { speechChanges, threadSpeech, type ThreadSpeech } from "../../model/announce.js";
 import { CaptionSpacer, useOverlayDragProps } from "../../app/frame.js";
 import { basename, formatDuration } from "../../model/format.js";
 import { backgroundTasks } from "../../model/plan.js";
@@ -32,7 +34,15 @@ export function ThreadView(props: { sessionId: string; bare?: boolean }) {
   const running = thread ? thread.fold.activeTurnId !== null : Boolean(session.live?.activeTurnId);
   const ssh = session.cwd.startsWith("ssh://");
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+    // One labelled region per thread, so a screen reader always knows which conversation it is in, and focus
+    // lost inside it (an answered approval, a Stop button gone) comes back to this thread's composer.
+    <section
+      aria-label={`Thread: ${session.title}`}
+      tabIndex={-1}
+      {...{ [FOCUS_SCOPE]: "" }}
+      className="flex h-full min-w-0 flex-1 flex-col overflow-hidden outline-none"
+    >
+      <ThreadAnnouncements sessionId={props.sessionId} />
       {props.bare ? null : <ThreadHeader session={session} thread={thread} running={running} />}
       <div className="flex min-h-0 flex-1">
         <div className="@container flex min-w-0 flex-1 flex-col">
@@ -41,8 +51,35 @@ export function ThreadView(props: { sessionId: string; bare?: boolean }) {
         </div>
         {filesOpen && !props.bare ? (ssh ? <SshFilesNote /> : <FilesPanel sessionId={props.sessionId} cwd={session.cwd} />) : null}
       </div>
-    </div>
+    </section>
   );
+}
+
+/**
+ * Tells a screen reader what changed in the open thread, once per change: work starting and ending, Muse
+ * asking for something, a plan step done. The visible status line is not a live region, since it ticks.
+ */
+function ThreadAnnouncements(props: { sessionId: string }) {
+  // A string, so the store only re-renders this when something worth saying changed.
+  const key = useApp((s) => {
+    const fold = s.threads[props.sessionId]?.fold;
+    return fold ? JSON.stringify(threadSpeech(fold)) : null;
+  });
+  const previous = useRef<ThreadSpeech | null>(null);
+  useEffect(() => {
+    if (key === null) {
+      return;
+    }
+    const next = JSON.parse(key) as ThreadSpeech;
+    // Nothing is said for the state a thread opens in, only for what changes while it is open.
+    if (previous.current) {
+      for (const sentence of speechChanges(previous.current, next)) {
+        announce(sentence);
+      }
+    }
+    previous.current = next;
+  }, [key]);
+  return null;
 }
 
 /** SSH projects run on a remote host, which the local file viewer cannot read in this version. */
@@ -120,7 +157,7 @@ function ThreadHeader(props: { session: SessionSummary; thread: ThreadState | nu
           <span className="@max-[420px]:hidden">Waiting for you</span>
         </span>
       ) : props.running ? (
-        <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs text-muted" role="status">
+        <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs text-muted">
           <Spinner size={11} className="text-accent-text" />
           <span className="@max-[420px]:hidden">Working</span>
           {startedAt ? <span className="text-subtle tabular-nums">{formatDuration(now - startedAt)}</span> : null}
@@ -287,7 +324,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
   const todo = fold?.meta.todoList ?? null;
   const showPlan = planShown(todo, props.running);
   return (
-    <div className="shrink-0">
+    <section aria-label="Composer" className="shrink-0">
       <div className="mx-auto flex w-full max-w-[776px] flex-col gap-2 px-3 pb-2 @min-[400px]:px-4 @min-[520px]:px-6">
         {thread?.readOnly ? (
           <ReadOnlyNotice
@@ -325,7 +362,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
         />
         <ComposerFooter cwd={session.cwd} branch={fold?.meta.branch ?? null} running={props.running} />
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -342,7 +379,7 @@ function BackgroundTasks(props: { sessionId: string }) {
     return null;
   }
   return (
-    <div role="status" className="flex items-center gap-2 rounded-xl bg-raised px-3 py-1.5 text-xs text-muted shadow-card">
+    <div className="flex items-center gap-2 rounded-xl bg-raised px-3 py-1.5 text-xs text-muted shadow-card">
       <Spinner size={11} className="shrink-0 text-accent-text" />
       <span className="min-w-0 flex-1 truncate">
         {count === 1 ? "1 task is running in the background" : `${count} tasks are running in the background`}

@@ -399,6 +399,12 @@ export function SettingsPage() {
               onChange={(on) => controller.setPrefs({ showTelemetry: on })}
             />
           </Row>
+          <Row
+            label="Keep work expanded"
+            description="List every step a finished turn took instead of folding them into one line. Useful with a screen reader."
+          >
+            <Toggle checked={prefs.expandWork} label="Keep work expanded" onChange={(on) => controller.setPrefs({ expandWork: on })} />
+          </Row>
         </Section>
 
         <Section title="New threads">
