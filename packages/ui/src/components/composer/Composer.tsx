@@ -336,6 +336,7 @@ export function Composer(props: ComposerProps) {
     }
   };
 
+  const threadTitle = useApp((s) => (props.sessionId ? (s.sessions[props.sessionId]?.title ?? null) : null));
   const placeholder = props.readOnly
     ? "Read-only while another Muse session has this thread open"
     : props.running
@@ -388,8 +389,9 @@ export function Composer(props: ComposerProps) {
           onSendRaw={() => void runNow(text, true)}
         />
       ) : null}
+      {/* Names the thread, so landing in the composer says which conversation a message would go to. */}
       <label htmlFor={id} className="sr-only">
-        Message Muse
+        {threadTitle ? `Message Muse in ${threadTitle}` : "Message Muse"}
       </label>
       {shell ? (
         <div className="flex items-center gap-1.5 px-4 pt-2.5 text-xs text-muted">

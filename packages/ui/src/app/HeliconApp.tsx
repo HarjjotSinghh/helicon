@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { HeliconClient } from "../client.js";
 import { AddProjectDialog } from "../components/sidebar/AddProjectDialog.js";
 import { WhatsNew } from "../components/app/WhatsNew.js";
@@ -87,12 +87,42 @@ export function HeliconApp(props: HeliconAppProps) {
             <Toasts />
             <WindowControls />
             <LiveAnnouncer />
+            <RouteAnnouncer />
             <FocusKeeper />
           </TooltipProvider>
         </FrameProvider>
       </PanelContext.Provider>
     </ControllerProvider>
   );
+}
+
+/**
+ * Says where the user landed whenever the open thread or page changes, however it changed: a sidebar row,
+ * the palette, Option+Arrow, a notification. Nothing is said for the page the app opens on.
+ */
+function RouteAnnouncer() {
+  const controller = useController();
+  // Only a change of place is said, not a thread's title changing while it is open.
+  const key = useApp((s) => (s.route.kind === "thread" ? `thread:${s.route.sessionId}` : s.route.kind === "new" ? `new:${s.route.cwd ?? ""}` : s.route.kind));
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const state = controller.store.get();
+    const route = state.route;
+    if (route.kind === "thread") {
+      announce(`Opened thread ${state.sessions[route.sessionId]?.title ?? ""}`.trim());
+    } else if (route.kind === "settings") {
+      announce("Settings");
+    } else if (route.kind === "usage") {
+      announce("Usage");
+    } else {
+      announce("New thread");
+    }
+  }, [controller, key]);
+  return null;
 }
 
 function ThemeSync(props: { hostTheme: "light" | "dark" | null }) {
@@ -210,7 +240,6 @@ function GlobalShortcuts(props: { panel: boolean }) {
         const target = ordered[next];
         if (target && target.sessionId !== (state.route.kind === "thread" ? state.route.sessionId : null)) {
           controller.openThread(target.sessionId);
-          announce(`Opened thread ${target.title}`);
         }
       }
     };
