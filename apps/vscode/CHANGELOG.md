@@ -2,6 +2,10 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.21.0
+
+- Works better with screen readers: status is announced once per change instead of every second, focus stays in the thread after approvals, questions and Stop, and a finishing turn no longer rebuilds the transcript.
+
 ## 0.20.0
 
 - Muse Code monitors: a Watching status on threads and tabs, a card with a Stop button for each monitor, and "Woken by a monitor" on the turns they start.
