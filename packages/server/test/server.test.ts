@@ -20,7 +20,7 @@ import {
   type LoginSpawn,
   type OpenTarget,
 } from "../src/server.js";
-import type { ExecFn, ServeTarget } from "@helicon/daemon";
+import { HeliconStore, type ExecFn, type ServeTarget } from "@helicon/daemon";
 
 interface Call {
   method: string;
@@ -120,6 +120,8 @@ async function start(connection: FakeConnection, extra: Partial<ConstructorParam
     hostFactory: fakeFactory(connection),
     // No test spawns the real CLI by accident; title upgrades see a failed call.
     exec: async () => ({ stdout: "", exitCode: 127 }),
+    // Nor pages a session's view by accident; the tests about that shorten this instead.
+    tailTiming: { tickMs: 3_600_000 },
     ...extra,
   });
   after(() => server.close());
@@ -207,6 +209,81 @@ async function countPlanUsageEvents(base: string, drive: () => Promise<void>): P
 }
 
 const RANGE = { first: { id: "r", sequence: 1 }, last: { id: "r", sequence: 1 }, stream: { id: "s", kind: "session" } };
+
+/** Opens `/api/events` and keeps every event it carries, until stopped. */
+async function collectEvents(base: string): Promise<{ events: any[]; stop: () => Promise<void> }> {
+  const res = await fetch(`${base}/api/events`);
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  const events: any[] = [];
+  let buffer = "";
+  const pump = (async () => {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) {
+        return;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      let idx: number;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        const dataLine = buffer.slice(0, idx).split("\n").find((line) => line.startsWith("data: {"));
+        buffer = buffer.slice(idx + 2);
+        if (dataLine) {
+          events.push(JSON.parse(dataLine.slice("data: ".length)));
+        }
+      }
+    }
+  })().catch(() => undefined);
+  await waitFor(() => events.some((e) => e.type === "hello"), "sse hello event");
+  return {
+    events,
+    stop: async () => {
+      await reader.cancel().catch(() => undefined);
+      await pump;
+    },
+  };
+}
+
+/** Fast enough for a test to wait on, in the proportions the real timings have. */
+const FAST_TAIL = { tickMs: 5, quietMs: 40, suspectQuietMs: 20, busyMaxMs: 80, idleMs: 60, idleMaxMs: 120, statusMs: 60, hotMs: 2_000, idleFollowMs: 60_000 };
+
+/**
+ * A session whose view Muse serves on request and whose pushes are the test's to send or withhold,
+ * which is what #42's sessions look like from here: the log completes, the view pages, nothing arrives.
+ */
+function quietSession(connection: FakeConnection) {
+  const view: { method: string; params: Record<string, unknown> }[] = [];
+  const event = (method: string, extra: Record<string, unknown> = {}) => {
+    const made = { method, params: { sessionId: "s1", viewCursor: `v:s1:${view.length + 1}`, sourceRange: RANGE, ...extra } };
+    view.push(made);
+    return made;
+  };
+  const record = { activeTurnId: null as string | null };
+  connection.replies.set("session/start", { session: { sessionId: "s1" } });
+  const head = () => view[view.length - 1]?.params["viewCursor"] ?? "";
+  const session = () => ({ sessionId: "s1", updatedAt: `2026-09-19T16:00:${String(view.length).padStart(2, "0")}Z`, ...record });
+  connection.replies.set("session/resume", () => ({ session: { status: "idle", ...session() }, viewCursor: head() }));
+  connection.replies.set("session/read", () => ({ session: session(), viewCursor: head() }));
+  connection.replies.set("approval/listPending", { approvals: [], userInputs: [] });
+  connection.replies.set("turn/start", { status: "accepted", turnId: "t1", disposition: "started" });
+  /** What a page adds past the real events while `record.activeTurnId` runs: the turn closed as if the host had died. */
+  const lent = () =>
+    record.activeTurnId
+      ? [
+          { method: "item/completed", params: { sessionId: "s1", viewCursor: `v:s1:${view.length + 1}`, sourceRange: RANGE, item: { itemId: "open", kind: "toolCall", revision: 2, status: "failed", reason: "incomplete" } } },
+          { method: "turn/completed", params: { sessionId: "s1", viewCursor: `v:s1:${view.length + 2}`, sourceRange: RANGE, turnId: record.activeTurnId, terminal: "failed", reason: "incomplete" } },
+        ]
+      : [];
+  connection.replies.set("view/page", (params: Record<string, unknown>) => {
+    const all = [...view, ...lent()];
+    if (params["direction"] === "backward") {
+      return { events: all, nextCursor: null };
+    }
+    const from = params["cursor"] ? all.findIndex((e) => e.params["viewCursor"] === params["cursor"]) + 1 : 0;
+    return { events: all.slice(from), nextCursor: null };
+  });
+  return { view, event, record };
+}
 
 describe("HeliconServer", () => {
   it("serves health, projects, sessions and turns", async () => {
@@ -945,6 +1022,25 @@ describe("HeliconServer", () => {
     assert.deepEqual(await get(base, "/api/sandbox-settings"), { disabled: true }, "a rejected patch changes nothing");
   });
 
+  it("keeps feed settings behind a boolean switch, defaulting to catch-up off", async () => {
+    const connection = new FakeConnection();
+    const { base } = await start(connection);
+    assert.deepEqual(await get(base, "/api/feed-settings"), { catchUp: false });
+
+    const patched = await send(base, "/api/feed-settings", { catchUp: true }, "PATCH");
+    assert.equal(patched.status, 200);
+    assert.deepEqual(patched.json, { catchUp: true });
+    assert.deepEqual(await get(base, "/api/feed-settings"), { catchUp: true });
+
+    const bad = await send(base, "/api/feed-settings", { catchUp: "yes" }, "PATCH");
+    assert.equal(bad.status, 400);
+    assert.deepEqual(await get(base, "/api/feed-settings"), { catchUp: true }, "a rejected patch changes nothing");
+
+    const empty = await send(base, "/api/feed-settings", {}, "PATCH");
+    assert.deepEqual(empty.json, { catchUp: true }, "an empty patch changes nothing either");
+    assert.deepEqual((await send(base, "/api/feed-settings", { catchUp: false }, "PATCH")).json, { catchUp: false });
+  });
+
   it("spawns hosts with --disable-sandbox, restarting them when the switch flips", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });
@@ -1559,6 +1655,362 @@ describe("HeliconServer", () => {
     assert.equal(proj.defaultAccountId, "work");
     const other = projects.projects.find((p: { cwd: string }) => p.cwd === "/other/proj");
     assert.equal(other.defaultAccountId, null);
+  });
+});
+
+describe("a session Muse stops pushing", () => {
+  const msp = (events: any[]) => events.filter((e) => e.type === "msp").map((e) => e.method);
+  /** Catching up is a mode, off until asked for; this is the switch in Settings. */
+  const catchUp = (base: string, on = true) => send(base, "/api/feed-settings", { catchUp: on }, "PATCH");
+  /** What only the tail asks of Muse: forward pages of a view, and reads of a session's record. */
+  const asked = (connection: FakeConnection) => ({
+    pages: connection.requests.filter((c) => c.method === "view/page" && c.params?.["direction"] === "forward").length,
+    reads: connection.requests.filter((c) => c.method === "session/read").length,
+  });
+
+  it("delivers the turn from the view when none of it is pushed", async () => {
+    const connection = new FakeConnection();
+    const muse = quietSession(connection);
+    const { base } = await start(connection, { tailTiming: FAST_TAIL });
+    await catchUp(base);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    // The last thing Muse pushed for this session; everything after it has to be asked for.
+    const old = muse.event("item/completed", { item: { itemId: "old", kind: "agentMessage", revision: 1, status: "completed", text: "earlier" } });
+    connection.notify(old.method, old.params);
+    await send(base, "/api/sessions/s1/resume", {});
+    const stream = await collectEvents(base);
+
+    await send(base, "/api/turns", { sessionId: "s1", text: "go" });
+    muse.event("turn/started", { turnId: "t1" });
+    // Muse's record moves with its view. Left saying nothing runs, the tail would end the turn itself.
+    muse.record.activeTurnId = "t1";
+    muse.event("item/completed", { item: { itemId: "a1", kind: "agentMessage", revision: 1, status: "completed", text: "done" } });
+    await waitFor(() => msp(stream.events).includes("item/completed"), "the paged item");
+    // Long enough for several looks at a turn with nothing new to show.
+    await new Promise((r) => setTimeout(r, 120));
+    const running = (await get(base, "/api/sessions")).sessions[0];
+    assert.equal(running.live.activeTurnId, "t1", "a paged turn/started is tracked as a pushed one is");
+
+    muse.event("turn/completed", { turnId: "t1", terminal: "completed" });
+    muse.record.activeTurnId = null;
+    await waitFor(() => msp(stream.events).includes("turn/completed"), "the paged turn ending");
+    await stream.stop();
+
+    assert.deepEqual(msp(stream.events), ["turn/started", "item/completed", "turn/completed"], "what was pushed is not delivered again");
+    assert.equal(stream.events.find((e) => e.method === "turn/started").params.sourceRange, undefined, "stripped as on the push path");
+    assert.equal((await get(base, "/api/sessions")).sessions[0].live.activeTurnId, null);
+    const health = await get(base, "/api/health");
+    assert.equal(health.diagnostics.tail.s1.recovered, 3);
+    assert.equal(health.diagnostics.sessions.s1.count, 1, "and none of it counted as pushed");
+  });
+
+  it("delivers an event once when push and a page both carry it, and pages the hole a gap reports", async () => {
+    const connection = new FakeConnection();
+    const muse = quietSession(connection);
+    const { base } = await start(connection, { tailTiming: FAST_TAIL });
+    await catchUp(base);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    await send(base, "/api/sessions/s1/resume", {});
+    const stream = await collectEvents(base);
+
+    const started = muse.event("turn/started", { turnId: "t1" });
+    muse.record.activeTurnId = "t1";
+    const lost = muse.event("item/completed", { item: { itemId: "a1", kind: "agentMessage", revision: 1, status: "completed", text: "one" } });
+    const after = muse.event("item/completed", { item: { itemId: "a2", kind: "agentMessage", revision: 1, status: "completed", text: "two" } });
+    connection.notify(started.method, started.params);
+    connection.notify(after.method, after.params);
+    connection.notify("view/gap", { sessionId: "s1", after: started.params.viewCursor, next: after.params.viewCursor });
+    await waitFor(() => msp(stream.events).length >= 3, "the event in the hole");
+    // Its twin turns up late, and the session is looked at a few more times: neither delivers anything again.
+    connection.notify(lost.method, lost.params);
+    await new Promise((r) => setTimeout(r, 200));
+    await stream.stop();
+
+    const texts = stream.events.filter((e) => e.method === "item/completed").map((e) => e.params.item.text);
+    assert.deepEqual(texts.sort(), ["one", "two"]);
+    assert.deepEqual(msp(stream.events).filter((m) => m === "turn/started"), ["turn/started"]);
+    assert.equal(msp(stream.events).includes("view/gap"), false);
+    const health = await get(base, "/api/health");
+    assert.equal(health.diagnostics.tail.s1.recovered, 1);
+    assert.equal(health.diagnostics.tail.s1.gaps, 1);
+  });
+
+  it("says a quiet turn is still running, and ends one whose ending the view lost", async () => {
+    const connection = new FakeConnection();
+    const muse = quietSession(connection);
+    const { base } = await start(connection, { tailTiming: FAST_TAIL });
+    await catchUp(base);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    await send(base, "/api/sessions/s1/resume", {});
+    const stream = await collectEvents(base);
+
+    const started = muse.event("turn/started", { turnId: "t1" });
+    connection.notify(started.method, started.params);
+    muse.record.activeTurnId = "t1";
+    await waitFor(() => stream.events.some((e) => e.type === "feed"), "confirmation that the turn runs");
+    assert.deepEqual(
+      stream.events.filter((e) => e.type === "feed").map((e) => [e.sessionId, e.activeTurnId]),
+      Array(stream.events.filter((e) => e.type === "feed").length).fill(["s1", "t1"]),
+    );
+    assert.equal((await get(base, "/api/sessions")).sessions[0].live.activeTurnId, "t1");
+
+    // The turn ends in Muse's record, and the view never says so.
+    muse.record.activeTurnId = null;
+    await waitFor(async () => (await get(base, "/api/sessions")).sessions[0].live.activeTurnId === null, "the turn to be ended from the record");
+    await stream.stop();
+    const status = stream.events.filter((e) => e.type === "session-status").at(-1);
+    assert.equal(status.live.activeTurnId, null, "clients are told, so a thread still showing the turn reloads");
+  });
+
+  it("loads a running thread without the ending the view lends its turn (#54)", async () => {
+    const connection = new FakeConnection();
+    const muse = quietSession(connection);
+    const { base } = await start(connection);
+    // Catch-up is left off, as it is by default: a history load is put right whether or not it is on.
+    assert.deepEqual(await get(base, "/api/feed-settings"), { catchUp: false });
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    muse.event("turn/started", { turnId: "t1" });
+    muse.event("item/started", { item: { itemId: "open", kind: "toolCall", revision: 1, status: "inProgress" } });
+    muse.record.activeTurnId = "t1";
+
+    const loaded = await send(base, "/api/sessions/s1/resume", {});
+    assert.deepEqual(
+      loaded.json.events.map((e: { method: string }) => e.method),
+      ["turn/started", "item/started"],
+      "the page also held the call and the turn closed as failed; neither has happened",
+    );
+    assert.equal(loaded.json.msp.activeTurnId, "t1");
+    assert.equal(JSON.stringify(loaded.json.events).includes("incomplete"), false);
+  });
+
+  it("does the same for a thread another host is running, and keeps an ending that is real", async () => {
+    const connection = new FakeConnection();
+    const muse = quietSession(connection);
+    const { base } = await start(connection);
+    assert.deepEqual(await get(base, "/api/feed-settings"), { catchUp: false });
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    muse.event("turn/started", { turnId: "t1" });
+    muse.record.activeTurnId = "t1";
+    // Another host holds it, so the resume says nothing about what is running; a lease-free read does.
+    connection.replies.set("session/resume", new MspTestError("session is loaded by another host", "sessionInUse"));
+    const running = await send(base, "/api/sessions/s1/resume", {});
+    assert.equal(running.json.readOnly, true);
+    assert.deepEqual(running.json.events.map((e: { method: string }) => e.method), ["turn/started"]);
+
+    // That host dies mid-turn. Muse now records the turn as incomplete for real, and nothing is running.
+    muse.event("turn/completed", { turnId: "t1", terminal: "failed", reason: "incomplete" });
+    muse.record.activeTurnId = null;
+    const died = await send(base, "/api/sessions/s1/resume", {});
+    assert.deepEqual(died.json.events.map((e: { method: string }) => e.method), ["turn/started", "turn/completed"]);
+  });
+
+  it("asks Muse nothing about a quiet session while catch-up is off, which it is by default", async () => {
+    const connection = new FakeConnection();
+    const muse = quietSession(connection);
+    const { base } = await start(connection, { tailTiming: FAST_TAIL });
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const old = muse.event("item/completed", { item: { itemId: "old", kind: "agentMessage", revision: 1, status: "completed", text: "earlier" } });
+    connection.notify(old.method, old.params);
+    await send(base, "/api/sessions/s1/resume", {});
+    const stream = await collectEvents(base);
+
+    // A turn starts, and after its first event nothing more of it is pushed while it runs.
+    await send(base, "/api/turns", { sessionId: "s1", text: "go" });
+    const started = muse.event("turn/started", { turnId: "t1" });
+    connection.notify(started.method, started.params);
+    muse.record.activeTurnId = "t1";
+    muse.event("item/completed", { item: { itemId: "a1", kind: "agentMessage", revision: 1, status: "completed", text: "done" } });
+    // Push says there is a hole, and says something twice. Both go through as they always did.
+    connection.notify("view/gap", { sessionId: "s1", after: old.params.viewCursor, next: started.params.viewCursor });
+    connection.notify(started.method, started.params);
+    // Many times over what a tail that was on would wait before asking.
+    await new Promise((r) => setTimeout(r, 400));
+    await stream.stop();
+
+    assert.deepEqual(asked(connection), { pages: 0, reads: 0 }, "nothing is paged forward and the record is never read");
+    assert.deepEqual(msp(stream.events), ["turn/started", "view/gap", "turn/started"], "only what was pushed, exactly as it was pushed");
+    assert.equal(stream.events.some((e) => e.type === "feed"), false, "and nothing vouches for the turn");
+    const sessions = (await get(base, "/api/sessions")).sessions;
+    assert.equal(sessions[0].live.activeTurnId, "t1");
+    assert.deepEqual((await get(base, "/api/health")).diagnostics.tail, {});
+  });
+
+  it("follows a thread from its next history load once catch-up is switched on, and lets go when it is switched off", async () => {
+    const connection = new FakeConnection();
+    const muse = quietSession(connection);
+    const { base } = await start(connection, { tailTiming: FAST_TAIL });
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const started = muse.event("turn/started", { turnId: "t1" });
+    connection.notify(started.method, started.params);
+    muse.record.activeTurnId = "t1";
+    await send(base, "/api/sessions/s1/resume", {});
+    const stream = await collectEvents(base);
+
+    // Switching it on does nothing for a thread by itself: there is nowhere to page from yet.
+    await catchUp(base);
+    await new Promise((r) => setTimeout(r, 200));
+    assert.deepEqual(asked(connection), { pages: 0, reads: 0 });
+
+    // The reload the stalled notice makes is what gives the tail its place in the view.
+    await send(base, "/api/sessions/s1/resume", {});
+    muse.event("item/completed", { item: { itemId: "a1", kind: "agentMessage", revision: 1, status: "completed", text: "done" } });
+    await waitFor(() => msp(stream.events).includes("item/completed"), "the item push never delivered");
+    await waitFor(() => stream.events.some((e) => e.type === "feed"), "confirmation that the turn runs");
+
+    await catchUp(base, false);
+    // A look under way when the switch went off may finish its request; nothing is asked after that.
+    await new Promise((r) => setTimeout(r, 50));
+    const before = asked(connection);
+    const delivered = msp(stream.events).length;
+    muse.event("item/completed", { item: { itemId: "a2", kind: "agentMessage", revision: 1, status: "completed", text: "more" } });
+    await new Promise((r) => setTimeout(r, 300));
+    await stream.stop();
+    assert.deepEqual(asked(connection), before, "nothing more is asked of Muse");
+    assert.equal(msp(stream.events).length, delivered, "and nothing more is delivered");
+    assert.deepEqual((await get(base, "/api/health")).diagnostics.tail, {}, "what it was following is forgotten");
+  });
+
+  it("starts with catch-up on when that is how it was left", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "helicon-feed-"));
+    // What an earlier run of the server kept when the switch was flipped.
+    const kept = new HeliconStore(join(dataDir, "helicon.db"));
+    kept.setFeedSettings({ catchUp: true });
+    kept.close();
+
+    const connection = new FakeConnection();
+    const muse = quietSession(connection);
+    const { base } = await start(connection, { dataDir, tailTiming: FAST_TAIL });
+    assert.deepEqual(await get(base, "/api/feed-settings"), { catchUp: true });
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    await send(base, "/api/sessions/s1/resume", {});
+    const stream = await collectEvents(base);
+    muse.event("turn/started", { turnId: "t1" });
+    await waitFor(() => msp(stream.events).includes("turn/started"), "an event paged without the switch being touched again");
+    await stream.stop();
+  });
+
+  it("stops following a session once its host is gone", async () => {
+    const connection = new FakeConnection();
+    quietSession(connection);
+    const probe: FactoryProbe = { targets: [], exits: [] };
+    const { base } = await start(connection, { tailTiming: FAST_TAIL, hostFactory: fakeFactory(connection, probe) });
+    await catchUp(base);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    await send(base, "/api/sessions/s1/resume", {});
+    await waitFor(() => connection.requests.some((c) => c.method === "view/page" && c.params?.["direction"] === "forward"), "a first page");
+
+    for (const exit of probe.exits) {
+      exit({ code: 1, signal: null });
+    }
+    await new Promise((r) => setTimeout(r, 50));
+    const before = connection.requests.length;
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(connection.requests.length, before, "nothing is asked of a host that exited");
+    assert.deepEqual((await get(base, "/api/health")).diagnostics.tail, {}, "and the session is no longer followed at all");
+  });
+
+  it("gives up on a look Muse never answers, so what is pushed meanwhile still arrives", async () => {
+    const connection = new FakeConnection();
+    const muse = quietSession(connection);
+    const { base } = await start(connection, { tailTiming: { ...FAST_TAIL, lookMaxMs: 150 } });
+    await catchUp(base);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    await send(base, "/api/sessions/s1/resume", {});
+    const stream = await collectEvents(base);
+    // The host stops answering reads, as one whose reply was dropped on the way would. Its pushes go on.
+    const before = asked(connection).reads;
+    connection.replies.set("session/read", () => new Promise(() => undefined));
+    await waitFor(() => asked(connection).reads > before, "a look that will get no answer");
+    const started = muse.event("turn/started", { turnId: "t1" });
+    connection.notify(started.method, started.params);
+    connection.notify("approval/requested", { sessionId: "s1", approvalId: "ap1", turnId: "t1" });
+
+    await waitFor(() => msp(stream.events).length === 2, "the pushes held for the look");
+    await stream.stop();
+    assert.deepEqual(msp(stream.events), ["turn/started", "approval/requested"], "in the order they were pushed");
+    const session = (await get(base, "/api/sessions")).sessions[0];
+    assert.equal(session.live.activeTurnId, "t1");
+    assert.equal(session.live.pendingApprovals, 1, "an approval is not left waiting on a host that went quiet");
+    const tail = (await get(base, "/api/health")).diagnostics.tail.s1;
+    assert.ok(tail.failures >= 1);
+    assert.equal(tail.lastError, "the look went unanswered");
+  });
+
+  it("stops following a session Muse closes", async () => {
+    const connection = new FakeConnection();
+    quietSession(connection);
+    const { base } = await start(connection, { tailTiming: FAST_TAIL });
+    await catchUp(base);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    await send(base, "/api/sessions/s1/resume", {});
+    await waitFor(async () => "s1" in (await get(base, "/api/health")).diagnostics.tail, "the session to be looked at");
+
+    connection.notify("session/closed", { sessionId: "s1" });
+    await waitFor(async () => !("s1" in (await get(base, "/api/health")).diagnostics.tail), "the session to be forgotten");
+    assert.deepEqual((await get(base, "/api/health")).diagnostics.tail, {});
+  });
+
+  it("keeps paging the host that loaded a session when another host's discovery lists it as running", async () => {
+    const connection = new FakeConnection();
+    const muse = quietSession(connection);
+    // The host a discovery with no folder runs on. It can list any session, but it never loaded
+    // this one, so it has no view of it to page. Muse named the session, so no title is looked for there.
+    const other = new FakeConnection();
+    other.replies.set("session/list", {
+      sessions: [{ sessionId: "s1", name: "Proj work", workspaceRoot: "/work/proj", status: "running", activeTurnId: "t1" }],
+      nextCursor: null,
+    });
+    other.replies.set("session/read", () => ({ session: { sessionId: "s1", ...muse.record }, viewCursor: muse.view.at(-1)?.params["viewCursor"] ?? "" }));
+    other.replies.set("view/page", new MspTestError("session is not loaded", "sessionNotLoaded"));
+    const { base } = await start(connection, {
+      tailTiming: FAST_TAIL,
+      hostFactory: (target) => fakeFactory(target.cwd === "/work/proj" ? connection : other)(target),
+    });
+    await catchUp(base);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    await send(base, "/api/sessions/s1/resume", {});
+    const stream = await collectEvents(base);
+    const started = muse.event("turn/started", { turnId: "t1" });
+    connection.notify(started.method, started.params);
+    muse.record.activeTurnId = "t1";
+
+    // The sidebar is refreshed mid-turn, and after that nothing more of the turn is pushed.
+    assert.equal((await send(base, "/api/discover", {})).status, 200);
+    assert.equal(other.requests.some((c) => c.method === "session/list"), true, "the discovery ran on the other host");
+    muse.event("item/completed", { item: { itemId: "a1", kind: "agentMessage", revision: 1, status: "completed", text: "done" } });
+    await waitFor(() => msp(stream.events).includes("item/completed"), "the item, paged from the host that has the session");
+    await stream.stop();
+    assert.equal(other.requests.some((c) => c.method === "view/page"), false, "the host that never loaded it is not asked for its view");
+  });
+
+  it("loads a thread whose turn started under the load without its lent ending, wherever the record's head then is (#54)", async () => {
+    const connection = new FakeConnection();
+    const muse = quietSession(connection);
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    // The resume is answered before the turn starts: idle, with an empty view.
+    connection.replies.set("session/resume", (connection.replies.get("session/resume") as () => unknown)());
+    muse.event("turn/started", { turnId: "t1" });
+    muse.record.activeTurnId = "t1";
+    // The pages are read mid-turn and lend it an ending. By the time the record is read again, real
+    // events hold the cursors that ending was lent.
+    const page = connection.replies.get("view/page") as (params: Record<string, unknown>) => unknown;
+    connection.replies.set("view/page", (params: Record<string, unknown>) => {
+      const result = page(params);
+      if (muse.view.length === 1) {
+        muse.event("item/started", { item: { itemId: "open", kind: "toolCall", revision: 1, status: "inProgress" } });
+        muse.event("item/completed", { item: { itemId: "open", kind: "toolCall", revision: 2, status: "completed" } });
+      }
+      return result;
+    });
+
+    const loaded = await send(base, "/api/sessions/s1/resume", {});
+    assert.deepEqual(
+      loaded.json.events.map((e: { method: string }) => e.method),
+      ["turn/started"],
+      "the head now names the cursor of the lent turn ending, which is still not what happened",
+    );
+    assert.equal(JSON.stringify(loaded.json.events).includes("incomplete"), false);
   });
 });
 

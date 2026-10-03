@@ -109,6 +109,16 @@ export interface YoloSettings {
 
 export const DEFAULT_YOLO_SETTINGS: YoloSettings = { enabled: false };
 
+/**
+ * Server-owned feed mode: whether a session Muse stops pushing updates for is asked for them
+ * instead. Off by default.
+ */
+export interface FeedSettings {
+  catchUp: boolean;
+}
+
+export const DEFAULT_FEED_SETTINGS: FeedSettings = { catchUp: false };
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -396,6 +406,33 @@ export class HeliconStore {
     };
     this.db
       .prepare(`INSERT INTO settings (key, value) VALUES ('yolo', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+      .run(JSON.stringify(next));
+    return next;
+  }
+
+  /** Malformed rows fall back to catch-up off rather than breaking server startup. */
+  getFeedSettings(): FeedSettings {
+    const row = this.db.prepare(`SELECT value FROM settings WHERE key = 'feed'`).get() as Row | undefined;
+    if (!row) {
+      return { ...DEFAULT_FEED_SETTINGS };
+    }
+    try {
+      const parsed = JSON.parse(String(row["value"])) as Partial<FeedSettings>;
+      return {
+        catchUp: typeof parsed.catchUp === "boolean" ? parsed.catchUp : DEFAULT_FEED_SETTINGS.catchUp,
+      };
+    } catch {
+      return { ...DEFAULT_FEED_SETTINGS };
+    }
+  }
+
+  setFeedSettings(patch: Partial<FeedSettings>): FeedSettings {
+    const current = this.getFeedSettings();
+    const next: FeedSettings = {
+      catchUp: patch.catchUp ?? current.catchUp,
+    };
+    this.db
+      .prepare(`INSERT INTO settings (key, value) VALUES ('feed', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
       .run(JSON.stringify(next));
     return next;
   }
