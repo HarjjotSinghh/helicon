@@ -322,6 +322,7 @@ export function SettingsPage() {
   const accountLogin = useApp((s) => s.accountLogin);
   const titleSettings = useApp((s) => s.titleSettings);
   const sandboxSettings = useApp((s) => s.sandboxSettings);
+  const feedSettings = useApp((s) => s.feedSettings);
   const env = useApp((s) => s.env);
   const updates = useApp((s) => s.updates);
   const bypassAll = useApp((s) => s.bypassAll);
@@ -532,6 +533,23 @@ export function SettingsPage() {
               )}
             </Row>
           ) : null}
+        </Section>
+
+        <Section title="Live updates">
+          <Row
+            label="Keep threads live when Muse goes quiet"
+            description="If Muse stops sending a thread's updates, Helicon asks for them every few seconds instead of waiting. Off by default while this is new."
+          >
+            {feedSettings ? (
+              <Toggle
+                checked={feedSettings.catchUp}
+                label="Keep threads live when Muse goes quiet"
+                onChange={(on) => void controller.setCatchUp(on)}
+              />
+            ) : (
+              <p className="text-xs text-subtle">Loading…</p>
+            )}
+          </Row>
         </Section>
 
         <Section title="Approvals">

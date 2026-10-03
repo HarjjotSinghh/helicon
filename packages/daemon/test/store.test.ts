@@ -186,6 +186,16 @@ describe("HeliconStore", () => {
     assert.deepEqual(store.setYoloSettings({ enabled: false }), { enabled: false });
   });
 
+  it("keeps feed settings, defaulting to catch-up off", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    assert.deepEqual(store.getFeedSettings(), { catchUp: false });
+    assert.deepEqual(store.setFeedSettings({ catchUp: true }), { catchUp: true });
+    assert.deepEqual(store.getFeedSettings(), { catchUp: true });
+    assert.deepEqual(store.setFeedSettings({}), { catchUp: true }, "an empty patch changes nothing");
+    assert.deepEqual(store.setFeedSettings({ catchUp: false }), { catchUp: false });
+  });
+
   it("records each session's sandbox posture at creation, never on touch", () => {
     const store = new HeliconStore();
     after(() => store.close());
