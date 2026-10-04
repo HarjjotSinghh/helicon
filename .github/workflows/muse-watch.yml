@@ -1,0 +1,52 @@
+name: Muse Code watch
+
+# Every 30 minutes: has Muse Code shipped something new? If so, open a `muse-update` issue with the release
+# notes and any new protocol methods, so Helicon can support it the same day. See scripts/muse-watch.mjs.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: muse-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # What was seen last lives in the Actions cache: each run restores the newest copy and saves its own.
+      - uses: actions/cache/restore@v4
+        with:
+          path: muse-watch-state.json
+          key: muse-watch-${{ github.run_id }}
+          restore-keys: muse-watch-
+      - id: watch
+        run: node scripts/muse-watch.mjs --state muse-watch-state.json --report muse-watch-report.md
+      - uses: actions/cache/save@v4
+        with:
+          path: muse-watch-state.json
+          key: muse-watch-${{ github.run_id }}
+      - name: Open an issue
+        if: steps.watch.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.watch.outputs.title }}
+        run: |
+          gh label create muse-update --color 0e8a16 --description "A new Muse Code release to support" --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+          if gh issue list --repo "$GITHUB_REPOSITORY" --label muse-update --state all --search "\"$TITLE\" in:title" --json title --jq '.[].title' | grep -Fxq "$TITLE"; then
+            echo "Already opened: $TITLE"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --label muse-update --assignee HarjjotSinghh --body-file muse-watch-report.md
+          fi
