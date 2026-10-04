@@ -1,6 +1,6 @@
 import { ISSUES_URL, RELEASES_URL, REPO_URL } from "./site";
 
-export type CtaEvent = "download_click" | "github_click" | "extension_click";
+export type CtaEvent = "download_click" | "github_click" | "extension_click" | "try_click";
 
 export function classifyCta(href: string): {
   event: CtaEvent | null;
@@ -17,6 +17,9 @@ export function classifyCta(href: string): {
   const store = url.startsWith("https://marketplace.visualstudio.com/") ? "vscode-marketplace" : url.startsWith("https://open-vsx.org/") ? "open-vsx" : null;
   if (store) {
     return { event: "extension_click", properties: { store, href: url } };
+  }
+  if (url === "/try" || url.startsWith("/try?") || url.startsWith("https://helicon.sh/try")) {
+    return { event: "try_click", properties: { href: url } };
   }
   if (url.startsWith("#install")) {
     return {

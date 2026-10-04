@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The hosted demo is a static build of the app (apps/web `npm run build:try`) under public/try.
+  async rewrites() {
+    return [{ source: "/try", destination: "/try/index.html" }];
+  },
   // One canonical host: www.helicon.sh permanently redirects to helicon.sh.
   async redirects() {
     return [

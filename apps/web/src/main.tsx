@@ -1,4 +1,4 @@
-import { StrictMode, useState } from "react";
+import { StrictMode, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { HeliconApp, type HeliconClient } from "@helicon/ui";
 import { Connect } from "./Connect.js";
@@ -32,7 +32,15 @@ function hostOptions(): { panel?: { cwd: string | null }; hostTheme?: "light" | 
   };
 }
 
-const host = hostOptions();
+/**
+ * The hosted demo on a phone uses the compact layout built for an editor's side panel: one project, threads
+ * as tabs. The full sidebar layout needs a desktop-width window.
+ */
+function tryOnPhone(): { panel: { cwd: string } } | Record<string, never> {
+  return import.meta.env.VITE_TRY && window.innerWidth < 720 ? { panel: { cwd: "/Users/you/code/api-server" } } : {};
+}
+
+const host = { ...hostOptions(), ...tryOnPhone() };
 
 /**
  * `#/connect` picks the daemon this page talks to. It is read before the app mounts, because the
@@ -67,18 +75,28 @@ function Root({ makeClient }: { makeClient: () => HeliconClient }) {
  * `npm run dev:demo` swaps the server for an in-memory client with sample projects and threads, so
  * the UI can be worked on without muse. The flag is fixed at build time, so release builds drop it.
  */
-async function clientFactory(): Promise<() => HeliconClient> {
+async function clientFactory(): Promise<{ makeClient: () => HeliconClient; banner: ReactNode }> {
   if (import.meta.env.MODE === "demo") {
-    const { DemoClient } = await import("./demo/client.js");
-    return () => new DemoClient();
+    const [{ DemoClient }, { TryBanner }] = await Promise.all([import("./demo/client.js"), import("./demo/TryBanner.js")]);
+    // The hosted demo at helicon.sh/try says what it is and how to get the real app; local demo runs stay bare.
+    return { makeClient: () => new DemoClient(), banner: import.meta.env.VITE_TRY ? <TryBanner /> : null };
   }
-  return () => new WebHeliconClient();
+  return { makeClient: () => new WebHeliconClient(), banner: null };
 }
 
-void clientFactory().then((makeClient) =>
+void clientFactory().then(({ makeClient, banner }) =>
   createRoot(root).render(
     <StrictMode>
-      <Root makeClient={makeClient} />
+      {banner ? (
+        <div className="flex h-full flex-col">
+          {banner}
+          <div className="min-h-0 flex-1">
+            <Root makeClient={makeClient} />
+          </div>
+        </div>
+      ) : (
+        <Root makeClient={makeClient} />
+      )}
     </StrictMode>,
   ),
 );

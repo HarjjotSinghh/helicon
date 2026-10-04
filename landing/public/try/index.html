@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FBFCFE" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101113" />
+    <title>Try Helicon in your browser: the Muse Code desktop app, on sample data</title>
+    <meta name="description" content="Click around the real Helicon interface for Muse Code without installing anything: threads, approvals, diffs, usage and monitors, running on sample data." />
+    <link rel="canonical" href="https://helicon.sh/try" />
+    <link rel="icon" type="image/svg+xml" href="/try/favicon.svg" />
+    <link rel="icon" href="/try/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/try/apple-touch-icon.png" />
+    <script>
+      // Resolve the theme and zoom before first paint so neither flashes its default.
+      (function () {
+        var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var theme = dark ? "dark" : "light";
+        var zoom = 1;
+        try {
+          var prefs = JSON.parse(localStorage.getItem("helicon.prefs.v1") || "{}");
+          if (prefs.theme === "light" || prefs.theme === "dark") theme = prefs.theme;
+          if (typeof prefs.zoom === "number" && isFinite(prefs.zoom)) zoom = prefs.zoom;
+        } catch (e) {}
+        document.documentElement.dataset.theme = theme;
+        if (zoom !== 1 && !("__TAURI_INTERNALS__" in window)) document.documentElement.style.zoom = String(zoom);
+      })();
+    </script>
+    <script type="module" crossorigin src="/try/assets/index-B92zIIMM.js"></script>
+    <link rel="stylesheet" crossorigin href="/try/assets/index-BO4-UEoe.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

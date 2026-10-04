@@ -83,6 +83,15 @@ export function Hero({
           <div>
             <CtaRow placement="hero" ctas={copy.ctas} stars={stars} />
             <p className="mt-3 text-[13px] leading-snug text-muted">
+              <TrackedLink
+                href="/try"
+                placement="hero_try"
+                eventLabel="Try it in your browser"
+                className="font-medium text-accent-text underline-offset-4 hover:underline"
+              >
+                Try it in your browser first
+              </TrackedLink>
+              <span aria-hidden="true"> · </span>
               Unofficial community project. Not affiliated with Meta.
             </p>
           </div>

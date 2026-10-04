@@ -55,5 +55,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|assets/|.*\\.(?:png|svg|ico|txt|xml|webmanifest)$).*)"],
+  // try/ is the static demo build: no Markdown twin, no visitor headers.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|assets/|try(?:/|$)|.*\\.(?:png|svg|ico|txt|xml|webmanifest)$).*)"],
 };

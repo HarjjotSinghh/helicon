@@ -13,6 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // No trailing slash: Next normalises the home canonical to the bare origin, and the two have
     // to be byte identical or Search Console reports the pair as a canonical conflict.
     { url: SITE_URL, lastModified: now, changeFrequency: "weekly", priority: 1 },
+    { url: `${SITE_URL}/try`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
   ];
 
   for (const section of SECTIONS) {
