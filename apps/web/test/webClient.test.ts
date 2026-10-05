@@ -177,6 +177,17 @@ describe("web client", () => {
     assert.deepEqual(JSON.parse(String(patch?.init?.body)), { enabled: true });
   });
 
+  it("imports OMP usage with a bare POST", async () => {
+    const world = browser();
+    const { WebHeliconClient } = await freshClient();
+
+    await new WebHeliconClient().importOmpUsage();
+
+    const posted = world.calls.at(-1);
+    assert.equal(posted?.url, "/api/usage/import-omp");
+    assert.equal(posted?.init?.method, "POST");
+  });
+
   it("rebuilds a stream that has gone quiet", async () => {
     browser();
     const { WebHeliconClient } = await freshClient();

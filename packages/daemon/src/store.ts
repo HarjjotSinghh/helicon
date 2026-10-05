@@ -498,6 +498,12 @@ export class HeliconStore {
       );
   }
 
+  /** True when a call with `key` is already stored, so importers can report only new calls. */
+  hasUsage(key: string): boolean {
+    const row = this.db.prepare(`SELECT 1 AS ok FROM usage WHERE key = ?`).get(key) as Row | undefined;
+    return row !== undefined;
+  }
+
   /** Every recorded call since `since`, newest last, with the thread and project it belongs to. */
   listUsage(since?: string): UsageRow[] {
     const rows = this.db

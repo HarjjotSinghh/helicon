@@ -19,6 +19,7 @@ import {
   type HeliconClient,
   type HeliconEvent,
   type ModelOption,
+  type OmpImportResult,
   type OutputRange,
   type PlanUsage,
   type PlanUsageByAccount,
@@ -207,6 +208,10 @@ export class WebHeliconClient implements HeliconClient {
 
   usage(days?: number): Promise<UsageReport> {
     return call<UsageReport>("GET", `/api/usage${days ? `?days=${days}` : ""}`);
+  }
+
+  importOmpUsage(): Promise<OmpImportResult> {
+    return call<OmpImportResult>("POST", "/api/usage/import-omp");
   }
 
   async runShellProxy(sessionId: string, command: string): Promise<ShellRun> {

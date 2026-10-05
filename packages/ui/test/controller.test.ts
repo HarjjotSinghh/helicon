@@ -196,6 +196,9 @@ class FakeClient implements HeliconClient {
   async usage() {
     return { since: "2026-09-01T00:00:00.000Z", days: 30, buckets: [], threads: [] };
   }
+  async importOmpUsage() {
+    return { files: 0, sessions: 0, calls: 0, skipped: 0 };
+  }
   async runShellProxy(sessionId: string, command: string) {
     this.actions.push(`shell-proxy:${command}`);
     return {

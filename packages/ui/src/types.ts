@@ -370,6 +370,14 @@ export interface UsageReport {
   threads: UsageThread[];
 }
 
+/** What one OMP `muse-code` usage import scanned and recorded. */
+export interface OmpImportResult {
+  files: number;
+  sessions: number;
+  calls: number;
+  skipped: number;
+}
+
 /** A view notification, live or paged from history. `at` is the emission time when known. */
 export interface ViewEvent {
   method: string;

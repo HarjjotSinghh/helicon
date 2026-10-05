@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from "../ui/icons.js";
+import { ArrowLeftIcon, DownloadSimpleIcon } from "../ui/icons.js";
 import { useEffect, useMemo, useState } from "react";
 import { useApp, useController } from "../../app/context.js";
 import { useOverlayDragProps } from "../../app/frame.js";
@@ -42,6 +42,30 @@ export function UsagePage() {
   const [days, setDays] = useState<number>(30);
   const [report, setReport] = useState<UsageReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importNote, setImportNote] = useState<string | null>(null);
+
+  async function runOmpImport() {
+    if (importing) {
+      return;
+    }
+    setImporting(true);
+    setImportNote(null);
+    try {
+      const result = await controller.importOmpUsage();
+      setImportNote(
+        result.calls === 0
+          ? "No new OMP usage found."
+          : `Imported ${result.calls} call${result.calls === 1 ? "" : "s"} from ${result.sessions} OMP session${result.sessions === 1 ? "" : "s"}.`,
+      );
+      setReport(await controller.usageReport(days));
+      setError(null);
+    } catch (failure: unknown) {
+      setImportNote(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setImporting(false);
+    }
+  }
 
   useEffect(() => {
     let live = true;
@@ -72,7 +96,15 @@ export function UsagePage() {
           <h1 className="text-lg font-semibold text-fg">Usage</h1>
           <p className="text-pretty text-xs text-muted">What these threads would have cost billed per token, not what your plan charged.</p>
         </div>
-        <div className="flex w-full shrink-0 items-center gap-1 overflow-x-auto rounded-lg bg-sunken p-0.5 @min-[520px]:ml-auto @min-[520px]:w-auto">
+        <div className="flex shrink-0 items-center gap-2 @min-[520px]:ml-auto">
+          {importNote ? <span className="max-w-[220px] truncate text-2xs text-subtle">{importNote}</span> : null}
+          <Tip label="Import OMP sessions that used the muse-code provider" side="bottom">
+            <Button size="sm" variant="ghost" loading={importing} onClick={() => void runOmpImport()}>
+              <DownloadSimpleIcon size={14} /> Import OMP
+            </Button>
+          </Tip>
+        </div>
+        <div className="flex w-full shrink-0 items-center gap-1 overflow-x-auto rounded-lg bg-sunken p-0.5 @min-[520px]:w-auto">
           {USAGE_RANGES.map((range) => (
             <button
               key={range.days}
