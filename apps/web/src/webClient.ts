@@ -240,7 +240,7 @@ export class WebHeliconClient implements HeliconClient {
     return call<TranscriptLoad>("POST", `/api/sessions/${enc(sessionId)}/resume`, {});
   }
 
-  async updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<SessionSummary | null> {
+  async updateSession(sessionId: string, patch: { title?: string; archived?: boolean; settled?: boolean; pinned?: boolean }): Promise<SessionSummary | null> {
     return (await call<{ session: SessionSummary | null }>("PATCH", `/api/sessions/${enc(sessionId)}`, patch)).session;
   }
 

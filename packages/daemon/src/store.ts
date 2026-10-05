@@ -36,6 +36,8 @@ export interface SessionRecord {
   settledOverride: SettledOverride | null;
   settledAt: string | null;
   unsettledAt: string | null;
+  /** Pinned to the top of its project's thread list. */
+  pinned: boolean;
   /** Sandbox posture at creation: null for sessions recorded before tracking. */
   sandboxDisabled: boolean | null;
   /** The aonia profile a session was created under; null for the default login. Set once, never changed. */
@@ -79,6 +81,7 @@ export interface SessionPatch {
   settledOverride?: SettledOverride | null;
   settledAt?: string | null;
   unsettledAt?: string | null;
+  pinned?: boolean;
 }
 
 export const PLACEHOLDER_TITLE = "New thread";
@@ -219,6 +222,7 @@ const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   // NULL = the default Muse login, i.e. today's behaviour; only sessions started under a profile carry an id.
   { table: "sessions", column: "account_id", ddl: "ALTER TABLE sessions ADD COLUMN account_id TEXT" },
   { table: "projects", column: "default_account_id", ddl: "ALTER TABLE projects ADD COLUMN default_account_id TEXT" },
+  { table: "sessions", column: "pinned", ddl: "ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0" },
 ];
 
 type Row = Record<string, string | number | null>;
@@ -724,6 +728,10 @@ export class HeliconStore {
       sets.push("unsettled_at = ?");
       values.push(patch.unsettledAt);
     }
+    if (patch.pinned !== undefined) {
+      sets.push("pinned = ?");
+      values.push(patch.pinned ? 1 : 0);
+    }
     if (sets.length > 0) {
       sets.push("updated_at = ?");
       values.push(nowIso());
@@ -732,12 +740,12 @@ export class HeliconStore {
     return this.getSession(id);
   }
 
-  /** Visible threads with no settle choice whose last activity is older than `before`. */
+  /** Visible threads with no settle choice whose last activity is older than `before`; pinned threads stay put. */
   listSettleCandidates(before: string): SessionRecord[] {
     const rows = this.db
       .prepare(
         `SELECT * FROM sessions
-         WHERE settled_override IS NULL AND archived = 0 AND COALESCE(activity_at, updated_at) < ?`,
+         WHERE settled_override IS NULL AND archived = 0 AND pinned = 0 AND COALESCE(activity_at, updated_at) < ?`,
       )
       .all(before) as Row[];
     return rows.map((row) => this.toSession(row));
@@ -821,6 +829,7 @@ export class HeliconStore {
       settledOverride: row["settled_override"] === "settled" || row["settled_override"] === "active" ? row["settled_override"] : null,
       settledAt: row["settled_at"] === null || row["settled_at"] === undefined ? null : String(row["settled_at"]),
       unsettledAt: row["unsettled_at"] === null || row["unsettled_at"] === undefined ? null : String(row["unsettled_at"]),
+      pinned: Number(row["pinned"] ?? 0) === 1,
       sandboxDisabled: row["sandbox_disabled"] === null || row["sandbox_disabled"] === undefined ? null : Number(row["sandbox_disabled"]) === 1,
       accountId: row["account_id"] === null || row["account_id"] === undefined ? null : String(row["account_id"]),
     };

@@ -36,7 +36,10 @@ export function CommandPalette() {
   const now = useNow(60_000, open);
 
   const sorted = useMemo(
-    () => Object.values(sessions).sort((a, b) => (a.activityAt < b.activityAt ? 1 : -1)),
+    () =>
+      Object.values(sessions).sort((a, b) =>
+        a.pinned !== b.pinned ? (a.pinned ? -1 : 1) : a.activityAt < b.activityAt ? 1 : -1,
+      ),
     [sessions],
   );
 

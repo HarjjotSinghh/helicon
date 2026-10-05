@@ -229,4 +229,24 @@ describe("HeliconStore", () => {
     store.setDefaultAccount("/work/proj", null);
     assert.equal(store.listProjects().find((p) => p.cwd === "/work/proj")?.defaultAccountId, null);
   });
+
+  it("pins threads and keeps them out of auto-settle", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/proj");
+    store.recordSession({ id: "s1", projectId: project.id, activityAt: "2026-01-01T00:00:00.000Z" });
+    store.recordSession({ id: "s2", projectId: project.id, activityAt: "2026-01-01T00:00:00.000Z" });
+    assert.equal(store.getSession("s1")?.pinned, false);
+    store.updateSession("s1", { pinned: true });
+    assert.equal(store.getSession("s1")?.pinned, true);
+    assert.deepEqual(
+      store.listSettleCandidates("2026-06-01T00:00:00.000Z").map((s) => s.id),
+      ["s2"],
+    );
+    store.updateSession("s1", { pinned: false });
+    assert.deepEqual(
+      store.listSettleCandidates("2026-06-01T00:00:00.000Z").map((s) => s.id).sort(),
+      ["s1", "s2"],
+    );
+  });
 });

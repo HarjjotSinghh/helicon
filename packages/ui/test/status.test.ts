@@ -21,6 +21,7 @@ function session(id: string, patch: Partial<SessionSummary> = {}, live: Partial<
     settled: false,
     settledAt: null,
     unsettledAt: null,
+    pinned: false,
     sandboxDisabled: false,
     accountId: null,
     live: live
@@ -89,5 +90,37 @@ describe("sidebar grouping", () => {
     assert.deepEqual(groups[0]?.entries.map((e) => e.session.sessionId), ["woken"]);
     assert.deepEqual(groups[2]?.entries.map((e) => e.session.sessionId), ["back", "old", "other", "hidden-project"]);
     assert.deepEqual(settledEntries(entries).map((e) => e.session.sessionId), ["shelved", "shelved-earlier"]);
+  });
+
+  it("groups pinned threads above the rest, in the same stable order", () => {
+    const pinned: SidebarEntry[] = [
+      { session: session("first", { createdAt: "2026-09-04T00:00:00.000Z" }), status: "idle" },
+      { session: session("pinned-old", { createdAt: "2026-09-01T00:00:00.000Z", pinned: true }), status: "idle" },
+      { session: session("pinned-new", { createdAt: "2026-09-02T00:00:00.000Z", pinned: true }), status: "idle" },
+    ];
+    const groups = groupByProject(projects, pinned);
+    assert.deepEqual(groups[0]?.entries.map((e) => e.session.sessionId), ["pinned-new", "pinned-old", "first"]);
+    // Unpinning returns each thread to its stable place.
+    const unpinned = pinned.map((e) => ({ ...e, session: { ...e.session, pinned: false } }));
+    assert.deepEqual(groupByProject(projects, unpinned)[0]?.entries.map((e) => e.session.sessionId), ["first", "pinned-new", "pinned-old"]);
+  });
+
+  it("shelves a settled thread even when it is pinned", () => {
+    const shelved: SidebarEntry[] = [
+      { session: session("kept", { createdAt: "2026-09-01T00:00:00.000Z", pinned: true }), status: "idle" },
+      { session: session("shelved-pin", { createdAt: "2026-09-04T00:00:00.000Z", pinned: true, settled: true, settledAt: "2026-09-05T00:00:00.000Z" }), status: "idle" },
+    ];
+    const groups = groupByProject(projects, shelved);
+    assert.deepEqual(groups[0]?.entries.map((e) => e.session.sessionId), ["kept"]);
+    assert.deepEqual(groups[0]?.settled.map((e) => e.session.sessionId), ["shelved-pin"]);
+  });
+
+  it("lists pinned threads first within each status group", () => {
+    const mixed: SidebarEntry[] = [
+      { session: session("plain", { createdAt: "2026-09-04T00:00:00.000Z" }), status: "idle" },
+      { session: session("starred", { createdAt: "2026-09-01T00:00:00.000Z", pinned: true }), status: "idle" },
+    ];
+    const groups = groupByStatus(mixed);
+    assert.deepEqual(groups[0]?.entries.map((e) => e.session.sessionId), ["starred", "plain"]);
   });
 });

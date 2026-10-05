@@ -21,6 +21,7 @@ const SESSION: SessionSummary = {
   settled: false,
   settledAt: null,
   unsettledAt: null,
+  pinned: false,
   sandboxDisabled: false,
   accountId: null,
   live: null,
@@ -1910,6 +1911,28 @@ describe("HeliconController", () => {
     await controller.archive("s1");
     controller.goBack();
     assert.deepEqual(controller.store.get().route, { kind: "home" });
+    stop();
+  });
+
+  it("pins and unpins a thread, restoring it when the save fails", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    const patches: unknown[] = [];
+    client.updateSession = async (_sessionId?: string, patch?: { pinned?: boolean }) => {
+      patches.push(patch);
+      return { ...SESSION, ...patch };
+    };
+    await controller.toggleThreadPin("s1");
+    assert.equal(controller.store.get().sessions["s1"]?.pinned, true);
+    assert.deepEqual(patches, [{ pinned: true }]);
+    await controller.toggleThreadPin("s1");
+    assert.equal(controller.store.get().sessions["s1"]?.pinned, false);
+    client.updateSession = async () => {
+      throw new Error("daemon away");
+    };
+    await controller.toggleThreadPin("s1");
+    assert.equal(controller.store.get().sessions["s1"]?.pinned, false, "a failed pin rolls back");
+    assert.ok(controller.store.get().toasts.some((t) => t.tone === "error"));
     stop();
   });
 });

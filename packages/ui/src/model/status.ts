@@ -81,8 +81,12 @@ export function isSettled(entry: SidebarEntry): boolean {
 /**
  * Active threads keep a stable order, newest first by when they started or were brought back.
  * Activity never reshuffles them, as in T3 Code; settling and auto-settle keep the list short.
+ * Pinned threads group above the rest, in the same stable order among themselves.
  */
 function activeOrder(a: SidebarEntry, b: SidebarEntry): number {
+  if (a.session.pinned !== b.session.pinned) {
+    return a.session.pinned ? -1 : 1;
+  }
   const keyA = later(a.session.unsettledAt, a.session.createdAt);
   const keyB = later(b.session.unsettledAt, b.session.createdAt);
   return keyA < keyB ? 1 : keyA > keyB ? -1 : 0;
