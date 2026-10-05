@@ -108,6 +108,11 @@ export interface Prefs {
   /** A finished turn's steps stay listed instead of folding into one line; for reading with a screen reader. */
   expandWork: boolean;
   /**
+   * While a turn is running, Enter steers the turn instead of queueing behind it; Cmd/Ctrl+Enter
+   * queues instead. Off by default, so Enter queues unless the user opts in.
+   */
+  steerByDefault: boolean;
+  /**
    * Approval modes from before YOLO was armed, survived across a reload so switching YOLO off still
    * restores them instead of falling back to onRequest. Null when YOLO has never been armed here.
    */
@@ -164,6 +169,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     lastSeenVersion: null,
     showTelemetry: false,
     expandWork: false,
+    steerByDefault: false,
     preYolo: null,
   };
 }
@@ -379,6 +385,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     lastSeenVersion: pick("lastSeenVersion", (v) => v === null || typeof v === "string"),
     showTelemetry: pick("showTelemetry", (v) => typeof v === "boolean"),
     expandWork: pick("expandWork", (v) => typeof v === "boolean"),
+    steerByDefault: pick("steerByDefault", (v) => typeof v === "boolean"),
     preYolo: pick("preYolo", isPreYolo),
   };
 }
