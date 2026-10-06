@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.1
+
+### Changed
+
+- **Up to date with Muse Code 1.4.** Helicon now uses version 1.4.2 of the Muse Code SDK; it was still on 0.1. It speaks the same protocol version as current Muse Code releases, so the protocol mismatch warning no longer appears.
+
 ## 0.21.0
 
 ### Changed
