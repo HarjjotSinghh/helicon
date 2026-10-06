@@ -107,6 +107,8 @@ export interface Prefs {
   showTelemetry: boolean;
   /** A finished turn's steps stay listed instead of folding into one line; for reading with a screen reader. */
   expandWork: boolean;
+  /** The sidebar card saying Helicon also runs as an editor extension was closed, so it stays away. */
+  editorTipDismissed: boolean;
   /**
    * Approval modes from before YOLO was armed, survived across a reload so switching YOLO off still
    * restores them instead of falling back to onRequest. Null when YOLO has never been armed here.
@@ -164,6 +166,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     lastSeenVersion: null,
     showTelemetry: false,
     expandWork: false,
+    editorTipDismissed: false,
     preYolo: null,
   };
 }
@@ -379,6 +382,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     lastSeenVersion: pick("lastSeenVersion", (v) => v === null || typeof v === "string"),
     showTelemetry: pick("showTelemetry", (v) => typeof v === "boolean"),
     expandWork: pick("expandWork", (v) => typeof v === "boolean"),
+    editorTipDismissed: pick("editorTipDismissed", (v) => typeof v === "boolean"),
     preYolo: pick("preYolo", isPreYolo),
   };
 }

@@ -97,6 +97,11 @@ export function setEditorHosted(hosted: boolean): void {
   editorHosted = hosted;
 }
 
+/** Whether an editor frames the page, so nothing needs to point the user at the editor extension. */
+export function isEditorHosted(): boolean {
+  return editorHosted;
+}
+
 /**
  * Copies text. Inside an editor's webview the browser clipboard is blocked for framed pages, so
  * the editor copies it instead; elsewhere this is the ordinary clipboard API.

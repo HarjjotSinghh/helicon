@@ -1,6 +1,7 @@
-import { copyText } from "../../app/host.js";
+import { copyText, isEditorHosted } from "../../app/host.js";
+import { usePanel } from "../../app/panel.js";
 import { ArchiveIcon, ArrowClockwiseIcon, ArrowLineDownIcon, ArrowUUpLeftIcon, ArrowsClockwiseIcon, CaretRightIcon, ChartBarIcon, CheckIcon, CodeIcon, CopyIcon, DotsThreeIcon, DownloadSimpleIcon, FolderIcon, FolderOpenIcon, FolderPlusIcon, FunnelSimpleIcon, GearSixIcon, GitBranchIcon, MagnifyingGlassIcon, MonitorIcon, MoonIcon, NotePencilIcon, PauseIcon, PencilSimpleIcon, PlayIcon, PushPinIcon, PushPinSlashIcon, ShieldSlashIcon, SidebarSimpleIcon, StackIcon, SunIcon, TargetIcon, XIcon } from "../ui/icons.js";
-import { memo, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { memo, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref, type RefObject } from "react";
 import { shallowEqual, useApp, useController, useNow } from "../../app/context.js";
 import { useOverlayDragProps, useTitlebarOverlay } from "../../app/frame.js";
 import { basename, formatElapsed, relativeTime } from "../../model/format.js";
@@ -48,6 +49,9 @@ function projectUnderPoint(x: number, y: number): string | null {
 export function Sidebar() {
   const width = useApp((s) => s.prefs.sidebarWidth);
   const overlay = useTitlebarOverlay();
+  // The New thread row, where focus goes when a card that held it closes; the sidebar is outside the main
+  // area, so the FocusKeeper has no composer to fall back to here.
+  const newThreadRef = useRef<HTMLButtonElement>(null);
   return (
     <aside
       aria-label="Sidebar"
@@ -55,8 +59,9 @@ export function Sidebar() {
       style={{ width }}
     >
       {overlay ? <TrafficLightsSlot /> : null}
-      <SidebarTop />
+      <SidebarTop newThreadRef={newThreadRef} />
       <ThreadList />
+      <EditorExtensionCard focusAfter={newThreadRef} />
       <SidebarFooter />
       <ResizeHandle />
     </aside>
@@ -72,7 +77,7 @@ function TrafficLightsSlot() {
   return <div data-drag-region {...drag} aria-hidden="true" className="h-10 shrink-0" />;
 }
 
-function SidebarTop() {
+function SidebarTop(props: { newThreadRef: RefObject<HTMLButtonElement> }) {
   const controller = useController();
   const routeKind = useApp((s) => s.route.kind);
   const drag = useOverlayDragProps();
@@ -89,6 +94,7 @@ function SidebarTop() {
         </Tip>
       </div>
       <NavRow
+        buttonRef={props.newThreadRef}
         icon={<NotePencilIcon size={15} />}
         label="New thread"
         keys={NEW_THREAD_KEYS}
@@ -100,9 +106,17 @@ function SidebarTop() {
   );
 }
 
-function NavRow(props: { icon: ReactNode; label: string; keys: string[]; active?: boolean; onClick: () => void }) {
+function NavRow(props: {
+  icon: ReactNode;
+  label: string;
+  keys: string[];
+  active?: boolean;
+  onClick: () => void;
+  buttonRef?: Ref<HTMLButtonElement>;
+}) {
   return (
     <button
+      ref={props.buttonRef}
       type="button"
       onClick={props.onClick}
       aria-current={props.active ? "page" : undefined}
@@ -801,6 +815,65 @@ function GroupByMenu() {
         </MenuRadioGroup>
       </MenuContent>
     </Menu>
+  );
+}
+
+/** Where the extension is listed: the VS Code Marketplace, and Open VSX for Cursor, Windsurf and the other forks. */
+const EXTENSION_LINKS = [
+  { label: "VS Code", href: "https://marketplace.visualstudio.com/items?itemName=harjjotsinghh.helicon" },
+  { label: "Cursor / Windsurf", href: "https://open-vsx.org/extension/harjjotsinghh/helicon" },
+] as const;
+
+/**
+ * A quiet note above the footer that Helicon also runs as an editor side panel, shown until it is closed.
+ * It stays out of the editor itself, where it would be pointing at the panel it is in, and out of a first
+ * launch with no threads yet, where the user has enough to take in. It appears in the same render as the
+ * thread list it sits under, so nothing above it moves once the list is up.
+ */
+function EditorExtensionCard(props: { focusAfter: RefObject<HTMLButtonElement> }) {
+  const controller = useController();
+  const panel = usePanel();
+  const dismissed = useApp((s) => s.prefs.editorTipDismissed);
+  const hasThreads = useApp((s) => s.sessionsLoaded && Object.keys(s.sessions).length > 0);
+  const card = useRef<HTMLElement>(null);
+  if (panel || isEditorHosted() || dismissed || !hasThreads) {
+    return null;
+  }
+  const dismiss = () => {
+    // Focus moves before the card goes, so it lands on New thread rather than the top of the page.
+    if (card.current?.contains(document.activeElement)) {
+      props.focusAfter.current?.focus({ preventScroll: true });
+    }
+    controller.setPrefs({ editorTipDismissed: true });
+  };
+  return (
+    <div className="shrink-0 px-2 pb-2">
+      <section ref={card} aria-label="Editor extension" className="relative rounded-xl bg-raised py-2.5 pr-8 pl-3 shadow-card">
+        <p className="flex items-center gap-1.5 text-xs font-medium text-fg">
+          <CodeIcon size={13} className="shrink-0 text-subtle" aria-hidden="true" />
+          Helicon is in your editor too
+        </p>
+        <p className="mt-0.5 text-xs leading-relaxed text-muted">A side panel for VS Code, Cursor and Windsurf, with the same threads.</p>
+        <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+          {EXTENSION_LINKS.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="rounded-sm font-medium text-accent-text underline-offset-2 hover:underline"
+            >
+              {link.label}
+            </a>
+          ))}
+        </p>
+        <Tip label="Dismiss">
+          <IconButton size="xs" label="Dismiss" onClick={dismiss} className="absolute top-1.5 right-1.5">
+            <XIcon size={12} />
+          </IconButton>
+        </Tip>
+      </section>
+    </div>
   );
 }
 
