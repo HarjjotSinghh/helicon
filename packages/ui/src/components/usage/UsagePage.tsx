@@ -2,7 +2,7 @@ import { ArrowLeftIcon } from "../ui/icons.js";
 import { useEffect, useMemo, useState } from "react";
 import { useApp, useController } from "../../app/context.js";
 import { useOverlayDragProps } from "../../app/frame.js";
-import { basename, formatDuration, formatTokens, modelDisplayName, relativeTime } from "../../model/format.js";
+import { basename, formatDuration, formatTokens, modelDisplayName, plural, relativeTime } from "../../model/format.js";
 import { costOf, formatCost, listedPrice, type TokenPrice } from "../../model/pricing.js";
 import { fillUsageDays, rangeLabel, USAGE_RANGES } from "../../model/usage-range.js";
 import type { ModelOption, UsageBucket, UsageReport, UsageThread } from "../../types.js";
@@ -274,7 +274,11 @@ function Totals(props: { view: UsageView }) {
       <Card
         label="Cost at API rates"
         value={formatCost(view.cost, view.currency)}
-        detail={view.unpriced > 0 ? `${view.unpriced} calls have no published price` : `${view.calls} model calls`}
+        detail={
+          view.unpriced > 0
+            ? `${plural(view.unpriced, "call", "calls")} ${view.unpriced === 1 ? "has" : "have"} no published price`
+            : plural(view.calls, "model call", "model calls")
+        }
       />
       <Card label="Input tokens" value={formatTokens(view.promptTokens)} detail={`${formatTokens(view.cachedTokens)} served from cache`} />
       <Card
@@ -358,7 +362,7 @@ function Models(props: { view: UsageView }) {
               />
             </div>
             <p className="text-2xs text-subtle tabular-nums">
-              {model.calls} calls · {formatTokens(model.promptTokens)} in ({formatTokens(model.cachedTokens)} cached) ·{" "}
+              {plural(model.calls, "call", "calls")} · {formatTokens(model.promptTokens)} in ({formatTokens(model.cachedTokens)} cached) ·{" "}
               {formatTokens(model.outputTokens)} out
               {model.price
                 ? ` · ${formatCost(model.price.input, view.currency)}/M in, ${formatCost(model.price.output, view.currency)}/M out`
@@ -392,7 +396,7 @@ function Threads(props: { view: UsageView }) {
                 <p className="truncate text-sm text-fg">{thread.title ?? "New thread"}</p>
                 <p className="truncate text-2xs text-subtle tabular-nums">
                   {thread.cwd ? `${basename(thread.cwd)} · ` : ""}
-                  {thread.calls} calls · {formatTokens(thread.promptTokens + thread.outputTokens)} tokens · {relativeTime(thread.lastAt)}
+                  {plural(thread.calls, "call", "calls")} · {formatTokens(thread.promptTokens + thread.outputTokens)} tokens · {relativeTime(thread.lastAt)}
                 </p>
               </div>
               <span className="shrink-0 text-sm text-fg tabular-nums">{formatCost(thread.cost, view.currency)}</span>
