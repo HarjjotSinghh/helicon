@@ -1,8 +1,23 @@
 import type { SeoPage } from "../types";
+import { OPEN_VSX_URL, VSCODE_MARKETPLACE_URL } from "../../site";
 
 /** Task pages. One per "how do I ..." query, each carrying HowTo schema where the task has steps. */
 
 const UPDATED = "2026-09-19";
+
+/** The editor guides share these facts with /install/vscode. Sourced from apps/vscode. */
+const EDITOR_GUIDES_UPDATED = "2026-10-06";
+const EXTENSIONS_JSON = '{ "recommendations": ["harjjotsinghh.helicon"] }';
+const EXTENSION_FEATURES = [
+  "Threads as tabs: the threads you have open in this folder sit across the top of the panel.",
+  "Approvals you can read: the exact command or edit before it runs, then allow or deny it.",
+  "The files each thread changed, with line counts, one click from opening in the editor.",
+  "History: every earlier thread in the folder, searchable and grouped by day, including the ones you started in the terminal.",
+  "Monitors: a thread that is watching a build or a pull request's checks says so, with a Stop button.",
+  "Plan usage: your 5-hour and weekly windows, and what each thread would have cost at API rates.",
+];
+const UNOFFICIAL_NOTE =
+  "Helicon is an unofficial community project, not affiliated with or endorsed by Meta. Muse Code is a trademark of Meta, used here only to say what Helicon works with.";
 
 export const GUIDE_PAGES: SeoPage[] = [
   {
@@ -353,7 +368,317 @@ export const GUIDE_PAGES: SeoPage[] = [
         a: "0.18.0 or newer.",
       },
     ],
-    related: ["guides/remote-daemon-setup", "features/remote-daemon", "use-cases/remote-development"],
+    related: ["guides/remote-daemon-setup", "features/remote-daemon", "use-cases/remote-development", "guides/muse-code-in-vscode"],
+  },
+  {
+    slug: "guides/muse-code-in-vscode",
+    icon: "code",
+    section: "guides",
+    label: "Muse Code in VS Code",
+    title: "How to use Muse Code in VS Code, with a side panel",
+    h1: "Use Muse Code inside VS Code",
+    description:
+      "Run Muse Code in a VS Code side panel with Helicon: threads as tabs, approvals you can read, and the files each thread changed. Uses your own muse login.",
+    answer:
+      "Install the Helicon extension from the VS Code Marketplace, sign in to the muse CLI once with muse login, then click the Helicon icon in the activity bar or press Cmd+Alt+H (Ctrl+Alt+H on Windows and Linux). Helicon is an unofficial side panel that drives the muse CLI you already have, on your own Muse Code plan.",
+    keywords: [
+      "muse code vscode",
+      "muse code in vs code",
+      "how to use muse code in vscode",
+      "muse code vscode extension",
+      "muse code gui in vscode",
+      "muse code vs code side panel",
+      "muse code extension",
+    ],
+    updated: EDITOR_GUIDES_UPDATED,
+    ogEyebrow: "Muse Code in VS Code",
+    blocks: [
+      { kind: "h2", text: "What the Helicon extension is" },
+      {
+        kind: "p",
+        text: "Helicon is an unofficial, open source side panel for the muse CLI. It does not replace Muse Code. It runs `muse serve` for the folder you have open and gives you a GUI over it, so the models, tools and approval rules are the ones you already get in the terminal.",
+      },
+      { kind: "ul", items: EXTENSION_FEATURES },
+      { kind: "note", text: UNOFFICIAL_NOTE },
+      { kind: "h2", text: "What you need first" },
+      {
+        kind: "ul",
+        items: [
+          "The muse CLI, installed and signed in once with `muse login`. The extension uses that login and never asks for an API key.",
+          "A Muse Code plan, or pay-as-you-go billing on Meta's Model API. The free Muse app doesn't include Muse Code.",
+          "VS Code 1.101 or later. The extension runs on the editor's own Node runtime and needs Node 22 or newer.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "If `muse --version` does not answer in a terminal, fix that first. [The muse CLI not found guide](/guides/muse-cli-not-found) covers the usual causes.",
+      },
+      { kind: "h2", text: "Install it from the Extensions view" },
+      {
+        kind: "ol",
+        items: [
+          "Open the Extensions view with `Cmd+Shift+X` on macOS or `Ctrl+Shift+X` on Windows and Linux.",
+          "Search for \"Helicon\".",
+          "Pick Helicon by harjjotsinghh and click Install.",
+        ],
+      },
+      {
+        kind: "p",
+        text: `You can also install it from the [VS Code Marketplace](${VSCODE_MARKETPLACE_URL}) in a browser, or from a terminal:`,
+      },
+      { kind: "code", lang: "sh", code: "code --install-extension harjjotsinghh.helicon" },
+      {
+        kind: "p",
+        text: `VSCodium and other editors that use Open VSX get the same extension from [Open VSX](${OPEN_VSX_URL}). For Cursor, Windsurf and Antigravity, see [Muse Code in Cursor](/guides/muse-code-in-cursor).`,
+      },
+      { kind: "h2", text: "Open the panel" },
+      {
+        kind: "p",
+        text: "Click the Helicon icon in the activity bar, or press `Cmd+Alt+H` on macOS or `Ctrl+Alt+H` on Windows and Linux. The panel opens on the folder you have open. Type what you want changed in the composer at the bottom. New threads open as tabs, and the clock icon shows every earlier thread in the folder.",
+      },
+      {
+        kind: "p",
+        text: "Drag the panel to the right-hand side bar if you prefer it there. If the divider line then sits on the wrong edge, set `helicon.panelBorder` to `left` or `right`.",
+      },
+      {
+        kind: "p",
+        text: "For every project at once, run **Helicon: Open Full Helicon in Editor** from the Command Palette. It opens the full app, sidebar and all, in an editor tab.",
+      },
+      {
+        kind: "table",
+        head: ["Command", "What it does"],
+        rows: [
+          ["Helicon: Open Helicon", "Show the Helicon panel (`Cmd+Alt+H` / `Ctrl+Alt+H`)"],
+          ["Helicon: New Thread", "Start a new thread in the panel"],
+          ["Helicon: Open Full Helicon in Editor", "The full app, with every project, in an editor tab"],
+          ["Helicon: New Thread in This Folder", "From the Explorer's right-click menu: start a thread in any folder"],
+          ["Helicon: Open in Browser", "Open the same session in your browser"],
+          ["Helicon: Restart Server", "Restart the local server"],
+          ["Helicon: Show Log", "Server output, for bug reports"],
+        ],
+      },
+      { kind: "h2", text: "Remote-SSH, WSL and dev containers" },
+      {
+        kind: "p",
+        text: "In a Remote-SSH, WSL or dev container window, the extension runs on the remote side, next to your code and its muse install. VS Code forwards the port for you, so the panel works the same way it does locally.",
+      },
+      {
+        kind: "ul",
+        items: [
+          "Install the muse CLI on the remote machine, or inside the WSL distribution, and run `muse login` there once.",
+          "The Muse login on the remote side is the one the panel uses.",
+          "Check with `muse --version` in VS Code's integrated terminal, which already runs on the remote side.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "To reach a server from the desktop app instead of the editor, see [Muse Code over SSH](/guides/muse-code-over-ssh).",
+      },
+      { kind: "h2", text: "Recommend it to your team" },
+      {
+        kind: "p",
+        text: "Add Helicon to the repository's `.vscode/extensions.json`. VS Code then suggests it to anyone who opens the folder without it installed.",
+      },
+      { kind: "code", lang: "json", code: EXTENSIONS_JSON },
+      {
+        kind: "p",
+        text: "The ID is the same on the VS Code Marketplace and on Open VSX, so the same file works for teammates on Cursor, Windsurf and Antigravity. Each person still needs their own muse CLI, `muse login` and Muse Code plan.",
+      },
+      { kind: "h2", text: "Try it before you install" },
+      {
+        kind: "p",
+        text: "[Try the full app in your browser](https://helicon.sh/try) first. It runs on sample data, so nothing needs to be installed and no Muse login is involved.",
+      },
+    ],
+    howTo: {
+      name: "Use Muse Code in VS Code with Helicon",
+      steps: [
+        { name: "Install and sign in to the muse CLI", text: "The extension uses this login and stores no credentials of its own.", code: "muse login" },
+        {
+          name: "Install the Helicon extension",
+          text: "Search \"Helicon\" in the Extensions view, or install it from the VS Code Marketplace.",
+          code: "code --install-extension harjjotsinghh.helicon",
+        },
+        { name: "Open your project folder", text: "The panel works on the folder you have open." },
+        { name: "Open the panel", text: "Click the Helicon icon in the activity bar, or press Cmd+Alt+H (Ctrl+Alt+H on Windows and Linux)." },
+        { name: "Start a thread", text: "Type what you want changed in the composer at the bottom of the panel." },
+      ],
+    },
+    faqs: [
+      {
+        q: "Is Helicon an official Muse Code extension?",
+        a: "No. Helicon is an unofficial community project, MIT licensed, and not affiliated with or endorsed by Meta. It drives the muse CLI you already have.",
+      },
+      {
+        q: "Does it work with the free Muse app?",
+        a: "No. Muse Code needs a Muse Code plan or pay-as-you-go billing on Meta's Model API, and the free Muse app doesn't include it. The extension itself is free.",
+      },
+      {
+        q: "Do I need an API key?",
+        a: "No. The extension uses the login from `muse login` and stores no credentials of its own.",
+      },
+      {
+        q: "Does it send my code anywhere?",
+        a: "No. The local server binds to 127.0.0.1 only and talks to `muse serve`. Nothing is sent anywhere except to Muse Code itself, and the extension has no telemetry.",
+      },
+      {
+        q: "Do I need the desktop app too?",
+        a: "No. The extension carries its own copy of Helicon. You can use both, and they keep separate lists of projects.",
+      },
+    ],
+    related: ["install/vscode", "guides/muse-code-in-cursor", "guides/muse-code-over-ssh", "guides/muse-cli-not-found", "compare/vs-code-extension"],
+  },
+  {
+    slug: "guides/muse-code-in-cursor",
+    icon: "cursor",
+    section: "guides",
+    label: "Muse Code in Cursor",
+    title: "How to use Muse Code in Cursor, Windsurf and Antigravity",
+    h1: "Use Muse Code inside Cursor",
+    description:
+      "Cursor, Windsurf and Antigravity install Helicon from Open VSX: a Muse Code side panel with threads as tabs, readable approvals and the files each thread changed.",
+    answer:
+      "Open the Extensions view in Cursor, search for Helicon and install it. Cursor, Windsurf and Antigravity install extensions from Open VSX, where Helicon is published under the same ID as on the VS Code Marketplace. Sign in once with muse login, then press Cmd+Alt+H (Ctrl+Alt+H) to open the panel next to Cursor's own agent.",
+    keywords: [
+      "muse code cursor",
+      "use muse code in cursor",
+      "muse code cursor extension",
+      "muse code windsurf",
+      "muse code antigravity",
+      "muse code open vsx",
+    ],
+    updated: EDITOR_GUIDES_UPDATED,
+    ogEyebrow: "Muse Code in Cursor",
+    blocks: [
+      { kind: "h2", text: "What the Helicon extension is" },
+      {
+        kind: "p",
+        text: "Helicon is an unofficial, open source side panel for the muse CLI. It runs `muse serve` for the folder you have open and gives you a GUI over it, so Muse Code stays the agent with the same models, tools and approval rules as in the terminal.",
+      },
+      { kind: "ul", items: EXTENSION_FEATURES },
+      { kind: "note", text: UNOFFICIAL_NOTE },
+      { kind: "h2", text: "Why Cursor installs it from Open VSX" },
+      {
+        kind: "p",
+        text: "Cursor, Windsurf and Antigravity install extensions from Open VSX, an open registry for VS Code extensions, rather than from the VS Code Marketplace. Helicon is published to both. Every release ships the same build under the same ID, `harjjotsinghh.helicon`, so Cursor gets the same version as VS Code.",
+      },
+      {
+        kind: "table",
+        head: ["Editor", "Installs Helicon from"],
+        rows: [
+          ["Cursor", `[Open VSX](${OPEN_VSX_URL})`],
+          ["Windsurf", `[Open VSX](${OPEN_VSX_URL})`],
+          ["Antigravity", `[Open VSX](${OPEN_VSX_URL})`],
+          ["VSCodium", `[Open VSX](${OPEN_VSX_URL})`],
+          ["VS Code", `[VS Code Marketplace](${VSCODE_MARKETPLACE_URL})`],
+        ],
+      },
+      { kind: "h2", text: "What you need first" },
+      {
+        kind: "ul",
+        items: [
+          "The muse CLI, installed and signed in once with `muse login`. The extension uses that login and never asks for an API key.",
+          "A Muse Code plan, or pay-as-you-go billing on Meta's Model API. The free Muse app doesn't include Muse Code.",
+          "A current release of Cursor, Windsurf or Antigravity. The extension runs on the editor's own Node runtime and needs Node 22 or newer.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "If `muse --version` does not answer in a terminal, fix that first. [The muse CLI not found guide](/guides/muse-cli-not-found) covers the usual causes.",
+      },
+      { kind: "h2", text: "Install it in Cursor" },
+      {
+        kind: "ol",
+        items: [
+          "Open the Extensions view with `Cmd+Shift+X` on macOS or `Ctrl+Shift+X` on Windows and Linux.",
+          "Search for \"Helicon\".",
+          "Pick Helicon by harjjotsinghh and click Install.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "Windsurf and Antigravity work the same way: open the Extensions view and search for Helicon.",
+      },
+      {
+        kind: "p",
+        text: `If the search does not show it, download the .vsix from [Open VSX](${OPEN_VSX_URL}) and run **Extensions: Install from VSIX** from the Command Palette.`,
+      },
+      { kind: "h2", text: "Open the panel" },
+      {
+        kind: "p",
+        text: "Click the Helicon icon in the activity bar, or press `Cmd+Alt+H` on macOS or `Ctrl+Alt+H` on Windows and Linux. The panel opens on the folder you have open. New threads open as tabs, and the clock icon shows every earlier thread in the folder.",
+      },
+      {
+        kind: "p",
+        text: "For every project at once, run **Helicon: Open Full Helicon in Editor** from the Command Palette. It opens the full app, sidebar and all, in an editor tab.",
+      },
+      { kind: "h2", text: "Helicon and Cursor's own agent" },
+      {
+        kind: "p",
+        text: "Helicon does not replace or hook into Cursor's agent. It is a separate panel for Muse Code, on your own Muse Code plan, and both can be open at once. The same goes for the built-in agents in Windsurf and Antigravity.",
+      },
+      { kind: "h2", text: "Remote-SSH and WSL" },
+      {
+        kind: "p",
+        text: "In a Remote-SSH or WSL window, the extension runs on the remote side, next to your code and its muse install, and the editor forwards the port for you.",
+      },
+      {
+        kind: "ul",
+        items: [
+          "Install the muse CLI on the remote machine, or inside the WSL distribution, and run `muse login` there once.",
+          "The Muse login on the remote side is the one the panel uses.",
+          "Check with `muse --version` in the integrated terminal, which already runs on the remote side.",
+        ],
+      },
+      { kind: "h2", text: "Recommend it to your team" },
+      {
+        kind: "p",
+        text: "Add Helicon to the repository's `.vscode/extensions.json`, so the editor suggests it to anyone who opens the folder without it installed.",
+      },
+      { kind: "code", lang: "json", code: EXTENSIONS_JSON },
+      {
+        kind: "p",
+        text: "The ID is the same on Open VSX and the VS Code Marketplace, so one file covers teammates on Cursor and on VS Code. Each person still needs their own muse CLI, `muse login` and Muse Code plan.",
+      },
+      { kind: "h2", text: "Try it before you install" },
+      {
+        kind: "p",
+        text: "[Try the full app in your browser](https://helicon.sh/try) first. It runs on sample data, so nothing needs to be installed and no Muse login is involved.",
+      },
+    ],
+    howTo: {
+      name: "Use Muse Code in Cursor with Helicon",
+      steps: [
+        { name: "Install and sign in to the muse CLI", text: "The extension uses this login and stores no credentials of its own.", code: "muse login" },
+        { name: "Install the Helicon extension", text: "Search \"Helicon\" in Cursor's Extensions view. It installs from Open VSX." },
+        { name: "Open your project folder", text: "The panel works on the folder you have open." },
+        { name: "Open the panel", text: "Click the Helicon icon in the activity bar, or press Cmd+Alt+H (Ctrl+Alt+H on Windows and Linux)." },
+        { name: "Start a thread", text: "Type what you want changed in the composer at the bottom of the panel." },
+      ],
+    },
+    faqs: [
+      {
+        q: "Is Helicon on Open VSX?",
+        a: "Yes, at open-vsx.org/extension/harjjotsinghh/helicon. Every release is published to Open VSX and the VS Code Marketplace together, under the same ID.",
+      },
+      {
+        q: "Does it work in Windsurf and Antigravity?",
+        a: "Yes. Both install extensions from Open VSX. Search for Helicon in the Extensions view.",
+      },
+      {
+        q: "Does it replace Cursor's own agent?",
+        a: "No. It is a panel for Muse Code, running next to whatever else your editor has.",
+      },
+      {
+        q: "Does it work with the free Muse app?",
+        a: "No. Muse Code needs a Muse Code plan or pay-as-you-go billing on Meta's Model API, and the free Muse app doesn't include it. The extension itself is free.",
+      },
+      {
+        q: "Is Helicon official?",
+        a: "No. Helicon is an unofficial community project, MIT licensed, and not affiliated with or endorsed by Meta.",
+      },
+    ],
+    related: ["install/vscode", "guides/muse-code-in-vscode", "compare/cursor", "compare/windsurf", "guides/muse-code-over-ssh"],
   },
   {
     slug: "guides/see-muse-code-cost",

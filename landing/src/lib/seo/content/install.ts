@@ -437,7 +437,7 @@ export const INSTALL_PAGES: SeoPage[] = [
       "muse code windsurf",
       "muse code antigravity",
     ],
-    updated: "2026-09-28",
+    updated: "2026-10-06",
     blocks: [
       { kind: "h2", text: "Install it" },
       {
@@ -476,6 +476,24 @@ export const INSTALL_PAGES: SeoPage[] = [
         kind: "note",
         text: "Helicon needs an editor built on Node 22 or newer: VS Code 1.101 or later, and current Cursor, Windsurf and Antigravity releases.",
       },
+      { kind: "h2", text: "Recommend it to your team" },
+      {
+        kind: "p",
+        text: "Add Helicon to the repository's `.vscode/extensions.json`. The editor then suggests it to anyone who opens the folder without it installed.",
+      },
+      { kind: "code", lang: "json", code: '{ "recommendations": ["harjjotsinghh.helicon"] }' },
+      {
+        kind: "p",
+        text: "The ID is the same on the VS Code Marketplace and on Open VSX, so one file covers teammates on VS Code and on Cursor. Each person still needs their own muse CLI, `muse login` and Muse Code plan.",
+      },
+      { kind: "h2", text: "Step by step guides" },
+      {
+        kind: "ul",
+        items: [
+          "[Muse Code in VS Code](/guides/muse-code-in-vscode): install, the shortcut, Remote-SSH and WSL.",
+          "[Muse Code in Cursor](/guides/muse-code-in-cursor): Open VSX, Windsurf and Antigravity.",
+        ],
+      },
     ],
     howTo: {
       name: "Use Muse Code in VS Code or Cursor with Helicon",
@@ -504,6 +522,6 @@ export const INSTALL_PAGES: SeoPage[] = [
         a: "No. It is a panel for Muse Code, running next to whatever else your editor has.",
       },
     ],
-    related: ["install/windows", "install/macos", "guides/muse-code-over-ssh"],
+    related: ["guides/muse-code-in-vscode", "guides/muse-code-in-cursor", "guides/muse-code-over-ssh", "install/windows", "install/macos"],
   },
 ];
