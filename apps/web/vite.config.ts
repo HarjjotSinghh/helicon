@@ -22,7 +22,28 @@ const tryPage = {
         "<title>Try Helicon in your browser: the Muse Code desktop app, on sample data</title>",
         '<meta name="description" content="Click around the real Helicon interface for Muse Code without installing anything: threads, approvals, diffs, usage and monitors, running on sample data." />',
         '<link rel="canonical" href="https://helicon.sh/try" />',
-      ].join("\n    "),
+        // A link to /try shared on X or anywhere else gets a real card, not a bare URL.
+        '<meta property="og:type" content="website" />',
+        '<meta property="og:url" content="https://helicon.sh/try" />',
+        '<meta property="og:title" content="Try Helicon in your browser" />',
+        '<meta property="og:description" content="The real Helicon interface for Muse Code, running on sample data. Nothing to install." />',
+        '<meta property="og:image" content="https://helicon.sh/brand/og-dark.png" />',
+        '<meta name="twitter:card" content="summary_large_image" />',
+        '<meta name="twitter:image" content="https://helicon.sh/brand/og-dark.png" />',
+        `<script type="application/ld+json">${JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          name: "Helicon demo",
+          url: "https://helicon.sh/try",
+          applicationCategory: "DeveloperApplication",
+          operatingSystem: "Web",
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        })}</script>`,
+      ].join("\n    ").concat(""),
+    ).replace(
+      '<div id="root"></div>',
+      // One heading for crawlers and for anyone without JavaScript; the app replaces #root's content.
+      '<div id="root"><noscript><h1>Try Helicon in your browser</h1><p>The demo needs JavaScript. You can <a href="https://helicon.sh/#install">download Helicon</a> instead.</p></noscript></div>',
     );
   },
 };

@@ -82,6 +82,8 @@ for (const url of urls) {
   }
 
   if (pathname !== "/") {
+    // /try is the static demo app (apps/web build:try), not a content page, so it has no Markdown twin.
+    if (pathname === "/try") continue;
     const mirror = await get(`${base}${pathname}.md`);
     const type = mirror.headers.get("content-type") ?? "";
     if (!mirror.ok) note(`${pathname}.md`, `status ${mirror.status}`);
