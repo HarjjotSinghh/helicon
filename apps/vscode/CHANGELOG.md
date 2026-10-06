@@ -2,6 +2,11 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.21.1
+
+- Up to date with Muse Code 1.4: uses the 1.4.2 Muse Code SDK.
+- A new screenshot of the panel in the listing, and a link to try the full app in your browser first.
+
 ## 0.21.0
 
 - Works better with screen readers: status is announced once per change instead of every second, focus stays in the thread after approvals, questions and Stop, and a finishing turn no longer rebuilds the transcript.

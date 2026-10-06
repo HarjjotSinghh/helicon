@@ -4,6 +4,8 @@
 
 ![Helicon in 30 seconds](https://raw.githubusercontent.com/HarjjotSinghh/helicon/prod/docs/assets/launch.gif)
 
+![The Helicon side panel: an approval you can read, and a thread watching a pull request's checks](https://raw.githubusercontent.com/HarjjotSinghh/helicon/prod/docs/assets/vscode-panel.png)
+
 Works in VS Code, Cursor, Windsurf, Antigravity and other VS Code-based editors, on Windows, macOS and Linux, including Remote-SSH and WSL windows.
 
 ## What you get
@@ -16,6 +18,10 @@ Works in VS Code, Cursor, Windsurf, Antigravity and other VS Code-based editors,
 - **Plan usage and cost:** your 5-hour and weekly windows, and what each thread would have cost at API rates.
 - **Several Muse accounts,** each project remembering which one it uses.
 - **Projects on other machines over SSH.**
+- **Muse Code monitors:** a thread that's watching a build or a pull request's checks says so, with a Stop button, and the turn a monitor woke up is marked.
+- **Screen-reader friendly:** reworked after a VoiceOver review; status is announced once per change, and focus stays in the thread.
+
+Want to see it first? [Try the full app in your browser](https://helicon.sh/try?utm_source=vscode&utm_medium=listing&utm_campaign=extension), on sample data.
 
 ## Get started
 
