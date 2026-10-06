@@ -1,4 +1,4 @@
-var E=Object.defineProperty;var x=(l,e,t)=>e in l?E(l,e,{enumerable:!0,configurable:!0,writable:!0,value:t}):l[e]=t;var h=(l,e,t)=>x(l,typeof e!="symbol"?e+"":e,t);import{l as S}from"./index-DJBqJ_-8.js";const j={"README.md":{content:`# readme-demo
+var E=Object.defineProperty;var x=(l,e,t)=>e in l?E(l,e,{enumerable:!0,configurable:!0,writable:!0,value:t}):l[e]=t;var h=(l,e,t)=>x(l,typeof e!="symbol"?e+"":e,t);import{l as S}from"./index-DnSTSboz.js";const j={"README.md":{content:`# readme-demo
 
 A tiny Python greeter: \`greet(name)\` returns \`Hello, {name}!\`.
 

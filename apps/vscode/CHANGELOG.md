@@ -2,6 +2,10 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.21.2
+
+- Listed as "Helicon: Muse Code GUI (unofficial)", so searching "muse code" finds it.
+
 ## 0.21.1
 
 - Up to date with Muse Code 1.4: uses the 1.4.2 Muse Code SDK.

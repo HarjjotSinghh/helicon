@@ -9,6 +9,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    "version": "0.21.2",
+    "body": "### New\n\n- **Helicon is in your editor too.** The desktop app's sidebar now mentions the VS Code and Cursor extension, with links to both stores. Close the note and it stays closed. It never shows inside the editor itself.\n\n### Changed\n\n- **The extension is easier to find.** It's listed as \"Helicon: Muse Code GUI (unofficial)\", so searching \"muse code\" in the Extensions panel finds it."
+  },
+  {
     "version": "0.21.1",
     "body": "### Changed\n\n- **Up to date with Muse Code 1.4.** Helicon now uses version 1.4.2 of the Muse Code SDK; it was still on 0.1. It speaks the same protocol version as current Muse Code releases, so the protocol mismatch warning no longer appears."
   },
