@@ -13,6 +13,7 @@ import {
   formatSpeed,
   formatTokens,
   parseArgs,
+  plural,
   toolKind,
 } from "../../model/format.js";
 import { streamingSpeed, turnCosts, turnSpeeds, type TurnCost, type TurnSpeed } from "../../model/usage.js";
@@ -384,10 +385,6 @@ function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] |
     default:
       return <GenericRow item={item} />;
   }
-}
-
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
 }
 
 function summarize(entries: MspItem[]): string {

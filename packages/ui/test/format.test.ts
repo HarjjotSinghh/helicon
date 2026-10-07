@@ -14,6 +14,7 @@ import {
   lastLine,
   mergeDiffLines,
   modelDisplayName,
+  plural,
   relativeTime,
   shortenPath,
   withoutDiffEcho,
@@ -65,6 +66,13 @@ describe("formatting", () => {
     assert.ok(short.startsWith("D:\\...\\"));
     assert.ok(short.endsWith("src"));
     assert.ok(short.length <= 34);
+  });
+
+  it("pluralizes a count with its noun", () => {
+    assert.equal(plural(0, "call", "calls"), "0 calls");
+    assert.equal(plural(1, "call", "calls"), "1 call");
+    assert.equal(plural(2, "call", "calls"), "2 calls");
+    assert.equal(plural(1, "file read", "files read"), "1 file read");
   });
 });
 

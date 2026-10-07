@@ -134,6 +134,11 @@ export function formatCompactTokens(value: number | null | undefined): string {
   return formatTokens(value);
 }
 
+/** `1 call`, `2 calls`: a count with its noun in the right number. */
+export function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
 export function basename(path: string): string {
   const trimmed = path.replace(/[\\/]+$/, "");
   const parts = trimmed.split(/[\\/]/);
