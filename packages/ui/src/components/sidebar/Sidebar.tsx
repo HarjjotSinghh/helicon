@@ -357,7 +357,12 @@ const ProjectSection = memo(function ProjectSection(props: {
             <FolderOpenIcon size={15} className="shrink-0 text-subtle" />
           )}
           <span className="truncate text-sm font-medium text-fg">{project.displayName}</span>
-          {project.pinned ? <PushPinIcon size={11} className="shrink-0 text-subtle" aria-label="Pinned" /> : null}
+          {project.pinned ? (
+            <>
+              <PushPinIcon size={11} className="shrink-0 text-subtle" aria-hidden="true" />
+              <span className="sr-only">, pinned</span>
+            </>
+          ) : null}
           {props.collapsed && props.group.attention > 0 ? (
             <span className="mr-1 ml-auto size-1.5 shrink-0 rounded-full bg-warn" aria-label={`${props.group.attention} need you`} />
           ) : props.collapsed && props.group.running > 0 ? (
@@ -647,7 +652,7 @@ export const ThreadRow = memo(
                 ) : null}
                 <AccountBadge accountId={session.accountId} />
                 <span className="min-w-0 flex-1 truncate">{session.title}</span>
-                {session.pinned ? <PushPinIcon size={11} className="shrink-0 text-subtle" aria-label="Pinned" /> : null}
+                {session.pinned ? <PushPinIcon size={11} className="shrink-0 text-subtle" aria-hidden="true" /> : null}
               </span>
               {props.settled ? null : <RowMeta session={session} showProject={props.showProject} />}
               <span className="sr-only">{`, ${STATUS_LABEL[status]}${session.pinned ? ", pinned" : ""}${session.sandboxDisabled === true ? ", sandbox off" : ""}${session.accountId ? ", using a separate account" : ""}`}</span>
