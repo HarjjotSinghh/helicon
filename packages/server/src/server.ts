@@ -1284,6 +1284,7 @@ export class HeliconServer {
         const record = this.store.updateSession(sessionId, {
           ...(title ? { title, titleSource: "user" as const } : {}),
           ...(typeof body["archived"] === "boolean" ? { archived: body["archived"] } : {}),
+          ...(typeof body["pinned"] === "boolean" ? { pinned: body["pinned"] } : {}),
           // Un-settling by hand keeps the thread out of auto-settle until its next activity.
           ...(settled === true ? { settledOverride: "settled" as const, settledAt: nowIso(), unsettledAt: null } : {}),
           ...(settled === false ? { settledOverride: "active" as const, settledAt: null, unsettledAt: nowIso() } : {}),
@@ -1907,6 +1908,7 @@ export class HeliconServer {
       settled: record.settledOverride === "settled",
       settledAt: record.settledAt,
       unsettledAt: record.unsettledAt,
+      pinned: record.pinned,
       sandboxDisabled: record.sandboxDisabled,
       accountId: record.accountId,
       live: this.liveView(record.id),

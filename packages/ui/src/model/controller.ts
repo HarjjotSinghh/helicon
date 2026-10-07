@@ -2196,6 +2196,25 @@ export class HeliconController {
     }
   }
 
+  /** Pins a thread above its project's list, or returns it to its stable place in it. */
+  async toggleThreadPin(sessionId: string): Promise<void> {
+    const current = this.state.sessions[sessionId];
+    if (!current) {
+      return;
+    }
+    const pinned = !current.pinned;
+    this.upsertSession({ ...current, pinned });
+    try {
+      const saved = await this.client.updateSession(sessionId, { pinned });
+      if (saved) {
+        this.upsertSession(saved);
+      }
+    } catch (error) {
+      this.upsertSession(current);
+      this.toast("error", pinned ? "Could not pin the thread" : "Could not unpin the thread", errorMessage(error));
+    }
+  }
+
   // ---------------------------------------------------------------- slash commands, skills and shell
 
   /** The workspace the composer's commands act on: the open thread's, or where a new thread would start. */

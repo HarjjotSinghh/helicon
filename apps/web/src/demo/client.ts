@@ -132,6 +132,7 @@ function summary(sessionId: string, cwd: string, title: string, activityAt: numb
     settled: false,
     settledAt: null,
     unsettledAt: null,
+    pinned: false,
     sandboxDisabled: false,
     accountId: null,
     live,
@@ -542,7 +543,7 @@ export class DemoClient implements HeliconClient {
     return path;
   }
 
-  async updateSession(sessionId: string, patch: { title?: string; archived?: boolean; settled?: boolean }) {
+  async updateSession(sessionId: string, patch: { title?: string; archived?: boolean; settled?: boolean; pinned?: boolean }) {
     const entry = this.sessions.get(sessionId);
     if (!entry) return null;
     entry.summary = { ...entry.summary, ...patch, ...(patch.title ? { titleSource: "user" as const } : {}) };

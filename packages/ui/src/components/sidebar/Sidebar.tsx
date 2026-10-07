@@ -647,9 +647,10 @@ export const ThreadRow = memo(
                 ) : null}
                 <AccountBadge accountId={session.accountId} />
                 <span className="min-w-0 flex-1 truncate">{session.title}</span>
+                {session.pinned ? <PushPinIcon size={11} className="shrink-0 text-subtle" aria-label="Pinned" /> : null}
               </span>
               {props.settled ? null : <RowMeta session={session} showProject={props.showProject} />}
-              <span className="sr-only">{`, ${STATUS_LABEL[status]}${session.sandboxDisabled === true ? ", sandbox off" : ""}${session.accountId ? ", using a separate account" : ""}`}</span>
+              <span className="sr-only">{`, ${STATUS_LABEL[status]}${session.pinned ? ", pinned" : ""}${session.sandboxDisabled === true ? ", sandbox off" : ""}${session.accountId ? ", using a separate account" : ""}`}</span>
             </button>
           )}
           {renaming ? null : (
@@ -731,6 +732,12 @@ function ThreadMenu(props: { session: SessionSummary; onRename: () => void }) {
       <MenuContent align="end">
         <MenuItem icon={<PencilSimpleIcon size={14} />} onSelect={props.onRename}>
           Rename
+        </MenuItem>
+        <MenuItem
+          icon={props.session.pinned ? <PushPinSlashIcon size={14} /> : <PushPinIcon size={14} />}
+          onSelect={() => void controller.toggleThreadPin(props.session.sessionId)}
+        >
+          {props.session.pinned ? "Unpin" : "Pin to top"}
         </MenuItem>
         <MenuItem icon={<CopyIcon size={14} />} onSelect={() => void copyText(props.session.sessionId)}>
           Copy session ID

@@ -688,6 +688,22 @@ describe("HeliconServer", () => {
     assert.ok(woken.unsettledAt);
   });
 
+  it("pins and unpins threads, and lists the flag back", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+    const find = async () => (await get(base, "/api/sessions")).sessions.find((s: { sessionId: string }) => s.sessionId === "s1");
+
+    assert.equal((await find()).pinned, false);
+    const pinned = await send(base, "/api/sessions/s1", { pinned: true }, "PATCH");
+    assert.equal(pinned.json.session.pinned, true);
+    assert.equal((await find()).pinned, true);
+    const unpinned = await send(base, "/api/sessions/s1", { pinned: false }, "PATCH");
+    assert.equal(unpinned.json.session.pinned, false);
+    assert.equal((await find()).pinned, false);
+  });
+
   it("wakes a settled thread when discovery shows it moved on in another client", async () => {
     const connection = new FakeConnection();
     const list = (updatedAt: string) => ({ sessions: [{ sessionId: "tui-1", workspaceRoot: "/work/proj", updatedAt }], nextCursor: null });

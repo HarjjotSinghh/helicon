@@ -93,7 +93,7 @@ export interface HeliconClient {
    * client's own calls carry: a token-protected server refuses a bare one.
    */
   assetUrl(path: string): string;
-  updateSession(sessionId: string, patch: { title?: string; archived?: boolean; settled?: boolean }): Promise<SessionSummary | null>;
+  updateSession(sessionId: string, patch: { title?: string; archived?: boolean; settled?: boolean; pinned?: boolean }): Promise<SessionSummary | null>;
   /** `attachments` come back saved, so the open thread can show them without waiting for a reload. */
   sendTurn(
     sessionId: string,

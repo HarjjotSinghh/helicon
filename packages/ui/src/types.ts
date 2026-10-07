@@ -57,6 +57,8 @@ export interface SessionSummary {
   settledAt: string | null;
   /** When it was last brought back from the shelf; keeps its place in the active list. */
   unsettledAt: string | null;
+  /** Pinned to the top of its project's thread list. */
+  pinned: boolean;
   /** Sandbox posture at creation; null for threads recorded before tracking. */
   sandboxDisabled: boolean | null;
   /** The aonia profile this thread runs under; null for the default login. */
