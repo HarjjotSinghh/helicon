@@ -497,6 +497,19 @@ export function SettingsPage() {
           </Row>
         </Section>
 
+        <Section title="Composer">
+          <Row
+            label="Enter steers the turn"
+            description={`While a turn is running, Enter adds the message to this turn instead of queueing it for later. ${MOD}+Enter queues instead. Off keeps Enter queueing.`}
+          >
+            <Toggle
+              checked={prefs.steerByDefault}
+              label="Enter steers the turn"
+              onChange={(on) => controller.setPrefs({ steerByDefault: on })}
+            />
+          </Row>
+        </Section>
+
         <Section title="Thread titles">
           <Row
             label="Generate titles"

@@ -110,6 +110,11 @@ export interface Prefs {
   /** The sidebar card saying Helicon also runs as an editor extension was closed, so it stays away. */
   editorTipDismissed: boolean;
   /**
+   * While a turn is running, Enter steers the turn instead of queueing behind it; Cmd/Ctrl+Enter
+   * queues instead. Off by default, so Enter queues unless the user opts in.
+   */
+  steerByDefault: boolean;
+  /**
    * Approval modes from before YOLO was armed, survived across a reload so switching YOLO off still
    * restores them instead of falling back to onRequest. Null when YOLO has never been armed here.
    */
@@ -167,6 +172,7 @@ export function defaultPrefs(now = new Date().toISOString()): Prefs {
     showTelemetry: false,
     expandWork: false,
     editorTipDismissed: false,
+    steerByDefault: false,
     preYolo: null,
   };
 }
@@ -383,6 +389,7 @@ export function revivePrefs(raw: unknown, fallback: Prefs): Prefs {
     showTelemetry: pick("showTelemetry", (v) => typeof v === "boolean"),
     expandWork: pick("expandWork", (v) => typeof v === "boolean"),
     editorTipDismissed: pick("editorTipDismissed", (v) => typeof v === "boolean"),
+    steerByDefault: pick("steerByDefault", (v) => typeof v === "boolean"),
     preYolo: pick("preYolo", isPreYolo),
   };
 }

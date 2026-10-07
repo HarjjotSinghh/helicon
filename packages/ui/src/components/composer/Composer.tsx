@@ -14,6 +14,7 @@ import {
 } from "react";
 import { AttachButton, AttachmentTray, readFiles, restoreFiles, toOutgoing, toPreview, type PendingFile } from "./attachments.js";
 import { CostMeter } from "./CostPanel.js";
+import { resolveSteer } from "./keys.js";
 import { Popover, Slider, Switch } from "radix-ui";
 import { shallowEqual, useApp, useController } from "../../app/context.js";
 import { useSampled } from "../../app/sampled.js";
@@ -152,6 +153,7 @@ export function Composer(props: ComposerProps) {
   const menuId = useId();
   const starting = useApp((s) => Boolean(s.busy["start"]));
   const stopping = useApp((s) => (props.sessionId ? Boolean(s.busy[`stop:${props.sessionId}`]) : false));
+  const steerByDefault = useApp((s) => s.prefs.steerByDefault);
   const hasText = text.trim().length > 0;
   const showStop = props.running && Boolean(props.sessionId) && !hasText;
   const shell = !props.readOnly && /^!\s*\S/.test(text);
@@ -317,7 +319,7 @@ export function Composer(props: ComposerProps) {
           void runNow(text, true);
         } else {
           // Skills are still loading: send anyway, and the controller resolves the command once they arrive.
-          void submit(props.running && (event.metaKey || event.ctrlKey));
+          void submit(resolveSteer(props.running, event.metaKey || event.ctrlKey, steerByDefault));
         }
         return;
       }
@@ -329,7 +331,7 @@ export function Composer(props: ComposerProps) {
       if (event.repeat) {
         return;
       }
-      void submit(props.running && (event.metaKey || event.ctrlKey));
+      void submit(resolveSteer(props.running, event.metaKey || event.ctrlKey, steerByDefault));
     } else if (event.key === "Escape" && props.running && !hasText && props.sessionId) {
       event.preventDefault();
       void controller.stop(props.sessionId);
@@ -340,12 +342,22 @@ export function Composer(props: ComposerProps) {
   const placeholder = props.readOnly
     ? "Read-only while another Muse session has this thread open"
     : props.running
-      ? `Queue a follow-up, or press ${MOD}+Enter to add it to this turn`
+      ? steerByDefault
+        ? `Steer this turn, or press ${MOD}+Enter to queue for later`
+        : `Queue a follow-up, or press ${MOD}+Enter to add it to this turn`
       : props.variant === "home"
         ? "Describe a change, a fix, or a question about the code. Use @path to point at files."
         : "Reply, or ask for the next change";
 
-  const sendLabel = showStop ? "Stop the turn" : shell ? "Run command" : props.running ? "Queue message" : "Send";
+  const sendLabel = showStop
+    ? "Stop the turn"
+    : shell
+      ? "Run command"
+      : props.running
+        ? steerByDefault
+          ? "Steer turn"
+          : "Queue message"
+        : "Send";
 
   return (
     <div
@@ -453,9 +465,13 @@ export function Composer(props: ComposerProps) {
         <Tip label={sendLabel} shortcut={[showStop ? "Esc" : "Enter"]}>
           <button
             type="button"
-            aria-label={showStop ? "Stop the turn" : shell ? "Run command" : props.running ? "Queue message" : "Send message"}
+            aria-label={
+              showStop ? "Stop the turn" : shell ? "Run command" : props.running ? (steerByDefault ? "Steer turn" : "Queue message") : "Send message"
+            }
             disabled={showStop ? stopping : (!hasText && files.length === 0) || props.readOnly || starting}
-            onClick={() => (showStop ? void controller.stop(props.sessionId as string) : void submit(false))}
+            onClick={() =>
+              showStop ? void controller.stop(props.sessionId as string) : void submit(resolveSteer(props.running, false, steerByDefault))
+            }
             className={cn(
               "ml-1 inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[transform,background-color,color] duration-150 active:scale-95",
               showStop ? "bg-inverse text-inverse-fg" : "bg-accent text-accent-fg hover:bg-accent-hover disabled:bg-active disabled:text-subtle",
@@ -943,6 +959,7 @@ function SpeedReadout(props: { sessionId: string }) {
 }
 
 export function ComposerFooter(props: { cwd: string | null; branch: string | null; running: boolean }) {
+  const steerByDefault = useApp((s) => s.prefs.steerByDefault);
   return (
     <div className="flex h-8 items-center gap-3 px-2 text-xs text-subtle">
       {props.cwd ? (
@@ -962,7 +979,9 @@ export function ComposerFooter(props: { cwd: string | null; branch: string | nul
       <span className="flex-1" />
       <span className="hidden truncate md:inline">
         {props.running
-          ? `Enter queues, ${MOD}+Enter adds to this turn, Esc stops`
+          ? steerByDefault
+            ? `Enter steers this turn, ${MOD}+Enter queues, Esc stops`
+            : `Enter queues, ${MOD}+Enter adds to this turn, Esc stops`
           : "Enter to send, Shift+Enter for a new line, / for commands, ! for shell"}
       </span>
     </div>
