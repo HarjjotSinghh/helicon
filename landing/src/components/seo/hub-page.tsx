@@ -57,7 +57,7 @@ export async function SectionHubRoute({ slug }: { slug: string }) {
         <PageCards pages={pages} />
         <PageCta
           title="Same Muse Code. Same subscription. Better interface."
-          body="Free and MIT licensed. Signed Windows installer, universal macOS DMG, and a web build against a daemon you run."
+          body="Free and MIT licensed. Windows installer, universal macOS DMG, and a web build against a daemon you run."
         />
       </div>
       <Rule />

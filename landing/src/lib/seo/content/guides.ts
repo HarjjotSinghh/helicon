@@ -80,7 +80,7 @@ export const GUIDE_PAGES: SeoPage[] = [
         { name: "Install the muse CLI on Windows", text: "Use the Windows install path rather than installing inside a distribution." },
         { name: "Confirm PowerShell can see it", text: "A version answer here means you are native.", code: "muse --version" },
         { name: "Sign in", text: "Authentication stays with the CLI.", code: "muse login" },
-        { name: "Install Helicon", text: "Run the signed Windows installer from the latest GitHub release." },
+        { name: "Install Helicon", text: "Run the Windows installer from the latest GitHub release. It is not code signed yet, so if SmartScreen warns, click More info, then Run anyway." },
         { name: "Add your project", text: "Point Helicon at the Windows path you actually work in." },
       ],
     },

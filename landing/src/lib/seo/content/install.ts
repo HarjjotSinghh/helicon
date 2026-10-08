@@ -13,9 +13,9 @@ export const INSTALL_PAGES: SeoPage[] = [
     title: "Muse Code for Windows: install the desktop app",
     h1: "Install Helicon on Windows",
     description:
-      "A signed Windows installer for a Muse Code desktop app, with auto update. Runs Muse Code natively on Windows, or inside WSL2 with path translation both ways.",
+      "A Windows installer for a Muse Code desktop app, with auto update. Runs Muse Code natively on Windows, or inside WSL2 with path translation both ways.",
     answer:
-      "Install the muse CLI, sign in with muse login, then run the signed Helicon installer from the latest GitHub release. Helicon drives Muse Code natively on Windows using your own Windows paths and PowerShell for shell commands, and falls back to Muse Code inside WSL2 with two way path translation when native Muse Code is not present.",
+      "Install the muse CLI, sign in with muse login, then run the Helicon installer from the latest GitHub release. Helicon drives Muse Code natively on Windows using your own Windows paths and PowerShell for shell commands, and falls back to Muse Code inside WSL2 with two way path translation when native Muse Code is not present.",
     keywords: [
       "muse code windows",
       "muse code for windows",
@@ -56,7 +56,7 @@ export const INSTALL_PAGES: SeoPage[] = [
       {
         kind: "ul",
         items: [
-          "Signed, so SmartScreen does not treat it as an unknown publisher.",
+          "Not code signed yet, so SmartScreen may show 'Windows protected your PC': click More info, then Run anyway. Updates are signature checked by the app itself.",
           "Auto update built in: the app checks helicon.sh for a newer version and updates itself.",
           "The file is named Helicon_<version>_x64-setup.exe on the release page.",
         ],
@@ -93,7 +93,7 @@ export const INSTALL_PAGES: SeoPage[] = [
         },
         {
           name: "Run the installer",
-          text: "The installer is signed and sets up auto update, so future versions arrive without another download.",
+          text: "The installer sets up auto update, so future versions arrive without another download. It is not code signed yet, so SmartScreen may show 'Windows protected your PC': click More info, then Run anyway.",
         },
         {
           name: "Add a project",
@@ -108,7 +108,7 @@ export const INSTALL_PAGES: SeoPage[] = [
       },
       {
         q: "Is the Windows installer signed?",
-        a: "Yes, and it ships auto update. Releases are published on GitHub.",
+        a: "Not yet. The installer is not Authenticode signed, so SmartScreen may show 'Windows protected your PC': click More info, then Run anyway. Updates are signed with Helicon's updater key and checked by the app before they install. Releases are published on GitHub.",
       },
       {
         q: "Does Helicon work on Windows on ARM?",

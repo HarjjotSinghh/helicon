@@ -97,14 +97,14 @@ apps/web         same UI against a remote daemon
 - [x] `apps/web` - the same UI in a browser against the local server
 - [x] `apps/web` - remote daemon mode
 - [x] Windows end to end (native Muse Code for Windows, or WSL2 Ubuntu)
-- [x] GitHub Releases with a signed Windows installer
+- [x] GitHub Releases with a Windows installer (updater signed; not Authenticode signed yet)
 - [x] macOS end to end, and macOS releases (one universal binary for Apple Silicon and Intel)
 - [x] Linux builds and releases
 - [ ] Post-v1: mobile relay to steer running sessions from a phone
 
 ## Install
 
-Windows: download the setup file from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest). It is signed, and updates itself from then on.
+Windows: download the setup file from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest). It is not code signed yet, so SmartScreen may show "Windows protected your PC": click More info, then Run anyway. It updates itself from then on.
 
 Helicon bundles its own Node.js, so you only need Muse Code for Windows (`irm https://dev.meta.ai/install.ps1 | iex` in PowerShell) with `muse login` done once. Already run Muse inside WSL2? Helicon uses that when native Muse is not installed; set `HELICON_MUSE_RUNTIME=wsl` to keep WSL when both are. Helicon uses the login you already have and never stores credentials of its own.
 

@@ -15,7 +15,7 @@ const facts = [
 ];
 
 const windowsFacts = [
-  { icon: Monitor, title: "Signed for Windows", body: "Installer with auto-update" },
+  { icon: Monitor, title: "Auto-updates", body: "Windows installer, x64" },
   { icon: Receipt, title: "No second bill", body: "Runs on your Muse Code plan" },
   { icon: Key, title: "Your own login", body: "Credentials stay in muse" },
   { icon: Database, title: "Native on Windows", body: "No WSL needed, WSL2 still works" },

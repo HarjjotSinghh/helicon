@@ -164,7 +164,7 @@ const ENTRIES: Entry[] = [
       ],
       [
         "Windows is a first class target",
-        "Helicon ships a signed Windows installer with auto update, runs Muse Code natively on Windows, and falls back to Muse Code inside WSL2 with path translation both ways when native is not installed.",
+        "Helicon ships a Windows installer with auto update, runs Muse Code natively on Windows, and falls back to Muse Code inside WSL2 with path translation both ways when native is not installed.",
       ],
     ],
     pickOther: [
@@ -183,7 +183,7 @@ const ENTRIES: Entry[] = [
     faqs: [
       {
         q: "Is Helicon the only GUI for Muse Code?",
-        a: "No. VS Code extensions exist, editor integrations over ACP exist, and there are other open source wrappers. Helicon is the standalone desktop and web option with a signed Windows installer and a cross project session list.",
+        a: "No. VS Code extensions exist, editor integrations over ACP exist, and there are other open source wrappers. Helicon is the standalone desktop and web option with a Windows installer and a cross project session list.",
       },
       {
         q: "Can I run Helicon and a VS Code extension at the same time?",
@@ -219,7 +219,7 @@ const ENTRIES: Entry[] = [
       ["Project scope", "Every project on the machine", "The open Zed project"],
       ["Session resume", "Any past session, including TUI ones", "Depends on the bridge"],
       ["Cost view", "Per thread, day and model", "Not part of ACP"],
-      ["Windows", "Signed installer, native or WSL2", "Zed's own platform support"],
+      ["Windows", "Installer, native or WSL2", "Zed's own platform support"],
       ["License", "MIT", "Varies by bridge"],
     ],
     what: [
@@ -318,7 +318,7 @@ const ENTRIES: Entry[] = [
       ],
       [
         "Windows",
-        "Helicon ships a signed Windows installer with auto update and runs Muse Code natively on Windows, or inside WSL2 with path translation when that is your setup.",
+        "Helicon ships a Windows installer with auto update and runs Muse Code natively on Windows, or inside WSL2 with path translation when that is your setup.",
       ],
     ],
     pickOther: [
@@ -372,7 +372,7 @@ const ENTRIES: Entry[] = [
       ["Who ships it", "Community, unofficial", "Anthropic, official"],
       ["License", "MIT, source on GitHub", "Proprietary"],
       ["Billing", "Your Muse Code subscription", "Your Anthropic plan"],
-      ["Windows", "Signed installer, native or WSL2", "Official builds"],
+      ["Windows", "Installer, native or WSL2", "Official builds"],
       ["Web version", "Same UI against a remote daemon", "Not the same shape"],
       ["Price", "Free, no paid tier", "Included with the plan"],
     ],
@@ -471,7 +471,7 @@ const ENTRIES: Entry[] = [
       ],
       [
         "Windows",
-        "Signed installer, auto update, native Muse Code on Windows with WSL2 and path translation as the fallback.",
+        "Installer with auto update, native Muse Code on Windows with WSL2 and path translation as the fallback.",
       ],
     ],
     pickOther: [
@@ -624,7 +624,7 @@ const ENTRIES: Entry[] = [
       ],
       [
         "Windows is handled",
-        "Signed installer with auto update, native Muse Code on Windows, WSL2 with two way path translation when that is what you run.",
+        "Installer with auto update, native Muse Code on Windows, WSL2 with two way path translation when that is what you run.",
       ],
     ],
     pickOther: [
@@ -844,7 +844,7 @@ const ENTRIES: Entry[] = [
       ],
       [
         "Windows installer",
-        "Signed, auto updating, with native Muse Code support and WSL2 path translation as the fallback.",
+        "Auto updating, with native Muse Code support and WSL2 path translation as the fallback.",
       ],
     ],
     pickOther: [
@@ -958,7 +958,7 @@ const ENTRIES: Entry[] = [
     description:
       "An honest look at the small field of Muse Code GUI wrappers, what separates them, and the specific things to check before trusting any client with shell access.",
     answer:
-      "Several open-source Muse Code GUIs exist and Helicon does not claim to be the only one. What separates them in practice is packaging and protocol depth: a signed Windows installer with auto update, native Windows plus WSL2 path translation, cross project session resume including terminal sessions, and approvals mapped one to one.",
+      "Several open-source Muse Code GUIs exist and Helicon does not claim to be the only one. What separates them in practice is packaging and protocol depth: a Windows installer with auto update, native Windows plus WSL2 path translation, cross project session resume including terminal sessions, and approvals mapped one to one.",
     keywords: [
       "muse code gui",
       "best muse code gui",
@@ -967,7 +967,7 @@ const ENTRIES: Entry[] = [
       "muse code desktop client",
     ],
     rows: [
-      ["Signed Windows installer", "Yes, with auto update", "Rare"],
+      ["Packaged Windows installer", "Yes, with auto update", "Rare"],
       ["Native Windows Muse Code", "Yes, PowerShell shell commands", "Varies"],
       ["WSL2 path translation", "Both ways", "Varies"],
       ["macOS universal DMG", "Yes, updater signed, not notarized yet", "Varies"],
@@ -983,7 +983,7 @@ const ENTRIES: Entry[] = [
     differences: [
       [
         "Check the packaging",
-        "An unsigned binary or a clone and build README is a real cost on Windows. Helicon ships a signed installer with auto update, and a universal macOS DMG. The macOS builds are not Apple notarized yet, so first launch needs Open Anyway in System Settings > Privacy & Security. That is a known gap and it is stated rather than hidden.",
+        "A clone and build README is a real cost on Windows. Helicon ships an installer with auto update, and a universal macOS DMG. The Windows installer is not code signed yet, so SmartScreen may warn once: More info, then Run anyway. The macOS builds are not Apple notarized yet, so first launch needs Open Anyway in System Settings > Privacy & Security. That is a known gap and it is stated rather than hidden.",
       ],
       [
         "Check how it talks to Muse Code",
@@ -1013,11 +1013,11 @@ const ENTRIES: Entry[] = [
     faqs: [
       {
         q: "Is Helicon the only GUI for Muse Code?",
-        a: "No. VS Code extensions, ACP editor bridges and several open source wrappers exist. Helicon is the standalone desktop and web option with signed Windows and macOS releases.",
+        a: "No. VS Code extensions, ACP editor bridges and several open source wrappers exist. Helicon is the standalone desktop and web option with packaged Windows, macOS and Linux releases.",
       },
       {
         q: "What should I check before installing any Muse Code GUI?",
-        a: "Whether it stores credentials, whether it bypasses approvals, whether it speaks the protocol or scrapes the TUI, and whether the binaries are signed. Helicon's answers are: no, no, protocol, and yes on Windows.",
+        a: "Whether it stores credentials, whether it bypasses approvals, whether it speaks the protocol or scrapes the TUI, and whether the source is readable. Helicon's answers are: no, no, protocol, and yes. The installers are not code signed yet; updates are signature checked by the app.",
       },
       {
         q: "Is Helicon official?",

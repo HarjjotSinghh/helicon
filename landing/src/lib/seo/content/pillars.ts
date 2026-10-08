@@ -75,7 +75,7 @@ export const PILLAR_PAGES: SeoPage[] = [
           "Does it store credentials? It should not need to. Authentication belongs to your own `muse login`.",
           "Does it bypass approvals? A client that auto approves to look smooth has removed the safety property.",
           "Does it speak the protocol or scrape the terminal? Scraping breaks and cannot see structured events.",
-          "Are the binaries signed? On Windows this is the difference between an install and an argument with SmartScreen.",
+          "Are the binaries signed? On Windows an unsigned installer means a SmartScreen warning on first run. Helicon's is not code signed yet, and says so.",
           "Is the source readable? The thing being wrapped has file system and shell access.",
         ],
       },
@@ -96,7 +96,7 @@ export const PILLAR_PAGES: SeoPage[] = [
         kind: "table",
         head: ["Platform", "Helicon", "Notes"],
         rows: [
-          ["Windows", "Signed installer, auto update", "Native Muse Code, or WSL2 with path translation"],
+          ["Windows", "Installer, auto update", "Native Muse Code, or WSL2 with path translation"],
           ["macOS", "Universal DMG, auto update", "Apple Silicon and Intel; Open Anyway in Privacy & Security on first launch"],
           ["Linux", "x86_64 AppImage, auto update", "Needs FUSE on some distributions; no ARM build yet"],
           ["Browser", "Web app against a daemon", "Same React UI, daemon on a machine you control"],
@@ -122,7 +122,7 @@ export const PILLAR_PAGES: SeoPage[] = [
       },
       {
         q: "Which Muse Code GUI works best on Windows?",
-        a: "Helicon ships a signed Windows installer with auto update, runs Muse Code natively with PowerShell for shell commands, and falls back to Muse Code inside WSL2 with two way path translation.",
+        a: "Helicon ships a Windows installer with auto update, runs Muse Code natively with PowerShell for shell commands, and falls back to Muse Code inside WSL2 with two way path translation.",
       },
       {
         q: "Can a GUI see sessions I started in the terminal?",
@@ -145,9 +145,9 @@ export const PILLAR_PAGES: SeoPage[] = [
     title: "Muse Code desktop app for Windows, macOS and the web",
     h1: "A desktop app for Muse Code",
     description:
-      "Helicon is a free, open-source desktop and web app for the Muse Code CLI. Signed Windows installer, universal macOS DMG, sessions, diffs, approvals and cost in one window.",
+      "Helicon is a free, open-source desktop and web app for the Muse Code CLI. Windows installer, universal macOS DMG, sessions, diffs, approvals and cost in one window.",
     answer:
-      "Helicon is a free, MIT licensed desktop app for Meta's Muse Code CLI, with a signed Windows installer and a universal macOS DMG. It gives every Muse Code session a home: projects grouped by directory, resume with full history, inline diffs, an approval queue, and cost at published API rates. It runs on your existing subscription.",
+      "Helicon is a free, MIT licensed desktop app for Meta's Muse Code CLI, with a Windows installer and a universal macOS DMG. It gives every Muse Code session a home: projects grouped by directory, resume with full history, inline diffs, an approval queue, and cost at published API rates. It runs on your existing subscription.",
     keywords: [
       "muse code desktop app",
       "muse code app",
@@ -217,7 +217,7 @@ export const PILLAR_PAGES: SeoPage[] = [
     faqs: [
       {
         q: "Is there a desktop app for Muse Code?",
-        a: "Yes. Helicon is a free, open-source desktop app for the Muse Code CLI, with a signed Windows installer and a universal macOS DMG, plus a web build against a daemon you run.",
+        a: "Yes. Helicon is a free, open-source desktop app for the Muse Code CLI, with a Windows installer and a universal macOS DMG, plus a web build against a daemon you run.",
       },
       {
         q: "Is the Muse Code desktop app free?",

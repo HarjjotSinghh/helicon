@@ -43,7 +43,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
       audience,
       headline: "Muse Code on Windows,",
       headlineContinue: "with a real UI.",
-      lead: "Signed installer. Your existing Muse Code plan. No second bill.",
+      lead: "Native on Windows. Your existing Muse Code plan. No second bill.",
       body: "A free, open-source Windows app for the muse CLI, with every project, session and diff in one window.",
       ctas: [
         { label: "Download for Windows", href: installerPath("windows", "hero"), kind: "primary" },
@@ -59,7 +59,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
       howExtra:
         "On Windows the daemon runs Muse Code natively, with WSL2 and path translation still there for anyone who prefers it.",
       compareBody:
-        "Muse Code has no native Windows build. Helicon is the signed desktop app for that gap. It is not the only GUI, and it is not official.",
+        "Helicon is a desktop app for Muse Code on Windows, native or in WSL2. It is not the only GUI, and it is not official.",
       faqIntro: "WSL, billing, credentials, and whether any of this is official. Straight answers.",
     };
   }

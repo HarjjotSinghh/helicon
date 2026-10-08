@@ -92,7 +92,7 @@ export const COMPANY_PAGES: SeoPage[] = [
         kind: "table",
         head: ["Layer", "What it is"],
         rows: [
-          ["Desktop shell", "Tauri 2, Rust host, signed Windows installer and universal macOS DMG"],
+          ["Desktop shell", "Tauri 2, Rust host, Windows installer and universal macOS DMG"],
           ["Interface", "React and TypeScript, shared byte for byte between the desktop app and the web app"],
           ["Daemon", "Node 22, one `muse serve` host per workspace, spoken to over JSON-RPC"],
           ["Protocol", "Muse Code Session Protocol, through the official MIT `@muse-code/sdk`"],

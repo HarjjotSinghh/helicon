@@ -23,7 +23,7 @@ const HOW_IT_WORKS = [
 ];
 
 const COMPARE: [string, string, string, string][] = [
-  ["Runs on Windows", "Signed installer, WSL2 routed", "Via your editor's WSL setup", "Varies"],
+  ["Runs on Windows", "Installer (not code signed yet), WSL2 routed", "Via your editor's WSL setup", "Varies"],
   ["Billing", "Your Muse Code subscription", "Your Muse Code subscription", "Usually its own API billing"],
   ["Lives where", "Standalone app or web", "Inside the editor", "Its own harness"],
   ["Several repos at once", "Sidebar, grouped by directory", "One window per project", "Varies"],

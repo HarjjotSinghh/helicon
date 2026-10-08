@@ -488,7 +488,7 @@ const DEFS: Def[] = [
     term: "Tauri",
     title: "What is Tauri, and why build a desktop app with it?",
     description:
-      "Tauri builds desktop apps from web UI using the operating system's own webview and a Rust core. Why that matters for a small, signed, auto updating app.",
+      "Tauri builds desktop apps from web UI using the operating system's own webview and a Rust core. Why that matters for a small, auto updating app.",
     answer:
       "Tauri is a framework for building desktop applications from web technology, using the operating system's own webview rather than bundling a browser, with a Rust core for native work. The result is a much smaller binary than an Electron equivalent, with code signing and auto update built into the release tooling.",
     keywords: ["what is tauri", "tauri vs electron", "rust desktop app", "tauri auto update", "lightweight desktop app framework"],

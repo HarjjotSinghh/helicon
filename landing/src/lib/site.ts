@@ -140,13 +140,13 @@ export function osesFor(version: string | null): OsInfo[] {
       id: "windows",
       label: "Windows",
       summary:
-        "Signed installer with auto-update. Muse Code runs natively on Windows; WSL2 still works, with path translation both ways.",
+        "Installer with auto-update. Muse Code runs natively on Windows; WSL2 still works, with path translation both ways.",
       steps: [
         { text: "Install Muse Code for Windows in PowerShell.", command: "irm https://dev.meta.ai/install.ps1 | iex" },
         { text: "Sign in once.", command: "muse login" },
         { text: win },
       ],
-      note: "Already running Muse inside WSL2? Helicon uses that when native Muse is not installed. Set HELICON_MUSE_RUNTIME=wsl to keep WSL when both are.",
+      note: "The installer is not code signed yet, so SmartScreen may warn: click More info, then Run anyway. Already running Muse inside WSL2? Helicon uses that when native Muse is not installed. Set HELICON_MUSE_RUNTIME=wsl to keep WSL when both are.",
     },
     {
       id: "macos",

@@ -246,7 +246,7 @@ export function DocPage({
             <RelatedGrid pages={related} />
             <PageCta
               title="Same Muse Code. Same subscription. Better interface."
-              body="Free and MIT licensed. Signed Windows installer, universal macOS DMG, and a web build against a daemon you run."
+              body="Free and MIT licensed. Windows installer, universal macOS DMG, and a web build against a daemon you run."
             />
           </div>
           {hasToc ? <aside className="mt-12 hidden xl:mt-0 xl:block">{<Toc page={page} />}</aside> : null}

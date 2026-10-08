@@ -15,7 +15,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
     description:
       "A signed installer, native Windows Muse Code with PowerShell, and WSL2 path translation when you need it. The Windows setup tax, paid once by the app instead of by you.",
     answer:
-      "Windows has historically been the worst platform for terminal coding agents: WSL2 plumbing, mixed path formats and unsigned binaries. Helicon ships a signed Windows installer with auto update, runs Muse Code natively with PowerShell for shell commands, and falls back to Muse Code inside WSL2 with two way path translation.",
+      "Windows has historically been the worst platform for terminal coding agents: WSL2 plumbing, mixed path formats and binaries you build yourself. Helicon ships a Windows installer with auto update, runs Muse Code natively with PowerShell for shell commands, and falls back to Muse Code inside WSL2 with two way path translation.",
     keywords: [
       "muse code windows developer",
       "ai coding agent windows",
@@ -30,7 +30,6 @@ export const USE_CASE_PAGES: SeoPage[] = [
         kind: "ul",
         items: [
           "The agent reports /home/you/project and nothing on the Windows side can open it.",
-          "SmartScreen blocks an unsigned binary and you are asked to trust it anyway.",
           "Half your tooling is in the distribution and half is on the host.",
           "Updating means finding the release page again.",
         ],
@@ -41,7 +40,6 @@ export const USE_CASE_PAGES: SeoPage[] = [
         head: ["Problem", "What the app does"],
         rows: [
           ["Mixed paths", "Translates both ways on the WSL2 route, uses Windows paths natively"],
-          ["Unsigned binaries", "Signed installer, so SmartScreen behaves"],
           ["Shell mismatch", "PowerShell for shell commands on the native route"],
           ["Manual updates", "Auto update built into the app"],
           ["Which route am I on", "Detection prefers native and tells you what it chose"],
@@ -65,7 +63,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
     ],
     faqs: [
       { q: "Do I need WSL2?", a: "No. Muse Code runs natively on Windows and Helicon drives it directly. WSL2 remains supported for setups that need it." },
-      { q: "Is the installer signed?", a: "Yes, with auto update built in." },
+      { q: "Is the installer signed?", a: "Not code signed yet, so SmartScreen may show 'Windows protected your PC': click More info, then Run anyway. Auto update is built in, and updates are signature checked by the app." },
       { q: "Does it work on Windows on ARM?", a: "The published installer is x64. ARM users can run from source with Node 22 or newer." },
     ],
     related: ["install/windows", "install/wsl2", "guides/muse-code-windows-without-wsl"],

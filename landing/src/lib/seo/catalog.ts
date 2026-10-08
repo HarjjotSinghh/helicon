@@ -24,7 +24,7 @@ export const SECTIONS: Section[] = [
     title: "Install a Muse Code desktop app on Windows, macOS or Linux",
     h1: "Install Helicon",
     description:
-      "Platform by platform install guides for the Muse Code desktop app: signed Windows installer, universal macOS DMG, Linux AppImage, and WSL2 routing.",
+      "Platform by platform install guides for the Muse Code desktop app: Windows installer, universal macOS DMG, Linux AppImage, and WSL2 routing.",
     answer:
       "Helicon installs from a signed Windows installer, a universal macOS DMG or an x86_64 Linux AppImage, all on the latest GitHub release, and all self updating. Every route needs the muse CLI installed and signed in with your own muse login, because Helicon drives Muse Code rather than replacing it.",
     intro:
