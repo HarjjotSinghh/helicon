@@ -7,6 +7,7 @@ import { basename, relativeTime } from "../../model/format.js";
 import { STATUS_LABEL, threadStatus, type ThreadStatus } from "../../model/status.js";
 import type { SessionSummary } from "../../types.js";
 import { Composer, ComposerFooter } from "../composer/Composer.js";
+import { BootError, BootScreen, HostErrorCard, Onboarding } from "../home/Home.js";
 import { SettingsPage } from "../settings/SettingsPage.js";
 import { ThreadView } from "../thread/ThreadView.js";
 import { UsagePage } from "../usage/UsagePage.js";
@@ -26,10 +27,20 @@ export function PanelShell() {
   const cwd = panel?.cwd ?? null;
   const route = useApp((s) => s.route);
   const loaded = useApp((s) => s.sessionsLoaded);
+  const boot = useApp((s) => s.boot);
+  const env = useApp((s) => s.env);
   const [historyOpen, setHistoryOpen] = useState(false);
   const tabs = usePanelTabs(cwd);
   let body = null;
-  if (!loaded) {
+  // The same setup and error screens the app shows, sized for the panel. Without them a missing muse CLI or a
+  // server that never answered leaves the panel blank, since sessions never load.
+  if (!env) {
+    body = boot === "error" ? <BootError compact /> : <BootScreen />;
+  } else if (!env.museFound) {
+    body = <Onboarding compact />;
+  } else if (boot === "error") {
+    body = <BootError compact />;
+  } else if (!loaded) {
     body = null;
   } else if (route.kind === "thread") {
     body = <ThreadView key={route.sessionId} sessionId={route.sessionId} bare />;
@@ -445,6 +456,7 @@ function PanelNew(props: { cwd: string | null; onHistory: () => void }) {
         )}
       </div>
       <div className="shrink-0 px-3 pb-2">
+        <HostErrorCard className="mb-2" />
         <Composer sessionId={null} cwd={project.cwd} running={false} readOnly={false} variant="home" autoFocus />
         <ComposerFooter cwd={project.cwd} branch={null} running={false} />
       </div>

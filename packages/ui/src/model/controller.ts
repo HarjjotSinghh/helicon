@@ -464,6 +464,11 @@ export class HeliconController {
     void this.boot(true);
   }
 
+  /** Clears the "Muse could not start" card once the person has fixed it, so the next prompt is a fresh try. */
+  dismissHostError(): void {
+    this.update((s) => ({ ...s, hostError: null }));
+  }
+
   // ---------------------------------------------------------------- data
 
   refresh(): Promise<void> {
