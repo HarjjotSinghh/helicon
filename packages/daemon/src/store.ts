@@ -42,6 +42,8 @@ export interface SessionRecord {
   sandboxDisabled: boolean | null;
   /** The aonia profile a session was created under; null for the default login. Set once, never changed. */
   accountId: string | null;
+  /** For a side chat, the main session it was opened from; null otherwise. Set once, never changed. */
+  sideOf: string | null;
 }
 
 export type SettledOverride = "settled" | "active";
@@ -68,6 +70,8 @@ export interface RecordSessionInput {
   sandboxDisabled?: boolean | null;
   /** Creation account; later touches never overwrite it. */
   accountId?: string | null;
+  /** The main session a side chat came from. Filled in once, the first time it is known. */
+  sideOf?: string | null;
 }
 
 export interface SessionPatch {
@@ -223,6 +227,7 @@ const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: "sessions", column: "account_id", ddl: "ALTER TABLE sessions ADD COLUMN account_id TEXT" },
   { table: "projects", column: "default_account_id", ddl: "ALTER TABLE projects ADD COLUMN default_account_id TEXT" },
   { table: "sessions", column: "pinned", ddl: "ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0" },
+  { table: "sessions", column: "side_of", ddl: "ALTER TABLE sessions ADD COLUMN side_of TEXT" },
 ];
 
 type Row = Record<string, string | number | null>;
@@ -619,8 +624,8 @@ export class HeliconStore {
       this.db
         .prepare(
           `INSERT INTO sessions (id, project_id, title, title_source, status, turn_count, model_id, origin,
-             archived, sandbox_disabled, account_id, created_at, updated_at, activity_at)
-           VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+             archived, sandbox_disabled, account_id, side_of, created_at, updated_at, activity_at)
+           VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           input.id,
@@ -632,6 +637,7 @@ export class HeliconStore {
           input.origin ?? "helicon",
           input.sandboxDisabled === undefined || input.sandboxDisabled === null ? null : input.sandboxDisabled ? 1 : 0,
           input.accountId ?? null,
+          input.sideOf ?? null,
           input.createdAt ?? now,
           now,
           input.activityAt ?? input.createdAt ?? now,
@@ -654,6 +660,9 @@ export class HeliconStore {
     }
     if (input.activityAt !== undefined && input.activityAt > existing.activityAt) {
       patch.activityAt = input.activityAt;
+    }
+    if (input.sideOf && existing.sideOf === null) {
+      this.db.prepare(`UPDATE sessions SET side_of = ? WHERE id = ?`).run(input.sideOf, input.id);
     }
     if (existing.projectId !== input.projectId) {
       this.db.prepare(`UPDATE sessions SET project_id = ? WHERE id = ?`).run(input.projectId, input.id);
@@ -832,6 +841,7 @@ export class HeliconStore {
       pinned: Number(row["pinned"] ?? 0) === 1,
       sandboxDisabled: row["sandbox_disabled"] === null || row["sandbox_disabled"] === undefined ? null : Number(row["sandbox_disabled"]) === 1,
       accountId: row["account_id"] === null || row["account_id"] === undefined ? null : String(row["account_id"]),
+      sideOf: row["side_of"] === null || row["side_of"] === undefined ? null : String(row["side_of"]),
     };
   }
 }

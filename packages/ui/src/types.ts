@@ -63,6 +63,8 @@ export interface SessionSummary {
   sandboxDisabled: boolean | null;
   /** The aonia profile this thread runs under; null for the default login. */
   accountId: string | null;
+  /** For a side chat, the thread it was opened from; the sidebar nests it there. */
+  sideOf?: string | null;
   live: LiveView | null;
 }
 

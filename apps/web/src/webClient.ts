@@ -375,6 +375,10 @@ export class WebHeliconClient implements HeliconClient {
     return (await call<{ session: SessionSummary }>("POST", `/api/sessions/${enc(sessionId)}/fork`, {})).session;
   }
 
+  async sideChat(sessionId: string): Promise<SessionSummary> {
+    return (await call<{ session: SessionSummary }>("POST", `/api/sessions/${enc(sessionId)}/side`, {})).session;
+  }
+
   listSkills(cwd: string, sessionId?: string): Promise<SkillCatalog> {
     return call<SkillCatalog>("GET", `/api/slash?cwd=${enc(cwd)}${sessionId ? `&sessionId=${enc(sessionId)}` : ""}`);
   }

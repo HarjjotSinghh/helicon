@@ -1263,7 +1263,7 @@ export class HeliconServer {
       return true;
     }
 
-    const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(?:\/(resume|model|approval-mode|compact|shell|fork|effort|goal|subagent|tasks|workflow))?$/);
+    const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(?:\/(resume|model|approval-mode|compact|shell|fork|side|effort|goal|subagent|tasks|workflow))?$/);
     if (sessionMatch) {
       const sessionId = decodeURIComponent(sessionMatch[1] as string);
       const action = sessionMatch[2];
@@ -1329,6 +1329,10 @@ export class HeliconServer {
         }
         if (action === "fork") {
           this.json(res, 200, { session: await this.forkSession(sessionId, manager) });
+          return true;
+        }
+        if (action === "side") {
+          this.json(res, 200, { session: await this.sideChat(sessionId, manager) });
           return true;
         }
         if (action === "effort") {
@@ -1913,6 +1917,7 @@ export class HeliconServer {
       pinned: record.pinned,
       sandboxDisabled: record.sandboxDisabled,
       accountId: record.accountId,
+      sideOf: record.sideOf,
       live: this.liveView(record.id),
     };
   }
@@ -2301,6 +2306,34 @@ export class HeliconServer {
       this.sessionHosts.set(forked.sessionId, hostKey);
     }
     this.liveFor(forked.sessionId);
+    this.sessionsChanged();
+    return this.summary(record, found.cwd);
+  }
+
+  /** Opens a side chat beside a thread. It is its own session, nested under the thread in the sidebar. */
+  private async sideChat(sessionId: string, manager: SessionManager): Promise<Record<string, unknown>> {
+    const found = this.store.findSession(sessionId);
+    if (!found) {
+      throw new HttpError(404, "Unknown session.");
+    }
+    const side = await manager.sideChat(sessionId);
+    const raw = asRecord(asRecord(side.raw)?.["session"]);
+    const record = this.store.recordSession({
+      id: side.sessionId,
+      projectId: found.session.projectId,
+      origin: "helicon",
+      title: `${found.session.title} (side chat)`,
+      titleSource: "auto",
+      modelId: raw ? str(raw["modelId"]) : found.session.modelId,
+      createdAt: normalizeIso(raw?.["createdAt"]),
+      sandboxDisabled: found.session.sandboxDisabled,
+      sideOf: sessionId,
+    });
+    const hostKey = this.sessionHosts.get(sessionId);
+    if (hostKey) {
+      this.sessionHosts.set(side.sessionId, hostKey);
+    }
+    this.liveFor(side.sessionId);
     this.sessionsChanged();
     return this.summary(record, found.cwd);
   }
@@ -2740,6 +2773,10 @@ export class HeliconServer {
       if (!session || !sessionId) {
         continue;
       }
+      // A subagent's own session is part of the thread that spawned it, not a thread of its own.
+      if (session["kind"] === "subagent") {
+        continue;
+      }
       const reported = firstString(session, ["workspaceRoot"]);
       const root = this.storePathFor(discoveredProjectRoot(cwd, reported));
       if (!root) {
@@ -2768,6 +2805,8 @@ export class HeliconServer {
         modelId: str(session["modelId"]),
         createdAt: normalizeIso(session["createdAt"]),
         activityAt: normalizeIso(session["updatedAt"]),
+        // Side chats are told apart by `sideFrom`, not by `kind`.
+        sideOf: str(asRecord(session["sideFrom"])?.["sessionId"]),
       });
       const running = str(session["status"]) === "running" && Boolean(str(session["activeTurnId"]));
       if (running) {

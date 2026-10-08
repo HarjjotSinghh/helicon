@@ -1,7 +1,7 @@
 import type { ApprovalMode, ModelOption, ReasoningEffort, SkillEntry } from "../types.js";
 
 /** What a built-in command does; skills are the other kind of command. */
-export type SlashAction = "compact" | "model" | "effort" | "permissions" | "fork" | "new" | "resume" | "init" | "skill" | "goal";
+export type SlashAction = "compact" | "model" | "effort" | "permissions" | "fork" | "side" | "new" | "resume" | "init" | "skill" | "goal";
 
 export interface SlashCommand {
   /** Typed after the slash. */
@@ -45,6 +45,7 @@ export const BUILTIN_COMMANDS: readonly SlashCommand[] = [
   builtin("effort", "effort", "Set how long the model thinks: off, low, medium, high, xhigh, max or auto", { hint: "[level]" }),
   builtin("permissions", "permissions", "Choose what Muse can do without asking: ask, unlisted, deny or full", { hint: "[mode]" }),
   builtin("fork", "fork", "Branch this thread into a new one", { needsThread: true }),
+  builtin("side", "side", "Open a side chat next to this thread, without adding to it", { needsThread: true }),
   builtin("new", "new", "Start a new thread in this project", { aliases: ["clear"] }),
   builtin("resume", "resume", "Open an earlier thread"),
   builtin("init", "init", "Explore the workspace and create or improve AGENTS.md"),

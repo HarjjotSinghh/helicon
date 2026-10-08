@@ -825,6 +825,27 @@ export function GenericRow(props: { item: MspItem }) {
   );
 }
 
+/** A side chat opened from this thread. It is a session of its own, so the row only links to it. */
+export function SideChatRow(props: { item: MspItem }) {
+  const controller = useController();
+  const sideId = typeof props.item["sideSessionId"] === "string" ? props.item["sideSessionId"] : null;
+  const title = useApp((s) => (sideId ? (s.sessions[sideId]?.title ?? null) : null));
+  return (
+    <Row
+      icon={<ChatCircleDotsIcon size={14} />}
+      label="Side chat"
+      detail={title ?? "Opened beside this thread"}
+      actions={
+        sideId ? (
+          <Button size="sm" variant="ghost" onClick={() => controller.openThread(sideId)}>
+            Open
+          </Button>
+        ) : undefined
+      }
+    />
+  );
+}
+
 export function SteerBubble(props: { item: MspItem }) {
   return (
     <div className="enter-up flex flex-col items-end gap-1">

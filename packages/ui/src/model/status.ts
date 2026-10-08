@@ -71,6 +71,8 @@ export function isLive(status: ThreadStatus): boolean {
 export interface SidebarEntry {
   session: SessionSummary;
   status: ThreadStatus;
+  /** A side chat drawn indented under the thread it came from. */
+  nested?: boolean;
 }
 
 /** Settled threads leave the active list, unless they are busy again before the server has caught up. */
@@ -120,12 +122,39 @@ export function groupByProject(projects: ProjectView[], entries: SidebarEntry[])
     const all = buckets.get(project.cwd) ?? [];
     return {
       project,
-      entries: all.filter((e) => !isSettled(e)).sort(activeOrder),
+      entries: nestSides(all.filter((e) => !isSettled(e)).sort(activeOrder)),
       settled: all.filter(isSettled).sort(settledOrder),
       attention: all.filter((e) => e.status === "approval" || e.status === "input").length,
       running: all.filter((e) => e.status === "running").length,
     };
   });
+}
+
+/**
+ * Moves each side chat to just under the thread it came from, in the same stable order. A side chat
+ * whose thread is not in the list (settled, archived, or never seen here) stays where it was.
+ */
+export function nestSides(entries: SidebarEntry[]): SidebarEntry[] {
+  const present = new Set(entries.map((e) => e.session.sessionId));
+  const sides = new Map<string, SidebarEntry[]>();
+  for (const entry of entries) {
+    const parent = entry.session.sideOf;
+    if (parent && parent !== entry.session.sessionId && present.has(parent)) {
+      sides.set(parent, [...(sides.get(parent) ?? []), { ...entry, nested: true }]);
+    }
+  }
+  if (sides.size === 0) {
+    return entries;
+  }
+  const out: SidebarEntry[] = [];
+  for (const entry of entries) {
+    const parent = entry.session.sideOf;
+    if (parent && parent !== entry.session.sessionId && present.has(parent)) {
+      continue;
+    }
+    out.push(entry, ...(sides.get(entry.session.sessionId) ?? []));
+  }
+  return out;
 }
 
 export type StatusGroupId = "attention" | "running" | "review" | "idle";

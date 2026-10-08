@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { applyEvent, emptyFold } from "../src/model/fold.js";
-import { groupByProject, groupByStatus, settledEntries, threadStatus, type SidebarEntry } from "../src/model/status.js";
+import { groupByProject, groupByStatus, nestSides, settledEntries, threadStatus, type SidebarEntry } from "../src/model/status.js";
 import type { LiveView, ProjectView, SessionSummary } from "../src/types.js";
 
 const BASE = "2026-09-01T00:00:00.000Z";
@@ -90,6 +90,21 @@ describe("sidebar grouping", () => {
     assert.deepEqual(groups[0]?.entries.map((e) => e.session.sessionId), ["woken"]);
     assert.deepEqual(groups[2]?.entries.map((e) => e.session.sessionId), ["back", "old", "other", "hidden-project"]);
     assert.deepEqual(settledEntries(entries).map((e) => e.session.sessionId), ["shelved", "shelved-earlier"]);
+  });
+
+  it("nests side chats under the thread they came from", () => {
+    const withSides: SidebarEntry[] = [
+      { session: session("side-a", { createdAt: "2026-09-05T00:00:00.000Z", sideOf: "main" }), status: "idle" },
+      { session: session("first", { createdAt: "2026-09-04T00:00:00.000Z" }), status: "idle" },
+      { session: session("main", { createdAt: "2026-09-01T00:00:00.000Z" }), status: "idle" },
+      { session: session("orphan", { createdAt: "2026-09-03T00:00:00.000Z", sideOf: "gone" }), status: "idle" },
+    ];
+    const listed = groupByProject(projects, withSides)[0]?.entries ?? [];
+    assert.deepEqual(listed.map((e) => e.session.sessionId), ["first", "orphan", "main", "side-a"]);
+    assert.deepEqual(listed.map((e) => e.nested ?? false), [false, false, false, true]);
+    // Nothing to nest leaves the list as it was.
+    const plain = withSides.slice(1, 3);
+    assert.equal(nestSides(plain), plain);
   });
 
   it("groups pinned threads above the rest, in the same stable order", () => {

@@ -210,6 +210,18 @@ describe("HeliconStore", () => {
     assert.equal(store.findSession("s1")?.session.accountId, null);
   });
 
+  it("records which thread a side chat came from, once", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/proj");
+    assert.equal(store.recordSession({ id: "s1", projectId: project.id }).sideOf, null);
+    // Seen first without its link, then linked on a later touch.
+    store.recordSession({ id: "s2", projectId: project.id });
+    assert.equal(store.recordSession({ id: "s2", projectId: project.id, sideOf: "s1" }).sideOf, "s1");
+    assert.equal(store.recordSession({ id: "s2", projectId: project.id, sideOf: "other" }).sideOf, "s1", "the link never changes");
+    assert.equal(store.findSession("s2")?.session.sideOf, "s1");
+  });
+
   it("never overwrites a session's account on a later touch", () => {
     const store = new HeliconStore();
     after(() => store.close());

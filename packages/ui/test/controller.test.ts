@@ -221,6 +221,10 @@ class FakeClient implements HeliconClient {
     this.actions.push("fork");
     return { ...SESSION, sessionId: "s2", title: "Probe (fork)" };
   }
+  async sideChat(sessionId: string) {
+    this.actions.push(`side:${sessionId}`);
+    return { ...SESSION, sessionId: "s3", title: "Probe (side chat)", sideOf: sessionId };
+  }
   async listSkills(_cwd: string, sessionId?: string) {
     this.skillSessions.push(sessionId);
     return { skills: this.skills, error: null };
@@ -1829,6 +1833,18 @@ describe("HeliconController", () => {
     assert.deepEqual(state.route, { kind: "thread", sessionId: "s2" });
     assert.equal(state.sessions["s2"]?.title, "Probe (fork)");
     assert.equal(state.toasts.at(-1)?.title, "Forked into a new thread");
+    stop();
+  });
+
+  it("opens a side chat beside the thread and switches to it", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.transcript = async () => load({ session: { ...SESSION, sessionId: "s3", title: "Probe (side chat)", sideOf: "s1" } });
+    assert.equal(await controller.send("/side"), true);
+    const state = controller.store.get();
+    assert.ok(client.actions.includes("side:s1"));
+    assert.deepEqual(state.route, { kind: "thread", sessionId: "s3" });
+    assert.equal(state.sessions["s3"]?.sideOf, "s1");
     stop();
   });
 

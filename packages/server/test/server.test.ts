@@ -1819,6 +1819,33 @@ describe("slash commands, skills and shell", () => {
     assert.deepEqual(connection.calls.at(-1), { method: "session/fork", params: { sessionId: "s1", excludeItems: true } });
     const ids = (await get(base, "/api/sessions")).sessions.map((s: { sessionId: string }) => s.sessionId).sort();
     assert.deepEqual(ids, ["s1", "s2"]);
+
+    connection.replies.set("session/sideChat", { session: { sessionId: "s3", sideFrom: { sessionId: "s1", commandId: "c1", cutCursor: "x" } } });
+    const side = await send(base, "/api/sessions/s1/side", {});
+    assert.equal(side.status, 200);
+    assert.equal(side.json.session.sessionId, "s3");
+    assert.equal(side.json.session.sideOf, "s1");
+    assert.equal(side.json.session.title, "New thread (side chat)");
+    assert.deepEqual(connection.calls.at(-1), { method: "session/sideChat", params: { sessionId: "s1" } });
+  });
+
+  it("links side chats Muse lists to their thread, and leaves subagent sessions out", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/list", {
+      sessions: [
+        { sessionId: "main", workspaceRoot: "/work/proj", turnCount: 3 },
+        { sessionId: "side", workspaceRoot: "/work/proj", sideFrom: { sessionId: "main", commandId: "c1", cutCursor: "x" } },
+        { sessionId: "child", workspaceRoot: "/work/proj", kind: "subagent", parentSessionId: "main" },
+      ],
+      nextCursor: null,
+    });
+    const { base } = await start(connection);
+    const found = await send(base, "/api/discover", {});
+    assert.equal(found.status, 200);
+    const sessions = (await get(base, "/api/sessions")).sessions as { sessionId: string; sideOf: string | null }[];
+    assert.deepEqual(sessions.map((s) => s.sessionId).sort(), ["main", "side"]);
+    assert.equal(sessions.find((s) => s.sessionId === "side")?.sideOf, "main");
+    assert.equal(sessions.find((s) => s.sessionId === "main")?.sideOf, null);
   });
 
   it("runs a `!` command itself and keeps it with the thread", async () => {

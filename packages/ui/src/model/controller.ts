@@ -2409,6 +2409,8 @@ export class HeliconController {
         return true;
       case "fork":
         return this.fork(sessionId as string);
+      case "side":
+        return this.sideChat(sessionId as string);
       case "new":
         this.newThread(cwd);
         return true;
@@ -2667,6 +2669,26 @@ export class HeliconController {
         "Could not fork the thread",
         errorKind(error) === "forkBoundaryInvalid" ? "Muse could not find a point in this thread to fork it at." : errorMessage(error),
       );
+      return false;
+    } finally {
+      this.setBusy(key, false);
+    }
+  }
+
+  /** Opens a side chat beside a thread and switches to it. The thread itself is left as it was. */
+  async sideChat(sessionId: string): Promise<boolean> {
+    const key = `side:${sessionId}`;
+    if (this.state.busy[key]) {
+      return false;
+    }
+    this.setBusy(key, true);
+    try {
+      const session = await this.client.sideChat(sessionId);
+      this.upsertSession(session);
+      this.navigate({ kind: "thread", sessionId: session.sessionId });
+      return true;
+    } catch (error) {
+      this.toast("error", "Could not open a side chat", errorMessage(error));
       return false;
     } finally {
       this.setBusy(key, false);

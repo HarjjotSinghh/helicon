@@ -610,12 +610,13 @@ export const ThreadRow = memo(
       <li>
         <div
           className={cn(
-            "group/row relative flex min-h-8 items-center gap-2 rounded-lg py-1 pr-1 pl-[30px] transition-colors duration-100",
+            "group/row relative flex min-h-8 items-center gap-2 rounded-lg py-1 pr-1 transition-colors duration-100",
+            props.entry.nested ? "pl-[46px]" : "pl-[30px]",
             props.active ? "bg-active" : "hover:bg-hover",
           )}
         >
           {props.settled ? null : (
-            <span className="absolute top-1/2 left-[10px] flex size-4 -translate-y-1/2 items-center justify-center">
+            <span className={cn("absolute top-1/2 flex size-4 -translate-y-1/2 items-center justify-center", props.entry.nested ? "left-[26px]" : "left-[10px]")}>
               <StatusGlyph status={status} />
             </span>
           )}
@@ -655,7 +656,7 @@ export const ThreadRow = memo(
                 {session.pinned ? <PushPinIcon size={11} className="shrink-0 text-subtle" aria-hidden="true" /> : null}
               </span>
               {props.settled ? null : <RowMeta session={session} showProject={props.showProject} />}
-              <span className="sr-only">{`, ${STATUS_LABEL[status]}${session.pinned ? ", pinned" : ""}${session.sandboxDisabled === true ? ", sandbox off" : ""}${session.accountId ? ", using a separate account" : ""}`}</span>
+              <span className="sr-only">{`, ${STATUS_LABEL[status]}${props.entry.nested ? ", side chat" : ""}${session.pinned ? ", pinned" : ""}${session.sandboxDisabled === true ? ", sandbox off" : ""}${session.accountId ? ", using a separate account" : ""}`}</span>
             </button>
           )}
           {renaming ? null : (
@@ -692,6 +693,7 @@ export const ThreadRow = memo(
   (a, b) =>
     a.entry.session === b.entry.session &&
     a.entry.status === b.entry.status &&
+    a.entry.nested === b.entry.nested &&
     a.active === b.active &&
     a.now === b.now &&
     a.showProject === b.showProject &&

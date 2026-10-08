@@ -362,6 +362,15 @@ export class SessionManager {
     return { sessionId: sessionIdOf(result), raw: result };
   }
 
+  /**
+   * Opens a side chat beside a session: a new, empty session that Muse links back to it through
+   * `sideFrom`. Nothing flows back into the main session; it only gains a `sideChat` item.
+   */
+  async sideChat(sessionId: string): Promise<StartedSession> {
+    const result = await this.connection.command("session/sideChat", { sessionId });
+    return { sessionId: sessionIdOf(result), raw: result };
+  }
+
   async decideApproval(decision: ApprovalDecision): Promise<unknown> {
     return this.connection.command("approval/decide", {
       sessionId: decision.sessionId,
