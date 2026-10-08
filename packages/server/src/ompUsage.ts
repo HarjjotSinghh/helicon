@@ -293,7 +293,8 @@ export function parseOmpSessionFile(text: string, fallback: { sessionId: string 
  * Records every `muse-code` call across OMP's session trees (default, XDG, and named
  * profiles — see `resolveOmpSessionsDirs`). A missing sessions directory is a clean empty
  * result, not an error — most machines simply never ran OMP. Imported sessions are archived
- * on arrival: they exist so the usage page can attribute their threads, not as threads to open.
+ * on arrival and projects the import creates are hidden, so the sidebar is untouched: both
+ * exist so the usage page can attribute their threads, not as threads to open.
  * Subagent and `__advisor` transcripts are counted under their own session rows with a labeled
  * title rather than skipped or silently merged into the main thread.
  */
@@ -331,7 +332,15 @@ export async function importOmpUsage(
       }
       counts.sessions += 1;
       if (parsed.cwd) {
+        // Hide only projects the import itself created: new rows default to visible, and with
+        // their sessions archived on arrival the sidebar would otherwise sort these empty
+        // OMP-only folders to the top. Pre-existing Helicon projects keep their visibility.
+        // `listUsage` joins projects without a hidden filter, so the Usage page still names them.
+        const existed = store.getProject(parsed.cwd) !== null;
         const project = store.upsertProject(parsed.cwd);
+        if (!existed) {
+          store.setHidden(parsed.cwd, true);
+        }
         const stamps = parsed.calls.map((call) => call.at).sort();
         const title = labelOmpSessionTitle(parsed.title, classifyOmpTranscript(entry));
         const session = store.recordSession({

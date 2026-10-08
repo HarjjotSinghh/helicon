@@ -73,10 +73,10 @@ function restoreEnv(saved: Map<string, string | undefined>): void {
   }
 }
 
-function sessionFile(lines: string[], sessionId = "019abc-session"): string {
+function sessionFile(lines: string[], sessionId = "019abc-session", cwd = "E:\\work\\app"): string {
   return [
     JSON.stringify({ type: "title", v: 1, title: "Fix the tests", updatedAt: NOW }),
-    JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp: NOW, cwd: "E:\\work\\app" }),
+    JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp: NOW, cwd }),
     JSON.stringify({ type: "model_change", id: "m1", timestamp: NOW, model: "muse-code/muse-spark-1.3-contributor" }),
     ...lines,
   ].join("\n");
@@ -353,6 +353,32 @@ describe("importOmpUsage", () => {
     } finally {
       restoreEnv(saved);
     }
+  });
+
+  it("hides projects the import creates but leaves existing projects visible", async () => {
+    const store = new HeliconStore(":memory:");
+    store.upsertProject("E:\\work\\existing");
+    const before = store.listProjects().map((project) => project.cwd);
+
+    const dir = await sessionsDir({
+      "--E--work--new--/n.jsonl": sessionFile([message("e1")], "new-1", "E:\\work\\new"),
+      "--E--work--existing--/o.jsonl": sessionFile([message("e2")], "old-1", "E:\\work\\existing"),
+    });
+    const counts = await importOmpUsage(dir, store);
+    assert.deepEqual(counts, { files: 2, sessions: 2, calls: 2, skipped: 0 });
+
+    // The sidebar sees exactly what it saw before: the fresh OMP-only folder stays hidden.
+    assert.deepEqual(
+      store.listProjects().map((project) => project.cwd),
+      before,
+    );
+    const hidden = store.listProjects({ includeHidden: true });
+    assert.equal(hidden.find((project) => project.cwd === "E:\\work\\new")?.hidden, true);
+    assert.equal(hidden.find((project) => project.cwd === "E:\\work\\existing")?.hidden, false);
+
+    // Hiding is sidebar-only: the Usage page still attributes both threads to their folders.
+    const cwds = store.listUsage().map((row) => row.projectCwd).sort();
+    assert.deepEqual(cwds, ["E:\\work\\existing", "E:\\work\\new"]);
   });
 });
 
