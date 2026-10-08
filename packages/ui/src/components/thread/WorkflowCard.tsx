@@ -8,16 +8,18 @@ import { Markdown } from "../ui/Markdown.js";
 import { Sheet } from "../ui/overlays.js";
 import { Button, IconButton, Spinner, cn } from "../ui/primitives.js";
 
-type Tone = "running" | "done" | "failed";
+type Tone = "running" | "paused" | "done" | "failed";
 
 const PILL: Record<Tone, string> = {
   running: "bg-accent-soft text-accent-text",
+  paused: "bg-sunken text-muted",
   done: "bg-active text-ok-text",
   failed: "bg-warn-soft text-warn-text",
 };
 
 const FILL: Record<Tone, string> = {
   running: "bg-accent",
+  paused: "bg-line",
   done: "bg-ok",
   failed: "bg-warn",
 };
@@ -25,6 +27,9 @@ const FILL: Record<Tone, string> = {
 function toneOf(view: WorkflowView): Tone {
   if (view.running) {
     return "running";
+  }
+  if (view.paused) {
+    return "paused";
   }
   // A run that was rejected, cancelled or timed out did not succeed, even with no failed agent.
   return view.failed > 0 || TERMINAL_FAILURES.has(view.status) ? "failed" : "done";
@@ -106,7 +111,7 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
             <Button size="sm" variant="ghost" onClick={() => setDetail(true)}>
               <SquareHalfIcon size={13} /> Details
             </Button>
-            {view.running && view.runId && sessionId ? <CancelRun sessionId={sessionId} runId={view.runId} /> : null}
+            {(view.running || view.paused) && view.runId && sessionId ? <CancelRun sessionId={sessionId} runId={view.runId} /> : null}
           </div>
         </div>
       ) : null}

@@ -179,6 +179,22 @@ describe("workflowView", () => {
     }
   });
 
+  it("treats a paused run as neither done nor failed", () => {
+    const view = workflowView(item({ status: "paused", children: [child("a1", "completed", 4000), child("a2", null)] }), null);
+    assert.equal(view.paused, true);
+    assert.equal(view.running, false);
+    assert.equal(view.done, 1);
+    assert.equal(view.working, 1);
+    assert.equal(view.failed, 0);
+  });
+
+  it("does not hand a paused run's status to agents it never reported", () => {
+    const view = workflowView(item({ status: "paused", children: [] }), null);
+    assert.equal(view.working, 2);
+    assert.equal(view.failed, 0);
+    assert.equal(view.done, 0);
+  });
+
   it("names every status that means the run did not succeed", () => {
     assert.deepEqual([...TERMINAL_FAILURES].sort(), ["cancelled", "failed", "rejected", "timedOut"]);
   });
