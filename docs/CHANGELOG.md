@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.21.3
+
+### New
+
+- **Pin threads to the top** ([#111](https://github.com/HarjjotSinghh/helicon/pull/111), by [@aminamos](https://github.com/aminamos)). Pin thread in a thread's menu keeps it above the others in its project, in the sidebar and the command palette, the same way pinned projects work. Pinned threads are never settled automatically; settle one yourself and it keeps its pin for when you bring it back ([#107](https://github.com/HarjjotSinghh/helicon/issues/107)).
+- **Enter can steer the running turn** ([#108](https://github.com/HarjjotSinghh/helicon/pull/108), by [@aminamos](https://github.com/aminamos)). Turn on **Settings → Composer → Enter steers the turn** and, while Muse is working, Enter steers the turn and Cmd/Ctrl+Enter queues the message. The placeholder, the send button and the hint follow. Off by default, so Enter still queues ([#106](https://github.com/HarjjotSinghh/helicon/issues/106)).
+
+### Fixed
+
+- **The editor panel is no longer blank when setup is unfinished.** If the muse CLI is missing or Helicon's server can't be reached, the VS Code and Cursor panel now shows the same setup and error screens as the desktop app, with Check again and Try again.
+- **The macOS and Linux setup screen tells you how to install Muse Code.** It gives Meta's install command to copy, says a Muse Code plan is needed, and links to the guide for a CLI that's installed but not found.
+- **Signed out of Muse? It stays on screen.** When Muse can't start, usually because the muse CLI isn't signed in, a card above the composer shows `muse login` to copy, a Try again button and a link to more fixes, instead of a toast that disappears. The server error screen also links to a prefilled bug report.
+- **Usage says "1 call", not "1 calls"** ([#114](https://github.com/HarjjotSinghh/helicon/pull/114), by [@amanrock1](https://github.com/amanrock1)). The call counts on the Usage page, and the line about calls with no published price, agree with their number ([#68](https://github.com/HarjjotSinghh/helicon/issues/68)).
+
+### Changed
+
+- **Install instructions that match what you'll see.** On macOS 15 and later, right-click then Open no longer gets past Gatekeeper, so the site, README and release notes now say: open Helicon once, click Done, then **System Settings → Privacy & Security → Open Anyway** (or run `xattr -dr com.apple.quarantine /Applications/Helicon.app`). The Windows installer is not code signed yet, so the site no longer calls it signed and says what to do if SmartScreen warns: **More info → Run anyway**. The macOS and Linux steps now start with installing the muse CLI.
+
 ## 0.21.2
 
 ### New

@@ -2,6 +2,12 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.21.3
+
+- The panel shows the setup and error screens instead of staying blank when the muse CLI is missing or the server can't be reached.
+- A lasting "Muse could not start" card with `muse login` to copy, instead of a toast that disappears.
+- Pin threads, Enter can steer the running turn (opt in), and "1 call" on the Usage page. Thanks [@aminamos](https://github.com/aminamos) and [@amanrock1](https://github.com/amanrock1).
+
 ## 0.21.2
 
 - Listed as "Helicon: Muse Code GUI (unofficial)", so searching "muse code" finds it.
