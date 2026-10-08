@@ -1,5 +1,5 @@
 import { usePortalContainer } from "@/demo/portal";
-import { ArrowLineDownIcon, ArrowsInIcon, CaretRightIcon, ChatCircleDotsIcon, FileMagnifyingGlassIcon, FilePlusIcon, FileTextIcon, GlobeIcon, ListChecksIcon, MagnifyingGlassIcon, PaperPlaneRightIcon, PencilSimpleLineIcon, RobotIcon, StopCircleIcon, TargetIcon, TerminalWindowIcon, TreeStructureIcon, WarningCircleIcon, WrenchIcon } from "../ui/icons";
+import { ArrowLineDownIcon, EyeIcon, ArrowsInIcon, CaretRightIcon, ChatCircleDotsIcon, FileMagnifyingGlassIcon, FilePlusIcon, FileTextIcon, GlobeIcon, ListChecksIcon, MagnifyingGlassIcon, PaperPlaneRightIcon, PencilSimpleLineIcon, RobotIcon, StopCircleIcon, TargetIcon, TerminalWindowIcon, TreeStructureIcon, WarningCircleIcon, WrenchIcon } from "../ui/icons";
 import { Popover } from "radix-ui";
 import { memo, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp, useController } from "../../app/context";
@@ -44,6 +44,7 @@ const TOOL_ICONS: Record<ToolKind, (props: { size: number; className?: string })
   plan: (p) => <ListChecksIcon {...p} />,
   agent: (p) => <RobotIcon {...p} />,
   goal: (p) => <TargetIcon {...p} />,
+  monitor: (p) => <EyeIcon {...p} />,
   generic: (p) => <WrenchIcon {...p} />,
 };
 
@@ -355,11 +356,33 @@ export function DiffCount(props: { added: number; removed: number }) {
   );
 }
 
-interface FileChanges {
+export interface FileChanges {
   path: string;
   added: number;
   removed: number;
   diffs: DiffView[];
+}
+
+/** The files a list of items edited, one entry per path, in the order they were first touched. */
+export function collectFileChanges(items: Iterable<MspItem>): FileChanges[] {
+  const byPath = new Map<string, FileChanges>();
+  for (const item of items) {
+    if (item.kind !== "toolCall") {
+      continue;
+    }
+    const diff = extractDiff(item);
+    if (!diff) {
+      continue;
+    }
+    const key = diff.path ?? item.itemId;
+    const stats = diffStats(diff);
+    const entry = byPath.get(key) ?? { path: diff.path ?? "file", added: 0, removed: 0, diffs: [] };
+    entry.added += stats.added;
+    entry.removed += stats.removed;
+    entry.diffs.push(diff);
+    byPath.set(key, entry);
+  }
+  return [...byPath.values()];
 }
 
 /**
@@ -368,26 +391,7 @@ interface FileChanges {
  * Adapted: Radix Popover for keyboard access instead of a hand-positioned portal.
  */
 export function DiffChips(props: { entries: MspItem[]; className?: string; sessionId?: string }) {
-  const files = useMemo(() => {
-    const byPath = new Map<string, FileChanges>();
-    for (const item of props.entries) {
-      if (item.kind !== "toolCall") {
-        continue;
-      }
-      const diff = extractDiff(item);
-      if (!diff) {
-        continue;
-      }
-      const key = diff.path ?? item.itemId;
-      const stats = diffStats(diff);
-      const entry = byPath.get(key) ?? { path: diff.path ?? "file", added: 0, removed: 0, diffs: [] };
-      entry.added += stats.added;
-      entry.removed += stats.removed;
-      entry.diffs.push(diff);
-      byPath.set(key, entry);
-    }
-    return [...byPath.values()];
-  }, [props.entries]);
+  const files = useMemo(() => collectFileChanges(props.entries), [props.entries]);
   if (files.length === 0) {
     return null;
   }

@@ -134,6 +134,11 @@ export function formatCompactTokens(value: number | null | undefined): string {
   return formatTokens(value);
 }
 
+/** `1 call`, `2 calls`: a count with its noun in the right number. */
+export function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
 export function basename(path: string): string {
   const trimmed = path.replace(/[\\/]+$/, "");
   const parts = trimmed.split(/[\\/]/);
@@ -216,7 +221,7 @@ export function parseArgs(args: string | undefined): Record<string, unknown> | n
   }
 }
 
-function pickString(args: Record<string, unknown> | null, keys: string[]): string | null {
+export function pickString(args: Record<string, unknown> | null, keys: string[]): string | null {
   if (!args) {
     return null;
   }
@@ -241,6 +246,7 @@ export type ToolKind =
   | "plan"
   | "agent"
   | "goal"
+  | "monitor"
   | "generic";
 
 const PATH_KEYS = ["path", "file_path", "filePath", "filename", "file", "target_file", "targetFile"];
@@ -251,6 +257,10 @@ export function toolKind(tool: string | undefined, args: Record<string, unknown>
   // Muse's goal tools, checked first so `create_goal` never reads as writing a file.
   if (tool && GOAL_TOOLS.has(tool)) {
     return "goal";
+  }
+  // Muse's Monitor: checked before shell, since its args carry the command it watches.
+  if (tool === "monitor") {
+    return "monitor";
   }
   const words = new Set(
     (tool ?? "")
@@ -317,6 +327,7 @@ const VERBS: Record<ToolKind, [string, string]> = {
   plan: ["Updated the plan", "Updating the plan"],
   agent: ["Delegated", "Delegating"],
   goal: ["Updated the goal", "Updating the goal"],
+  monitor: ["Watched", "Watching"],
   generic: ["Used", "Using"],
 };
 
@@ -327,6 +338,12 @@ export function describeTool(item: MspItem): ToolDescription {
   const verb = VERBS[kind][running ? 1 : 0];
   const note = pickString(args, ["description", "reason", "explanation"]);
   switch (kind) {
+    case "monitor": {
+      const command = pickString(args, ["command", "cmd"]);
+      const description = pickString(args, ["description"]);
+      const verbFor = item.status === "cancelled" ? "Stopped watching" : verb;
+      return { kind, verb: verbFor, subject: description ?? command, mono: !description, note: description ? command : null };
+    }
     case "shell":
       return { kind, verb, subject: pickString(args, ["command", "cmd"]) ?? item.args ?? null, mono: true, note };
     case "read":

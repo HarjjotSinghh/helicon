@@ -12,6 +12,8 @@ export interface EnvironmentStatus {
   defaultDistro: string | null;
   museFound: boolean;
   musePath: string | null;
+  /** Whether an `ssh` client runs where the server does, which SSH projects need. Older servers leave it out. */
+  sshFound?: boolean;
   version: string;
   persistent: boolean;
 }
@@ -35,6 +37,8 @@ export interface LiveView {
   lastError: string | null;
   /** The session's goal as the server last saw it, for threads the UI has not opened. */
   goal?: Goal | null;
+  /** Monitors still watching in the background, for threads the UI has not opened. Older servers leave it out. */
+  monitors?: number;
 }
 
 export interface SessionSummary {
@@ -53,6 +57,8 @@ export interface SessionSummary {
   settledAt: string | null;
   /** When it was last brought back from the shelf; keeps its place in the active list. */
   unsettledAt: string | null;
+  /** Pinned to the top of its project's thread list. */
+  pinned: boolean;
   /** Sandbox posture at creation; null for threads recorded before tracking. */
   sandboxDisabled: boolean | null;
   /** The aonia profile this thread runs under; null for the default login. */

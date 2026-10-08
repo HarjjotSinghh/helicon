@@ -53,6 +53,22 @@ export const Menu = DropdownMenu.Root;
 export const MenuTrigger = DropdownMenu.Trigger;
 export const MenuRadioGroup = DropdownMenu.RadioGroup;
 
+/**
+ * A menu of choices opens on the one in use, as a native popup does, so a screen reader starts from the
+ * current value instead of the top of the list. After a frame, once Radix has placed its own focus.
+ */
+function focusChecked(node: HTMLDivElement | null) {
+  if (!node) {
+    return;
+  }
+  window.requestAnimationFrame(() => {
+    const checked = node.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"]');
+    if (checked && node.contains(document.activeElement)) {
+      checked.focus();
+    }
+  });
+}
+
 export function MenuContent(props: {
   children: ReactNode;
   align?: "start" | "center" | "end";
@@ -63,6 +79,7 @@ export function MenuContent(props: {
   return (
     <DropdownMenu.Portal container={usePortalContainer()}>
       <DropdownMenu.Content
+        ref={focusChecked}
         align={props.align ?? "start"}
         side={props.side ?? "bottom"}
         sideOffset={props.sideOffset ?? 6}
@@ -133,7 +150,9 @@ export function MenuOption(props: {
         ) : null}
       </span>
       <DropdownMenu.ItemIndicator className="mt-0.5 shrink-0 text-accent-text">
-        <CheckIcon size={14} />
+        <CheckIcon size={14} aria-hidden="true" />
+        {/* VoiceOver does not always say "checked" for a menu radio, so the choice in use says so in words. */}
+        <span className="sr-only">, selected</span>
       </DropdownMenu.ItemIndicator>
     </DropdownMenu.RadioItem>
   );

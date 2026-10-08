@@ -5,7 +5,7 @@ import { useApp, useController, useNow } from "../../app/context";
 import { basename, relativeTime } from "../../model/format";
 import { threadStatus } from "../../model/status";
 import { Modal } from "../ui/overlays";
-import { MOD, Shortcut } from "../ui/primitives";
+import { MOD, NEW_THREAD_KEYS, Shortcut } from "../ui/primitives";
 import { StatusGlyph } from "../ui/StatusGlyph";
 
 const GROUP =
@@ -36,7 +36,10 @@ export function CommandPalette() {
   const now = useNow(60_000, open);
 
   const sorted = useMemo(
-    () => Object.values(sessions).sort((a, b) => (a.activityAt < b.activityAt ? 1 : -1)),
+    () =>
+      Object.values(sessions).sort((a, b) =>
+        a.pinned !== b.pinned ? (a.pinned ? -1 : 1) : a.activityAt < b.activityAt ? 1 : -1,
+      ),
     [sessions],
   );
 
@@ -65,7 +68,7 @@ export function CommandPalette() {
         <Command.List className="max-h-[min(440px,62vh)] overflow-y-auto p-1.5">
           <Command.Empty className="px-3 py-10 text-center text-sm text-muted">Nothing matches that search.</Command.Empty>
           <Command.Group heading="Actions" className={GROUP}>
-            <Item value="New thread" icon={<NotePencilIcon size={15} />} onSelect={() => run(() => controller.newThread())} hint={<Shortcut keys={[MOD, "Shift", "O"]} />}>
+            <Item value="New thread" icon={<NotePencilIcon size={15} />} onSelect={() => run(() => controller.newThread())} hint={<Shortcut keys={NEW_THREAD_KEYS} />}>
               New thread
             </Item>
             <Item value="Add project folder" icon={<FolderPlusIcon size={15} />} onSelect={() => run(() => controller.setAddProjectOpen(true))}>

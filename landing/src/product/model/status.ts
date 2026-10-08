@@ -1,8 +1,9 @@
 import type { ProjectView, SessionSummary } from "../types";
 import type { ThreadFold } from "./fold";
+import { activeMonitors } from "./monitor";
 
 /** What a thread needs from the user right now, most urgent first. */
-export type ThreadStatus = "approval" | "input" | "running" | "failed" | "unread" | "idle";
+export type ThreadStatus = "approval" | "input" | "running" | "failed" | "unread" | "watching" | "idle";
 
 export const STATUS_PRIORITY: Record<ThreadStatus, number> = {
   approval: 0,
@@ -10,7 +11,8 @@ export const STATUS_PRIORITY: Record<ThreadStatus, number> = {
   running: 2,
   failed: 3,
   unread: 4,
-  idle: 5,
+  watching: 5,
+  idle: 6,
 };
 
 export const STATUS_LABEL: Record<ThreadStatus, string> = {
@@ -19,6 +21,7 @@ export const STATUS_LABEL: Record<ThreadStatus, string> = {
   running: "Working",
   failed: "Failed",
   unread: "Done, not seen yet",
+  watching: "Watching in the background",
   idle: "Idle",
 };
 
@@ -50,13 +53,15 @@ export function threadStatus(session: SessionSummary, ctx: StatusContext): Threa
   if (running) {
     return "running";
   }
+  // A monitor keeps watching after the turn ends; say so rather than calling the thread idle.
+  const watching = fold ? activeMonitors(fold).length > 0 : (session.live?.monitors ?? 0) > 0;
   if (ctx.active) {
-    return "idle";
+    return watching ? "watching" : "idle";
   }
   if (session.activityAt > later(ctx.lastSeen, ctx.baseline)) {
     return session.live?.lastTerminal === "failed" ? "failed" : "unread";
   }
-  return "idle";
+  return watching ? "watching" : "idle";
 }
 
 export function isLive(status: ThreadStatus): boolean {
@@ -76,8 +81,12 @@ export function isSettled(entry: SidebarEntry): boolean {
 /**
  * Active threads keep a stable order, newest first by when they started or were brought back.
  * Activity never reshuffles them, as in T3 Code; settling and auto-settle keep the list short.
+ * Pinned threads group above the rest, in the same stable order among themselves.
  */
 function activeOrder(a: SidebarEntry, b: SidebarEntry): number {
+  if (a.session.pinned !== b.session.pinned) {
+    return a.session.pinned ? -1 : 1;
+  }
   const keyA = later(a.session.unsettledAt, a.session.createdAt);
   const keyB = later(b.session.unsettledAt, b.session.createdAt);
   return keyA < keyB ? 1 : keyA > keyB ? -1 : 0;

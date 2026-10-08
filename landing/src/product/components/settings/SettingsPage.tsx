@@ -399,6 +399,12 @@ export function SettingsPage() {
               onChange={(on) => controller.setPrefs({ showTelemetry: on })}
             />
           </Row>
+          <Row
+            label="Keep work expanded"
+            description="List every step a finished turn took instead of folding them into one line. Useful with a screen reader."
+          >
+            <Toggle checked={prefs.expandWork} label="Keep work expanded" onChange={(on) => controller.setPrefs({ expandWork: on })} />
+          </Row>
         </Section>
 
         <Section title="New threads">
@@ -488,6 +494,19 @@ export function SettingsPage() {
         <Section title="Threads list">
           <Row label="Group by" description="How the sidebar arranges threads.">
             <Pick value={prefs.groupBy} options={GROUPS} onChange={(value) => controller.setGroupBy(value)} />
+          </Row>
+        </Section>
+
+        <Section title="Composer">
+          <Row
+            label="Enter steers the turn"
+            description={`While a turn is running, Enter adds the message to this turn instead of queueing it for later. ${MOD}+Enter queues instead. Off keeps Enter queueing.`}
+          >
+            <Toggle
+              checked={prefs.steerByDefault}
+              label="Enter steers the turn"
+              onChange={(on) => controller.setPrefs({ steerByDefault: on })}
+            />
           </Row>
         </Section>
 

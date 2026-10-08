@@ -1,5 +1,5 @@
 import { CaretDownIcon, CaretUpIcon, ChatCircleDotsIcon, CheckCircleIcon, CheckIcon, CircleIcon, ClockIcon, ListChecksIcon, LockIcon, PencilSimpleIcon, PlugsIcon, ShieldWarningIcon, XCircleIcon, XIcon } from "../ui/icons";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { useApp, useController } from "../../app/context";
 import type { LocalEcho } from "../../model/fold";
 import { describeApproval } from "../../model/format";
@@ -44,6 +44,17 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
   const [chosen, setChosen] = useState<string | null>(null);
   const [feedbackChoice, setFeedbackChoice] = useState<ApprovalChoice | null>(null);
   const [feedback, setFeedback] = useState("");
+  const sectionRef = useRef<HTMLElement>(null);
+  const backTo = useRef<string | null>(null);
+  // Leaving the feedback form puts focus back on the choice that opened it, not the top of the page.
+  useLayoutEffect(() => {
+    if (feedbackChoice || !backTo.current) {
+      return;
+    }
+    const id = backTo.current;
+    backTo.current = null;
+    sectionRef.current?.querySelector<HTMLElement>(`[data-choice="${CSS.escape(id)}"]`)?.focus();
+  }, [feedbackChoice]);
 
   const pick = (choice: ApprovalChoice) => {
     if (choice.acceptsFeedback) {
@@ -85,7 +96,7 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
 
   const stageCount = request.subject?.stages?.length ?? 0;
   return (
-    <section aria-label="Approval needed" className={PANEL}>
+    <section ref={sectionRef} aria-label="Approval needed" className={PANEL}>
       <div className="flex items-start gap-3 px-4 pt-3.5">
         <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-lg bg-warn-soft text-warn-text">
           <ShieldWarningIcon size={15} />
@@ -126,7 +137,14 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
             className="w-full resize-none rounded-lg bg-sunken px-3 py-2 text-sm text-fg shadow-[0_0_0_1px_var(--border-strong)] outline-none focus-visible:shadow-[0_0_0_2px_var(--accent)] focus-visible:outline-none"
           />
           <div className="flex justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setFeedbackChoice(null)}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                backTo.current = feedbackChoice.choiceId;
+                setFeedbackChoice(null);
+              }}
+            >
               Back
             </Button>
             <Button size="sm" variant="primary" type="submit" loading={busy}>
@@ -140,6 +158,7 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
             const button = (
               <Button
                 key={choice.choiceId}
+                data-choice={choice.choiceId}
                 size="sm"
                 variant={choice === primaryChoice ? "primary" : "secondary"}
                 loading={busy && chosen === choice.choiceId}
@@ -232,6 +251,21 @@ export function QuestionPanel(props: { request: UserInputRequest; keyboard: bool
 
   const question = questions[index];
   const last = index >= questions.length - 1;
+  const sectionRef = useRef<HTMLElement>(null);
+  const shown = useRef(question?.id);
+  // The next question replaces the options that had focus. Put it on the new question's first option, or
+  // the page would drop it and a screen reader would start again from the top.
+  useLayoutEffect(() => {
+    if (shown.current === question?.id) {
+      return;
+    }
+    shown.current = question?.id;
+    const section = sectionRef.current;
+    const active = document.activeElement;
+    if (section && (active === null || active === document.body || section.contains(active))) {
+      section.querySelector<HTMLElement>('[role="radio"], [role="checkbox"], input')?.focus();
+    }
+  }, [question?.id]);
 
   const send = (nextPicks: Picks, nextCustom: Custom) => {
     const missing = questions.findIndex((q) => !isAnswered(q, nextPicks, nextCustom));
@@ -302,7 +336,7 @@ export function QuestionPanel(props: { request: UserInputRequest; keyboard: bool
   const multiple = question.selection.mode === "multiple";
   const answered = isAnswered(question, picks, custom);
   return (
-    <section aria-label="Muse has a question" className={PANEL}>
+    <section ref={sectionRef} aria-label="Muse has a question" className={PANEL}>
       <div className="flex items-start gap-3 px-4 pt-3.5">
         <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-lg bg-warn-soft text-warn-text">
           <ChatCircleDotsIcon size={15} />
@@ -415,18 +449,21 @@ export function QuestionPanel(props: { request: UserInputRequest; keyboard: bool
   );
 }
 
+/** Decorative: the step's state is read as words before its text, so the mark adds no stop of its own. */
 function TodoMark(props: { status: string }) {
   switch (props.status) {
     case "completed":
-      return <CheckCircleIcon size={15} className="shrink-0 text-ok" aria-label="Done" />;
+      return <CheckCircleIcon size={15} className="shrink-0 text-ok" aria-hidden="true" />;
     case "inProgress":
-      return <Spinner size={13} className="m-px text-accent-text" label="In progress" />;
+      return <Spinner size={13} className="m-px text-accent-text" />;
     case "cancelled":
-      return <XCircleIcon size={15} className="shrink-0 text-subtle" aria-label="Cancelled" />;
+      return <XCircleIcon size={15} className="shrink-0 text-subtle" aria-hidden="true" />;
     default:
-      return <CircleIcon size={15} className="shrink-0 text-[var(--border-strong)]" aria-label="To do" />;
+      return <CircleIcon size={15} className="shrink-0 text-[var(--border-strong)]" aria-hidden="true" />;
   }
 }
+
+const TODO_STATE: Record<string, string> = { completed: "Done", inProgress: "In progress", cancelled: "Cancelled" };
 
 /** Closes a dock card until the user brings it back from the thread's top bar. */
 export function CloseCard(props: { label: string; onClose: () => void }) {
@@ -474,7 +511,7 @@ export function PlanPanel(props: { sessionId: string; items: TodoItem[] }) {
         <ol className="flex max-h-52 flex-col gap-1.5 overflow-y-auto px-3.5 pb-3">
           {props.items.map((item, index) => (
             <li key={index} className="flex items-start gap-2.5 text-sm">
-              <span className="mt-0.5 flex size-4 items-center justify-center">
+              <span className="mt-0.5 flex size-4 items-center justify-center" aria-hidden="true">
                 <TodoMark status={item.status} />
               </span>
               <span
@@ -485,6 +522,7 @@ export function PlanPanel(props: { sessionId: string; items: TodoItem[] }) {
                   item.status !== "completed" && item.status !== "inProgress" && "text-muted",
                 )}
               >
+                <span className="sr-only">{TODO_STATE[item.status] ?? "To do"}: </span>
                 {item.status === "inProgress" ? (item.activeForm ?? item.text) : item.text}
               </span>
             </li>

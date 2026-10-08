@@ -1,7 +1,8 @@
 import { ArrowsClockwiseIcon, CaretDownIcon, CheckIcon, FolderPlusIcon } from "../ui/icons";
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context";
 import { relativeTime, shortenPath } from "../../model/format";
+import { isSshPath } from "../../model/paths";
 import { planView } from "../../model/plan";
 import type { AccountView, PlanUsage, PlanUsageByAccount, ProjectView } from "../../types";
 import { TopBar } from "../chrome";
@@ -51,6 +52,7 @@ export function NewThread(props: { cwd: string | null }) {
             <Composer sessionId={null} cwd={project.cwd} running={false} readOnly={false} variant="home" autoFocus />
           </div>
           <ComposerFooter cwd={project.cwd} branch={null} running={false} />
+          <HostErrorCard className="mt-4" />
           {nearCap ? <p className="mt-2 text-xs text-muted">{nearCap}</p> : null}
           {recent.length > 0 ? (
             <section className="mt-12" aria-label={`Recent threads in ${project.displayName}`}>
@@ -90,7 +92,8 @@ function nearCapHint(
   planUsageByAccount: PlanUsageByAccount,
   now: number,
 ): string | null {
-  if (!accounts || accounts.length < 1) {
+  // Local plan meters say nothing about the login an SSH project runs on.
+  if (!accounts || accounts.length < 1 || isSshPath(project.cwd)) {
     return null;
   }
   const candidates: { id: string | null; name: string; percent: number }[] = [];
@@ -220,15 +223,27 @@ interface Step {
   command?: string;
 }
 
-export function Onboarding() {
+/** Where Helicon sends people whose muse CLI is missing, not found, or not signed in. */
+export const MUSE_HELP_URL = "https://helicon.sh/guides/muse-cli-not-found";
+
+/** Meta's installers for the muse CLI: PowerShell on Windows, a shell script on macOS and Linux. */
+const INSTALL_WINDOWS = "irm https://dev.meta.ai/install.ps1 | iex";
+const INSTALL_POSIX = "curl -fsSL https://dev.meta.ai/install.sh | bash";
+
+/** A new GitHub issue, prefilled, for when Helicon itself would not start. */
+const REPORT_URL = "https://github.com/HarjjotSinghh/helicon/issues/new?title=Helicon+could+not+start&labels=bug";
+
+/** The setup screen. `compact` fits it in a narrow editor side panel: no logo, smaller heading, less padding. */
+export function Onboarding(props: { compact?: boolean }) {
   const controller = useController();
   const env = useApp((s) => s.env);
   const checking = useApp((s) => s.boot === "loading");
   if (!env) {
     return null;
   }
+  const compact = props.compact ?? false;
   const windows = env.platform === "win32";
-  const install = "irm https://dev.meta.ai/install.ps1 | iex";
+  const install = INSTALL_WINDOWS;
   const steps: Step[] = [];
   if (windows && (env.runtime === "native" || !env.wslAvailable)) {
     // Muse runs natively on Windows now, so a new setup needs no WSL at all.
@@ -254,26 +269,32 @@ export function Onboarding() {
     steps.push({
       ok: env.museFound,
       title: "The Muse CLI",
-      detail: env.museFound ? `Found at ${env.musePath}.` : "Install Muse so the muse command is on your PATH.",
+      detail: env.museFound
+        ? `Found at ${env.musePath}.`
+        : "Not found on this computer. Install it in Terminal, then click Check again. Already installed? Helicon looks in /opt/homebrew/bin, /usr/local/bin and ~/.local/bin.",
+      command: env.museFound ? undefined : INSTALL_POSIX,
     });
   }
   steps.push({
     ok: null,
     title: "Signed in to Muse",
-    detail: "Run this once in a terminal. Helicon uses your own login and never sees your credentials.",
+    detail:
+      "Run this once in a terminal. You need a Muse Code plan or pay-as-you-go billing; the free Muse app doesn't include Muse Code. Helicon uses your own login and never sees your credentials.",
     command: "muse login",
   });
   return (
-    <div className="flex h-full items-center justify-center overflow-y-auto bg-bg px-6 py-10">
+    <div className={cn("flex h-full items-center justify-center overflow-y-auto bg-bg", compact ? "px-4 py-6" : "px-6 py-10")}>
       <div className="w-full max-w-[560px]">
-        <Logo size={40} />
-        <h1 className={cn(DISPLAY, "mt-7")}>Set up Muse</h1>
-        <p className="mt-3 text-md leading-relaxed text-muted">
+        {compact ? null : <Logo size={40} />}
+        <h1 className={compact ? "text-lg font-medium text-fg text-balance" : cn(DISPLAY, "mt-7")}>
+          {compact ? "Set up Muse Code to use this panel" : "Set up Muse"}
+        </h1>
+        <p className={cn("leading-relaxed text-muted", compact ? "mt-2 text-sm" : "mt-3 text-md")}>
           Helicon drives the Muse Code CLI on this computer. Finish these steps, then check again.
         </p>
-        <ol className="mt-8 flex flex-col gap-2.5">
+        <ol className={cn("flex flex-col gap-2.5", compact ? "mt-5" : "mt-8")}>
           {steps.map((step, index) => (
-            <li key={step.title} className="flex gap-3.5 rounded-xl bg-raised p-4 shadow-[0_0_0_1px_var(--border)]">
+            <li key={step.title} className={cn("flex rounded-xl bg-raised shadow-[0_0_0_1px_var(--border)]", compact ? "gap-3 p-3" : "gap-3.5 p-4")}>
               <span
                 className={cn(
                   "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
@@ -296,13 +317,64 @@ export function Onboarding() {
             </li>
           ))}
         </ol>
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
           <Button variant="primary" onClick={() => controller.retryBoot()} loading={checking}>
             <ArrowsClockwiseIcon size={14} /> Check again
           </Button>
+          <HelpLink href={MUSE_HELP_URL}>Installed but not found? Read the fix</HelpLink>
         </div>
       </div>
     </div>
+  );
+}
+
+/** A plain link out to a helicon.sh guide. It carries no tracking parameters. */
+function HelpLink(props: { href: string; children: ReactNode }) {
+  return (
+    <a
+      href={props.href}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="rounded-sm text-sm font-medium text-accent-text underline-offset-2 hover:underline"
+    >
+      {props.children}
+    </a>
+  );
+}
+
+/**
+ * A lasting card for when Muse could not start or stopped, most often because the muse CLI is signed out. The toast
+ * for the same event goes away on its own; this stays above the composer until the person dismisses it or Muse restarts.
+ */
+export function HostErrorCard(props: { className?: string }) {
+  const controller = useController();
+  const hostError = useApp((s) => s.hostError);
+  if (!hostError) {
+    return null;
+  }
+  return (
+    <section
+      role="alert"
+      aria-label="Muse could not start"
+      className={cn("rounded-xl bg-raised p-3.5 shadow-[0_0_0_1px_var(--border)]", props.className)}
+    >
+      <p className="text-sm font-medium text-fg">Muse could not start</p>
+      <p className="mt-1 text-sm leading-relaxed text-pretty text-muted">
+        This usually means the muse CLI isn't signed in, or the account has no Muse Code plan. Run this in a terminal,
+        then try again.
+      </p>
+      <div className="mt-2.5 flex items-center gap-2 rounded-lg bg-sunken py-1 pr-1 pl-3 font-mono text-xs text-fg shadow-[0_0_0_1px_var(--border)]">
+        <span className="min-w-0 flex-1 truncate">muse login</span>
+        <CopyButton text="muse login" label="Copy command" />
+      </div>
+      <p className="mt-2 text-xs break-words text-subtle">{hostError}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Button variant="secondary" size="sm" onClick={() => controller.dismissHostError()}>
+          <ArrowsClockwiseIcon size={13} /> Try again
+        </Button>
+        <HelpLink href={MUSE_HELP_URL}>More fixes</HelpLink>
+      </div>
+    </section>
   );
 }
 
@@ -319,19 +391,24 @@ export function BootScreen() {
   );
 }
 
-export function BootError() {
+/** The boot failure screen. `compact` fits it in a narrow editor side panel. */
+export function BootError(props: { compact?: boolean }) {
   const controller = useController();
   const message = useApp((s) => s.bootError);
+  const compact = props.compact ?? false;
   return (
-    <div className="flex h-full items-center justify-center bg-bg px-6">
+    <div className={cn("flex h-full items-center justify-center bg-bg", compact ? "px-4" : "px-6")}>
       <div className="w-full max-w-[480px]">
-        <Logo size={36} />
-        <h1 className={cn(DISPLAY, "mt-6 text-3xl")}>Helicon could not reach its server</h1>
+        {compact ? null : <Logo size={36} />}
+        <h1 className={compact ? "text-lg font-medium text-fg text-balance" : cn(DISPLAY, "mt-6 text-3xl")}>
+          Helicon could not reach its server
+        </h1>
         <p className="mt-3 text-sm break-words text-muted">{message ?? "The local Helicon server did not answer."}</p>
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
           <Button variant="primary" onClick={() => controller.retryBoot()}>
             <ArrowsClockwiseIcon size={14} /> Try again
           </Button>
+          <HelpLink href={REPORT_URL}>Report a problem</HelpLink>
         </div>
       </div>
     </div>

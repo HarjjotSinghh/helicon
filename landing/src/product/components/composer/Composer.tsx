@@ -16,10 +16,12 @@ import {
 } from "react";
 import { AttachButton, AttachmentTray, readFiles, restoreFiles, toOutgoing, toPreview, type PendingFile } from "./attachments";
 import { CostMeter } from "./CostPanel";
+import { resolveSteer } from "./keys";
 import { Popover, Slider, Switch } from "radix-ui";
 import { shallowEqual, useApp, useController } from "../../app/context";
 import { useSampled } from "../../app/sampled";
 import { basename, formatDuration, formatSpeed, formatTokens, modelDisplayName } from "../../model/format";
+import { isSshPath } from "../../model/paths";
 import { matchSlash, parseSlash, resolveSlash, slashCommands, type SlashCommand } from "../../model/slash";
 import type { SkillsState } from "../../model/store";
 import { lastTurnSpeed, streamingSpeed } from "../../model/usage";
@@ -30,6 +32,7 @@ import { PixelFlow } from "../ui/PixelFlow";
 import { ContextMeter } from "./ContextPanel";
 import { SlashMenu, slashOptionId, type SlashMenuState } from "./SlashMenu";
 import { SwapIcon } from "../ui/sourced";
+import { FOCUS_HOME } from "../../app/a11y";
 
 const DRAFT_PREFIX = "helicon.draft.";
 
@@ -152,6 +155,7 @@ export function Composer(props: ComposerProps) {
   const menuId = useId();
   const starting = useApp((s) => Boolean(s.busy["start"]));
   const stopping = useApp((s) => (props.sessionId ? Boolean(s.busy[`stop:${props.sessionId}`]) : false));
+  const steerByDefault = useApp((s) => s.prefs.steerByDefault);
   const hasText = text.trim().length > 0;
   const showStop = props.running && Boolean(props.sessionId) && !hasText;
   const shell = !props.readOnly && /^!\s*\S/.test(text);
@@ -317,7 +321,7 @@ export function Composer(props: ComposerProps) {
           void runNow(text, true);
         } else {
           // Skills are still loading: send anyway, and the controller resolves the command once they arrive.
-          void submit(props.running && (event.metaKey || event.ctrlKey));
+          void submit(resolveSteer(props.running, event.metaKey || event.ctrlKey, steerByDefault));
         }
         return;
       }
@@ -329,22 +333,33 @@ export function Composer(props: ComposerProps) {
       if (event.repeat) {
         return;
       }
-      void submit(props.running && (event.metaKey || event.ctrlKey));
+      void submit(resolveSteer(props.running, event.metaKey || event.ctrlKey, steerByDefault));
     } else if (event.key === "Escape" && props.running && !hasText && props.sessionId) {
       event.preventDefault();
       void controller.stop(props.sessionId);
     }
   };
 
+  const threadTitle = useApp((s) => (props.sessionId ? (s.sessions[props.sessionId]?.title ?? null) : null));
   const placeholder = props.readOnly
     ? "Read-only while another Muse session has this thread open"
     : props.running
-      ? `Queue a follow-up, or press ${MOD}+Enter to add it to this turn`
+      ? steerByDefault
+        ? `Steer this turn, or press ${MOD}+Enter to queue for later`
+        : `Queue a follow-up, or press ${MOD}+Enter to add it to this turn`
       : props.variant === "home"
         ? "Describe a change, a fix, or a question about the code. Use @path to point at files."
         : "Reply, or ask for the next change";
 
-  const sendLabel = showStop ? "Stop the turn" : shell ? "Run command" : props.running ? "Queue message" : "Send";
+  const sendLabel = showStop
+    ? "Stop the turn"
+    : shell
+      ? "Run command"
+      : props.running
+        ? steerByDefault
+          ? "Steer turn"
+          : "Queue message"
+        : "Send";
 
   return (
     <div
@@ -388,8 +403,9 @@ export function Composer(props: ComposerProps) {
           onSendRaw={() => void runNow(text, true)}
         />
       ) : null}
+      {/* Names the thread, so landing in the composer says which conversation a message would go to. */}
       <label htmlFor={id} className="sr-only">
-        Message Muse
+        {threadTitle ? `Message Muse in ${threadTitle}` : "Message Muse"}
       </label>
       {shell ? (
         <div className="flex items-center gap-1.5 px-4 pt-2.5 text-xs text-muted">
@@ -403,6 +419,7 @@ export function Composer(props: ComposerProps) {
       <textarea
         id={id}
         ref={ref}
+        {...{ [FOCUS_HOME]: "" }}
         value={text}
         rows={props.variant === "home" ? 3 : 1}
         disabled={props.readOnly}
@@ -450,9 +467,13 @@ export function Composer(props: ComposerProps) {
         <Tip label={sendLabel} shortcut={[showStop ? "Esc" : "Enter"]}>
           <button
             type="button"
-            aria-label={showStop ? "Stop the turn" : shell ? "Run command" : props.running ? "Queue message" : "Send message"}
+            aria-label={
+              showStop ? "Stop the turn" : shell ? "Run command" : props.running ? (steerByDefault ? "Steer turn" : "Queue message") : "Send message"
+            }
             disabled={showStop ? stopping : (!hasText && files.length === 0) || props.readOnly || starting}
-            onClick={() => (showStop ? void controller.stop(props.sessionId as string) : void submit(false))}
+            onClick={() =>
+              showStop ? void controller.stop(props.sessionId as string) : void submit(resolveSteer(props.running, false, steerByDefault))
+            }
             className={cn(
               "ml-1 inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[transform,background-color,color] duration-150 active:scale-95",
               showStop ? "bg-inverse text-inverse-fg" : "bg-accent text-accent-fg hover:bg-accent-hover disabled:bg-active disabled:text-subtle",
@@ -572,7 +593,8 @@ function AccountPicker(props: { sessionId: string | null; cwd: string | null; va
   const accounts = useApp((s) => s.accounts);
   const open = useApp((s) => s.picker === "account");
   const current = useApp((s) => s.projects.find((p) => p.cwd === props.cwd)?.defaultAccountId ?? null);
-  if (props.sessionId !== null || !props.cwd || !(accounts && accounts.length > 0)) {
+  // An SSH project runs on the remote host's own login; a local account cannot reach it.
+  if (props.sessionId !== null || !props.cwd || isSshPath(props.cwd) || !(accounts && accounts.length > 0)) {
     return null;
   }
   const label = accounts.find((a) => a.id === current)?.name ?? "Default login";
@@ -939,6 +961,7 @@ function SpeedReadout(props: { sessionId: string }) {
 }
 
 export function ComposerFooter(props: { cwd: string | null; branch: string | null; running: boolean }) {
+  const steerByDefault = useApp((s) => s.prefs.steerByDefault);
   return (
     <div className="flex h-8 items-center gap-3 px-2 text-xs text-subtle">
       {props.cwd ? (
@@ -958,7 +981,9 @@ export function ComposerFooter(props: { cwd: string | null; branch: string | nul
       <span className="flex-1" />
       <span className="hidden truncate md:inline">
         {props.running
-          ? `Enter queues, ${MOD}+Enter adds to this turn, Esc stops`
+          ? steerByDefault
+            ? `Enter steers this turn, ${MOD}+Enter queues, Esc stops`
+            : `Enter queues, ${MOD}+Enter adds to this turn, Esc stops`
           : "Enter to send, Shift+Enter for a new line, / for commands, ! for shell"}
       </span>
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { HeliconClient } from "../client";
 import { AddProjectDialog } from "../components/sidebar/AddProjectDialog";
 import { WhatsNew } from "../components/app/WhatsNew";
@@ -17,11 +17,17 @@ import type { Notifier } from "../model/notify";
 import type { AppUpdater } from "../model/updates";
 import { zoomStepFromKey, type ZoomStep } from "../model/zoom-shortcut";
 import { ControllerProvider, useApp, useController } from "./context";
+import { PanelContext, type PanelMode } from "./panel";
+import { installEditorClipboard, postToHost, setEditorHosted, useHostTheme } from "./host";
+import { PanelShell } from "../components/panel/Panel";
 import { FrameProvider, FrameStrip, WindowControls, type WindowFrame } from "./frame";
+import { FocusKeeper, LiveAnnouncer, announce } from "./a11y";
 
 declare global {
   interface WindowEventMap {
     "helicon-zoom-step": CustomEvent<ZoomStep>;
+    /** A command from the desktop shell's native menu. */
+    "helicon-menu": CustomEvent<MenuCommand>;
   }
 }
 
@@ -36,7 +42,15 @@ export interface HeliconAppProps {
   updater?: AppUpdater;
   /** How this shell raises a system notification; absent where it cannot. */
   notifier?: Notifier;
+  /** The compact layout for a narrow host, such as an editor extension's side panel. */
+  panel?: PanelMode;
+  /** The host's color scheme, when it has its own (an editor theme); overrides the system one. */
+  hostTheme?: "light" | "dark";
+  /** The page is framed by an editor, which opens files a reply names in its own tabs. */
+  editorHost?: boolean;
 }
+
+export type MenuCommand = "new-thread" | "settings";
 
 /** The whole Helicon interface. Web and desktop shells mount this with their transport. */
 export function HeliconApp(props: HeliconAppProps) {
@@ -48,30 +62,73 @@ export function HeliconApp(props: HeliconAppProps) {
     if (props.notifier) {
       created.attachNotifier(props.notifier);
     }
+    if (props.editorHost) {
+      setEditorHosted(true);
+      created.setExternalFileOpener((cwd, path, line) => postToHost({ type: "helicon-command", command: "openFile", args: { cwd, path, line } }));
+    }
     return created;
   });
   useEffect(() => controller.start(), [controller]);
+  useEffect(() => (props.editorHost ? installEditorClipboard(isMac) : undefined), [props.editorHost]);
+  const hostTheme = useHostTheme(props.hostTheme);
+  const panel = props.panel ?? null;
   return (
     <ControllerProvider controller={controller}>
-      <FrameProvider frame={props.frame} overlay={props.titlebarOverlay}>
-        <TooltipProvider>
-          <ThemeSync />
-          <ZoomSync />
-          <GlobalShortcuts />
-          <Shell />
-          <CommandPalette />
-          <AddProjectDialog />
-          <WhatsNew />
-          <Toasts />
-          <WindowControls />
-        </TooltipProvider>
-      </FrameProvider>
+      <PanelContext.Provider value={panel}>
+        <FrameProvider frame={props.frame} overlay={props.titlebarOverlay}>
+          <TooltipProvider>
+            <ThemeSync hostTheme={hostTheme} />
+            <ZoomSync />
+            <GlobalShortcuts panel={panel !== null} />
+            {panel ? <PanelShell /> : <Shell />}
+            {panel ? null : <CommandPalette />}
+            {panel ? null : <AddProjectDialog />}
+            {panel ? null : <WhatsNew />}
+            <Toasts />
+            <WindowControls />
+            <LiveAnnouncer />
+            <RouteAnnouncer />
+            <FocusKeeper />
+          </TooltipProvider>
+        </FrameProvider>
+      </PanelContext.Provider>
     </ControllerProvider>
   );
 }
 
-function ThemeSync() {
-  const theme = useApp((s) => s.prefs.theme);
+/**
+ * Says where the user landed whenever the open thread or page changes, however it changed: a sidebar row,
+ * the palette, Option+Arrow, a notification. Nothing is said for the page the app opens on.
+ */
+function RouteAnnouncer() {
+  const controller = useController();
+  // Only a change of place is said, not a thread's title changing while it is open.
+  const key = useApp((s) => (s.route.kind === "thread" ? `thread:${s.route.sessionId}` : s.route.kind === "new" ? `new:${s.route.cwd ?? ""}` : s.route.kind));
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const state = controller.store.get();
+    const route = state.route;
+    if (route.kind === "thread") {
+      announce(`Opened thread ${state.sessions[route.sessionId]?.title ?? ""}`.trim());
+    } else if (route.kind === "settings") {
+      announce("Settings");
+    } else if (route.kind === "usage") {
+      announce("Usage");
+    } else {
+      announce("New thread");
+    }
+  }, [controller, key]);
+  return null;
+}
+
+function ThemeSync(props: { hostTheme: "light" | "dark" | null }) {
+  const pref = useApp((s) => s.prefs.theme);
+  // A host theme stands in for "system": an explicit light or dark choice in Settings still wins.
+  const theme = pref === "system" && props.hostTheme ? props.hostTheme : pref;
   const codeTheme = useApp((s) => s.prefs.codeTheme);
   useEffect(() => {
     document.documentElement.dataset["codeTheme"] = codeTheme;
@@ -129,10 +186,14 @@ function applyZoomStep(controller: HeliconController, step: ZoomStep) {
   }
 }
 
-function GlobalShortcuts() {
+function GlobalShortcuts(props: { panel: boolean }) {
   const controller = useController();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      // Inside an editor the editor owns these chords (Cmd+B, Cmd+K, Cmd+Shift+E...); only zoom stays.
+      if (props.panel && !zoomStepFromKey(event, isMac)) {
+        return;
+      }
       const mod = isMac ? event.metaKey : event.ctrlKey;
       const key = event.key.toLowerCase();
       const zoom = zoomStepFromKey(event, isMac);
@@ -147,13 +208,27 @@ function GlobalShortcuts() {
       } else if (mod && event.shiftKey && key === "o") {
         event.preventDefault();
         controller.newThread();
+      } else if (mod && !event.shiftKey && !event.altKey && key === "n") {
+        // The macOS convention, with Cmd+Shift+O kept for those used to it. A browser keeps Cmd+N for itself.
+        event.preventDefault();
+        controller.newThread();
+      } else if (mod && !event.shiftKey && !event.altKey && key === ",") {
+        event.preventDefault();
+        controller.navigate({ kind: "settings" });
       } else if (mod && !event.shiftKey && key === "b") {
         event.preventDefault();
         controller.toggleSidebar();
       } else if (mod && event.shiftKey && !event.altKey && key === "e") {
         event.preventDefault();
         controller.toggleFiles();
-      } else if (event.altKey && !mod && (event.key === "ArrowUp" || event.key === "ArrowDown") && !isTyping(event.target)) {
+      } else if (
+        event.altKey &&
+        !mod &&
+        // Control+Option is VoiceOver's own modifier: its arrow keys move the reading cursor, never the thread.
+        !event.ctrlKey &&
+        (event.key === "ArrowUp" || event.key === "ArrowDown") &&
+        !isTyping(event.target)
+      ) {
         const state = controller.store.get();
         const ordered = Object.values(state.sessions).sort((a, b) => (a.activityAt < b.activityAt ? 1 : -1));
         if (ordered.length === 0) {
@@ -163,7 +238,7 @@ function GlobalShortcuts() {
         const current = state.route.kind === "thread" ? ordered.findIndex((s) => s.sessionId === (state.route as { sessionId: string }).sessionId) : -1;
         const next = event.key === "ArrowDown" ? Math.min(ordered.length - 1, current + 1) : Math.max(0, current - 1);
         const target = ordered[next];
-        if (target) {
+        if (target && target.sessionId !== (state.route.kind === "thread" ? state.route.sessionId : null)) {
           controller.openThread(target.sessionId);
         }
       }
@@ -174,13 +249,23 @@ function GlobalShortcuts() {
         applyZoomStep(controller, step);
       }
     };
+    const onMenu = (event: Event) => {
+      const command = (event as CustomEvent<MenuCommand>).detail;
+      if (command === "new-thread") {
+        controller.newThread();
+      } else if (command === "settings") {
+        controller.navigate({ kind: "settings" });
+      }
+    };
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("helicon-zoom-step", onMenuZoom);
+    window.addEventListener("helicon-menu", onMenu);
     return () => {
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("helicon-zoom-step", onMenuZoom);
+      window.removeEventListener("helicon-menu", onMenu);
     };
-  }, [controller]);
+  }, [controller, props.panel]);
   return null;
 }
 

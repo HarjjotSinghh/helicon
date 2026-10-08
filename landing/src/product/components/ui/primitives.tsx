@@ -10,6 +10,10 @@ export const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(
 /** The platform's command modifier, spelled out in ASCII. */
 export const MOD = isMac ? "Cmd" : "Ctrl";
 
+/** New thread: Cmd+N in the desktop app; a browser keeps Cmd+N for a new window, so there it is Cmd+Shift+O. */
+export const NEW_THREAD_KEYS: string[] =
+  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window ? [MOD, "N"] : [MOD, "Shift", "O"];
+
 export function Kbd(props: { children: ReactNode; className?: string }) {
   return (
     <kbd
@@ -36,8 +40,10 @@ export function Shortcut(props: { keys: string[]; className?: string }) {
 export function Spinner(props: { size?: number; className?: string; label?: string }) {
   const size = props.size ?? 14;
   return (
+    // An image, not a live region: a labelled spinner in every running row would have VoiceOver
+    // announcing "Running" each time a tool starts.
     <span
-      role={props.label ? "status" : undefined}
+      role={props.label ? "img" : undefined}
       aria-label={props.label}
       aria-hidden={props.label ? undefined : true}
       className={cn("spin-ring shrink-0", props.className)}

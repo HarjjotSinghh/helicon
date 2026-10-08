@@ -1,7 +1,7 @@
 import { copyText, isEditorHosted } from "../../app/host.js";
 import { usePanel } from "../../app/panel.js";
 import { ArchiveIcon, ArrowClockwiseIcon, ArrowLineDownIcon, ArrowUUpLeftIcon, ArrowsClockwiseIcon, CaretRightIcon, ChartBarIcon, CheckIcon, CodeIcon, CopyIcon, DotsThreeIcon, DownloadSimpleIcon, FolderIcon, FolderOpenIcon, FolderPlusIcon, FunnelSimpleIcon, GearSixIcon, GitBranchIcon, MagnifyingGlassIcon, MonitorIcon, MoonIcon, NotePencilIcon, PauseIcon, PencilSimpleIcon, PlayIcon, PushPinIcon, PushPinSlashIcon, ShieldSlashIcon, SidebarSimpleIcon, StackIcon, SunIcon, TargetIcon, XIcon } from "../ui/icons.js";
-import { memo, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref, type RefObject } from "react";
+import { memo, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref } from "react";
 import { shallowEqual, useApp, useController, useNow } from "../../app/context.js";
 import { useOverlayDragProps, useTitlebarOverlay } from "../../app/frame.js";
 import { basename, formatElapsed, relativeTime } from "../../model/format.js";
@@ -77,7 +77,7 @@ function TrafficLightsSlot() {
   return <div data-drag-region {...drag} aria-hidden="true" className="h-10 shrink-0" />;
 }
 
-function SidebarTop(props: { newThreadRef: RefObject<HTMLButtonElement> }) {
+function SidebarTop(props: { newThreadRef: Ref<HTMLButtonElement> }) {
   const controller = useController();
   const routeKind = useApp((s) => s.route.kind);
   const drag = useOverlayDragProps();
@@ -842,7 +842,7 @@ const EXTENSION_LINKS = [
  * launch with no threads yet, where the user has enough to take in. It appears in the same render as the
  * thread list it sits under, so nothing above it moves once the list is up.
  */
-function EditorExtensionCard(props: { focusAfter: RefObject<HTMLButtonElement> }) {
+function EditorExtensionCard(props: { focusAfter: { readonly current: HTMLButtonElement | null } }) {
   const controller = useController();
   const panel = usePanel();
   const dismissed = useApp((s) => s.prefs.editorTipDismissed);

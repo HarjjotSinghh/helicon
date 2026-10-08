@@ -20,6 +20,7 @@ import type {
 import { describeTool, modelDisplayName } from "./format";
 import { fileKey, fileTarget, type LineRange } from "./files";
 import { goalPrompt } from "./goal";
+import { isSshPath } from "./paths";
 import {
   INIT_PROMPT,
   findModel,
@@ -461,6 +462,11 @@ export class HeliconController {
 
   retryBoot(): void {
     void this.boot(true);
+  }
+
+  /** Clears the "Muse could not start" card once the person has fixed it, so the next prompt is a fresh try. */
+  dismissHostError(): void {
+    this.update((s) => ({ ...s, hostError: null }));
   }
 
   // ---------------------------------------------------------------- data
@@ -1062,7 +1068,8 @@ export class HeliconController {
       // was armed must never seed a thread that asks when the rest of the app does not.
       const approvalMode: ApprovalMode = this.state.yoloSettings?.enabled === true ? "allowAll" : defaultMode;
       const project = this.state.projects.find((p) => p.cwd === cwd);
-      const accountId = project?.defaultAccountId ?? null;
+      // SSH projects always run on the remote host's own login.
+      const accountId = isSshPath(cwd) ? null : (project?.defaultAccountId ?? null);
       const session = await this.client.startSession(cwd, {
         approvalMode,
         modelId: defaultModelId ?? undefined,
@@ -2194,6 +2201,25 @@ export class HeliconController {
     }
   }
 
+  /** Pins a thread above its project's list, or returns it to its stable place in it. */
+  async toggleThreadPin(sessionId: string): Promise<void> {
+    const current = this.state.sessions[sessionId];
+    if (!current) {
+      return;
+    }
+    const pinned = !current.pinned;
+    this.upsertSession({ ...current, pinned });
+    try {
+      const saved = await this.client.updateSession(sessionId, { pinned });
+      if (saved) {
+        this.upsertSession(saved);
+      }
+    } catch (error) {
+      this.upsertSession(current);
+      this.toast("error", pinned ? "Could not pin the thread" : "Could not unpin the thread", errorMessage(error));
+    }
+  }
+
   // ---------------------------------------------------------------- slash commands, skills and shell
 
   /** The workspace the composer's commands act on: the open thread's, or where a new thread would start. */
@@ -2832,6 +2858,10 @@ export class HeliconController {
     if (!cwd || !target || !target.path) {
       return false;
     }
+    if (this.externalFileOpener) {
+      this.externalFileOpener(cwd, target.path, line ?? target.line);
+      return true;
+    }
     this.patchPanel(sessionId, (panel) => ({
       tabs: panel.tabs.includes(target.path) ? panel.tabs : [...panel.tabs, target.path],
       active: target.path,
@@ -2842,6 +2872,13 @@ export class HeliconController {
       this.setPrefs({ filesOpen: true });
     }
     return true;
+  }
+
+  /** Set when a host (an editor extension) opens files itself: file links then go there, not to the viewer. */
+  private externalFileOpener: ((cwd: string, path: string, line: LineRange | null) => void) | null = null;
+
+  setExternalFileOpener(opener: ((cwd: string, path: string, line: LineRange | null) => void) | null): void {
+    this.externalFileOpener = opener;
   }
 
   showFileTree(sessionId: string, tree: boolean): void {
