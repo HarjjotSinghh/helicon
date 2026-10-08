@@ -1,7 +1,7 @@
-import { ArrowCounterClockwiseIcon, CaretDownIcon, FlowArrowIcon, SkipForwardIcon, SquareHalfIcon, StopCircleIcon } from "../ui/icons.js";
+import { ArrowCounterClockwiseIcon, CaretDownIcon, FlowArrowIcon, PauseIcon, SkipForwardIcon, SquareHalfIcon, StopCircleIcon } from "../ui/icons.js";
 import { memo, useMemo, useState } from "react";
 import { useApp, useController } from "../../app/context.js";
-import { formatDuration, humanize } from "../../model/format.js";
+import { formatDuration, formatTokens, humanize } from "../../model/format.js";
 import { TERMINAL_FAILURES, workflowView, type WorkflowAgent, type WorkflowView } from "../../model/workflow.js";
 import type { MspItem } from "../../types.js";
 import { Markdown } from "../ui/Markdown.js";
@@ -112,11 +112,13 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
               {view.failed} of {view.used} {view.failed === 1 ? "agent" : "agents"} did not finish.
             </p>
           ) : null}
+          {view.paused ? <p className="mt-2 text-xs text-muted">Paused. Ask Muse to resume it, or cancel the run.</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button size="sm" variant="ghost" onClick={() => setDetail(true)}>
               <SquareHalfIcon size={13} /> Details
             </Button>
-            {(view.running || view.paused) && view.runId && sessionId ? <CancelRun sessionId={sessionId} runId={view.runId} /> : null}
+            {view.running && view.runId && sessionId ? <RunControl sessionId={sessionId} runId={view.runId} action="pause" /> : null}
+            {(view.running || view.paused) && view.runId && sessionId ? <RunControl sessionId={sessionId} runId={view.runId} action="cancel" /> : null}
           </div>
         </div>
       ) : null}
@@ -132,8 +134,11 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
   );
 });
 
-/** Cancels the whole run; what it had finished stays in its report. */
-function CancelRun(props: { sessionId: string; runId: string }) {
+/**
+ * Pauses or cancels the whole run. Cancelling keeps what it had finished in its report. Muse has no
+ * client resume for a paused run, so there is no button for it.
+ */
+function RunControl(props: { sessionId: string; runId: string; action: "pause" | "cancel" }) {
   const controller = useController();
   const readOnly = useApp((s) => s.threads[props.sessionId]?.readOnly ?? true);
   const busy = useApp((s) => Boolean(s.busy[`workflow:${props.sessionId}:${props.runId}:run`]));
@@ -141,8 +146,16 @@ function CancelRun(props: { sessionId: string; runId: string }) {
     return null;
   }
   return (
-    <Button size="sm" variant="ghost" loading={busy} onClick={() => void controller.workflowAction(props.sessionId, "cancel", props.runId)}>
-      <StopCircleIcon size={13} /> Cancel run
+    <Button size="sm" variant="ghost" loading={busy} onClick={() => void controller.workflowAction(props.sessionId, props.action, props.runId)}>
+      {props.action === "pause" ? (
+        <>
+          <PauseIcon size={13} /> Pause run
+        </>
+      ) : (
+        <>
+          <StopCircleIcon size={13} /> Cancel run
+        </>
+      )}
     </Button>
   );
 }
@@ -164,6 +177,7 @@ function Detail(props: { view: WorkflowView; tone: Tone; sessionId?: string }) {
         {/* Agents run alongside each other, so this is more than the run took on the clock. */}
         <Metric label="Agent time" value={time(view.agentMs)} />
         <Metric label="Started by" value={view.trigger ? humanize(view.trigger) : "Not known"} />
+        {view.tokenBudget !== null ? <Metric label="Token budget" value={formatTokens(view.tokenBudget)} /> : null}
       </dl>
 
       {view.failure ? (

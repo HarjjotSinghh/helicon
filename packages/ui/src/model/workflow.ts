@@ -53,6 +53,8 @@ export interface WorkflowView {
   summary: string | null;
   summaryStatus: string | null;
   failure: string | null;
+  /** The launch token budget, when the run was given one. */
+  tokenBudget: number | null;
   admitted: boolean;
   /** Handed to the background, so the thread carried on without waiting for it. */
   deferred: boolean;
@@ -161,6 +163,11 @@ function agentsOf(children: readonly WorkflowChild[], payload: Reconciled | null
   });
 }
 
+function budgetOf(value: unknown): number | null {
+  const total = value && typeof value === "object" ? (value as { total?: unknown }).total : undefined;
+  return typeof total === "number" && Number.isFinite(total) && total > 0 ? total : null;
+}
+
 function sum(values: (number | null)[]): number | null {
   const known = values.filter((value): value is number => value !== null);
   return known.length > 0 ? known.reduce((total, value) => total + value, 0) : null;
@@ -198,6 +205,7 @@ export function workflowView(item: MspItem, fold: ThreadFold | null): WorkflowVi
     summary: text(payload?.final_summary?.summary),
     summaryStatus: text(payload?.final_summary?.status),
     failure,
+    tokenBudget: budgetOf(item["tokenBudget"]),
     admitted: payload?.launch_admitted === true,
     deferred: payload?.deferred_to_background === true,
   };

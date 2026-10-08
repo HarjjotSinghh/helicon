@@ -195,6 +195,12 @@ describe("workflowView", () => {
     assert.equal(view.done, 0);
   });
 
+  it("reads the launch token budget, and leaves it null when there is none", () => {
+    assert.equal(workflowView(item({ tokenBudget: { total: 200000 } }), null).tokenBudget, 200000);
+    assert.equal(workflowView(item(), null).tokenBudget, null);
+    assert.equal(workflowView(item({ tokenBudget: { total: 0 } }), null).tokenBudget, null);
+  });
+
   it("ignores a stale pause flag once the run has ended", () => {
     const view = workflowView(item({ status: "cancelled", paused: true }), null);
     assert.equal(view.paused, false);

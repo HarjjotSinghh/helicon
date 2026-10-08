@@ -513,6 +513,11 @@ export class SessionManager {
     return this.connection.command("workflow/cancel", { sessionId, workflowRunId });
   }
 
+  /** Pauses a live run. Muse acks admission only; the run's item then carries `paused: true`. There is no client resume. */
+  async pauseWorkflow(sessionId: string, workflowRunId: string): Promise<unknown> {
+    return this.connection.command("workflow/pause", { sessionId, workflowRunId });
+  }
+
   /** Skips or retries one workflow child. `attempt` must be the child's current one, or Muse rejects it as stale. */
   async controlWorkflowChild(
     sessionId: string,

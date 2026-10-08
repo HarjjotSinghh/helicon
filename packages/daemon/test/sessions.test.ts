@@ -280,6 +280,8 @@ describe("SessionManager", () => {
 
     await manager.cancelWorkflow("s1", "run-1");
     assert.deepEqual(lastCall(conn), { method: "workflow/cancel", params: { sessionId: "s1", workflowRunId: "run-1" } });
+    await manager.pauseWorkflow("s1", "run-1");
+    assert.deepEqual(lastCall(conn), { method: "workflow/pause", params: { sessionId: "s1", workflowRunId: "run-1" } });
     await manager.controlWorkflowChild("s1", "run-1", "child-a", 2, "retry");
     assert.deepEqual(lastCall(conn).params, { sessionId: "s1", workflowRunId: "run-1", childId: "child-a", attempt: 2, action: "retry" });
     assert.equal(isWorkflowChildAction("skip"), true);
