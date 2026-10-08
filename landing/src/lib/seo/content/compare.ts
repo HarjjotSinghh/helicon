@@ -949,6 +949,90 @@ const ENTRIES: Entry[] = [
     ],
   },
   {
+    slug: "t3-code",
+    icon: "squares",
+    label: "T3 Code",
+    name: "T3 Code",
+    title: "Helicon vs T3 Code for Muse Code",
+    h1: "Helicon vs T3 Code for Muse Code",
+    description:
+      "T3 Code added a beta Muse Code provider. How it compares with Helicon, a client built only for Muse Code: approval modes, terminal sessions, fork, usage and the editor extension.",
+    answer:
+      "T3 Code is a multi agent GUI that added a beta Muse Code provider in October 2026, next to Codex, Claude, Cursor and others. Helicon is built only for Muse Code. Pick T3 Code if you switch between agents. Pick Helicon if Muse Code is your main agent and you want its full approval modes, terminal session resume, native fork and the plan meter.",
+    keywords: [
+      "t3 code muse",
+      "t3 code muse code",
+      "t3 code vs helicon",
+      "helicon vs t3 code",
+      "t3 code alternative muse code",
+    ],
+    rows: [
+      ["Agents", "Muse Code only", "Many: Codex, Claude, Cursor, Muse Code and ACP agents"],
+      ["Muse Code support", "Stable, the whole product", "Beta, off by default"],
+      ["How it talks to Muse Code", "`muse serve` through the official SDK", "`muse serve` through the official SDK"],
+      ["Approval modes", "Muse Code's own modes, mapped one to one", "Supervised or Full access"],
+      ["Sessions started in the terminal", "Listed and resumable", "Its own threads only"],
+      ["Fork a session", "Native Muse Code fork", "Copies context into a new session"],
+      ["Plan usage", "5 hour and weekly meter, cost at API rates", "Token and context counts"],
+      ["Editor extension", "VS Code, Cursor, Windsurf, VSCodium", "None"],
+      ["License", "MIT", "MIT"],
+    ],
+    what: [
+      "T3 Code is an open source GUI for coding agents from the t3.gg team. It runs many agents in one app, can hand context across providers in the middle of a conversation, and has desktop, web and mobile clients. In October 2026 it added a Muse Code provider, labelled beta and switched off by default.",
+      "Helicon is an unofficial, MIT licensed client built only for Muse Code. It ships as a desktop app, a web app and an editor extension. Both tools start `muse serve` and talk to it through Meta's official `@muse-code/sdk`, so the difference is not the protocol. It is how much of Muse Code each one exposes. The rows on this page describe T3 Code's Muse provider as of 8 October 2026; a beta moves fast, so check its docs too.",
+    ],
+    differences: [
+      [
+        "Approval modes",
+        "Muse Code has its own approval modes: onRequest, promptUnmatched and denyUnmatched. Helicon maps them one to one and lets you change the mode inside a session. T3 Code's Muse provider uses its own two levels, Supervised and Full access, the same switch it uses for every agent.",
+      ],
+      [
+        "Sessions you started in the terminal",
+        "Helicon lists every Muse Code session for a workspace, including sessions started with `muse` in a terminal, and resumes them with their full history. T3 Code resumes the threads it created itself.",
+      ],
+      [
+        "Fork, workflows and background work",
+        "Helicon uses Muse Code's native fork, and has controls for workflows and background tasks: cancel a workflow, skip or retry an agent, send a task to the background, stop one or all. T3 Code copies context into a new session to branch, and shows workflow and subagent output without those controls.",
+      ],
+      [
+        "Plan usage and cost",
+        "Helicon reads Muse Code's usage meter, so you see the 5 hour and weekly windows, plus what each thread would cost at API rates. T3 Code shows token and context counts.",
+      ],
+      [
+        "Where it runs",
+        "T3 Code has a mobile client and remote access to another machine, which Helicon does not have yet. Helicon has an editor extension for VS Code, Cursor, Windsurf and VSCodium, runs Muse Code natively on Windows or inside WSL2, and shows install and login steps in the app when the muse CLI is missing.",
+      ],
+    ],
+    pickOther: [
+      "You use several agents and want them all in one app.",
+      "You want to hand a conversation from one agent to another.",
+      "You want a mobile client or remote access today.",
+      "You already use T3 Code and only try Muse Code now and then.",
+    ],
+    pickHelicon: [
+      "Muse Code is your main agent and you want all of its features, not a common subset.",
+      "You start sessions in the terminal and want to pick them up in a GUI.",
+      "You want the plan meter and cost per thread.",
+      "You want Muse Code inside VS Code, Cursor, Windsurf or VSCodium.",
+    ],
+    together:
+      "Yes. Both drive the same muse CLI with your own `muse login`, so neither one stores your credentials and installing both costs nothing. A common split is T3 Code for mixed agent work and Helicon for long Muse Code sessions.",
+    faqs: [
+      {
+        q: "Does T3 Code support Muse Code?",
+        a: "Yes, as a beta provider added in October 2026. It is off by default; you turn it on in T3 Code's provider settings. It needs the muse CLI installed and logged in, the same as Helicon.",
+      },
+      {
+        q: "Is Helicon made by the T3 Code team?",
+        a: "No. Helicon is a separate, community built project. It is unofficial and not affiliated with Meta or with T3 Code.",
+      },
+      {
+        q: "Which one is better for Muse Code?",
+        a: "If Muse Code is one of several agents you use, T3 Code keeps them in one place. If Muse Code is your main agent, Helicon exposes more of it: its own approval modes, terminal session resume, native fork, workflow controls and the usage meter.",
+      },
+    ],
+  },
+  {
     slug: "other-muse-code-guis",
     icon: "squares",
     label: "Other Muse GUIs",

@@ -44,7 +44,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
       headline: "Muse Code on Windows,",
       headlineContinue: "with a real UI.",
       lead: "Native on Windows. Your existing Muse Code plan. No second bill.",
-      body: "A free, open-source Windows app for the muse CLI, with every project, session and diff in one window.",
+      body: "A free, open-source Windows app built only for the muse CLI, with every project, session and diff in one window.",
       ctas: [
         { label: "Download for Windows", href: installerPath("windows", "hero"), kind: "primary" },
         source,
@@ -69,7 +69,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
       audience,
       headline: "Muse Code, without living in the terminal.",
       lead: "Same Muse Code. Same subscription. Better interface.",
-      body: "A free, open-source Mac app for the muse CLI. One universal DMG, with every project, session and diff in one window.",
+      body: "A free, open-source Mac app built only for the muse CLI. One universal DMG, with every project, session and diff in one window.",
       ctas: [
         { label: "Download for macOS", href: installerPath("macos", "hero"), kind: "primary" },
         source,
@@ -91,7 +91,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
     audience,
     headline: "Muse Code, without living in the terminal.",
     lead: "Same Muse Code. Same subscription. Better interface.",
-    body: `A free, open-source desktop and web app for the muse CLI, with every project, session and diff in one window.`,
+    body: `A free, open-source desktop and web app built only for the muse CLI, with every project, session and diff in one window.`,
     ctas: [
       { label: "Download for Windows", href: installerPath("windows", "hero"), kind: "primary" },
       { label: "Download for macOS", href: installerPath("macos", "hero"), kind: "outline" },
