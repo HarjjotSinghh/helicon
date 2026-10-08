@@ -1,4 +1,4 @@
-import { ArrowElbowDownLeftIcon, ArrowsInIcon, BookOpenIcon, BrainIcon, ClockCounterClockwiseIcon, CpuIcon, FileTextIcon, GitForkIcon, NotePencilIcon, ShieldIcon, TargetIcon } from "../ui/icons";
+import { ArrowElbowDownLeftIcon, ArrowsInIcon, BookOpenIcon, BrainIcon, ChatCircleDotsIcon, ClockCounterClockwiseIcon, CpuIcon, FileTextIcon, GitForkIcon, NotePencilIcon, ShieldIcon, TargetIcon } from "../ui/icons";
 import { useEffect, type ReactNode } from "react";
 import type { SlashAction, SlashCommand } from "../../model/slash";
 import { Spinner, cn } from "../ui/primitives";
@@ -15,6 +15,7 @@ const ACTION_ICONS: Record<SlashAction, ReactNode> = {
   effort: <BrainIcon size={14} />,
   permissions: <ShieldIcon size={14} />,
   fork: <GitForkIcon size={14} />,
+  side: <ChatCircleDotsIcon size={14} />,
   new: <NotePencilIcon size={14} />,
   resume: <ClockCounterClockwiseIcon size={14} />,
   init: <FileTextIcon size={14} />,

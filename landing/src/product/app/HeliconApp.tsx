@@ -163,13 +163,23 @@ function ZoomSync() {
         style.zoom = "";
       }
       root.style.fontSize = "";
+      root.style.removeProperty("--app-zoom");
       window.dispatchEvent(new CustomEvent("helicon-zoom", { detail: zoom }));
       return;
     }
     if ("zoom" in style) {
       style.zoom = zoom === 1 ? "" : String(zoom);
+      // Chromium scales a fixed element's transform by the page zoom a second time, so every Radix
+      // menu lands down and to the right of its trigger. theme.css cancels the zoom on the popper
+      // wrapper and puts it back on the menu itself, using this variable.
+      if (zoom === 1) {
+        root.style.removeProperty("--app-zoom");
+      } else {
+        root.style.setProperty("--app-zoom", String(zoom));
+      }
       root.style.fontSize = "";
     } else {
+      root.style.removeProperty("--app-zoom");
       root.style.fontSize = zoom === 1 ? "" : `${Math.round(16 * zoom * 100) / 100}px`;
     }
   }, [zoom]);

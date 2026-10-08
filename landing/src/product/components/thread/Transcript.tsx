@@ -35,6 +35,7 @@ import {
   GenericRow,
   ReasoningRow,
   ShellRow,
+  SideChatRow,
   SteerBubble,
   SubagentRow,
   ToolRow,
@@ -380,6 +381,8 @@ function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] |
       return <WorkflowCard item={item} sessionId={props.sessionId} />;
     case "compaction":
       return <CompactionRow item={item} />;
+    case "sideChat":
+      return <SideChatRow item={item} />;
     case "userMessage":
       return <SteerBubble item={item} />;
     default:

@@ -135,6 +135,8 @@ export interface HeliconClient {
   runShellProxy(sessionId: string, command: string): Promise<import("./types").ShellRun>;
   /** Branches a thread into a new one carrying every completed turn. */
   forkSession(sessionId: string): Promise<SessionSummary>;
+  /** Opens an empty side chat beside a thread. Nothing in it flows back into the thread. */
+  sideChat(sessionId: string): Promise<SessionSummary>;
   /** With a loaded session, Muse's own list for it; otherwise the workspace's list from the CLI. */
   listSkills(cwd: string, sessionId?: string): Promise<SkillCatalog>;
   /** The full instructions of a skill, without its frontmatter. */

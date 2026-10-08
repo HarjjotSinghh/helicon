@@ -63,6 +63,8 @@ export interface SessionSummary {
   sandboxDisabled: boolean | null;
   /** The aonia profile this thread runs under; null for the default login. */
   accountId: string | null;
+  /** For a side chat, the thread it was opened from; the sidebar nests it there. */
+  sideOf?: string | null;
   live: LiveView | null;
 }
 
@@ -461,7 +463,7 @@ export interface FileContent {
 export type GoalAction = "set" | "edit" | "pause" | "resume" | "clear";
 export type SubagentAction = "interrupt" | "stop" | "close" | "resume" | "reopen" | "sendMessage" | "followupTask" | "readResult";
 export type TaskAction = "background" | "stop" | "stopAll";
-export type WorkflowAction = "cancel" | "skip" | "retry";
+export type WorkflowAction = "cancel" | "pause" | "skip" | "retry";
 
 export interface TranscriptLoad {
   session: SessionSummary | null;

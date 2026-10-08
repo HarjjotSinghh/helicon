@@ -632,6 +632,19 @@ export class DemoClient implements HeliconClient {
     return copy.summary;
   }
 
+  async sideChat(sessionId: string): Promise<SessionSummary> {
+    const entry = this.sessions.get(sessionId);
+    const id = uid("side");
+    const side: Seeded = {
+      summary: { ...(entry?.summary ?? summary(id, PROJECTS.readme, "Side chat", Date.now(), 0)), sessionId: id, title: `${entry?.summary.title ?? "Thread"} (side chat)`, turnCount: 0, sideOf: sessionId, pinned: false, live: null },
+      events: [],
+      approvals: [],
+    };
+    this.sessions.set(id, side);
+    for (const h of this.handlers) h({ type: "sessions-changed" });
+    return side.summary;
+  }
+
   async listSkills() {
     return {
       skills: [

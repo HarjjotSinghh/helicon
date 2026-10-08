@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.21.4
+
+### New
+
+- **Side chats.** Type `/side` in a thread to open a side chat next to it: a separate chat for a quick question that adds nothing to the thread. Put a message after it, as in `/side what does this regex do?`, and it is sent there. Side chats sit under their thread in the sidebar, joined by a tree line, and the thread shows a Side chat row that opens it. A side chat gets its thread's permissions, though Muse Code opens it with full access ([#116](https://github.com/HarjjotSinghh/helicon/issues/116)).
+- **Pause a workflow run.** A running workflow card has a Pause run button next to Cancel run. A paused run shows Paused and can still be cancelled; ask Muse to resume it. The details sheet also shows the run's token budget when it has one.
+
+### Fixed
+
+- **Menus stay next to their button when the interface is zoomed.** In the browser and the editor panel, at any zoom other than 100%, dropdowns and popovers such as the model, effort and permissions menus opened down and to the right of their button. They now open right under it.
+- **A paused workflow run shows as Paused,** not as finished or failed, with its agents still counted as working.
+- **A deleted project folder says so** ([#105](https://github.com/HarjjotSinghh/helicon/issues/105)). Opening a thread whose folder no longer exists used to fail with "Could not start Muse: Error: write EPIPE". It now names the folder and says to recreate it (an empty folder is enough to open its threads again) or remove the project.
+
+### Changed
+
+- **Up to date with Muse Code 1.4.4.** Helicon now uses version 1.4.4 of the Muse Code SDK.
+
 ## 0.21.3
 
 ### New
