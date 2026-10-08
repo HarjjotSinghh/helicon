@@ -57,7 +57,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://127.0.0.1:3127",
+      // The string shorthand rewrites Host to the target, so the server sees the page's origin as
+      // foreign and refuses every write. Keeping the Host makes the dev page same-origin, as in prod.
+      "/api": { target: "http://127.0.0.1:3127", changeOrigin: false },
     },
   },
   build: {
