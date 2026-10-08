@@ -2692,14 +2692,21 @@ export class HeliconController {
       // Muse 1.4.4 opens every side chat in full access, whatever its thread uses. The side chat
       // gets its thread's permissions instead, so it never runs tools the thread would ask about.
       const mode: ApprovalMode = this.state.yoloSettings?.enabled === true ? "allowAll" : (parentMode ?? this.state.prefs.defaultMode);
+      let guarded = true;
       try {
         await this.client.setApprovalMode(session.sessionId, mode);
       } catch (error) {
-        this.toast("error", "The side chat may run tools without asking", `Helicon could not set its permissions: ${errorMessage(error)}`);
+        guarded = false;
+        this.toast(
+          "error",
+          "The side chat may run tools without asking",
+          `Helicon could not set its permissions, so nothing was sent. Set them in the composer before you send. ${errorMessage(error)}`,
+        );
       }
       this.navigate({ kind: "thread", sessionId: session.sessionId });
       const message = text.trim();
-      if (message) {
+      // Fail closed: a message never goes into a side chat whose permissions could not be set.
+      if (message && guarded) {
         await this.loadThread(session.sessionId);
         return this.sendToThread(session.sessionId, message, {}, false);
       }

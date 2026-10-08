@@ -1851,6 +1851,19 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("sends nothing into a side chat whose permissions could not be set", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.approvalModeFailFor.add("s3");
+    client.transcript = async () => load({ session: { ...SESSION, sessionId: "s3", title: "Probe (side chat)", sideOf: "s1" } });
+    const before = client.sent.length;
+    assert.equal(await controller.send("/side run the migration"), true);
+    assert.equal(client.sent.length, before, "the message is not sent");
+    assert.deepEqual(controller.store.get().route, { kind: "thread", sessionId: "s3" });
+    assert.equal(controller.store.get().toasts.at(-1)?.title, "The side chat may run tools without asking");
+    stop();
+  });
+
   it("sends the text after /side into the new side chat", async () => {
     const client = new FakeClient();
     const { controller, stop } = await started(client);
