@@ -293,6 +293,11 @@ export interface YoloSettings {
   enabled: boolean;
 }
 
+/** Server-owned feed mode: whether a thread Muse stops sending updates for is asked for them instead. */
+export interface FeedSettings {
+  catchUp: boolean;
+}
+
 /** A skill Muse can load in a workspace, from `muse skills list`. Skills switched off are left out. */
 export interface SkillEntry {
   id: string;
@@ -492,6 +497,8 @@ export type HeliconEvent =
   | { type: "hello"; version: string }
   | { type: "msp"; sessionId: string; method: string; params: Record<string, unknown>; at: number }
   | { type: "session-status"; sessionId: string; live: LiveView | null }
+  /** The server asked Muse and this turn is still running, with nothing new to show for it. */
+  | { type: "feed"; sessionId: string; activeTurnId: string; at: number }
   | { type: "sessions-changed" }
   | { type: "shell-run"; sessionId: string; run: ShellRun }
   | { type: "plan-usage"; usage: PlanUsage; accountId: string | null }

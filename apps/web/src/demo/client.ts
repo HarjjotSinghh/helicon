@@ -702,6 +702,7 @@ export class DemoClient implements HeliconClient {
   private titleSettings = { enabled: true, modelId: null as string | null };
   private sandboxSettings = { disabled: false };
   private yoloSettings = { enabled: false };
+  private feedSettings = { catchUp: false };
   async getSandboxSettings() {
     return this.sandboxSettings;
   }
@@ -716,6 +717,14 @@ export class DemoClient implements HeliconClient {
   async setYoloSettings(patch: { enabled?: boolean }) {
     this.yoloSettings = { ...this.yoloSettings, ...patch };
     return this.yoloSettings;
+  }
+
+  async getFeedSettings() {
+    return this.feedSettings;
+  }
+  async setFeedSettings(patch: { catchUp?: boolean }) {
+    this.feedSettings = { ...this.feedSettings, ...patch };
+    return this.feedSettings;
   }
 
   async getTitleSettings() {

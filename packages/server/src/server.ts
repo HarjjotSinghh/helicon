@@ -60,6 +60,15 @@ import {
   type SshRunFn,
 } from "./ssh.js";
 import { buildThreadTitlePrompt, deriveTitle, parseExecTitle, sanitizeThreadTitle } from "./threadTitles.js";
+import {
+  DEFAULT_TAIL_TIMING,
+  ViewTail,
+  endsIncomplete,
+  withoutProvisionalEnding,
+  type SessionRecordView,
+  type TailEvent,
+  type ViewTailTiming,
+} from "./viewTail.js";
 import { AoniaError, createAonia, parseLoginOutput, type Aonia, type Profile } from "@harjjotsinghh/aonia";
 
 export const HELICON_VERSION = "0.21.4";
@@ -133,6 +142,8 @@ export interface ServerOptions {
   musePath?: string | null;
   /** Named Muse profiles. Defaults to a real aonia over ~/.aonia; injected in tests. */
   aonia?: Aonia;
+  /** How eagerly a quiet session's view is paged; the defaults suit a real Muse, tests shorten them. */
+  tailTiming?: Partial<ViewTailTiming>;
   /** On Windows: `native` runs Windows Muse, `wsl` runs Muse in WSL, `auto` (the default) prefers native once installed. */
   runtime?: RuntimePreference;
   /** Finds native Windows Muse; the real install folders by default. */
@@ -224,6 +235,8 @@ type SseSink = (event: string, data: unknown) => void;
 
 const MAX_HISTORY_PAGES = 4;
 const HISTORY_PAGE_SIZE = 1000;
+/** Events per page when following a quiet session; one that fell far behind takes several pages. */
+const TAIL_PAGE_SIZE = 200;
 const DISCOVER_LIMIT = 200;
 /** Echo-titled threads one discovery may hand to the titler. Each is a model call on the user's plan, so it is a
  * handful of recent threads rather than a whole history. */
@@ -454,6 +467,32 @@ function stripEvent(event: unknown): { method: string; params: Record<string, un
     return null;
   }
   return { method, params: stripSource(params) };
+}
+
+/** What a `session/read` or `session/resume` reply says about where the view ends and what is running. */
+function recordView(reply: unknown): SessionRecordView | undefined {
+  const record = asRecord(reply);
+  const session = asRecord(record?.["session"]);
+  if (!record || !session) {
+    return undefined;
+  }
+  const head = str(record["viewCursor"]);
+  const activeTurnId = str(session["activeTurnId"]);
+  const updatedAt = str(session["updatedAt"]);
+  // A session whose projection is unavailable reports an empty cursor, which is no head at all. Its
+  // update time still moves with every event, so that is what says whether there is anything to page.
+  return { head, activeTurnId, stamp: updatedAt ? `${updatedAt} ${activeTurnId ?? ""} ${head ?? ""}` : null };
+}
+
+/** The position of the newest event in a history read oldest first; `null` when the view is empty. */
+function newestCursor(events: { params: Record<string, unknown> }[]): string | null {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const cursor = events[index]?.params["viewCursor"];
+    if (typeof cursor === "string") {
+      return cursor;
+    }
+  }
+  return null;
 }
 
 function asHistoryItem(value: unknown): Record<string, unknown> | null {
@@ -714,6 +753,11 @@ export class HeliconServer {
    * a backend that simply had nothing to say. Bounded to the most recently seen sessions.
    */
   private readonly notifyStats = new Map<string, SessionNotifyStats>();
+  /**
+   * Pages the view of any session whose push feed has gone quiet, so a thread need not depend on
+   * push alone. Only while the feed setting's catch-up is on; otherwise it stands by and does nothing.
+   */
+  private readonly tail: ViewTail;
   private protocolErrors = 0;
   private lastProtocolError: string | null = null;
   private forwardFailures = 0;
@@ -737,6 +781,7 @@ export class HeliconServer {
       | "findNativeMuse"
       | "aonia"
       | "loginSpawn"
+      | "tailTiming"
     >
   > &
     Pick<ServerOptions, "staticDir" | "token" | "findNativeMuse"> & {
@@ -772,9 +817,26 @@ export class HeliconServer {
       loginSpawn: options.loginSpawn ?? defaultLoginSpawn,
     };
     this.opener = options.opener ?? defaultOpener(this.options.platform);
+    this.tail = new ViewTail(
+      {
+        page: (sessionId, cursor) => this.pageForward(sessionId, cursor),
+        read: async (sessionId) => {
+          const manager = this.loadedManager(sessionId);
+          return manager ? this.readRecord(manager, sessionId) : undefined;
+        },
+        deliver: (sessionId, event) => this.deliver(sessionId, event),
+        believed: (sessionId) => this.believed(sessionId),
+        confirmed: (sessionId, activeTurnId) => this.emit("helicon", { type: "feed", sessionId, activeTurnId, at: Date.now() }),
+        corrected: (sessionId, activeTurnId) => this.correctActiveTurn(sessionId, activeTurnId),
+        log: (message) => this.log(message),
+      },
+      { ...DEFAULT_TAIL_TIMING, ...options.tailTiming },
+    );
     this.store = new HeliconStore(
       this.options.dataDir === ":memory:" ? ":memory:" : join(this.options.dataDir, "helicon.db"),
     );
+    // Catching up is a mode the user switches on; until then the tail is inert.
+    this.tail.setEnabled(this.store.getFeedSettings().catchUp);
     this.aonia = options.aonia ?? createAonia(this.options.musePath ? { musePath: this.options.musePath } : {});
     this.server = createServer((req, res) => {
       void this.route(req, res).catch((error) => this.fail(res, 500, String(error)));
@@ -788,6 +850,7 @@ export class HeliconServer {
     // No sweep at startup: which threads are busy in other Muse clients is only known after discovery.
     this.settleTimer = setInterval(() => this.autoSettle(), AUTO_SETTLE_SWEEP_MS);
     this.settleTimer.unref?.();
+    this.tail.start();
     return { port, host: this.options.host };
   }
 
@@ -801,6 +864,7 @@ export class HeliconServer {
       clearInterval(this.settleTimer);
       this.settleTimer = null;
     }
+    this.tail.stop();
     this.titleQueue.length = 0;
     for (const sink of [...this.sinks]) {
       this.sinks.delete(sink);
@@ -1040,6 +1104,8 @@ export class HeliconServer {
           forwardFailures: this.forwardFailures,
           lastForwardFailure: this.lastForwardFailure,
           unroutedByMethod: Object.fromEntries(this.unroutedByMethod),
+          // Sessions whose view had to be paged; `recovered` counts events push never delivered.
+          tail: this.tail.stats(),
           sessions: Object.fromEntries(
             [...this.notifyStats].map(([id, stats]) => [
               id,
@@ -1509,6 +1575,26 @@ export class HeliconServer {
         const run = this.restartChain.then(() => this.restartHosts());
         this.restartChain = run.catch(() => undefined);
       }
+      this.json(res, 200, next);
+      return true;
+    }
+    if (method === "GET" && path === "/api/feed-settings") {
+      this.json(res, 200, this.store.getFeedSettings());
+      return true;
+    }
+    if (method === "PATCH" && path === "/api/feed-settings") {
+      const body = await this.readBody(req);
+      const patch: { catchUp?: boolean } = {};
+      if ("catchUp" in body) {
+        if (typeof body["catchUp"] !== "boolean") {
+          throw new HttpError(400, "catchUp must be a boolean.");
+        }
+        patch.catchUp = body["catchUp"];
+      }
+      const next = this.store.setFeedSettings(patch);
+      // No host restarts for this: the tail starts or stops following, and sessions are picked up
+      // from their next history load or pushed event.
+      this.tail.setEnabled(next.catchUp);
       this.json(res, 200, next);
       return true;
     }
@@ -2375,6 +2461,8 @@ export class HeliconServer {
       accountId,
     });
     this.sessionHosts.set(started.sessionId, host.key);
+    // A new session's view is empty, so the start of it is somewhere to page from.
+    this.tail.anchor(started.sessionId, null);
     if (accountId) {
       await this.aonia.touch(accountId).catch(() => undefined);
     }
@@ -2636,6 +2724,28 @@ export class HeliconServer {
     };
   }
 
+  /**
+   * History without the ending the view lends a turn still running. Loading a thread mid-turn used
+   * to show that turn as failed and its open tool calls as failed with it, and the calls stayed that
+   * way after they finished (#54). `record` is what the resume said; a session another host holds
+   * has none, and one whose turn started as the page was read has a stale one, so an ending left
+   * unexplained is checked against a fresh read. Only what the ending looks like counts then: read
+   * after the pages, a head can be a cursor one of them filled with a lent event.
+   */
+  private async settled(
+    manager: SessionManager,
+    sessionId: string,
+    events: { method: string; params: Record<string, unknown> }[],
+    record: SessionRecordView | undefined,
+  ): Promise<{ method: string; params: Record<string, unknown> }[]> {
+    const first = withoutProvisionalEnding(events, [record?.activeTurnId], record?.head);
+    if (first.length !== events.length || !endsIncomplete(events)) {
+      return first;
+    }
+    const fresh = await this.readRecord(manager, sessionId).catch(() => undefined);
+    return withoutProvisionalEnding(events, [fresh?.activeTurnId], null);
+  }
+
   private async loadTranscript(sessionId: string): Promise<Record<string, unknown>> {
     // A goal change can land while this load is in flight; history must not then write the older goal back.
     const goalSeqAtStart = this.liveFor(sessionId).goalSeq;
@@ -2645,8 +2755,11 @@ export class HeliconServer {
     let readOnly = false;
     let readOnlyReason: string | null = null;
     let msp: Record<string, unknown> | null = null;
+    let resumedAs: SessionRecordView | undefined;
     try {
-      msp = asRecord(asRecord(await manager.resumeSession(sessionId, true))?.["session"]);
+      const resumed = await manager.resumeSession(sessionId, true);
+      msp = asRecord(asRecord(resumed)?.["session"]);
+      resumedAs = recordView(resumed);
       this.sessionHosts.set(sessionId, host.key);
     } catch (error) {
       const info = errorInfo(error);
@@ -2662,8 +2775,12 @@ export class HeliconServer {
     let truncated = false;
     try {
       const paged = await this.pageTranscript(manager, sessionId);
-      events = paged.events;
+      events = await this.settled(manager, sessionId, paged.events, resumedAs);
       truncated = paged.truncated;
+      if (!readOnly) {
+        // History ends where the tail begins: the newest event read is where a quiet feed is paged from.
+        this.tail.anchor(sessionId, newestCursor(events));
+      }
     } catch (error) {
       const kind = errorInfo(error).kind;
       // view/page needs a loaded session; another host's lease leaves this host with nothing to page.
@@ -2821,7 +2938,11 @@ export class HeliconServer {
         const live = this.liveFor(sessionId);
         live.activeTurnId = str(session["activeTurnId"]);
         live.turnStartedAt = live.turnStartedAt ?? nowIso();
-        this.sessionHosts.set(sessionId, host.key);
+        // Any host can list a session, but only the one that loaded it can page its view. A host
+        // still alive keeps the session, or a refresh mid-turn would send its tail to the wrong one.
+        if (!this.loadedManager(sessionId)) {
+          this.sessionHosts.set(sessionId, host.key);
+        }
       }
       // A settled thread that moved on in another Muse client (running now, or updated since) comes back.
       let current = stored;
@@ -2973,6 +3094,8 @@ export class HeliconServer {
   }
 
   private async managerForSession(sessionId: string): Promise<SessionManager> {
+    // Whatever is about to be asked of this session, its events should be looked for soon after.
+    this.tail.nudge(sessionId);
     const key = this.sessionHosts.get(sessionId);
     const loaded = key ? this.hosts.get(key) : undefined;
     if (loaded) {
@@ -3079,6 +3202,7 @@ export class HeliconServer {
         continue;
       }
       this.sessionHosts.delete(sessionId);
+      this.tail.forget(sessionId);
       this.effortApplied.delete(sessionId);
       const live = this.live.get(sessionId);
       if (live && (live.activeTurnId || live.pendingApprovals.size || live.pendingInputs.size)) {
@@ -3308,6 +3432,10 @@ export class HeliconServer {
       }
       this.sessionHosts.set(event.sessionId, hostKey);
       this.noteNotification(event.sessionId, notification.method);
+      // The tail keeps what it already delivered from a page, and holds a push that lands mid-page.
+      if (!this.tail.heard(event.sessionId, { method: notification.method, params, at: notification.emittedAtMs })) {
+        return;
+      }
       this.track(event.sessionId, notification.method, params);
       this.emit("helicon", event);
     } catch (error) {
@@ -3315,6 +3443,63 @@ export class HeliconServer {
       this.lastForwardFailure = `${notification.method}: ${error instanceof Error ? error.message : String(error)}`;
       this.log(`forward(${notification.method}) threw: ${this.lastForwardFailure}`);
     }
+  }
+
+  /** One view event the tail paged or held back, taken exactly as a pushed one is. */
+  private deliver(sessionId: string, event: TailEvent): void {
+    try {
+      const wire = toWireEvent(event.method, { ...event.params, sessionId }, event.at);
+      if (!wire) {
+        return;
+      }
+      this.track(sessionId, event.method, event.params);
+      this.emit("helicon", wire);
+    } catch (error) {
+      this.forwardFailures += 1;
+      this.lastForwardFailure = `${event.method}: ${error instanceof Error ? error.message : String(error)}`;
+      this.log(`deliver(${event.method}) threw: ${this.lastForwardFailure}`);
+    }
+  }
+
+  /** The host that has a session loaded, if one does. Unlike `managerForSession`, this never starts one. */
+  private loadedManager(sessionId: string): SessionManager | null {
+    const key = this.sessionHosts.get(sessionId);
+    return (key ? this.hosts.get(key)?.manager : undefined) ?? null;
+  }
+
+  private async pageForward(sessionId: string, cursor: string | null): Promise<{ events: unknown[]; nextCursor: string | null }> {
+    const manager = this.loadedManager(sessionId);
+    if (!manager) {
+      throw new Error("No host has this session loaded.");
+    }
+    return manager.pageView(sessionId, { cursor: cursor ?? undefined, direction: "forward", limit: TAIL_PAGE_SIZE });
+  }
+
+  /** Muse's own record of a session: a read that takes no lease, loads nothing and changes nothing. */
+  private async readRecord(manager: SessionManager, sessionId: string): Promise<SessionRecordView | undefined> {
+    return recordView(await manager.readSession(sessionId, true));
+  }
+
+  private believed(sessionId: string): { busy: boolean; activeTurnId: string | null } {
+    const live = this.live.get(sessionId);
+    // A monitor can start a turn with nobody asking, so a watching session is paged as a busy one is.
+    return { busy: this.isBusy(sessionId) || (live?.monitors.size ?? 0) > 0, activeTurnId: live?.activeTurnId ?? null };
+  }
+
+  /**
+   * Muse's session record and this server disagree about what is running, and the view holds no
+   * event that settles it (#42: a view that stops advancing on a long-lived host). The record wins:
+   * it is what a restart would read. A thread still showing the turn reloads from history on seeing this.
+   */
+  private correctActiveTurn(sessionId: string, activeTurnId: string | null): void {
+    const live = this.liveFor(sessionId);
+    if (live.activeTurnId === activeTurnId) {
+      return;
+    }
+    live.activeTurnId = activeTurnId;
+    live.turnStartedAt = activeTurnId ? nowIso() : null;
+    this.emitStatus(sessionId);
+    this.sessionsChanged();
   }
 
   /** Records that a session's feed is alive, so a silence can later be told apart from an idle session. */
@@ -3409,6 +3594,7 @@ export class HeliconServer {
         live.pendingInputs.clear();
         live.monitors.clear();
         this.sessionHosts.delete(sessionId);
+        this.tail.forget(sessionId);
         break;
       }
       case "session/modelChanged": {
