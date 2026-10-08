@@ -28,7 +28,11 @@ export interface WorkflowView {
   trigger: string | null;
   status: string;
   running: boolean;
-  /** Stopped by `workflow/pause` (any client, the terminal included): not finished, so still cancellable. */
+  /**
+   * Stopped by `workflow/pause` (any client, the terminal included). Muse keeps the status
+   * `inProgress` and sets `paused: true` on the item, so a paused run is not `running`, but it has
+   * not finished either and is still cancellable.
+   */
   paused: boolean;
   /** A human line for the row, like "Workflow: model-chosen generated workflow". */
   label: string;
@@ -67,9 +71,6 @@ const WRAPPER = /<workflow-launch-reconciled>([\s\S]*?)<\/workflow-launch-reconc
 
 /** Terminal statuses that mean the run did not succeed, matching how the transcript reads items. */
 export const TERMINAL_FAILURES = new Set(["failed", "rejected", "cancelled", "timedOut"]);
-
-/** A run `workflow/pause` stopped. It has not finished, so it is neither done nor failed. */
-export const PAUSED = "paused";
 
 /** The reconciliation payload Muse tucks inside `message`, or null when there is not one yet. */
 export function reconciled(message: string | undefined): Reconciled | null {
@@ -168,10 +169,12 @@ function sum(values: (number | null)[]): number | null {
 /** Everything the card and the sheet show, from one workflow item and the thread it sits in. */
 export function workflowView(item: MspItem, fold: ThreadFold | null): WorkflowView {
   const payload = reconciled(item.message);
-  const running = item.status === "inProgress";
-  const paused = item.status === PAUSED;
+  // The pause flag is only ever `true` or absent, and Muse clears it when the run resumes or ends.
+  const open = item.status === "inProgress";
+  const paused = open && item["paused"] === true;
+  const running = open && !paused;
   // A paused run's unreported agents have not finished either, so they get no outcome to inherit.
-  const agents = agentsOf(item.children ?? [], payload, running || paused ? null : item.status);
+  const agents = agentsOf(item.children ?? [], payload, open ? null : item.status);
   const durations = agents.map((agent) => agent.durationMs);
   const known = durations.filter((value): value is number => value !== null);
   const failure = text(payload?.latest_failure) ?? text(item.failureReason);

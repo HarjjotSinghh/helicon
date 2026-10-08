@@ -35,6 +35,11 @@ function toneOf(view: WorkflowView): Tone {
   return view.failed > 0 || TERMINAL_FAILURES.has(view.status) ? "failed" : "done";
 }
 
+/** Muse keeps a paused run `inProgress` and flags it, so the raw status would read "In progress". */
+function statusLabel(view: WorkflowView): string {
+  return view.running ? "Running" : view.paused ? "Paused" : humanize(view.status);
+}
+
 function time(ms: number | null): string {
   return ms === null ? "Not known" : formatDuration(ms) || "0s";
 }
@@ -67,7 +72,7 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
         <FlowArrowIcon size={15} className="shrink-0 text-subtle" />
         <span className="shrink-0 text-sm font-medium text-fg">Workflow</span>
         <span className={cn("shrink-0 rounded-md px-1.5 py-px text-2xs font-medium", PILL[tone])}>
-          {view.running ? "Running" : humanize(view.status)}
+          {statusLabel(view)}
         </span>
         {view.used > 0 ? (
           <span className="shrink-0 text-xs text-subtle tabular-nums">
@@ -98,7 +103,7 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
           ) : null}
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-4">
             <Metric label="Agents" value={String(view.used)} />
-            <Metric label={view.running ? "Working" : "Done"} value={String(view.running ? view.working : view.done)} />
+            <Metric label={view.running || view.paused ? "Working" : "Done"} value={String(view.running || view.paused ? view.working : view.done)} />
             <Metric label="Tool calls" value={view.toolCalls === null ? "Not known" : String(view.toolCalls)} />
             <Metric label="Longest agent" value={time(view.longestMs)} />
           </dl>
@@ -149,7 +154,7 @@ function Detail(props: { view: WorkflowView; tone: Tone; sessionId?: string }) {
   return (
     <div className="flex flex-col gap-5">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:grid-cols-3">
-        <Metric label="Status" value={view.running ? "Running" : humanize(view.status)} />
+        <Metric label="Status" value={statusLabel(view)} />
         <Metric label="Agents used" value={String(view.used)} />
         <Metric label="Working" value={String(view.working)} />
         <Metric label="Done" value={String(view.done)} />
