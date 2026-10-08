@@ -153,7 +153,8 @@ export function osesFor(version: string | null): OsInfo[] {
       label: "macOS",
       summary: "One universal DMG for Apple Silicon and Intel, with auto-update.",
       steps: [
-        { text: "Sign in with the muse CLI.", command: "muse login" },
+        { text: "Install the muse CLI in Terminal.", command: "curl -fsSL https://dev.meta.ai/install.sh | bash" },
+        { text: "Sign in once. Needs a Muse Code plan.", command: "muse login" },
         { text: dmg },
         { text: "Drag Helicon into Applications." },
       ],
@@ -164,7 +165,8 @@ export function osesFor(version: string | null): OsInfo[] {
       label: "Linux",
       summary: "An x86_64 AppImage that runs on most distributions, with auto-update.",
       steps: [
-        { text: "Sign in with the muse CLI.", command: "muse login" },
+        { text: "Install the muse CLI in Terminal.", command: "curl -fsSL https://dev.meta.ai/install.sh | bash" },
+        { text: "Sign in once. Needs a Muse Code plan.", command: "muse login" },
         { text: appImage },
         { text: "Make it executable, then run it.", command: "chmod +x Helicon_*.AppImage && ./Helicon_*.AppImage" },
       ],

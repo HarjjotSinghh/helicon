@@ -110,11 +110,11 @@ Helicon bundles its own Node.js, so you only need Muse Code for Windows (`irm ht
 
 macOS: download the DMG from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest); it runs on Apple Silicon and Intel, and updates itself from then on. The builds are not Apple-notarized yet. On macOS 15 or later, open Helicon once, click Done on the warning, then go to System Settings > Privacy & Security and click Open Anyway. On macOS 14 or earlier, right-click the app, then Open. Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/Helicon.app`.
 
-Helicon bundles its own Node.js, so you only need the `muse` CLI with `muse login` done once, however you installed it. Helicon uses the login you already have and never stores credentials of its own.
+Helicon bundles its own Node.js, so you only need the `muse` CLI (`curl -fsSL https://dev.meta.ai/install.sh | bash`) with `muse login` done once, however you installed it. Helicon uses the login you already have and never stores credentials of its own.
 
 Linux: download the AppImage (x86_64) from the [latest release](https://github.com/HarjjotSinghh/helicon/releases/latest). It runs on most distributions (it needs FUSE, `libfuse2`, on some of them) and updates itself from then on. Before the first launch, make it executable and run it (`chmod +x Helicon_*.AppImage`, then `./Helicon_*.AppImage`), or right-click it in your file manager and allow executing it as a program.
 
-Helicon bundles its own Node.js, so you only need the `muse` CLI with `muse login` done once, however you installed it. Helicon uses the login you already have and never stores credentials of its own.
+Helicon bundles its own Node.js, so you only need the `muse` CLI (`curl -fsSL https://dev.meta.ai/install.sh | bash`) with `muse login` done once, however you installed it. Helicon uses the login you already have and never stores credentials of its own.
 
 **VS Code, Cursor, Windsurf, Antigravity:** install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=harjjotsinghh.helicon) or, in Cursor and the other VS Code-based editors, from [Open VSX](https://open-vsx.org/extension/harjjotsinghh/helicon) (or search "Helicon" in the Extensions view). It opens a side panel for the folder you have open: your threads as tabs, History for the earlier ones, readable approvals, and the files each thread changed. Same `muse` login, nothing else to install. Source in [`apps/vscode`](apps/vscode); more at [helicon.sh/install/vscode](https://helicon.sh/install/vscode).
 

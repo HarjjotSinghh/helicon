@@ -131,7 +131,7 @@ export const INSTALL_PAGES: SeoPage[] = [
     description:
       "One universal DMG for Apple Silicon and Intel, with auto update. Install the muse CLI, sign in, drag Helicon to Applications, and allow it once in Privacy & Security.",
     answer:
-      "Sign in with muse login, open the universal Helicon DMG from the latest GitHub release, and drag the app into Applications. One build covers Apple Silicon and Intel and updates itself. The builds are not Apple notarized yet, so the first launch needs System Settings > Privacy & Security > Open Anyway on macOS 15 or later.",
+      "Install the muse CLI and sign in with muse login, open the universal Helicon DMG from the latest GitHub release, and drag the app into Applications. One build covers Apple Silicon and Intel and updates itself. The builds are not Apple notarized yet, so the first launch needs System Settings > Privacy & Security > Open Anyway on macOS 15 or later.",
     keywords: [
       "muse code mac",
       "muse code macos app",
@@ -148,7 +148,7 @@ export const INSTALL_PAGES: SeoPage[] = [
         kind: "ul",
         items: [
           "macOS on Apple Silicon or Intel. One universal DMG covers both.",
-          "The muse CLI, signed in with your own `muse login`.",
+          "The muse CLI (`curl -fsSL https://dev.meta.ai/install.sh | bash`), signed in with your own `muse login`. That needs a Muse Code plan or pay-as-you-go billing.",
           "Nothing else. Node.js is bundled inside the app.",
         ],
       },
@@ -178,8 +178,13 @@ export const INSTALL_PAGES: SeoPage[] = [
       name: "Install Helicon, a Muse Code desktop app, on macOS",
       steps: [
         {
+          name: "Install the muse CLI",
+          text: "Meta's installer for macOS and Linux. Skip this if `muse --version` already works.",
+          code: "curl -fsSL https://dev.meta.ai/install.sh | bash",
+        },
+        {
           name: "Sign in with the muse CLI",
-          text: "Helicon uses this login. It stores no credentials of its own.",
+          text: "Needs a Muse Code plan or pay-as-you-go billing. Helicon uses this login. It stores no credentials of its own.",
           code: "muse login",
         },
         {
@@ -227,7 +232,7 @@ export const INSTALL_PAGES: SeoPage[] = [
     description:
       "An x86_64 AppImage that runs on most distributions and updates itself. Make it executable, run it, and point it at a muse CLI that is signed in.",
     answer:
-      "Download the x86_64 AppImage from the latest GitHub release, make it executable, and run it. It works on most distributions, needs FUSE (libfuse2) on some of them, and updates itself from then on. Running from source is the alternative and needs Node 22 or newer.",
+      "Install the muse CLI and sign in with muse login, then download the x86_64 AppImage from the latest GitHub release, make it executable, and run it. It works on most distributions, needs FUSE (libfuse2) on some of them, and updates itself from then on. Running from source is the alternative and needs Node 22 or newer.",
     keywords: [
       "muse code linux",
       "muse code gui linux",
@@ -244,7 +249,7 @@ export const INSTALL_PAGES: SeoPage[] = [
         items: [
           "An x86_64 distribution. There is no ARM build yet.",
           "FUSE, usually the `libfuse2` package, on distributions that do not ship it.",
-          "The muse CLI, signed in with your own `muse login`.",
+          "The muse CLI (`curl -fsSL https://dev.meta.ai/install.sh | bash`), signed in with your own `muse login`. That needs a Muse Code plan or pay-as-you-go billing.",
           "Nothing else. The AppImage bundles its own Node.js.",
         ],
       },
@@ -278,8 +283,13 @@ export const INSTALL_PAGES: SeoPage[] = [
       name: "Install Helicon on Linux from the AppImage",
       steps: [
         {
+          name: "Install the muse CLI",
+          text: "Meta's installer for macOS and Linux. Skip this if `muse --version` already works.",
+          code: "curl -fsSL https://dev.meta.ai/install.sh | bash",
+        },
+        {
           name: "Sign in with the muse CLI",
-          text: "Helicon uses this login and stores no credentials of its own.",
+          text: "Needs a Muse Code plan or pay-as-you-go billing. Helicon uses this login and stores no credentials of its own.",
           code: "muse login",
         },
         {

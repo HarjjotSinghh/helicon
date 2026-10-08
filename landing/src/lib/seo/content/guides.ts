@@ -967,7 +967,7 @@ export const GUIDE_PAGES: SeoPage[] = [
         items: [
           "Confirm you are signed in: `muse login` in that same shell.",
           "On Windows, check whether you have both a native and a WSL2 install. Helicon prefers native.",
-          "Restart the app so it re runs detection after you change an install.",
+          "Click Check again in Helicon; it re runs detection. Restart only after changing PATH on Windows.",
           "Check that the project directory you added actually exists on the machine running the daemon.",
         ],
       },
@@ -990,8 +990,13 @@ export const GUIDE_PAGES: SeoPage[] = [
           text: "On Windows, Helicon prefers a native install over WSL2. If you have both, it is talking to the native one.",
         },
         {
-          name: "Restart the app",
-          text: "Detection runs at startup, so restart after changing an install.",
+          name: "Install it if it is missing",
+          text: "On macOS and Linux, use Meta's installer below. On Windows, use PowerShell: irm https://dev.meta.ai/install.ps1 | iex",
+          code: "curl -fsSL https://dev.meta.ai/install.sh | bash",
+        },
+        {
+          name: "Click Check again",
+          text: "The setup screen's Check again button re runs detection without a restart. Restart only after changing PATH on Windows.",
         },
         {
           name: "Check the project path exists",
