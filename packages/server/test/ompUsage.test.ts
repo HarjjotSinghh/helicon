@@ -6,9 +6,11 @@ import { join } from "node:path";
 import { HeliconStore } from "@helicon/daemon";
 import { HeliconServer } from "../src/server.js";
 import {
+  classifyOmpTranscript,
   importOmpUsage,
+  labelOmpSessionTitle,
   parseOmpSessionFile,
-  resolveOmpSessionsDir,
+  resolveOmpSessionsDirs,
   sessionIdFromFilename,
 } from "../src/ompUsage.js";
 
@@ -34,10 +36,47 @@ function message(id: string, overrides: Record<string, unknown> = {}): string {
   });
 }
 
-function sessionFile(lines: string[]): string {
+function modelUsage(id: string, overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    type: "model_usage",
+    id,
+    parentId: "daa207c9",
+    timestamp: NOW,
+    purpose: "auto-thinking",
+    role: "tiny",
+    api: "openai-completions",
+    provider: "muse-code",
+    model: "muse-spark-1.3-contributor",
+    usage: { input: 259, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 260 },
+    stopReason: "stop",
+    ...overrides,
+  });
+}
+
+/** Snapshot the listed env vars and clear them, so resolver tests see only what they set. */
+function clearEnv(names: string[]): Map<string, string | undefined> {
+  const saved = new Map<string, string | undefined>();
+  for (const name of names) {
+    saved.set(name, process.env[name]);
+    delete process.env[name];
+  }
+  return saved;
+}
+
+function restoreEnv(saved: Map<string, string | undefined>): void {
+  for (const [name, value] of saved) {
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
+  }
+}
+
+function sessionFile(lines: string[], sessionId = "019abc-session"): string {
   return [
     JSON.stringify({ type: "title", v: 1, title: "Fix the tests", updatedAt: NOW }),
-    JSON.stringify({ type: "session", version: 3, id: "019abc-session", timestamp: NOW, cwd: "E:\\work\\app" }),
+    JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp: NOW, cwd: "E:\\work\\app" }),
     JSON.stringify({ type: "model_change", id: "m1", timestamp: NOW, model: "muse-code/muse-spark-1.3-contributor" }),
     ...lines,
   ].join("\n");
@@ -108,6 +147,34 @@ describe("parseOmpSessionFile", () => {
     assert.equal(parsed.calls[0]!.modelId, "muse-spark-1.3-contributor");
     assert.equal(parsed.modelId, "muse-spark-1.3-contributor");
   });
+
+  it("counts muse-code model_usage entries OMP's stats parser also counts", () => {
+    const parsed = parseOmpSessionFile(sessionFile([modelUsage("mu1")]), { sessionId: "fallback" });
+    assert.equal(parsed.calls.length, 1);
+    const call = parsed.calls[0]!;
+    assert.equal(call.key, "omp:019abc-session:mu1");
+    assert.equal(call.sessionId, "omp:019abc-session");
+    assert.equal(call.modelId, "muse-spark-1.3-contributor");
+    assert.equal(call.promptTokens, 259);
+    assert.equal(call.outputTokens, 1);
+    assert.equal(call.durationMs, null);
+    assert.equal(call.at, NOW);
+    assert.equal(parsed.skipped, 0);
+  });
+
+  it("ignores foreign-provider model_usage and skips zeroed model_usage blocks", () => {
+    const foreign = modelUsage("mu2", { provider: "zai", model: "glm-5.3-flash" });
+    const aborted = modelUsage("mu3", {
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+      stopReason: "aborted",
+    });
+    const parsed = parseOmpSessionFile(sessionFile([foreign, aborted, modelUsage("mu4")]), {
+      sessionId: "fallback",
+    });
+    assert.equal(parsed.calls.length, 1);
+    assert.equal(parsed.calls[0]!.key, "omp:019abc-session:mu4");
+    assert.equal(parsed.skipped, 1);
+  });
 });
 
 describe("sessionIdFromFilename", () => {
@@ -117,20 +184,108 @@ describe("sessionIdFromFilename", () => {
   });
 });
 
-describe("resolveOmpSessionsDir", () => {
-  it("honours OMP_AGENT_DIR and otherwise uses ~/.omp/agent/sessions", () => {
-    const saved = process.env["OMP_AGENT_DIR"];
+describe("classifyOmpTranscript", () => {
+  it("treats <project>/<file>.jsonl as the main agent", () => {
+    assert.deepEqual(classifyOmpTranscript("--E--work--app--/2026-10-05T12-00-00-000Z_019abc.jsonl"), {
+      agentType: "main",
+      name: null,
+    });
+  });
+
+  it("treats deeper transcripts as subagents named by their stem", () => {
+    assert.deepEqual(
+      classifyOmpTranscript("--E--work--app--/2026-10-05T12-00-00-000Z_019abc/BunActivation.jsonl"),
+      { agentType: "subagent", name: "BunActivation" },
+    );
+  });
+
+  it("treats __advisor transcripts as advisor passes, keeping the owning subagent", () => {
+    assert.deepEqual(
+      classifyOmpTranscript("--E--work--app--/2026-10-05T12-00-00-000Z_019abc/__advisor.jsonl"),
+      { agentType: "advisor", name: null },
+    );
+    assert.deepEqual(
+      classifyOmpTranscript("--E--work--app--/2026-10-05T12-00-00-000Z_019abc/ChatGPTCrashDiagnosis/__advisor.jsonl"),
+      { agentType: "advisor", name: "ChatGPTCrashDiagnosis" },
+    );
+    assert.deepEqual(classifyOmpTranscript("--E--work--app--/2026-10-05T12-00-00-000Z_019abc/__advisor.tiny.jsonl"), {
+      agentType: "advisor",
+      name: null,
+    });
+  });
+
+  it("labels subagent and advisor threads without touching main titles", () => {
+    assert.equal(labelOmpSessionTitle("Fix the tests", { agentType: "main", name: null }), "Fix the tests");
+    assert.equal(
+      labelOmpSessionTitle("Fix the tests", { agentType: "subagent", name: "BunActivation" }),
+      "Fix the tests [subagent: BunActivation]",
+    );
+    assert.equal(labelOmpSessionTitle("Fix the tests", { agentType: "advisor", name: null }), "Fix the tests [advisor]");
+    assert.equal(
+      labelOmpSessionTitle(null, { agentType: "advisor", name: "ChatGPTCrashDiagnosis" }),
+      "[advisor: ChatGPTCrashDiagnosis]",
+    );
+  });
+});
+
+describe("resolveOmpSessionsDirs", () => {
+  it("honours PI_CODING_AGENT_DIR and otherwise uses ~/.omp/agent/sessions", () => {
+    const saved = clearEnv(["PI_CODING_AGENT_DIR", "XDG_DATA_HOME", "OMP_AGENT_DIR"]);
     try {
-      process.env["OMP_AGENT_DIR"] = "";
-      assert.equal(resolveOmpSessionsDir("/home/u"), join("/home/u", ".omp", "agent", "sessions"));
-      process.env["OMP_AGENT_DIR"] = "/data/omp";
-      assert.equal(resolveOmpSessionsDir("/home/u"), join("/data", "omp", "sessions"));
+      process.env["PI_CODING_AGENT_DIR"] = "";
+      assert.deepEqual(resolveOmpSessionsDirs("/home/u"), [join("/home/u", ".omp", "agent", "sessions")]);
+      process.env["PI_CODING_AGENT_DIR"] = "/data/omp";
+      assert.deepEqual(resolveOmpSessionsDirs("/home/u"), [join("/data", "omp", "sessions")]);
     } finally {
-      if (saved === undefined) {
-        delete process.env["OMP_AGENT_DIR"];
-      } else {
-        process.env["OMP_AGENT_DIR"] = saved;
-      }
+      restoreEnv(saved);
+    }
+  });
+
+  it("ignores OMP_AGENT_DIR, which OMP itself never reads", () => {
+    const saved = clearEnv(["PI_CODING_AGENT_DIR", "XDG_DATA_HOME", "OMP_AGENT_DIR"]);
+    try {
+      process.env["OMP_AGENT_DIR"] = "/data/omp";
+      assert.deepEqual(resolveOmpSessionsDirs("/home/u"), [join("/home/u", ".omp", "agent", "sessions")]);
+    } finally {
+      restoreEnv(saved);
+    }
+  });
+
+  it("adds the flattened XDG tree on Linux once XDG_DATA_HOME is set", () => {
+    const saved = clearEnv(["PI_CODING_AGENT_DIR", "XDG_DATA_HOME", "OMP_AGENT_DIR"]);
+    try {
+      process.env["XDG_DATA_HOME"] = "/xdg";
+      assert.deepEqual(resolveOmpSessionsDirs("/home/u", { platform: "linux" }), [
+        join("/home/u", ".omp", "agent", "sessions"),
+        join("/xdg", "omp", "sessions"),
+      ]);
+      // Windows never consults XDG, even when the variable happens to be set.
+      assert.deepEqual(resolveOmpSessionsDirs("/home/u", { platform: "win32" }), [
+        join("/home/u", ".omp", "agent", "sessions"),
+      ]);
+    } finally {
+      restoreEnv(saved);
+    }
+  });
+
+  it("covers named profiles in both the home and XDG layouts", async () => {
+    const saved = clearEnv(["PI_CODING_AGENT_DIR", "XDG_DATA_HOME", "OMP_AGENT_DIR"]);
+    try {
+      const home = await mkdtemp(join(tmpdir(), "helicon-omphome-"));
+      await mkdir(join(home, ".omp", "profiles", "work", "agent", "sessions"), { recursive: true });
+      assert.deepEqual(resolveOmpSessionsDirs(home), [
+        join(home, ".omp", "agent", "sessions"),
+        join(home, ".omp", "profiles", "work", "agent", "sessions"),
+      ]);
+      process.env["XDG_DATA_HOME"] = join(home, ".xdg");
+      assert.deepEqual(resolveOmpSessionsDirs(home, { platform: "linux" }), [
+        join(home, ".omp", "agent", "sessions"),
+        join(home, ".xdg", "omp", "sessions"),
+        join(home, ".omp", "profiles", "work", "agent", "sessions"),
+        join(home, ".xdg", "omp", "profiles", "work", "sessions"),
+      ]);
+    } finally {
+      restoreEnv(saved);
     }
   });
 });
@@ -168,6 +323,37 @@ describe("importOmpUsage", () => {
     const counts = await importOmpUsage(join(await mkdtemp(join(tmpdir(), "helicon-noomp-")), "sessions"), store);
     assert.deepEqual(counts, { files: 0, sessions: 0, calls: 0, skipped: 0 });
   });
+
+  it("imports profile, XDG and labeled subagent/advisor trees in one pass", async () => {
+    const saved = clearEnv(["PI_CODING_AGENT_DIR", "XDG_DATA_HOME", "OMP_AGENT_DIR"]);
+    try {
+      const home = await sessionsDir({
+        ".omp/agent/sessions/--E--work--app--/main.jsonl": sessionFile([message("e1"), modelUsage("mu1")], "main-1"),
+        ".omp/agent/sessions/--E--work--app--/sess-dir/Helper.jsonl": sessionFile([message("e2")], "sub-1"),
+        ".omp/agent/sessions/--E--work--app--/sess-dir/__advisor.jsonl": sessionFile([message("e3")], "adv-1"),
+        ".omp/profiles/work/agent/sessions/--E--work--app--/p.jsonl": sessionFile([message("e4")], "prof-1"),
+      });
+      const xdgHome = await sessionsDir({
+        "omp/sessions/--E--work--app--/x.jsonl": sessionFile([message("e5")], "xdg-1"),
+      });
+      process.env["XDG_DATA_HOME"] = xdgHome;
+
+      const store = new HeliconStore(":memory:");
+      const counts = await importOmpUsage(resolveOmpSessionsDirs(home, { platform: "linux" }), store);
+      assert.deepEqual(counts, { files: 5, sessions: 5, calls: 6, skipped: 0 });
+
+      const ids = store.listUsage().map((row) => row.sessionId).sort();
+      assert.deepEqual(ids, ["omp:adv-1", "omp:main-1", "omp:main-1", "omp:prof-1", "omp:sub-1", "omp:xdg-1"]);
+
+      // Subagent and advisor transcripts are counted, but their threads stay labeled.
+      assert.equal(store.getSession("omp:main-1")?.title, "Fix the tests");
+      assert.equal(store.getSession("omp:sub-1")?.title, "Fix the tests [subagent: Helper]");
+      assert.equal(store.getSession("omp:adv-1")?.title, "Fix the tests [advisor]");
+      assert.equal(store.getSession("omp:prof-1")?.origin, "omp");
+    } finally {
+      restoreEnv(saved);
+    }
+  });
 });
 
 describe("POST /api/usage/import-omp", () => {
@@ -177,8 +363,7 @@ describe("POST /api/usage/import-omp", () => {
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, "2026-10-05T12-00-00-000Z_019abc-session.jsonl"), sessionFile([message("e1")]));
 
-    const saved = process.env["OMP_AGENT_DIR"];
-    delete process.env["OMP_AGENT_DIR"];
+    const saved = clearEnv(["PI_CODING_AGENT_DIR", "XDG_DATA_HOME", "OMP_AGENT_DIR"]);
     try {
       const server = new HeliconServer({ port: 0, dataDir: ":memory:", home });
       after(() => server.close());
@@ -195,11 +380,7 @@ describe("POST /api/usage/import-omp", () => {
       assert.equal(report.threads.length, 1);
       assert.equal(report.threads[0].sessionId, "omp:019abc-session");
     } finally {
-      if (saved === undefined) {
-        delete process.env["OMP_AGENT_DIR"];
-      } else {
-        process.env["OMP_AGENT_DIR"] = saved;
-      }
+      restoreEnv(saved);
     }
   });
 });

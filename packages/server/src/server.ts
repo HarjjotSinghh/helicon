@@ -60,7 +60,7 @@ import {
   type SshRunFn,
 } from "./ssh.js";
 import { buildThreadTitlePrompt, deriveTitle, parseExecTitle, sanitizeThreadTitle } from "./threadTitles.js";
-import { importOmpUsage, resolveOmpSessionsDir } from "./ompUsage.js";
+import { importOmpUsage, resolveOmpSessionsDirs } from "./ompUsage.js";
 import { AoniaError, createAonia, parseLoginOutput, type Aonia, type Profile } from "@harjjotsinghh/aonia";
 
 export const HELICON_VERSION = "0.21.3";
@@ -1597,7 +1597,7 @@ export class HeliconServer {
       return true;
     }
     if (method === "POST" && path === "/api/usage/import-omp") {
-      const counts = await importOmpUsage(resolveOmpSessionsDir(this.options.home), this.store);
+      const counts = await importOmpUsage(resolveOmpSessionsDirs(this.options.home), this.store);
       this.json(res, 200, counts);
       return true;
     }
