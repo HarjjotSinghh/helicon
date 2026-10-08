@@ -1839,12 +1839,25 @@ describe("HeliconController", () => {
   it("opens a side chat beside the thread and switches to it", async () => {
     const client = new FakeClient();
     const { controller, stop } = await started(client);
+    const parentMode = controller.store.get().threads["s1"]?.fold.meta.approvalMode ?? controller.store.get().prefs.defaultMode;
     client.transcript = async () => load({ session: { ...SESSION, sessionId: "s3", title: "Probe (side chat)", sideOf: "s1" } });
     assert.equal(await controller.send("/side"), true);
     const state = controller.store.get();
     assert.ok(client.actions.includes("side:s1"));
     assert.deepEqual(state.route, { kind: "thread", sessionId: "s3" });
     assert.equal(state.sessions["s3"]?.sideOf, "s1");
+    // Muse opens side chats in full access; the side chat gets its thread's mode instead.
+    assert.deepEqual(client.approvalModes.at(-1), { sessionId: "s3", mode: parentMode });
+    stop();
+  });
+
+  it("sends the text after /side into the new side chat", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.transcript = async () => load({ session: { ...SESSION, sessionId: "s3", title: "Probe (side chat)", sideOf: "s1" } });
+    assert.equal(await controller.send("/side what does this regex do?"), true);
+    assert.equal(client.sent.at(-1)?.sessionId, "s3");
+    assert.equal(client.sent.at(-1)?.text, "what does this regex do?");
     stop();
   });
 

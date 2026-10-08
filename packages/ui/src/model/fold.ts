@@ -808,7 +808,16 @@ export function buildTurns(fold: ThreadFold): TurnView[] {
       view.entries = view.entries.slice(0, -1);
     }
   }
-  return views;
+  return views.filter((view) => !isMirroredPrefix(view.info));
+}
+
+/**
+ * Muse 1.4.4 seeds a new side chat with copies of its thread's turns, each one failed with this
+ * reason, though a side chat is meant to open empty (Muse #49416). They are not the side chat's own
+ * turns, and retrying one re-sends the thread's prompt, so the transcript leaves them out.
+ */
+export function isMirroredPrefix(info: TurnInfo | null): boolean {
+  return info?.terminal === "failed" && /mirrored from the exact prefix/i.test(info.error?.message ?? "");
 }
 
 /** The pending approval or question that gates a given tool item, if any. */

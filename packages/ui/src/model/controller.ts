@@ -2410,7 +2410,7 @@ export class HeliconController {
       case "fork":
         return this.fork(sessionId as string);
       case "side":
-        return this.sideChat(sessionId as string);
+        return this.sideChat(sessionId as string, args);
       case "new":
         this.newThread(cwd);
         return true;
@@ -2675,17 +2675,34 @@ export class HeliconController {
     }
   }
 
-  /** Opens a side chat beside a thread and switches to it. The thread itself is left as it was. */
-  async sideChat(sessionId: string): Promise<boolean> {
+  /**
+   * Opens a side chat beside a thread and switches to it, sending `text` there when there is some.
+   * The thread itself is left as it was.
+   */
+  async sideChat(sessionId: string, text = ""): Promise<boolean> {
     const key = `side:${sessionId}`;
     if (this.state.busy[key]) {
       return false;
     }
     this.setBusy(key, true);
     try {
+      const parentMode = this.state.threads[sessionId]?.fold.meta.approvalMode ?? null;
       const session = await this.client.sideChat(sessionId);
       this.upsertSession(session);
+      // Muse 1.4.4 opens every side chat in full access, whatever its thread uses. The side chat
+      // gets its thread's permissions instead, so it never runs tools the thread would ask about.
+      const mode: ApprovalMode = this.state.yoloSettings?.enabled === true ? "allowAll" : (parentMode ?? this.state.prefs.defaultMode);
+      try {
+        await this.client.setApprovalMode(session.sessionId, mode);
+      } catch (error) {
+        this.toast("error", "The side chat may run tools without asking", `Helicon could not set its permissions: ${errorMessage(error)}`);
+      }
       this.navigate({ kind: "thread", sessionId: session.sessionId });
+      const message = text.trim();
+      if (message) {
+        await this.loadThread(session.sessionId);
+        return this.sendToThread(session.sessionId, message, {}, false);
+      }
       return true;
     } catch (error) {
       this.toast("error", "Could not open a side chat", errorMessage(error));

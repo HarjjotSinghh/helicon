@@ -102,6 +102,8 @@ describe("sidebar grouping", () => {
     const listed = groupByProject(projects, withSides)[0]?.entries ?? [];
     assert.deepEqual(listed.map((e) => e.session.sessionId), ["first", "orphan", "main", "side-a"]);
     assert.deepEqual(listed.map((e) => e.nested ?? false), [false, false, false, true]);
+    assert.deepEqual(listed.map((e) => e.hasSides ?? false), [false, false, true, false]);
+    assert.equal(listed[3]?.lastNested, true);
     // Nothing to nest leaves the list as it was.
     const plain = withSides.slice(1, 3);
     assert.equal(nestSides(plain), plain);

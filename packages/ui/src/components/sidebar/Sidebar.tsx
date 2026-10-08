@@ -600,6 +600,25 @@ function AccountBadge({ accountId }: { accountId: string | null }) {
   );
 }
 
+/**
+ * The tree line from a thread down to its side chats, as in a file explorer. The thread's row draws
+ * it from under its status glyph; each side chat carries it on and the last one turns the corner.
+ */
+function TreeGuide(props: { last: boolean }) {
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute -top-px left-[17px] w-[9px] border-l border-line",
+          props.last ? "h-[calc(50%+1px)] rounded-bl-md border-b" : "-bottom-px",
+        )}
+      />
+      {props.last ? null : <span aria-hidden="true" className="pointer-events-none absolute top-1/2 left-[17px] w-[9px] border-t border-line" />}
+    </>
+  );
+}
+
 export const ThreadRow = memo(
   function ThreadRow(props: { entry: SidebarEntry; active: boolean; now: number; showProject?: boolean; settled?: boolean }) {
     const controller = useController();
@@ -615,6 +634,10 @@ export const ThreadRow = memo(
             props.active ? "bg-active" : "hover:bg-hover",
           )}
         >
+          {props.entry.hasSides ? (
+            <span aria-hidden="true" className="pointer-events-none absolute top-[calc(50%+8px)] -bottom-px left-[17px] border-l border-line" />
+          ) : null}
+          {props.entry.nested ? <TreeGuide last={props.entry.lastNested === true} /> : null}
           {props.settled ? null : (
             <span className={cn("absolute top-1/2 flex size-4 -translate-y-1/2 items-center justify-center", props.entry.nested ? "left-[26px]" : "left-[10px]")}>
               <StatusGlyph status={status} />
@@ -694,6 +717,8 @@ export const ThreadRow = memo(
     a.entry.session === b.entry.session &&
     a.entry.status === b.entry.status &&
     a.entry.nested === b.entry.nested &&
+    a.entry.lastNested === b.entry.lastNested &&
+    a.entry.hasSides === b.entry.hasSides &&
     a.active === b.active &&
     a.now === b.now &&
     a.showProject === b.showProject &&

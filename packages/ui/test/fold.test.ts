@@ -173,6 +173,21 @@ describe("thread fold against a real muse transcript", () => {
     assert.equal(fold.turns["t1"]?.startedAt, 1000);
   });
 
+  it("leaves out the thread's turns Muse copies into a new side chat", () => {
+    const fold = applyEvents(emptyFold(), [
+      { method: "turn/started", params: { turnId: "copy" } },
+      { method: "item/completed", params: { item: { itemId: "u1", kind: "userMessage", turnId: "copy", revision: 1, status: "completed", text: "what is this repo about?" } } },
+      {
+        method: "turn/completed",
+        params: { turnId: "copy", terminal: "failed", error: { kind: "modelError", message: "uncounted source run mirrored from the exact prefix (ADR 28290 D2)", retryable: true } },
+      },
+      { method: "turn/started", params: { turnId: "own" } },
+      { method: "item/completed", params: { item: { itemId: "u2", kind: "userMessage", turnId: "own", revision: 1, status: "completed", text: "hi" } } },
+      { method: "turn/completed", params: { turnId: "own", terminal: "failed", error: { kind: "modelError", message: "Provider down", retryable: true } } },
+    ]);
+    assert.deepEqual(buildTurns(fold).map((turn) => turn.turnId), ["own"], "a real failure still shows");
+  });
+
   it("drops the local echo once the prompt comes back from the stream", () => {
     let fold = addEcho(emptyFold(), { localId: "l1", text: "hello  there", turnId: null, disposition: "sending", createdAt: 1 });
     fold = updateEcho(fold, "l1", { turnId: "t1", disposition: "started" });

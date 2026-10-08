@@ -73,6 +73,10 @@ export interface SidebarEntry {
   status: ThreadStatus;
   /** A side chat drawn indented under the thread it came from. */
   nested?: boolean;
+  /** The last side chat under its thread, where the tree line turns the corner. */
+  lastNested?: boolean;
+  /** A thread with side chats nested under it, where the tree line starts. */
+  hasSides?: boolean;
 }
 
 /** Settled threads leave the active list, unless they are busy again before the server has caught up. */
@@ -152,7 +156,8 @@ export function nestSides(entries: SidebarEntry[]): SidebarEntry[] {
     if (parent && parent !== entry.session.sessionId && present.has(parent)) {
       continue;
     }
-    out.push(entry, ...(sides.get(entry.session.sessionId) ?? []));
+    const children = sides.get(entry.session.sessionId) ?? [];
+    out.push(children.length > 0 ? { ...entry, hasSides: true } : entry, ...children.map((child, index) => (index === children.length - 1 ? { ...child, lastNested: true } : child)));
   }
   return out;
 }
