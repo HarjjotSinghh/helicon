@@ -129,9 +129,9 @@ export const INSTALL_PAGES: SeoPage[] = [
     title: "Muse Code desktop app for macOS: install Helicon",
     h1: "Install Helicon on macOS",
     description:
-      "One universal DMG for Apple Silicon and Intel, with auto update. Install the muse CLI, sign in, drag Helicon to Applications, and open it the first time with right click.",
+      "One universal DMG for Apple Silicon and Intel, with auto update. Install the muse CLI, sign in, drag Helicon to Applications, and allow it once in Privacy & Security.",
     answer:
-      "Sign in with muse login, open the universal Helicon DMG from the latest GitHub release, and drag the app into Applications. One build covers Apple Silicon and Intel and updates itself. The builds are not Apple notarized yet, so the first launch needs a right click then Open.",
+      "Sign in with muse login, open the universal Helicon DMG from the latest GitHub release, and drag the app into Applications. One build covers Apple Silicon and Intel and updates itself. The builds are not Apple notarized yet, so the first launch needs System Settings > Privacy & Security > Open Anyway on macOS 15 or later.",
     keywords: [
       "muse code mac",
       "muse code macos app",
@@ -155,8 +155,10 @@ export const INSTALL_PAGES: SeoPage[] = [
       { kind: "h2", text: "The Gatekeeper warning, explained" },
       {
         kind: "p",
-        text: "The DMG is updater signed but not Apple notarized yet. macOS will warn you on first launch. Right click the app and choose Open, and the warning turns into a dialog with an Open button. After that it launches normally. Notarization is a known gap rather than a decision, and it is stated here rather than buried.",
+        text: "The DMG is updater signed but not Apple notarized yet, so macOS warns you on first launch. On macOS 15 or later the warning only offers Done and Move to Trash: click Done, open System Settings > Privacy & Security, scroll down and click Open Anyway, then enter your password. On macOS 14 or earlier, right click the app and choose Open. After that it launches normally. Notarization is a known gap rather than a decision, and it is stated here rather than buried.",
       },
+      { kind: "p", text: "Prefer Terminal? This clears the quarantine flag macOS put on the download, so the warning never appears:" },
+      { kind: "code", lang: "bash", code: "xattr -dr com.apple.quarantine /Applications/Helicon.app" },
       { kind: "h2", text: "What happens after install" },
       {
         kind: "ul",
@@ -187,7 +189,7 @@ export const INSTALL_PAGES: SeoPage[] = [
         { name: "Drag Helicon into Applications", text: "The standard macOS install step." },
         {
           name: "Open it the first time",
-          text: "Right click the app and choose Open, because the builds are not Apple notarized yet. Later launches are normal.",
+          text: "Open Helicon and click Done on the warning. Then go to System Settings > Privacy & Security, scroll down and click Open Anyway. On macOS 14 or earlier, right click the app and choose Open instead. Later launches are normal.",
         },
         {
           name: "Add a project",
@@ -198,7 +200,7 @@ export const INSTALL_PAGES: SeoPage[] = [
     faqs: [
       {
         q: "Why does macOS warn me on first launch?",
-        a: "The builds are updater signed but not Apple notarized yet. Right click the app and choose Open the first time.",
+        a: "The builds are updater signed but not Apple notarized yet. On macOS 15 or later, click Done, then System Settings > Privacy & Security > Open Anyway. On macOS 14 or earlier, right click the app and choose Open. Or run xattr -dr com.apple.quarantine /Applications/Helicon.app in Terminal.",
       },
       {
         q: "Is there a separate Apple Silicon build?",

@@ -31,7 +31,7 @@ function requirements(version: string | null) {
     "The muse CLI installed and logged in.",
     "A Muse Code plan or pay-as-you-go billing on Meta's Model API. The free Muse app doesn't include Muse Code.",
     "Windows: install Muse Code for Windows from PowerShell, no WSL needed. Muse Code in WSL2 works too.",
-    "macOS builds are not notarized yet, so right-click, then Open.",
+    "macOS builds are not notarized yet. On first launch, use System Settings > Privacy & Security > Open Anyway (macOS 15 or later).",
     version ? `Linux: run from source at v${version}.` : "Linux: run from source; there is no packaged build yet.",
   ];
 }

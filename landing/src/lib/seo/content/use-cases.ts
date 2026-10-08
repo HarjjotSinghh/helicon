@@ -111,7 +111,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
         kind: "ul",
         items: [
           "One universal DMG covers Apple Silicon and Intel.",
-          "First launch needs right click then Open, because the builds are not Apple notarized yet.",
+          "First launch needs System Settings > Privacy & Security > Open Anyway (macOS 15 or later), because the builds are not Apple notarized yet.",
           "The theme follows the system, in both light and dark.",
           "Auto update keeps the app current.",
         ],
@@ -119,7 +119,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
     ],
     faqs: [
       { q: "Is there an Apple Silicon build?", a: "One universal DMG covers Apple Silicon and Intel." },
-      { q: "Why the Gatekeeper warning?", a: "The builds are updater signed but not Apple notarized yet. Right click and Open the first time." },
+      { q: "Why the Gatekeeper warning?", a: "The builds are updater signed but not Apple notarized yet. On macOS 15 or later, use System Settings > Privacy & Security > Open Anyway the first time. On macOS 14 or earlier, right click and Open." },
       { q: "Does it replace my editor?", a: "No. It has a file viewer for reading what the agent touched. Writing code stays where you like it." },
     ],
     related: ["install/macos", "guides/macos-first-launch", "features/session-history"],

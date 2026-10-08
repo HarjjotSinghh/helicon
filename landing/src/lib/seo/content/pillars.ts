@@ -97,7 +97,7 @@ export const PILLAR_PAGES: SeoPage[] = [
         head: ["Platform", "Helicon", "Notes"],
         rows: [
           ["Windows", "Signed installer, auto update", "Native Muse Code, or WSL2 with path translation"],
-          ["macOS", "Universal DMG, auto update", "Apple Silicon and Intel; right click and Open on first launch"],
+          ["macOS", "Universal DMG, auto update", "Apple Silicon and Intel; Open Anyway in Privacy & Security on first launch"],
           ["Linux", "x86_64 AppImage, auto update", "Needs FUSE on some distributions; no ARM build yet"],
           ["Browser", "Web app against a daemon", "Same React UI, daemon on a machine you control"],
         ],
@@ -180,7 +180,7 @@ export const PILLAR_PAGES: SeoPage[] = [
         kind: "ul",
         items: [
           "Windows: signed installer with auto update. Native Muse Code, or Muse Code inside WSL2 with two way path translation.",
-          "macOS: one universal DMG for Apple Silicon and Intel, with auto update. Not Apple notarized yet, so first launch needs right click then Open.",
+          "macOS: one universal DMG for Apple Silicon and Intel, with auto update. Not Apple notarized yet, so first launch needs System Settings > Privacy & Security > Open Anyway.",
           "Linux: an x86_64 AppImage with auto update. No ARM build yet; source works there.",
           "Browser: the same React UI as a web app against a daemon you run.",
         ],

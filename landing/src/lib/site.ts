@@ -157,7 +157,7 @@ export function osesFor(version: string | null): OsInfo[] {
         { text: dmg },
         { text: "Drag Helicon into Applications." },
       ],
-      note: "Builds are not Apple-notarized yet. On first launch, right-click the app and choose Open.",
+      note: "Builds are not Apple-notarized yet. First launch on macOS 15 or later: open Helicon, click Done on the warning, then go to System Settings > Privacy & Security, scroll down and click Open Anyway. On macOS 14 or earlier: right-click Helicon, then Open. Prefer Terminal? Run xattr -dr com.apple.quarantine /Applications/Helicon.app",
     },
     {
       id: "linux",
@@ -178,7 +178,7 @@ export const FAQS: [string, string][] = [
   ["Do I need a separate API key?", "No. Helicon uses your existing Muse Code subscription through the muse CLI. There is no second bill."],
   ["Where do my credentials live?", "With the muse CLI, from your own muse login. Helicon never stores or handles them."],
   ["Does it see sessions I started in the terminal?", "Yes. Sessions started in the terminal TUI show up in the sidebar with full history, and you can resume them."],
-  ["Why does macOS warn me on first launch?", "The macOS builds are not Apple-notarized yet. Right-click the app and choose Open the first time."],
+  ["Why does macOS warn me on first launch?", "The macOS builds are not Apple-notarized yet. On macOS 15 or later, open Helicon once, click Done, then go to System Settings > Privacy & Security and click Open Anyway. On macOS 14 or earlier, right-click the app and choose Open. Or run xattr -dr com.apple.quarantine /Applications/Helicon.app in Terminal."],
   ["Can I run it against a remote machine?", "Yes. The same UI ships as a web app that can point at a daemon running elsewhere."],
   ["How does it work on Windows?", "Muse Code runs natively on Windows now, and Helicon runs it directly: your own Windows paths, PowerShell for shell commands, no WSL. Muse Code inside WSL2 still works, and Helicon uses it when native Muse Code is not installed."],
   ["What does the cost view actually show?", "What each thread would have cost at Meta's published per-token rates. It is not a bill, just the meter reading, so you can see what your subscription did."],

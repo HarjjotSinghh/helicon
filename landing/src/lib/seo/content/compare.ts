@@ -983,7 +983,7 @@ const ENTRIES: Entry[] = [
     differences: [
       [
         "Check the packaging",
-        "An unsigned binary or a clone and build README is a real cost on Windows. Helicon ships a signed installer with auto update, and a universal macOS DMG. The macOS builds are not Apple notarized yet, so first launch needs right click then Open. That is a known gap and it is stated rather than hidden.",
+        "An unsigned binary or a clone and build README is a real cost on Windows. Helicon ships a signed installer with auto update, and a universal macOS DMG. The macOS builds are not Apple notarized yet, so first launch needs Open Anyway in System Settings > Privacy & Security. That is a known gap and it is stated rather than hidden.",
       ],
       [
         "Check how it talks to Muse Code",

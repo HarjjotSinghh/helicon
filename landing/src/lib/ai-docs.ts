@@ -183,7 +183,7 @@ It is a graphical interface for the **muse CLI** (Muse Code). It does not replac
 
 1. The user already has, or wants, a Muse Code subscription and the \`muse\` CLI.
 2. Node.js is bundled in the desktop app. Running the daemon from source needs Node 22+ on that machine, which on Windows is the Windows host, not WSL2.
-3. Platform: Windows runs Muse Code natively (WSL2 also works, and HELICON_MUSE_RUNTIME=wsl forces it); macOS builds are not Apple-notarized yet, so first launch needs right-click then Open; Linux ships an x86_64 AppImage${version ? ` at v${version}` : ""}, with no ARM build yet.
+3. Platform: Windows runs Muse Code natively (WSL2 also works, and HELICON_MUSE_RUNTIME=wsl forces it); macOS builds are not Apple-notarized yet, so first launch needs System Settings > Privacy & Security > Open Anyway on macOS 15 or later (right-click then Open on macOS 14 or earlier, or \`xattr -dr com.apple.quarantine /Applications/Helicon.app\`); Linux ships an x86_64 AppImage${version ? ` at v${version}` : ""}, with no ARM build yet.
 
 ## Install
 

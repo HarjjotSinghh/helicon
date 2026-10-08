@@ -36,7 +36,7 @@ export function factsBody(release: FactsRelease) {
     release_notes: release?.notesUrl ?? RELEASES_URL,
     platforms: {
       windows: { supported: true, artifact: "Signed installer, x64", auto_update: true, notes: "Native Muse Code, or Muse Code inside WSL2 with two way path translation; HELICON_MUSE_RUNTIME=wsl forces the WSL2 route" },
-      macos: { supported: true, artifact: "Universal DMG, Apple Silicon and Intel", auto_update: true, notes: "Updater signed but not Apple notarized yet; first launch needs right click then Open" },
+      macos: { supported: true, artifact: "Universal DMG, Apple Silicon and Intel", auto_update: true, notes: "Updater signed but not Apple notarized yet; first launch needs System Settings > Privacy & Security > Open Anyway on macOS 15 or later (right click then Open on macOS 14 or earlier)" },
       linux: { supported: true, artifact: "x86_64 AppImage", auto_update: true, notes: "Needs FUSE (libfuse2) on some distributions; no ARM build yet, source works there" },
       web: { supported: true, artifact: "Same React UI against a daemon you run", auto_update: false, notes: "No hosted service" },
     },

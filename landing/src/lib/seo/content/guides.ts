@@ -1023,33 +1023,38 @@ export const GUIDE_PAGES: SeoPage[] = [
     title: "Fix: macOS blocks Helicon on first launch",
     h1: "Opening Helicon the first time on macOS",
     description:
-      "The macOS builds are updater signed but not Apple notarized yet, so Gatekeeper warns once. Right click the app and choose Open, and later launches are normal.",
+      "The macOS builds are not Apple notarized yet, so Gatekeeper blocks the first launch. On macOS 15 or later, click Open Anyway in System Settings > Privacy & Security, and later launches are normal.",
     answer:
-      "The macOS DMG is updater signed but not Apple notarized yet, so Gatekeeper warns on first launch. Right click the app in Applications and choose Open, then confirm in the dialog. macOS remembers the decision and every later launch is normal. Notarization is a known gap, not a policy.",
+      "The macOS DMG is updater signed but not Apple notarized yet, so Gatekeeper blocks the first launch. On macOS 15 or later, open Helicon once and click Done, then go to System Settings > Privacy & Security, scroll down, click Open Anyway and enter your password. On macOS 14 or earlier, right click the app and choose Open. Or run xattr -dr com.apple.quarantine /Applications/Helicon.app in Terminal. macOS remembers the decision and every later launch is normal. Notarization is a known gap, not a policy.",
     keywords: [
       "helicon macos gatekeeper",
       "macos cannot open app developer unverified",
       "muse code mac app blocked",
       "notarization warning helicon",
       "open unnotarized app macos",
+      "macos sequoia open anyway",
     ],
     updated: UPDATED,
     blocks: [
       { kind: "h2", text: "What the warning means" },
       {
         kind: "p",
-        text: "Gatekeeper distinguishes between signed and notarized. The Helicon DMG is signed for the updater but has not gone through Apple notarization, so macOS shows the unverified developer dialog the first time. It is not a statement about the binary being unsafe, and the source for it is public.",
+        text: "Gatekeeper distinguishes between signed and notarized. The Helicon DMG is signed for the updater but has not gone through Apple notarization, so macOS shows the unverified developer dialog the first time. Since macOS 15 (Sequoia), right click then Open no longer gets past it; the way through is Open Anyway in Privacy & Security. It is not a statement about the binary being unsafe, and the source for it is public.",
       },
       { kind: "h2", text: "The fix" },
       {
         kind: "ol",
         items: [
-          "Open Applications in Finder.",
-          "Right click Helicon and choose Open.",
-          "Confirm in the dialog that appears.",
+          "Drag Helicon into Applications.",
+          "Open it once. When macOS warns you, click Done.",
+          "Open System Settings > Privacy & Security, scroll down and click Open Anyway, then enter your password.",
           "Launch normally from then on.",
         ],
       },
+      { kind: "p", text: "On macOS 14 or earlier, right click Helicon in Applications and choose Open instead." },
+      { kind: "h2", text: "Or use Terminal" },
+      { kind: "p", text: "This removes the quarantine flag macOS put on the download, so the warning never appears:" },
+      { kind: "code", lang: "bash", code: "xattr -dr com.apple.quarantine /Applications/Helicon.app" },
       {
         kind: "note",
         text: "If you prefer to verify first, the repository is public and the releases are built from it.",
@@ -1058,16 +1063,16 @@ export const GUIDE_PAGES: SeoPage[] = [
     howTo: {
       name: "Open Helicon for the first time on macOS",
       steps: [
-        { name: "Open Applications", text: "Find Helicon in Finder." },
-        { name: "Right click and choose Open", text: "This is the path Gatekeeper accepts for an unnotarized app." },
-        { name: "Confirm", text: "The dialog now has an Open button." },
+        { name: "Drag Helicon into Applications", text: "The standard macOS install step." },
+        { name: "Open it once and click Done", text: "On macOS 15 or later the warning only offers Done and Move to Trash." },
+        { name: "Click Open Anyway", text: "In System Settings > Privacy & Security, scroll down, click Open Anyway and enter your password. On macOS 14 or earlier, right click the app and choose Open instead." },
         { name: "Launch normally", text: "macOS remembers, so later launches do not warn." },
       ],
     },
     faqs: [
       {
         q: "Will the builds be notarized?",
-        a: "Notarization is a known gap rather than a decision. Until then the right click and Open path works.",
+        a: "Notarization is a known gap rather than a decision. Until then, Open Anyway in Privacy & Security (or the xattr command) gets you past the warning.",
       },
       {
         q: "Is the app signed at all?",
