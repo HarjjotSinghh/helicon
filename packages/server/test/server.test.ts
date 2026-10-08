@@ -1848,6 +1848,29 @@ describe("slash commands, skills and shell", () => {
     assert.equal(sessions.find((s) => s.sessionId === "main")?.sideOf, null);
   });
 
+  it("names a deleted project folder when Muse cannot start there (#105)", async () => {
+    const connection = new FakeConnection();
+    const failing = (): HostHandle => ({
+      start: async () => {
+        throw new Error("write EPIPE");
+      },
+      connection: connection as never,
+      close: async () => ({ code: 0, signal: null }),
+      onExit: () => {},
+    });
+    const { base } = await start(connection, { hostFactory: failing });
+    const gone = join(tmpdir(), `helicon-gone-${process.pid}-${Date.now()}`);
+    const missing = await send(base, "/api/sessions", { cwd: gone });
+    assert.equal(missing.status, 409);
+    assert.match(missing.json.error, /no longer exists/);
+    assert.ok(String(missing.json.error).includes(gone));
+    // A folder that is still there keeps Muse's own error.
+    const here = await mkdtemp(join(tmpdir(), "helicon-here-"));
+    const broken = await send(base, "/api/sessions", { cwd: here });
+    assert.equal(broken.status, 502);
+    assert.match(broken.json.error, /Could not start Muse: write EPIPE/);
+  });
+
   it("runs a `!` command itself and keeps it with the thread", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });

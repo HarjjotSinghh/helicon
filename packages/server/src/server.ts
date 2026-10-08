@@ -242,6 +242,14 @@ class HttpError extends Error {
   }
 }
 
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value === "object" && value !== null && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -3010,6 +3018,14 @@ export class HeliconServer {
     } catch (error) {
       this.lastHostError = error instanceof Error ? error.message : String(error);
       this.emit("helicon", { type: "host", key, state: "failed", message: this.lastHostError });
+      // A deleted project folder surfaces as `write EPIPE` from the dead child (#105), which says
+      // nothing about the cause. Only a failed start pays for the check.
+      if (cwd && !isSshCwd(cwd) && !(await isDirectory(target.cwd))) {
+        throw new HttpError(
+          409,
+          `The folder ${cwd} no longer exists, so Muse cannot start there. Recreate it (an empty folder is enough to open its threads again) or remove the project.`,
+        );
+      }
       throw new HttpError(502, `Could not start Muse: ${this.lastHostError}`);
     }
     this.lastHostError = null;
