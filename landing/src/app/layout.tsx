@@ -65,6 +65,8 @@ export const metadata: Metadata = {
     other: {
       ...(process.env.BING_SITE_VERIFICATION ? { "msvalidate.01": process.env.BING_SITE_VERIFICATION } : {}),
       ...(process.env.NAVER_SITE_VERIFICATION ? { "naver-site-verification": process.env.NAVER_SITE_VERIFICATION } : {}),
+      // SaaSHub ownership check for the Helicon listing. The code is public by design.
+      "saashub-verification": "oyn14flr07jw",
     },
   },
   openGraph: {
