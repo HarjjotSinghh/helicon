@@ -847,6 +847,23 @@ export function SideChatRow(props: { item: MspItem }) {
   );
 }
 
+/** Heads a side chat's transcript: it can read its thread, but what is said here stays here. */
+export function SideOriginRow(props: { parentId: string }) {
+  const controller = useController();
+  return (
+    <Row
+      icon={<ChatCircleDotsIcon size={14} />}
+      label="Side chat"
+      detail="Muse sees the thread it came from. Nothing here is added to it."
+      actions={
+        <Button size="sm" variant="ghost" onClick={() => controller.openThread(props.parentId)}>
+          Open thread
+        </Button>
+      }
+    />
+  );
+}
+
 export function SteerBubble(props: { item: MspItem }) {
   return (
     <div className="enter-up flex flex-col items-end gap-1">

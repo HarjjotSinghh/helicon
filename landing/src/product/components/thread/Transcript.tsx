@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactElement } from "r
 import { useStickToBottom } from "use-stick-to-bottom";
 import { useApp, useController, useNow } from "../../app/context";
 import { useSampled } from "../../app/sampled";
-import { buildTurns, type EchoAttachment, type LocalEcho, type ThreadFold, type TurnView } from "../../model/fold";
+import { buildTurns, inheritedTurns, sideStart, type EchoAttachment, type LocalEcho, type ThreadFold, type TurnView } from "../../model/fold";
 import {
   describeTool,
   formatClock,
@@ -36,6 +36,7 @@ import {
   ReasoningRow,
   ShellRow,
   SideChatRow,
+  SideOriginRow,
   SteerBubble,
   SubagentRow,
   ToolRow,
@@ -72,7 +73,10 @@ function answerMap(fold: ThreadFold): AnswerMap {
 export function Transcript(props: { sessionId: string; thread: ThreadState }) {
   const { thread } = props;
   const fold = thread.fold;
-  const turns = useMemo(() => buildTurns(fold), [fold]);
+  const sideSince = useApp((s) => sideStart(s.sessions[props.sessionId]));
+  const sideOf = useApp((s) => s.sessions[props.sessionId]?.sideOf ?? null);
+  const inherited = useMemo(() => inheritedTurns(fold, sideSince), [fold, sideSince]);
+  const turns = useMemo(() => buildTurns(fold, inherited), [fold, inherited]);
   const wakes = useMemo(() => wakeLabels(turns), [turns]);
   const gates = useMemo(() => gateMap(fold), [fold.approvals, fold.userInputs]);
   const answers = useMemo(() => answerMap(fold), [fold.settled]);
@@ -160,6 +164,7 @@ export function Transcript(props: { sessionId: string; thread: ThreadState }) {
             {thread.truncated ? (
               <p className="text-center text-xs text-subtle">Earlier turns are not shown. Open the session in Muse to see the full history.</p>
             ) : null}
+            {sideOf ? <SideOriginRow parentId={sideOf} /> : null}
             {thread.load === "loading" && empty ? <TranscriptSkeleton /> : null}
             {timeline.map((entry) =>
               entry.kind === "turn" ? (

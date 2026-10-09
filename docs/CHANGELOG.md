@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.21.5
+
+### New
+
+- **Keep threads live when Muse goes quiet** ([#104](https://github.com/HarjjotSinghh/helicon/pull/104), thanks to Nicholas Tindle). Muse can stop pushing updates for a session while its turns keep running, which froze the thread on a spinner and later said it had stopped receiving updates ([#42](https://github.com/HarjjotSinghh/helicon/issues/42)). With "Keep threads live when Muse goes quiet" on (Settings, off by default), Helicon reads the session forward itself and shows what was missed, and checks a quiet turn against Muse's own record so a long command is not taken for a stall.
+
+### Fixed
+
+- **A side chat looks like a new chat.** It used to show every turn and file edit of the thread it came from, as if they were its own. It now shows only its own turns, under a row that says Muse can see the thread it came from and links back to it. Muse still reads that thread, so you can ask about it.
+- **A side chat of a side chat** is titled "X (side chat)", not "X (side chat) (side chat)".
+- **`/side` with a message never sends into a side chat with the wrong permissions.** If Helicon cannot give the side chat its thread's permissions, it opens the side chat without sending and says so, so you can set them first.
+- **Opening a thread mid-turn no longer shows its tool calls as failed** ([#54](https://github.com/HarjjotSinghh/helicon/issues/54)). They stayed failed even after they finished.
+
 ## 0.21.4
 
 ### New

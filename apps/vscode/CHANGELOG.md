@@ -2,6 +2,12 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.21.5
+
+- A side chat shows only its own turns, not a copy of its thread.
+- Optional setting to keep threads live when Muse stops pushing updates (#104).
+- Opening a thread mid-turn no longer shows its tool calls as failed.
+
 ## 0.21.4
 
 - Side chats: `/side` opens a separate chat next to a thread, shown under it in the sidebar.
