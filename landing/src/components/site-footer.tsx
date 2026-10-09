@@ -134,6 +134,22 @@ const FEATURED_BADGES = [
     width: 200,
     height: 54,
   },
+  {
+    name: "LaunchIgniter",
+    href: "https://launchigniter.com/product/helicon?ref=badge-helicon",
+    src: "https://launchigniter.com/api/badge/helicon?theme=light",
+    alt: "Featured on LaunchIgniter",
+    width: 212,
+    height: 55,
+  },
+  {
+    name: "ScrollLaunch",
+    href: "https://www.scrolllaunch.com/products/helicon?ref=badge",
+    src: "https://www.scrolllaunch.com/api/badge/helicon",
+    alt: "Featured on ScrollLaunch",
+    width: 220,
+    height: 48,
+  },
 ];
 
 export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
