@@ -23,8 +23,8 @@ describe("plan meter", () => {
     );
     assert.equal(view?.tier, "High usage");
     assert.deepEqual(view?.rows, [
-      { key: "window", label: "5-hour window", percent: 72, tone: "warn", resets: "Resets in 2h 14m" },
-      { key: "weekly", label: "Weekly", percent: 94, tone: "danger", resets: "Reset" },
+      { key: "window", label: "5-hour window", percent: 72, used: "72%", tone: "warn", resets: "Resets in 2h 14m" },
+      { key: "weekly", label: "Weekly", percent: 94, used: "94%", tone: "danger", resets: "Reset" },
     ]);
     assert.equal(view?.stale, false);
   });
@@ -61,8 +61,38 @@ describe("plan meter", () => {
     assert.equal(view?.rows[0]?.label, "90-minute window");
     assert.equal(view?.rows[0]?.percent, 100);
     assert.equal(view?.rows[1]?.percent, 0);
+    assert.equal(view?.rows[1]?.used, "0%", "a negative reading is junk, not proof of use");
     assert.equal(view?.rows[1]?.tone, "ok");
     assert.equal(view?.stale, true);
+  });
+
+  it("says under 1% rather than 0% for a live window Muse has reported on", () => {
+    // Issue #26: Muse reports whole percentages, and a reading only exists because a model call was made, so a 0
+    // for a window that has not reset means "some, under 1%", not "untouched".
+    const view = planView(
+      {
+        tier: "high_usage",
+        observedAtMs: NOW - 60_000,
+        window: { usedPercent: 0, resetsAtMs: NOW + 60 * 60_000, windowDurationMins: 300 },
+        weekly: { usedPercent: 0.4, resetsAtMs: NOW + 24 * 60 * 60_000, windowDurationMins: null },
+      },
+      NOW,
+    );
+    assert.equal(view?.rows[0]?.used, "<1%");
+    assert.equal(view?.rows[0]?.percent, 0);
+    assert.equal(view?.rows[1]?.used, "<1%");
+    // Once the window has reset, the old reading says nothing about the new one, so it is not dressed up.
+    const reset = planView(
+      {
+        tier: "high_usage",
+        observedAtMs: NOW - 6 * 60 * 60_000,
+        window: { usedPercent: 0, resetsAtMs: NOW - 1, windowDurationMins: 300 },
+        weekly: { usedPercent: 1, resetsAtMs: NOW + 60_000, windowDurationMins: null },
+      },
+      NOW,
+    );
+    assert.equal(reset?.rows[0]?.used, "0%");
+    assert.equal(reset?.rows[1]?.used, "1%");
   });
 
   it("leaves out a tier that is an opaque id rather than a plan name", () => {

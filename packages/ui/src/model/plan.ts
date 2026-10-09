@@ -8,6 +8,12 @@ export interface PlanRow {
   key: "window" | "weekly";
   label: string;
   percent: number;
+  /**
+   * The percentage as text: "38%", or "<1%" when Muse reports a whole 0 for a window that is still running. Muse
+   * only reports usage with a model call, so a live reading proves the window has been used; its whole-number
+   * percent has no way to say less than 1, and "0%" would read as untouched.
+   */
+  used: string;
   tone: PlanTone;
   /** "Resets in 2h 14m", or "Reset" once the time has passed and Muse has not reported the new window yet. */
   resets: string;
@@ -72,7 +78,15 @@ export function formatReset(ms: number): string {
 function row(key: PlanRow["key"], label: string, window: PlanWindow, now: number): PlanRow {
   const percent = Math.max(0, Math.min(100, Math.round(window.usedPercent)));
   const left = window.resetsAtMs - now;
-  return { key, label, percent, tone: tone(percent), resets: left > 0 ? `Resets in ${formatReset(left)}` : "Reset" };
+  const underOne = percent === 0 && window.usedPercent >= 0 && left > 0;
+  return {
+    key,
+    label,
+    percent,
+    used: underOne ? "<1%" : `${percent}%`,
+    tone: tone(percent),
+    resets: left > 0 ? `Resets in ${formatReset(left)}` : "Reset",
+  };
 }
 
 /** The plan meter as the UI shows it: the short window and the weekly cap, each with how long until it resets. */
