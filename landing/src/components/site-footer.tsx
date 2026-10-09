@@ -101,6 +101,33 @@ export const FOOTER_GROUPS: FooterGroup[] = [
   },
 ];
 
+const FEATURED_BADGES = [
+  {
+    name: "Dang.ai",
+    href: "https://dang.ai",
+    src: "https://assets.dang.ai/badges/dang-verified-dark.png",
+    alt: "Verified on DANG!",
+    width: 260,
+    height: 94,
+  },
+  {
+    name: "Startup Fame",
+    href: "https://startupfa.me/s/helicon?utm_source=helicon.sh",
+    src: "https://startupfa.me/badge?t=classic&theme=default",
+    alt: "Helicon - Featured on Startup Fame",
+    width: 171,
+    height: 54,
+  },
+  {
+    name: "DevHunt",
+    href: "https://devhunt.org/tool/helicon",
+    src: "https://devhunt.org/badge/helicon.svg",
+    alt: "helicon - Featured on DevHunt",
+    width: 220,
+    height: 54,
+  },
+];
+
 export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
   return (
     <footer>
@@ -158,6 +185,27 @@ export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
               className="theme-dark-only h-auto w-[120px]"
             />
           </TrackedLink>
+
+          {/*
+            Directory badges. Each is the price of a free listing: the directory checks this page for
+            a crawlable link back (and some for their own image), so the hrefs and image URLs stay
+            exactly as each directory issued them and the links carry no nofollow. Lazy, so they
+            cost nothing above the fold. Embed codes are kept in marketing/badges/README.md.
+          */}
+          <ul aria-label="Featured on" className="mt-4 flex flex-wrap items-center gap-2">
+            {FEATURED_BADGES.map((b) => (
+              <li key={b.name}>
+                <a
+                  href={b.href}
+                  target="_blank"
+                  rel="noopener"
+                  className="block rounded-[8px] opacity-80 transition-opacity duration-200 ease-out [@media(hover:hover)]:hover:opacity-100"
+                >
+                  <img src={b.src} alt={b.alt} width={b.width} height={b.height} loading="lazy" className="block h-8 w-auto" />
+                </a>
+              </li>
+            ))}
+          </ul>
 
           <div className="mt-6 flex items-center gap-3 sm:hidden">
             <span className="text-[13px] font-semibold text-fg">Theme</span>
