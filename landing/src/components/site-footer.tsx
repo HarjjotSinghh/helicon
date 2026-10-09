@@ -126,6 +126,14 @@ const FEATURED_BADGES = [
     width: 220,
     height: 54,
   },
+  {
+    name: "Twelve Tools",
+    href: "https://twelve.tools",
+    src: "https://twelve.tools/badge0-light.svg",
+    alt: "Featured on Twelve Tools",
+    width: 200,
+    height: 54,
+  },
 ];
 
 export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
