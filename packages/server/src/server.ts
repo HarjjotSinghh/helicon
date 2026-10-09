@@ -2416,7 +2416,8 @@ export class HeliconServer {
       id: side.sessionId,
       projectId: found.session.projectId,
       origin: "helicon",
-      title: `${found.session.title} (side chat)`,
+      // A side chat of a side chat keeps one suffix, not "(side chat) (side chat)".
+      title: `${found.session.title.replace(/ \(side chat\)$/, "")} (side chat)`,
       titleSource: "auto",
       modelId: raw ? str(raw["modelId"]) : found.session.modelId,
       createdAt: normalizeIso(raw?.["createdAt"]),

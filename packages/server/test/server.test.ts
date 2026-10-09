@@ -2279,6 +2279,10 @@ describe("slash commands, skills and shell", () => {
     assert.equal(side.json.session.sideOf, "s1");
     assert.equal(side.json.session.title, "New thread (side chat)");
     assert.deepEqual(connection.calls.at(-1), { method: "session/sideChat", params: { sessionId: "s1" } });
+
+    connection.replies.set("session/sideChat", { session: { sessionId: "s4", sideFrom: { sessionId: "s3", commandId: "c2", cutCursor: "y" } } });
+    const nested = await send(base, "/api/sessions/s3/side", {});
+    assert.equal(nested.json.session.title, "New thread (side chat)", "a side chat of a side chat keeps one suffix");
   });
 
   it("links side chats Muse lists to their thread, and leaves subagent sessions out", async () => {

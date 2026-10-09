@@ -675,7 +675,7 @@ export class DemoClient implements HeliconClient {
     const entry = this.sessions.get(sessionId);
     const id = uid("side");
     const side: Seeded = {
-      summary: { ...(entry?.summary ?? summary(id, PROJECTS.readme, "Side chat", Date.now(), 0)), sessionId: id, title: `${entry?.summary.title ?? "Thread"} (side chat)`, turnCount: 0, sideOf: sessionId, pinned: false, live: null },
+      summary: { ...(entry?.summary ?? summary(id, PROJECTS.readme, "Side chat", Date.now(), 0)), sessionId: id, title: `${(entry?.summary.title ?? "Thread").replace(/ \(side chat\)$/, "")} (side chat)`, turnCount: 0, sideOf: sessionId, pinned: false, live: null },
       events: [],
       approvals: [],
     };
