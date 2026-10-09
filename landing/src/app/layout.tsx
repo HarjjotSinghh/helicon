@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, Inter, JetBrains_Mono, Manrope, Newsreader } from "next/font/google";
+import { DownloadNextSteps } from "@/components/download-next-steps";
+import { DownloadStarted } from "@/components/download-started";
 import { FontPicker } from "@/components/font-picker";
 import { GoogleAnalytics } from "@/components/analytics-scripts";
 import { AUTHOR, DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_URL, TAGLINE, TITLE } from "@/lib/site";
@@ -119,6 +121,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body>
         {children}
+        <DownloadStarted
+          steps={{ windows: <DownloadNextSteps os="windows" />, macos: <DownloadNextSteps os="macos" /> }}
+        />
         <GoogleAnalytics />
         {process.env.NODE_ENV === "development" ? <FontPicker /> : null}
       </body>

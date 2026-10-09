@@ -1,5 +1,19 @@
 # Helicon
 
+**A free, MIT-licensed desktop app (Windows, macOS, Linux) and VS Code extension for Meta's Muse Code CLI. Unofficial, not affiliated with Meta.**
+
+**Download:** [Windows](https://helicon.sh/download/windows?src=readme) · [macOS](https://helicon.sh/download/macos?src=readme) · [Linux (AppImage)](https://github.com/HarjjotSinghh/helicon/releases/latest) · [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=harjjotsinghh.helicon) · [Open VSX](https://open-vsx.org/extension/harjjotsinghh/helicon) (Cursor, Windsurf, Antigravity)
+
+**Try it in your browser:** https://helicon.sh/try?utm_source=github&utm_medium=readme&utm_campaign=readme
+
+You need the `muse` CLI installed and signed in (`muse login`) on a Muse Code plan or pay-as-you-go billing. Install guides: [Windows](https://helicon.sh/install/windows) · [macOS](https://helicon.sh/install/macos) · [Linux](https://helicon.sh/install/linux).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-hero-dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme-hero-light.png" />
+  <img alt="Helicon: open-source desktop & web client for Muse Code" src="docs/assets/readme-hero-light.png" />
+</picture>
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/installer-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](https://github.com/HarjjotSinghh/helicon/releases/latest)
 [![Tauri](https://img.shields.io/badge/desktop-Tauri%202-FFC131.svg)](https://tauri.app)
@@ -13,12 +27,6 @@
 [![Stars](https://img.shields.io/github/stars/HarjjotSinghh/helicon.svg?style=social)](https://github.com/HarjjotSinghh/helicon/stargazers)
 [![Hacktoberfest](https://img.shields.io/badge/Hacktoberfest-2026-ff8ae2.svg)](https://github.com/HarjjotSinghh/helicon/issues?q=is%3Aissue+is%3Aopen+label%3Ahacktoberfest)
 [![Good first issues](https://img.shields.io/github/issues/HarjjotSinghh/helicon/good%20first%20issue.svg?label=good%20first%20issues&color=7057ff)](https://github.com/HarjjotSinghh/helicon/contribute)
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-hero-dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme-hero-light.png" />
-  <img alt="Helicon: open-source desktop & web client for Muse Code" src="docs/assets/readme-hero-light.png" />
-</picture>
 
 > **Helicon** - home of the Muses. An open-source desktop + web ADE for Meta's **Muse Code CLI** (`muse`), in the spirit of the Claude Code desktop app and the Codex / ChatGPT desktop app.
 
