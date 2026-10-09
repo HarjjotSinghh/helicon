@@ -60,6 +60,7 @@ import {
   type SshRunFn,
 } from "./ssh.js";
 import { buildThreadTitlePrompt, deriveTitle, parseExecTitle, sanitizeThreadTitle } from "./threadTitles.js";
+import { importOmpUsage, resolveOmpSessionsDirs } from "./ompUsage.js";
 import {
   DEFAULT_TAIL_TIMING,
   ViewTail,
@@ -1693,6 +1694,11 @@ export class HeliconServer {
       const requested = Number.parseInt(url.searchParams.get("days") ?? "30", 10);
       const days = Number.isFinite(requested) ? Math.min(365, Math.max(1, requested)) : 30;
       this.json(res, 200, this.usageReport(days));
+      return true;
+    }
+    if (method === "POST" && path === "/api/usage/import-omp") {
+      const counts = await importOmpUsage(resolveOmpSessionsDirs(this.options.home), this.store);
+      this.json(res, 200, counts);
       return true;
     }
     const attachmentMatch = path.match(/^\/api\/attachments\/([A-Za-z0-9-]{1,64})$/);

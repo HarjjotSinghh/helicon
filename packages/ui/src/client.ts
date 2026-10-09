@@ -85,6 +85,8 @@ export interface HeliconClient {
   setProjectOrder(cwds: string[]): Promise<void>;
   /** Token usage across every thread the server has seen, for the usage page. */
   usage(days?: number): Promise<import("./types.js").UsageReport>;
+  /** Imports OMP sessions made through the `muse-code` provider into the usage page. */
+  importOmpUsage(): Promise<import("./types.js").OmpImportResult>;
   listSessions(options?: { archived?: boolean }): Promise<SessionSummary[]>;
   discover(cwd?: string): Promise<void>;
   startSession(cwd: string, options?: { approvalMode?: ApprovalMode; modelId?: string; accountId?: string | null }): Promise<SessionSummary>;
