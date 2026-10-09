@@ -323,6 +323,8 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
   const queued = fold ? fold.echoes.filter((e) => e.disposition === "queued") : [];
   const todo = fold?.meta.todoList ?? null;
   const showPlan = planShown(todo, props.running);
+  // Known to be off, not merely not loaded yet: only then is switching catch-up on something to offer.
+  const catchUpOff = useApp((s) => s.feedSettings?.catchUp === false);
   return (
     <section aria-label="Composer" className="shrink-0">
       <div className="mx-auto flex w-full max-w-[776px] flex-col gap-2 px-3 pb-2 @min-[400px]:px-4 @min-[520px]:px-6">
@@ -337,6 +339,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
           <StalledNotice
             busy={thread.load === "loading"}
             onRetry={() => void controller.retryStalledThread(session.sessionId)}
+            onKeepLive={catchUpOff ? () => void controller.keepThreadLive(session.sessionId) : undefined}
           />
         ) : null}
         {approvals.map((request, index) => (

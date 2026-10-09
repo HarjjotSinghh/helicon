@@ -557,8 +557,16 @@ export function QueuedList(props: { sessionId: string; items: LocalEcho[] }) {
  * The thread still shows a turn running, but its stream went quiet and reloading from history did
  * not move it on. Saying so beats a spinner that will never resolve: the work itself usually
  * finished, and the transcript catches up once the backend starts talking again (#42).
+ *
+ * `onKeepLive` is passed only while catch-up is off in Settings. It is the way out that lasts: with
+ * it on, Helicon asks Muse for the updates that stopped arriving, for this thread and every other.
  */
-export function StalledNotice(props: { onRetry: () => void; busy: boolean }) {
+export function StalledNotice(props: { onRetry: () => void; onKeepLive?: () => void; busy: boolean }) {
+  const reload = (
+    <Button size="sm" onClick={props.onRetry} loading={props.busy}>
+      Reload
+    </Button>
+  );
   return (
     <div className="flex items-start gap-3 rounded-2xl bg-sunken px-4 py-3 shadow-[0_0_0_1px_var(--border)]">
       <PlugsIcon size={15} className="mt-0.5 shrink-0 text-warn" />
@@ -569,9 +577,19 @@ export function StalledNotice(props: { onRetry: () => void; busy: boolean }) {
           this turn on, so nothing more arrives here until it does. Restarting Helicon reconnects it.
         </p>
       </div>
-      <Button size="sm" onClick={props.onRetry} loading={props.busy}>
-        Reload
-      </Button>
+      {props.onKeepLive ? (
+        // Stacked, so the second button costs the text no width on a narrow window.
+        <div className="flex shrink-0 flex-col items-stretch gap-1.5">
+          <Tip side="top" label="Turns on a setting: when Muse stops sending a thread's updates, Helicon asks for them every few seconds. Switch it off in Settings.">
+            <Button size="sm" variant="primary" onClick={props.onKeepLive} disabled={props.busy}>
+              Keep it live
+            </Button>
+          </Tip>
+          {reload}
+        </div>
+      ) : (
+        reload
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import type {
   ApprovalMode,
   EnvironmentStatus,
+  FeedSettings,
   FileContent,
   FileEntry,
   FileListing,
@@ -127,6 +128,8 @@ export interface HeliconClient {
   loginAccount(id: string): Promise<{ url: string; code: string | null } | { fallback: string }>;
   getYoloSettings(): Promise<YoloSettings>;
   setYoloSettings(patch: { enabled?: boolean }): Promise<YoloSettings>;
+  getFeedSettings(): Promise<FeedSettings>;
+  setFeedSettings(patch: { catchUp?: boolean }): Promise<FeedSettings>;
   setSessionModel(sessionId: string, modelId: string): Promise<void>;
   setApprovalMode(sessionId: string, mode: ApprovalMode): Promise<void>;
   /** `noop` when Muse had nothing to summarize; `reason` is its snake_case explanation. */
@@ -137,6 +140,8 @@ export interface HeliconClient {
   runShellProxy(sessionId: string, command: string): Promise<import("./types.js").ShellRun>;
   /** Branches a thread into a new one carrying every completed turn. */
   forkSession(sessionId: string): Promise<SessionSummary>;
+  /** Opens an empty side chat beside a thread. Nothing in it flows back into the thread. */
+  sideChat(sessionId: string): Promise<SessionSummary>;
   /** With a loaded session, Muse's own list for it; otherwise the workspace's list from the CLI. */
   listSkills(cwd: string, sessionId?: string): Promise<SkillCatalog>;
   /** The full instructions of a skill, without its frontmatter. */
@@ -215,6 +220,14 @@ export function parseYoloSettings(value: unknown): YoloSettings {
   const r = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
   return {
     enabled: r["enabled"] === true,
+  };
+}
+
+/** Parse the feed-settings endpoint; malformed answers fall back to catch-up off. */
+export function parseFeedSettings(value: unknown): FeedSettings {
+  const r = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  return {
+    catchUp: r["catchUp"] === true,
   };
 }
 

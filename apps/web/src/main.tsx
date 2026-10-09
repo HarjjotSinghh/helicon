@@ -79,7 +79,20 @@ async function clientFactory(): Promise<{ makeClient: () => HeliconClient; banne
   if (import.meta.env.MODE === "demo") {
     const [{ DemoClient }, { TryBanner }] = await Promise.all([import("./demo/client.js"), import("./demo/TryBanner.js")]);
     // The hosted demo at helicon.sh/try says what it is and how to get the real app; local demo runs stay bare.
-    return { makeClient: () => new DemoClient(), banner: import.meta.env.VITE_TRY ? <TryBanner /> : null };
+    if (!import.meta.env.VITE_TRY) return { makeClient: () => new DemoClient(), banner: null };
+    // helicon.sh/try only: count the visit and each prompt sent (never its text), like the landing pages.
+    const { captureTry } = await import("./demo/tryAnalytics.js");
+    captureTry("$pageview");
+    const makeClient = () => {
+      const client = new DemoClient();
+      const sendTurn = client.sendTurn.bind(client);
+      client.sendTurn = (...args) => {
+        captureTry("try_prompt_sent");
+        return sendTurn(...args);
+      };
+      return client;
+    };
+    return { makeClient, banner: <TryBanner /> };
   }
   return { makeClient: () => new WebHeliconClient(), banner: null };
 }

@@ -188,6 +188,21 @@ describe("web client", () => {
     assert.equal(posted?.init?.method, "POST");
   });
 
+  it("reads and writes the catch-up switch", async () => {
+    const world = browser();
+    const { WebHeliconClient } = await freshClient();
+    const client = new WebHeliconClient();
+
+    assert.deepEqual(await client.getFeedSettings(), { catchUp: false });
+    assert.equal(world.calls.at(-1)?.url, "/api/feed-settings");
+
+    await client.setFeedSettings({ catchUp: true });
+    const patch = world.calls.at(-1);
+    assert.equal(patch?.url, "/api/feed-settings");
+    assert.equal(patch?.init?.method, "PATCH");
+    assert.deepEqual(JSON.parse(String(patch?.init?.body)), { catchUp: true });
+  });
+
   it("rebuilds a stream that has gone quiet", async () => {
     browser();
     const { WebHeliconClient } = await freshClient();

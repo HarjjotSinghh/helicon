@@ -362,6 +362,15 @@ export class SessionManager {
     return { sessionId: sessionIdOf(result), raw: result };
   }
 
+  /**
+   * Opens a side chat beside a session: a new, empty session that Muse links back to it through
+   * `sideFrom`. Nothing flows back into the main session; it only gains a `sideChat` item.
+   */
+  async sideChat(sessionId: string): Promise<StartedSession> {
+    const result = await this.connection.command("session/sideChat", { sessionId });
+    return { sessionId: sessionIdOf(result), raw: result };
+  }
+
   async decideApproval(decision: ApprovalDecision): Promise<unknown> {
     return this.connection.command("approval/decide", {
       sessionId: decision.sessionId,
@@ -511,6 +520,11 @@ export class SessionManager {
 
   async cancelWorkflow(sessionId: string, workflowRunId: string): Promise<unknown> {
     return this.connection.command("workflow/cancel", { sessionId, workflowRunId });
+  }
+
+  /** Pauses a live run. Muse acks admission only; the run's item then carries `paused: true`. There is no client resume. */
+  async pauseWorkflow(sessionId: string, workflowRunId: string): Promise<unknown> {
+    return this.connection.command("workflow/pause", { sessionId, workflowRunId });
   }
 
   /** Skips or retries one workflow child. `attempt` must be the child's current one, or Muse rejects it as stale. */

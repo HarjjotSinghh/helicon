@@ -2,6 +2,8 @@
  * The strip above the hosted demo at helicon.sh/try: says plainly that this is sample data, and gives the
  * two ways to get the real thing. Demo builds only; release builds never import it.
  */
+import { captureTry } from "./tryAnalytics.js";
+
 const DOWNLOAD = "https://helicon.sh/?utm_source=try&utm_medium=demo&utm_campaign=try#install";
 const EXTENSION = "https://marketplace.visualstudio.com/items?itemName=harjjotsinghh.helicon";
 
@@ -20,6 +22,7 @@ export function TryBanner() {
       </p>
       <a
         href={EXTENSION}
+        onClick={() => captureTry("extension_click", { store: "vscode-marketplace", placement: "try_banner" })}
         target="_blank"
         rel="noopener"
         className="hidden shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-muted transition-colors duration-150 hover:bg-hover hover:text-fg sm:inline-block"
@@ -28,6 +31,7 @@ export function TryBanner() {
       </a>
       <a
         href={DOWNLOAD}
+        onClick={() => captureTry("try_download_click", { placement: "try_banner" })}
         className="shrink-0 rounded-md bg-accent px-3 py-1 text-xs font-semibold text-accent-fg transition-colors duration-150 hover:bg-accent-hover"
       >
         Download Helicon, free

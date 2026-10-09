@@ -632,6 +632,19 @@ export class DemoClient implements HeliconClient {
     return copy.summary;
   }
 
+  async sideChat(sessionId: string): Promise<SessionSummary> {
+    const entry = this.sessions.get(sessionId);
+    const id = uid("side");
+    const side: Seeded = {
+      summary: { ...(entry?.summary ?? summary(id, PROJECTS.readme, "Side chat", Date.now(), 0)), sessionId: id, title: `${(entry?.summary.title ?? "Thread").replace(/ \(side chat\)$/, "")} (side chat)`, turnCount: 0, sideOf: sessionId, pinned: false, live: null },
+      events: [],
+      approvals: [],
+    };
+    this.sessions.set(id, side);
+    for (const h of this.handlers) h({ type: "sessions-changed" });
+    return side.summary;
+  }
+
   async listSkills() {
     return {
       skills: [
@@ -650,6 +663,7 @@ export class DemoClient implements HeliconClient {
   private titleSettings = { enabled: true, modelId: null as string | null };
   private sandboxSettings = { disabled: false };
   private yoloSettings = { enabled: false };
+  private feedSettings = { catchUp: false };
   async getSandboxSettings() {
     return this.sandboxSettings;
   }
@@ -664,6 +678,14 @@ export class DemoClient implements HeliconClient {
   async setYoloSettings(patch: { enabled?: boolean }) {
     this.yoloSettings = { ...this.yoloSettings, ...patch };
     return this.yoloSettings;
+  }
+
+  async getFeedSettings() {
+    return this.feedSettings;
+  }
+  async setFeedSettings(patch: { catchUp?: boolean }) {
+    this.feedSettings = { ...this.feedSettings, ...patch };
+    return this.feedSettings;
   }
 
   async getTitleSettings() {

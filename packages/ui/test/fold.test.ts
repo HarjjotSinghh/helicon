@@ -5,6 +5,8 @@ import {
   applyEvent,
   applyEvents,
   buildTurns,
+  inheritedTurns,
+  sideStart,
   emptyFold,
   foldFromLoad,
   gateFor,
@@ -171,6 +173,44 @@ describe("thread fold against a real muse transcript", () => {
     assert.equal(fold.turns["t1"]?.error?.message, "Provider down");
     assert.equal(fold.turns["t1"]?.retry, undefined);
     assert.equal(fold.turns["t1"]?.startedAt, 1000);
+  });
+
+  it("leaves out the thread's turns Muse copies into a new side chat", () => {
+    const fold = applyEvents(emptyFold(), [
+      { method: "turn/started", params: { turnId: "copy" } },
+      { method: "item/completed", params: { item: { itemId: "u1", kind: "userMessage", turnId: "copy", revision: 1, status: "completed", text: "what is this repo about?" } } },
+      {
+        method: "turn/completed",
+        params: { turnId: "copy", terminal: "failed", error: { kind: "modelError", message: "uncounted source run mirrored from the exact prefix (ADR 28290 D2)", retryable: true } },
+      },
+      { method: "turn/started", params: { turnId: "own" } },
+      { method: "item/completed", params: { item: { itemId: "u2", kind: "userMessage", turnId: "own", revision: 1, status: "completed", text: "hi" } } },
+      { method: "turn/completed", params: { turnId: "own", terminal: "failed", error: { kind: "modelError", message: "Provider down", retryable: true } } },
+    ]);
+    assert.deepEqual(buildTurns(fold).map((turn) => turn.turnId), ["own"], "a real failure still shows");
+  });
+
+  it("leaves out the turns a side chat inherits from its thread, completed or not", () => {
+    const opened = Date.parse("2026-10-09T01:13:24.775Z");
+    const fold = applyEvents(emptyFold(), [
+      { method: "item/completed", params: { item: { itemId: "u1", kind: "userMessage", turnId: "old", revision: 1, status: "completed", text: "hi", recordedAt: "2026-10-09T00:36:40Z" } } },
+      { method: "item/completed", params: { item: { itemId: "f1", kind: "fileChange", turnId: "old", revision: 1, status: "completed", recordedAt: "2026-10-09T00:37:00Z" } } },
+      { method: "item/completed", params: { item: { itemId: "a1", kind: "agentMessage", turnId: "old", revision: 1, status: "completed", text: "Hi!", recordedAt: "2026-10-09T00:37:02Z" } } },
+      { method: "turn/started", params: { turnId: "own" } },
+      { method: "item/completed", params: { item: { itemId: "u2", kind: "userMessage", turnId: "own", revision: 1, status: "completed", text: "test", recordedAt: "2026-10-09T01:13:26Z" } } },
+    ]);
+    const inherited = inheritedTurns(fold, opened);
+    assert.deepEqual([...inherited], ["old"]);
+    assert.deepEqual(buildTurns(fold, inherited).map((turn) => turn.turnId), ["own"]);
+    assert.deepEqual(buildTurns(fold).map((turn) => turn.turnId), ["old", "own"], "an ordinary thread keeps every turn");
+    assert.equal(inheritedTurns(fold, null).size, 0);
+  });
+
+  it("dates a side chat from its creation, and nothing else", () => {
+    assert.equal(sideStart({ sideOf: "main", createdAt: "2026-10-09T01:13:24.775Z" }), Date.parse("2026-10-09T01:13:24.775Z"));
+    assert.equal(sideStart({ sideOf: null, createdAt: "2026-10-09T01:13:24.775Z" }), null);
+    assert.equal(sideStart({ sideOf: "main", createdAt: "not a date" }), null);
+    assert.equal(sideStart(undefined), null);
   });
 
   it("drops the local echo once the prompt comes back from the stream", () => {

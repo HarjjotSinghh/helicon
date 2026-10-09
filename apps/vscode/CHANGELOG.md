@@ -2,6 +2,19 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.21.5
+
+- A side chat shows only its own turns, not a copy of its thread.
+- Optional setting to keep threads live when Muse stops pushing updates (#104).
+- Opening a thread mid-turn no longer shows its tool calls as failed.
+
+## 0.21.4
+
+- Side chats: `/side` opens a separate chat next to a thread, shown under it in the sidebar.
+- Pause a running workflow from its card.
+- Menus open right under their button when the panel is zoomed.
+- A deleted project folder now says so, instead of "write EPIPE".
+
 ## 0.21.3
 
 - The panel shows the setup and error screens instead of staying blank when the muse CLI is missing or the server can't be reached.

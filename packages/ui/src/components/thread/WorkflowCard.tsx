@@ -1,23 +1,25 @@
-import { ArrowCounterClockwiseIcon, CaretDownIcon, FlowArrowIcon, SkipForwardIcon, SquareHalfIcon, StopCircleIcon } from "../ui/icons.js";
+import { ArrowCounterClockwiseIcon, CaretDownIcon, FlowArrowIcon, PauseIcon, SkipForwardIcon, SquareHalfIcon, StopCircleIcon } from "../ui/icons.js";
 import { memo, useMemo, useState } from "react";
 import { useApp, useController } from "../../app/context.js";
-import { formatDuration, humanize } from "../../model/format.js";
+import { formatDuration, formatTokens, humanize } from "../../model/format.js";
 import { TERMINAL_FAILURES, workflowView, type WorkflowAgent, type WorkflowView } from "../../model/workflow.js";
 import type { MspItem } from "../../types.js";
 import { Markdown } from "../ui/Markdown.js";
 import { Sheet } from "../ui/overlays.js";
 import { Button, IconButton, Spinner, cn } from "../ui/primitives.js";
 
-type Tone = "running" | "done" | "failed";
+type Tone = "running" | "paused" | "done" | "failed";
 
 const PILL: Record<Tone, string> = {
   running: "bg-accent-soft text-accent-text",
+  paused: "bg-sunken text-muted",
   done: "bg-active text-ok-text",
   failed: "bg-warn-soft text-warn-text",
 };
 
 const FILL: Record<Tone, string> = {
   running: "bg-accent",
+  paused: "bg-line",
   done: "bg-ok",
   failed: "bg-warn",
 };
@@ -26,8 +28,16 @@ function toneOf(view: WorkflowView): Tone {
   if (view.running) {
     return "running";
   }
+  if (view.paused) {
+    return "paused";
+  }
   // A run that was rejected, cancelled or timed out did not succeed, even with no failed agent.
   return view.failed > 0 || TERMINAL_FAILURES.has(view.status) ? "failed" : "done";
+}
+
+/** Muse keeps a paused run `inProgress` and flags it, so the raw status would read "In progress". */
+function statusLabel(view: WorkflowView): string {
+  return view.running ? "Running" : view.paused ? "Paused" : humanize(view.status);
 }
 
 function time(ms: number | null): string {
@@ -62,7 +72,7 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
         <FlowArrowIcon size={15} className="shrink-0 text-subtle" />
         <span className="shrink-0 text-sm font-medium text-fg">Workflow</span>
         <span className={cn("shrink-0 rounded-md px-1.5 py-px text-2xs font-medium", PILL[tone])}>
-          {view.running ? "Running" : humanize(view.status)}
+          {statusLabel(view)}
         </span>
         {view.used > 0 ? (
           <span className="shrink-0 text-xs text-subtle tabular-nums">
@@ -93,7 +103,7 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
           ) : null}
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-4">
             <Metric label="Agents" value={String(view.used)} />
-            <Metric label={view.running ? "Working" : "Done"} value={String(view.running ? view.working : view.done)} />
+            <Metric label={view.running || view.paused ? "Working" : "Done"} value={String(view.running || view.paused ? view.working : view.done)} />
             <Metric label="Tool calls" value={view.toolCalls === null ? "Not known" : String(view.toolCalls)} />
             <Metric label="Longest agent" value={time(view.longestMs)} />
           </dl>
@@ -102,11 +112,13 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
               {view.failed} of {view.used} {view.failed === 1 ? "agent" : "agents"} did not finish.
             </p>
           ) : null}
+          {view.paused ? <p className="mt-2 text-xs text-muted">Paused. Ask Muse to resume it, or cancel the run.</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button size="sm" variant="ghost" onClick={() => setDetail(true)}>
               <SquareHalfIcon size={13} /> Details
             </Button>
-            {view.running && view.runId && sessionId ? <CancelRun sessionId={sessionId} runId={view.runId} /> : null}
+            {view.running && view.runId && sessionId ? <RunControl sessionId={sessionId} runId={view.runId} action="pause" /> : null}
+            {(view.running || view.paused) && view.runId && sessionId ? <RunControl sessionId={sessionId} runId={view.runId} action="cancel" /> : null}
           </div>
         </div>
       ) : null}
@@ -122,8 +134,11 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
   );
 });
 
-/** Cancels the whole run; what it had finished stays in its report. */
-function CancelRun(props: { sessionId: string; runId: string }) {
+/**
+ * Pauses or cancels the whole run. Cancelling keeps what it had finished in its report. Muse has no
+ * client resume for a paused run, so there is no button for it.
+ */
+function RunControl(props: { sessionId: string; runId: string; action: "pause" | "cancel" }) {
   const controller = useController();
   const readOnly = useApp((s) => s.threads[props.sessionId]?.readOnly ?? true);
   const busy = useApp((s) => Boolean(s.busy[`workflow:${props.sessionId}:${props.runId}:run`]));
@@ -131,8 +146,16 @@ function CancelRun(props: { sessionId: string; runId: string }) {
     return null;
   }
   return (
-    <Button size="sm" variant="ghost" loading={busy} onClick={() => void controller.workflowAction(props.sessionId, "cancel", props.runId)}>
-      <StopCircleIcon size={13} /> Cancel run
+    <Button size="sm" variant="ghost" loading={busy} onClick={() => void controller.workflowAction(props.sessionId, props.action, props.runId)}>
+      {props.action === "pause" ? (
+        <>
+          <PauseIcon size={13} /> Pause run
+        </>
+      ) : (
+        <>
+          <StopCircleIcon size={13} /> Cancel run
+        </>
+      )}
     </Button>
   );
 }
@@ -144,7 +167,7 @@ function Detail(props: { view: WorkflowView; tone: Tone; sessionId?: string }) {
   return (
     <div className="flex flex-col gap-5">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:grid-cols-3">
-        <Metric label="Status" value={view.running ? "Running" : humanize(view.status)} />
+        <Metric label="Status" value={statusLabel(view)} />
         <Metric label="Agents used" value={String(view.used)} />
         <Metric label="Working" value={String(view.working)} />
         <Metric label="Done" value={String(view.done)} />
@@ -154,6 +177,7 @@ function Detail(props: { view: WorkflowView; tone: Tone; sessionId?: string }) {
         {/* Agents run alongside each other, so this is more than the run took on the clock. */}
         <Metric label="Agent time" value={time(view.agentMs)} />
         <Metric label="Started by" value={view.trigger ? humanize(view.trigger) : "Not known"} />
+        {view.tokenBudget !== null ? <Metric label="Token budget" value={formatTokens(view.tokenBudget)} /> : null}
       </dl>
 
       {view.failure ? (

@@ -1,6 +1,7 @@
 import {
   HeliconError,
   parseAccounts,
+  parseFeedSettings,
   parseModelList,
   parseSandboxSettings,
   parseTitleSettings,
@@ -12,6 +13,7 @@ import {
   type DirectoryListing,
   type EnvironmentStatus,
   type EventHandler,
+  type FeedSettings,
   type FileContent,
   type FileEntry,
   type FileListing,
@@ -355,6 +357,14 @@ export class WebHeliconClient implements HeliconClient {
     return parseYoloSettings(await call<unknown>("PATCH", "/api/yolo-settings", patch));
   }
 
+  async getFeedSettings(): Promise<FeedSettings> {
+    return parseFeedSettings(await call<unknown>("GET", "/api/feed-settings"));
+  }
+
+  async setFeedSettings(patch: { catchUp?: boolean }): Promise<FeedSettings> {
+    return parseFeedSettings(await call<unknown>("PATCH", "/api/feed-settings", patch));
+  }
+
   async setSessionModel(sessionId: string, modelId: string): Promise<void> {
     await call("POST", `/api/sessions/${enc(sessionId)}/model`, { model: { modelId } });
   }
@@ -378,6 +388,10 @@ export class WebHeliconClient implements HeliconClient {
 
   async forkSession(sessionId: string): Promise<SessionSummary> {
     return (await call<{ session: SessionSummary }>("POST", `/api/sessions/${enc(sessionId)}/fork`, {})).session;
+  }
+
+  async sideChat(sessionId: string): Promise<SessionSummary> {
+    return (await call<{ session: SessionSummary }>("POST", `/api/sessions/${enc(sessionId)}/side`, {})).session;
   }
 
   listSkills(cwd: string, sessionId?: string): Promise<SkillCatalog> {

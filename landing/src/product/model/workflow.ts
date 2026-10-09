@@ -28,6 +28,12 @@ export interface WorkflowView {
   trigger: string | null;
   status: string;
   running: boolean;
+  /**
+   * Stopped by `workflow/pause` (any client, the terminal included). Muse keeps the status
+   * `inProgress` and sets `paused: true` on the item, so a paused run is not `running`, but it has
+   * not finished either and is still cancellable.
+   */
+  paused: boolean;
   /** A human line for the row, like "Workflow: model-chosen generated workflow". */
   label: string;
   /** From the tool call that launched it; the run itself never carries it. */
@@ -47,6 +53,8 @@ export interface WorkflowView {
   summary: string | null;
   summaryStatus: string | null;
   failure: string | null;
+  /** The launch token budget, when the run was given one. */
+  tokenBudget: number | null;
   admitted: boolean;
   /** Handed to the background, so the thread carried on without waiting for it. */
   deferred: boolean;
@@ -155,6 +163,11 @@ function agentsOf(children: readonly WorkflowChild[], payload: Reconciled | null
   });
 }
 
+function budgetOf(value: unknown): number | null {
+  const total = value && typeof value === "object" ? (value as { total?: unknown }).total : undefined;
+  return typeof total === "number" && Number.isFinite(total) && total > 0 ? total : null;
+}
+
 function sum(values: (number | null)[]): number | null {
   const known = values.filter((value): value is number => value !== null);
   return known.length > 0 ? known.reduce((total, value) => total + value, 0) : null;
@@ -163,8 +176,12 @@ function sum(values: (number | null)[]): number | null {
 /** Everything the card and the sheet show, from one workflow item and the thread it sits in. */
 export function workflowView(item: MspItem, fold: ThreadFold | null): WorkflowView {
   const payload = reconciled(item.message);
-  const running = item.status === "inProgress";
-  const agents = agentsOf(item.children ?? [], payload, running ? null : item.status);
+  // The pause flag is only ever `true` or absent, and Muse clears it when the run resumes or ends.
+  const open = item.status === "inProgress";
+  const paused = open && item["paused"] === true;
+  const running = open && !paused;
+  // A paused run's unreported agents have not finished either, so they get no outcome to inherit.
+  const agents = agentsOf(item.children ?? [], payload, open ? null : item.status);
   const durations = agents.map((agent) => agent.durationMs);
   const known = durations.filter((value): value is number => value !== null);
   const failure = text(payload?.latest_failure) ?? text(item.failureReason);
@@ -174,6 +191,7 @@ export function workflowView(item: MspItem, fold: ThreadFold | null): WorkflowVi
     trigger: text(item["triggerSource"]),
     status: item.status,
     running,
+    paused,
     label: text(item.fallbackText) ?? "Workflow",
     objective: objectiveOf(launchArgs(fold, text(payload?.call_id))),
     agents,
@@ -187,6 +205,7 @@ export function workflowView(item: MspItem, fold: ThreadFold | null): WorkflowVi
     summary: text(payload?.final_summary?.summary),
     summaryStatus: text(payload?.final_summary?.status),
     failure,
+    tokenBudget: budgetOf(item["tokenBudget"]),
     admitted: payload?.launch_admitted === true,
     deferred: payload?.deferred_to_background === true,
   };

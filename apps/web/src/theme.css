@@ -841,3 +841,15 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Interface zoom in a browser is CSS `zoom` on <html>. Chromium then scales the transform Radix
+ * puts on a menu's fixed wrapper by the zoom again, so menus drift away from their trigger. The
+ * wrapper runs at zoom 1 and its content gets the zoom back, so placement and size both hold.
+ */
+[data-radix-popper-content-wrapper] {
+  zoom: calc(1 / var(--app-zoom, 1));
+}
+[data-radix-popper-content-wrapper] > * {
+  zoom: var(--app-zoom, 1);
+}

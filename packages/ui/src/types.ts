@@ -63,6 +63,8 @@ export interface SessionSummary {
   sandboxDisabled: boolean | null;
   /** The aonia profile this thread runs under; null for the default login. */
   accountId: string | null;
+  /** For a side chat, the thread it was opened from; the sidebar nests it there. */
+  sideOf?: string | null;
   live: LiveView | null;
 }
 
@@ -291,6 +293,11 @@ export interface YoloSettings {
   enabled: boolean;
 }
 
+/** Server-owned feed mode: whether a thread Muse stops sending updates for is asked for them instead. */
+export interface FeedSettings {
+  catchUp: boolean;
+}
+
 /** A skill Muse can load in a workspace, from `muse skills list`. Skills switched off are left out. */
 export interface SkillEntry {
   id: string;
@@ -469,7 +476,7 @@ export interface FileContent {
 export type GoalAction = "set" | "edit" | "pause" | "resume" | "clear";
 export type SubagentAction = "interrupt" | "stop" | "close" | "resume" | "reopen" | "sendMessage" | "followupTask" | "readResult";
 export type TaskAction = "background" | "stop" | "stopAll";
-export type WorkflowAction = "cancel" | "skip" | "retry";
+export type WorkflowAction = "cancel" | "pause" | "skip" | "retry";
 
 export interface TranscriptLoad {
   session: SessionSummary | null;
@@ -498,6 +505,8 @@ export type HeliconEvent =
   | { type: "hello"; version: string }
   | { type: "msp"; sessionId: string; method: string; params: Record<string, unknown>; at: number }
   | { type: "session-status"; sessionId: string; live: LiveView | null }
+  /** The server asked Muse and this turn is still running, with nothing new to show for it. */
+  | { type: "feed"; sessionId: string; activeTurnId: string; at: number }
   | { type: "sessions-changed" }
   | { type: "shell-run"; sessionId: string; run: ShellRun }
   | { type: "plan-usage"; usage: PlanUsage; accountId: string | null }

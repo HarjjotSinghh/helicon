@@ -186,6 +186,16 @@ describe("HeliconStore", () => {
     assert.deepEqual(store.setYoloSettings({ enabled: false }), { enabled: false });
   });
 
+  it("keeps feed settings, defaulting to catch-up off", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    assert.deepEqual(store.getFeedSettings(), { catchUp: false });
+    assert.deepEqual(store.setFeedSettings({ catchUp: true }), { catchUp: true });
+    assert.deepEqual(store.getFeedSettings(), { catchUp: true });
+    assert.deepEqual(store.setFeedSettings({}), { catchUp: true }, "an empty patch changes nothing");
+    assert.deepEqual(store.setFeedSettings({ catchUp: false }), { catchUp: false });
+  });
+
   it("records each session's sandbox posture at creation, never on touch", () => {
     const store = new HeliconStore();
     after(() => store.close());
@@ -208,6 +218,18 @@ describe("HeliconStore", () => {
     assert.equal(withAccount.accountId, "work");
     assert.equal(store.findSession("s2")?.session.accountId, "work");
     assert.equal(store.findSession("s1")?.session.accountId, null);
+  });
+
+  it("records which thread a side chat came from, once", () => {
+    const store = new HeliconStore();
+    after(() => store.close());
+    const project = store.upsertProject("/work/proj");
+    assert.equal(store.recordSession({ id: "s1", projectId: project.id }).sideOf, null);
+    // Seen first without its link, then linked on a later touch.
+    store.recordSession({ id: "s2", projectId: project.id });
+    assert.equal(store.recordSession({ id: "s2", projectId: project.id, sideOf: "s1" }).sideOf, "s1");
+    assert.equal(store.recordSession({ id: "s2", projectId: project.id, sideOf: "other" }).sideOf, "s1", "the link never changes");
+    assert.equal(store.findSession("s2")?.session.sideOf, "s1");
   });
 
   it("never overwrites a session's account on a later touch", () => {

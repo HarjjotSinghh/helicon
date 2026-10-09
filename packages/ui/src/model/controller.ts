@@ -3,6 +3,7 @@ import type {
   ApprovalMode,
   ApprovalRequest,
   AttachmentView,
+  FeedSettings,
   GoalAction,
   HeliconEvent,
   OutgoingAttachment,
@@ -291,6 +292,12 @@ export class HeliconController {
   private yoloSettingsRev = 0;
   /** YOLO PATCHes queue behind each other so rapid opposite flips land in order. */
   private yoloSettingsChain: Promise<void> = Promise.resolve();
+  /** Bumped by every feed-settings request, so only the latest completion or rollback lands. */
+  private feedSettingsRev = 0;
+  /** Feed PATCHes queue behind each other so rapid opposite flips land in order. */
+  private feedSettingsChain: Promise<void> = Promise.resolve();
+  /** The feed mode as the server last gave it, which is what a failed flip goes back to. */
+  private feedSettingsConfirmed: FeedSettings | null = null;
   /** Bumped by every accounts request, so only the latest completion or rollback lands. */
   private accountsRev = 0;
   /** Account mutations queue behind each other so rapid edits land in order. */
@@ -453,6 +460,7 @@ export class HeliconController {
       void this.loadTitleSettings();
       void this.loadSandboxSettings();
       void this.loadYoloSettings();
+      void this.loadFeedSettings();
       void this.loadPlanUsage();
       void this.loadAccounts();
     } catch (error) {
@@ -558,6 +566,19 @@ export class HeliconController {
       const sandboxSettings = await this.client.getSandboxSettings();
       if (rev === this.sandboxSettingsRev) {
         this.update((s) => ({ ...s, sandboxSettings }));
+      }
+    } catch {
+      /* opening Settings retries the load */
+    }
+  }
+
+  private async loadFeedSettings(): Promise<void> {
+    const rev = ++this.feedSettingsRev;
+    try {
+      const feedSettings = await this.client.getFeedSettings();
+      if (rev === this.feedSettingsRev) {
+        this.feedSettingsConfirmed = feedSettings;
+        this.update((s) => ({ ...s, feedSettings }));
       }
     } catch {
       /* opening Settings retries the load */
@@ -672,6 +693,9 @@ export class HeliconController {
       if (this.state.yoloSettings === null) {
         void this.loadYoloSettings();
       }
+      if (this.state.feedSettings === null) {
+        void this.loadFeedSettings();
+      }
       if (this.state.accounts === null) {
         void this.loadAccounts();
       }
@@ -685,6 +709,41 @@ export class HeliconController {
   retryStalledThread(sessionId: string): Promise<void> {
     this.staleReloads.delete(sessionId);
     return this.loadThread(sessionId);
+  }
+
+  /**
+   * The stalled notice's other way out, offered while catch-up is off: switch it on, then reload.
+   * In that order, because the server starts following a thread from its next history load, and
+   * only once the mode is on. Switching it on reloads every thread waiting on a turn, this one
+   * among them. A switch that did not take leaves this a plain reload.
+   */
+  async keepThreadLive(sessionId: string): Promise<void> {
+    if (await this.setCatchUp(true)) {
+      return;
+    }
+    // A load already on its way would be joined rather than made again: wait that one out, so the
+    // reload asked for here is one of its own.
+    await this.inflightLoads.get(sessionId);
+    await this.retryStalledThread(sessionId);
+  }
+
+  /**
+   * Loads again every thread that is waiting on a turn, once catch-up has been switched on. The
+   * server follows a thread from its next history load, and none of these would make one unasked:
+   * a stalled thread has spent its reloads, and what would move the others on is not arriving.
+   */
+  private async followThreads(): Promise<void> {
+    const waiting = Object.entries(this.state.threads)
+      .filter(([, thread]) => !thread.readOnly && (thread.stalled || thread.fold.activeTurnId !== null))
+      .map(([id]) => id);
+    await Promise.all(
+      waiting.map(async (id) => {
+        // A load already on its way may have reached the server before the switch did, and a second
+        // one would only join it: wait that one out, so the reload made here is one that counts.
+        await this.inflightLoads.get(id);
+        await this.retryStalledThread(id);
+      }),
+    );
   }
 
   async loadThread(sessionId: string): Promise<void> {
@@ -714,7 +773,9 @@ export class HeliconController {
       this.loading.delete(sessionId);
       const fold = applyEvents(foldFromLoad(load, existing?.fold ?? null), buffered);
       this.appliedAt.set(sessionId, this.platform.now());
-      const wasStalled = existing?.stalled ?? false;
+      // As it stands now, not as it stood before the load: word that the turn is running can
+      // arrive while history is on its way, and the notice it took down stays down.
+      const wasStalled = this.state.threads[sessionId]?.stalled ?? false;
       this.update((s) => ({
         ...s,
         threads: {
@@ -755,8 +816,8 @@ export class HeliconController {
         const wasLost = this.state.connection === "lost";
         this.update((s) => ({ ...s, connection: "open" }));
         if (wasLost && this.state.boot === "ready") {
-          // Goals could have moved while the stream was down, and only the open thread is reloaded. Let every
-          // other thread take the server's goal again rather than the last one it saw streamed.
+          // Goals could have moved while the stream was down, and not every thread is reloaded. Let the
+          // others take the server's goal again rather than the last one they saw streamed.
           for (const id of Object.keys(this.state.threads)) {
             this.patchFold(id, (f) => (f.meta.goalSeen ? { ...f, meta: { ...f.meta, goalSeen: false } } : f));
           }
@@ -764,6 +825,14 @@ export class HeliconController {
           const route = this.state.route;
           if (route.kind === "thread") {
             void this.loadThread(route.sessionId);
+          }
+          // Nothing sent while the stream was down is sent again, so a thread mid-turn may have a
+          // hole in it. A `feed` vouches for what the server sent, not for what arrived here, so
+          // the quiet reload cannot be counted on to fill it: history does, now.
+          for (const [id, thread] of Object.entries(this.state.threads)) {
+            if (thread.fold.activeTurnId !== null && !(route.kind === "thread" && route.sessionId === id)) {
+              void this.loadThread(id);
+            }
           }
         }
         break;
@@ -796,6 +865,20 @@ export class HeliconController {
         // The only word we get about a thread this app has never opened: it is waiting on someone.
         if (this.bypassArmed(event.sessionId) && (event.live?.pendingApprovals ?? 0) > 0) {
           this.loadForBypass(event.sessionId);
+        }
+        break;
+      }
+      case "feed": {
+        // A turn that is quiet because it is working, not because its updates were lost: the server
+        // checked with Muse. That counts as hearing from it, so the stale check leaves the thread
+        // alone, and a thread already marked as having stopped is marked no longer.
+        const thread = this.state.threads[event.sessionId];
+        if (thread && thread.fold.activeTurnId === event.activeTurnId) {
+          this.appliedAt.set(event.sessionId, this.platform.now());
+          this.staleReloads.delete(event.sessionId);
+          if (thread.stalled) {
+            this.setThread(event.sessionId, { ...thread, stalled: false });
+          }
         }
         break;
       }
@@ -852,13 +935,18 @@ export class HeliconController {
     const appliedNow = this.platform.now();
     for (const [id] of batches) {
       this.appliedAt.set(id, appliedNow);
+      // Events arriving are the thread being heard from, which says more than a `feed` does: a
+      // notice that it stopped comes down, and its turn gets its reloads back.
+      if (this.state.threads[id]?.stalled) {
+        this.staleReloads.delete(id);
+      }
     }
     this.update((s) => {
       const threads = { ...s.threads };
       for (const [id, events] of batches) {
         const thread = threads[id];
         if (thread) {
-          threads[id] = { ...thread, fold: applyEvents(thread.fold, events) };
+          threads[id] = { ...thread, fold: applyEvents(thread.fold, events), stalled: false };
         }
       }
       return { ...s, threads };
@@ -1758,6 +1846,44 @@ export class HeliconController {
   }
 
   /**
+   * Whether the server asks Muse for a thread's updates once Muse stops sending them. Nothing
+   * restarts for this: the server starts following a thread from its next history load or update,
+   * so switching it on loads again the threads that are waiting on a turn. Answers whether it did.
+   */
+  async setCatchUp(enabled: boolean): Promise<boolean> {
+    const rev = ++this.feedSettingsRev;
+    this.update((s) => ({ ...s, feedSettings: { catchUp: enabled } }));
+    // The rev below drops stale responses but cannot order the requests. Queue the PATCHes
+    // so a slow switch-on can never persist after a faster switch-off.
+    const run = this.feedSettingsChain.then(() => this.client.setFeedSettings({ catchUp: enabled }));
+    this.feedSettingsChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    let switchedOn = false;
+    try {
+      const feedSettings = await run;
+      switchedOn = feedSettings.catchUp && this.feedSettingsConfirmed?.catchUp !== true;
+      this.feedSettingsConfirmed = feedSettings;
+      if (rev === this.feedSettingsRev) {
+        this.update((s) => ({ ...s, feedSettings }));
+      }
+    } catch (error) {
+      if (rev === this.feedSettingsRev) {
+        // Back to what the server has, not to what the switch showed when this flip began: that
+        // may have been an earlier flip's guess, since failed too.
+        const feedSettings = this.feedSettingsConfirmed;
+        this.update((s) => ({ ...s, feedSettings }));
+        this.toast("error", "Could not change the live updates setting", errorMessage(error));
+      }
+    }
+    if (switchedOn) {
+      await this.followThreads();
+    }
+    return switchedOn;
+  }
+
+  /**
    * The effort for new turns. The open thread takes it at once, as its standing default: that is the only effort
    * `muse serve` applies, and setting it now means the TUI and any other client see the same level. Auto leaves
    * the thread where it is.
@@ -2414,6 +2540,8 @@ export class HeliconController {
         return true;
       case "fork":
         return this.fork(sessionId as string);
+      case "side":
+        return this.sideChat(sessionId as string, args);
       case "new":
         this.newThread(cwd);
         return true;
@@ -2672,6 +2800,50 @@ export class HeliconController {
         "Could not fork the thread",
         errorKind(error) === "forkBoundaryInvalid" ? "Muse could not find a point in this thread to fork it at." : errorMessage(error),
       );
+      return false;
+    } finally {
+      this.setBusy(key, false);
+    }
+  }
+
+  /**
+   * Opens a side chat beside a thread and switches to it, sending `text` there when there is some.
+   * The thread itself is left as it was.
+   */
+  async sideChat(sessionId: string, text = ""): Promise<boolean> {
+    const key = `side:${sessionId}`;
+    if (this.state.busy[key]) {
+      return false;
+    }
+    this.setBusy(key, true);
+    try {
+      const parentMode = this.state.threads[sessionId]?.fold.meta.approvalMode ?? null;
+      const session = await this.client.sideChat(sessionId);
+      this.upsertSession(session);
+      // Muse 1.4.4 opens every side chat in full access, whatever its thread uses. The side chat
+      // gets its thread's permissions instead, so it never runs tools the thread would ask about.
+      const mode: ApprovalMode = this.state.yoloSettings?.enabled === true ? "allowAll" : (parentMode ?? this.state.prefs.defaultMode);
+      let guarded = true;
+      try {
+        await this.client.setApprovalMode(session.sessionId, mode);
+      } catch (error) {
+        guarded = false;
+        this.toast(
+          "error",
+          "The side chat may run tools without asking",
+          `Helicon could not set its permissions, so nothing was sent. Set them in the composer before you send. ${errorMessage(error)}`,
+        );
+      }
+      this.navigate({ kind: "thread", sessionId: session.sessionId });
+      const message = text.trim();
+      // Fail closed: a message never goes into a side chat whose permissions could not be set.
+      if (message && guarded) {
+        await this.loadThread(session.sessionId);
+        return this.sendToThread(session.sessionId, message, {}, false);
+      }
+      return true;
+    } catch (error) {
+      this.toast("error", "Could not open a side chat", errorMessage(error));
       return false;
     } finally {
       this.setBusy(key, false);

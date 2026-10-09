@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useApp, useController } from "../../app/context";
 import { basename } from "../../model/format";
 import { fileTarget } from "../../model/files";
+import { inheritedTurns, sideStart } from "../../model/fold";
 import { cn } from "../ui/primitives";
 import { collectFileChanges, DiffCount } from "./items";
 
@@ -22,7 +23,16 @@ export function ChangedFiles(props: { sessionId: string }) {
   const fold = useApp((s) => s.threads[props.sessionId]?.fold ?? null);
   const key = `files:${props.sessionId}`;
   const open = useApp((s) => !s.prefs.collapsedCards.includes(key));
-  const files = useMemo(() => (fold ? collectFileChanges(fold.order.map((id) => fold.items[id]).filter((item) => item !== undefined)) : []), [fold]);
+  const sideSince = useApp((s) => sideStart(s.sessions[props.sessionId]));
+  // A side chat lists only its own edits, not the ones its thread made before it was opened.
+  const files = useMemo(() => {
+    if (!fold) {
+      return [];
+    }
+    const inherited = inheritedTurns(fold, sideSince);
+    const items = fold.order.map((id) => fold.items[id]).filter((item) => item !== undefined);
+    return collectFileChanges(items.filter((item) => !item.turnId || !inherited.has(item.turnId)));
+  }, [fold, sideSince]);
   if (files.length === 0) {
     return null;
   }

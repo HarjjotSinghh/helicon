@@ -2,6 +2,7 @@ import type {
   ApprovalMode,
   AttachmentView,
   EnvironmentStatus,
+  FeedSettings,
   ModelOption,
   OutgoingAttachment,
   PlanUsage,
@@ -229,6 +230,8 @@ export interface AppState {
   sandboxSettings: SandboxSettings | null;
   /** Server-owned YOLO mode; null until the first boot load answers. */
   yoloSettings: YoloSettings | null;
+  /** Server-owned feed mode; null until the first boot load answers. */
+  feedSettings: FeedSettings | null;
   prefs: Prefs;
   toasts: Toast[];
   paletteOpen: boolean;
@@ -306,6 +309,7 @@ export function initialState(prefs: Prefs): AppState {
     titleSettings: null,
     sandboxSettings: null,
     yoloSettings: null,
+    feedSettings: null,
     prefs,
     toasts: [],
     paletteOpen: false,

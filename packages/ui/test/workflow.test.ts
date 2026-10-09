@@ -179,6 +179,34 @@ describe("workflowView", () => {
     }
   });
 
+  it("treats a paused run as neither done nor failed", () => {
+    const view = workflowView(item({ status: "inProgress", paused: true, children: [child("a1", "completed", 4000), child("a2", null)] }), null);
+    assert.equal(view.paused, true);
+    assert.equal(view.running, false);
+    assert.equal(view.done, 1);
+    assert.equal(view.working, 1);
+    assert.equal(view.failed, 0);
+  });
+
+  it("does not hand a paused run's status to agents it never reported", () => {
+    const view = workflowView(item({ status: "inProgress", paused: true, children: [] }), null);
+    assert.equal(view.working, 2);
+    assert.equal(view.failed, 0);
+    assert.equal(view.done, 0);
+  });
+
+  it("reads the launch token budget, and leaves it null when there is none", () => {
+    assert.equal(workflowView(item({ tokenBudget: { total: 200000 } }), null).tokenBudget, 200000);
+    assert.equal(workflowView(item(), null).tokenBudget, null);
+    assert.equal(workflowView(item({ tokenBudget: { total: 0 } }), null).tokenBudget, null);
+  });
+
+  it("ignores a stale pause flag once the run has ended", () => {
+    const view = workflowView(item({ status: "cancelled", paused: true }), null);
+    assert.equal(view.paused, false);
+    assert.equal(view.running, false);
+  });
+
   it("names every status that means the run did not succeed", () => {
     assert.deepEqual([...TERMINAL_FAILURES].sort(), ["cancelled", "failed", "rejected", "timedOut"]);
   });

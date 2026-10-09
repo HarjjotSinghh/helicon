@@ -825,6 +825,44 @@ export function GenericRow(props: { item: MspItem }) {
   );
 }
 
+/** A side chat opened from this thread. It is a session of its own, so the row only links to it. */
+export function SideChatRow(props: { item: MspItem }) {
+  const controller = useController();
+  const sideId = typeof props.item["sideSessionId"] === "string" ? props.item["sideSessionId"] : null;
+  const title = useApp((s) => (sideId ? (s.sessions[sideId]?.title ?? null) : null));
+  return (
+    <Row
+      icon={<ChatCircleDotsIcon size={14} />}
+      label="Side chat"
+      detail={title ?? "Opened beside this thread"}
+      actions={
+        sideId ? (
+          <Button size="sm" variant="ghost" onClick={() => controller.openThread(sideId)}>
+            Open
+          </Button>
+        ) : undefined
+      }
+    />
+  );
+}
+
+/** Heads a side chat's transcript: it can read its thread, but what is said here stays here. */
+export function SideOriginRow(props: { parentId: string }) {
+  const controller = useController();
+  return (
+    <Row
+      icon={<ChatCircleDotsIcon size={14} />}
+      label="Side chat"
+      detail="Muse sees the thread it came from. Nothing here is added to it."
+      actions={
+        <Button size="sm" variant="ghost" onClick={() => controller.openThread(props.parentId)}>
+          Open thread
+        </Button>
+      }
+    />
+  );
+}
+
 export function SteerBubble(props: { item: MspItem }) {
   return (
     <div className="enter-up flex flex-col items-end gap-1">

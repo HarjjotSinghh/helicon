@@ -181,6 +181,26 @@ class FakeClient implements HeliconClient {
     this.yoloSettings = { enabled: patch.enabled ?? this.yoloSettings.enabled };
     return { ...this.yoloSettings };
   }
+  feedSettings = { catchUp: false };
+  feedError: Error | null = null;
+  feedGate: Promise<void> | null = null;
+  feedCalls: (boolean | undefined)[] = [];
+  async getFeedSettings() {
+    return { ...this.feedSettings };
+  }
+  async setFeedSettings(patch: { catchUp?: boolean }) {
+    this.feedCalls.push(patch.catchUp);
+    if (this.feedGate) {
+      await this.feedGate;
+    }
+    if (this.feedError) {
+      const error = this.feedError;
+      this.feedError = null;
+      throw error;
+    }
+    this.feedSettings = { catchUp: patch.catchUp ?? this.feedSettings.catchUp };
+    return { ...this.feedSettings };
+  }
   async setSessionModel() {}
   approvalModes: { sessionId: string; mode: string }[] = [];
   approvalModeFailFor: Set<string> = new Set();
@@ -223,6 +243,10 @@ class FakeClient implements HeliconClient {
   async forkSession() {
     this.actions.push("fork");
     return { ...SESSION, sessionId: "s2", title: "Probe (fork)" };
+  }
+  async sideChat(sessionId: string) {
+    this.actions.push(`side:${sessionId}`);
+    return { ...SESSION, sessionId: "s3", title: "Probe (side chat)", sideOf: sessionId };
   }
   async listSkills(_cwd: string, sessionId?: string) {
     this.skillSessions.push(sessionId);
@@ -447,6 +471,89 @@ describe("HeliconController", () => {
       assert.deepEqual(client.sandboxCalls, [true, false]);
       assert.deepEqual(client.sandboxSettings, { disabled: false }, "the server ends at the latest flip");
       assert.deepEqual(controller.store.get().sandboxSettings, { disabled: false });
+    } finally {
+      stop();
+    }
+  });
+
+  it("loads the catch-up switch at boot, off unless the server says otherwise, and flips it with rollback", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.deepEqual(controller.store.get().feedSettings, { catchUp: false });
+
+    let release!: () => void;
+    client.feedGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const flip = controller.setCatchUp(true);
+    assert.deepEqual(controller.store.get().feedSettings, { catchUp: true }, "the switch moves before the server answers");
+    client.feedGate = null;
+    release();
+    await flip;
+    assert.deepEqual(client.feedCalls, [true]);
+    assert.deepEqual(controller.store.get().feedSettings, { catchUp: true });
+
+    client.feedError = new Error("daemon away");
+    await controller.setCatchUp(false);
+    assert.deepEqual(controller.store.get().feedSettings, { catchUp: true }, "a failed flip rolls back");
+    assert.match(controller.store.get().toasts.at(-1)?.title ?? "", /Could not change the live updates setting/);
+    stop();
+  });
+
+  it("loads a catch-up switch the server already has on", async () => {
+    const client = new FakeClient();
+    client.feedSettings = { catchUp: true };
+    const { controller, stop } = await started(client);
+    assert.deepEqual(controller.store.get().feedSettings, { catchUp: true });
+    stop();
+  });
+
+  it("sends rapid catch-up flips to the server in order", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    try {
+      let release!: () => void;
+      client.feedGate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const first = controller.setCatchUp(true);
+      const second = controller.setCatchUp(false);
+      try {
+        await new Promise((r) => setTimeout(r, 0));
+        assert.deepEqual(client.feedCalls, [true], "the second PATCH waits for the first");
+      } finally {
+        release();
+      }
+      await Promise.all([first, second]);
+      assert.deepEqual(client.feedCalls, [true, false]);
+      assert.deepEqual(client.feedSettings, { catchUp: false }, "the server ends at the latest flip");
+      assert.deepEqual(controller.store.get().feedSettings, { catchUp: false });
+    } finally {
+      stop();
+    }
+  });
+
+  it("rolls the catch-up switch back to what the server has when two overlapping flips both fail", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    try {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      client.setFeedSettings = async (patch) => {
+        client.feedCalls.push(patch.catchUp);
+        await gate;
+        throw new Error("daemon away");
+      };
+      const first = controller.setCatchUp(true);
+      // Clicked again before the first has failed: what the switch shows by now is only a guess.
+      const second = controller.setCatchUp(false);
+      release();
+      await Promise.all([first, second]);
+      assert.deepEqual(client.feedCalls, [true, false]);
+      assert.deepEqual(client.feedSettings, { catchUp: false }, "the server took neither");
+      assert.deepEqual(controller.store.get().feedSettings, { catchUp: false }, "so the switch shows what it has, not the first flip's guess");
     } finally {
       stop();
     }
@@ -1835,6 +1942,44 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("opens a side chat beside the thread and switches to it", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    const parentMode = controller.store.get().threads["s1"]?.fold.meta.approvalMode ?? controller.store.get().prefs.defaultMode;
+    client.transcript = async () => load({ session: { ...SESSION, sessionId: "s3", title: "Probe (side chat)", sideOf: "s1" } });
+    assert.equal(await controller.send("/side"), true);
+    const state = controller.store.get();
+    assert.ok(client.actions.includes("side:s1"));
+    assert.deepEqual(state.route, { kind: "thread", sessionId: "s3" });
+    assert.equal(state.sessions["s3"]?.sideOf, "s1");
+    // Muse opens side chats in full access; the side chat gets its thread's mode instead.
+    assert.deepEqual(client.approvalModes.at(-1), { sessionId: "s3", mode: parentMode });
+    stop();
+  });
+
+  it("sends nothing into a side chat whose permissions could not be set", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.approvalModeFailFor.add("s3");
+    client.transcript = async () => load({ session: { ...SESSION, sessionId: "s3", title: "Probe (side chat)", sideOf: "s1" } });
+    const before = client.sent.length;
+    assert.equal(await controller.send("/side run the migration"), true);
+    assert.equal(client.sent.length, before, "the message is not sent");
+    assert.deepEqual(controller.store.get().route, { kind: "thread", sessionId: "s3" });
+    assert.equal(controller.store.get().toasts.at(-1)?.title, "The side chat may run tools without asking");
+    stop();
+  });
+
+  it("sends the text after /side into the new side chat", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.transcript = async () => load({ session: { ...SESSION, sessionId: "s3", title: "Probe (side chat)", sideOf: "s1" } });
+    assert.equal(await controller.send("/side what does this regex do?"), true);
+    assert.equal(client.sent.at(-1)?.sessionId, "s3");
+    assert.equal(client.sent.at(-1)?.text, "what does this regex do?");
+    stop();
+  });
+
   it("walks interface zoom through its fixed steps and back to 100%", async () => {
     const client = new FakeClient();
     const { controller, stop } = await started(client);
@@ -2124,6 +2269,238 @@ describe("stale thread watchdog", () => {
     await settle();
     await settle();
     assert.equal(loads, 2);
+    stop();
+  });
+
+  it("leaves a quiet turn alone for as long as the server confirms it is running", async () => {
+    const client = new FakeClient();
+    let loads = 0;
+    client.transcript = async () => {
+      loads += 1;
+      return runningLoad();
+    };
+    const { controller, stop, setNow, runStaleChecks } = await startedWatching(client);
+    client.handler?.({
+      type: "session-status",
+      sessionId: "s1",
+      live: { activeTurnId: "live-1", turnStartedAt: null, pendingApprovals: 0, pendingInputs: 0, lastTerminal: null, lastError: null },
+    });
+    // A long command: nothing to show for it, and the server checking with Muse throughout.
+    for (let minutes = 1; minutes <= 8; minutes += 1) {
+      setNow(1_000_000 + minutes * 60_000);
+      client.handler?.({ type: "feed", sessionId: "s1", activeTurnId: "live-1", at: 1_000_000 + minutes * 60_000 });
+      setNow(1_000_000 + minutes * 60_000 + 45_000);
+      runStaleChecks();
+      await settle();
+    }
+    assert.equal(loads, 1, "a turn known to be running is never reloaded for being quiet");
+    assert.equal(controller.store.get().threads["s1"]?.stalled, false, "and never reported as stalled");
+
+    setNow(1_000_000 + 8 * 60_000 + 91_000);
+    runStaleChecks();
+    await settle();
+    await settle();
+    assert.equal(loads, 2, "once the confirmations stop, quiet means what it used to");
+    stop();
+  });
+
+  it("does not take a confirmation of some other turn as news of this one", async () => {
+    const client = new FakeClient();
+    let loads = 0;
+    client.transcript = async () => {
+      loads += 1;
+      return runningLoad();
+    };
+    const { stop, setNow, runStaleChecks } = await startedWatching(client);
+    setNow(1_000_000 + 31_000);
+    client.handler?.({ type: "feed", sessionId: "s1", activeTurnId: "live-2", at: 1_000_000 + 31_000 });
+    runStaleChecks();
+    await settle();
+    await settle();
+    assert.equal(loads, 2, "the fold shows a turn the server is not vouching for, so it reloads");
+    stop();
+  });
+
+  it("clears the stalled notice when the server confirms the turn after all", async () => {
+    const client = new FakeClient();
+    client.transcript = async () => runningLoad();
+    const { controller, stop, setNow, runStaleChecks } = await startedWatching(client);
+    for (const seconds of [31, 62, 93]) {
+      setNow(1_000_000 + seconds * 1_000);
+      runStaleChecks();
+      await settle();
+      await settle();
+    }
+    assert.equal(controller.store.get().threads["s1"]?.stalled, true);
+    client.handler?.({ type: "feed", sessionId: "s1", activeTurnId: "live-1", at: 1_000_000 + 94_000 });
+    assert.equal(controller.store.get().threads["s1"]?.stalled, false);
+    stop();
+  });
+
+  it("turns catch-up on from the stalled notice, and only then reloads the thread", async () => {
+    const client = new FakeClient();
+    const order: string[] = [];
+    client.transcript = async () => {
+      order.push(`load with catch-up ${client.feedSettings.catchUp ? "on" : "off"}`);
+      return runningLoad();
+    };
+    const { controller, stop, setNow, runStaleChecks } = await startedWatching(client);
+    for (const seconds of [31, 62, 93]) {
+      setNow(1_000_000 + seconds * 1_000);
+      runStaleChecks();
+      await settle();
+      await settle();
+    }
+    assert.equal(controller.store.get().threads["s1"]?.stalled, true);
+    order.length = 0;
+
+    await controller.keepThreadLive("s1");
+    assert.deepEqual(client.feedCalls, [true]);
+    assert.deepEqual(controller.store.get().feedSettings, { catchUp: true });
+    assert.deepEqual(order, ["load with catch-up on"], "the server follows a thread from a load made once the mode is on");
+    stop();
+  });
+
+  it("still reloads from the stalled notice when catch-up could not be switched on", async () => {
+    const client = new FakeClient();
+    let loads = 0;
+    client.transcript = async () => {
+      loads += 1;
+      return runningLoad();
+    };
+    const { controller, stop } = await startedWatching(client);
+    client.feedError = new Error("daemon away");
+    await controller.keepThreadLive("s1");
+    assert.deepEqual(controller.store.get().feedSettings, { catchUp: false }, "the switch rolls back");
+    assert.equal(loads, 2, "and the reload is the one the Reload button makes");
+    stop();
+  });
+
+  it("reloads a thread already stalled when catch-up is switched on in Settings", async () => {
+    const client = new FakeClient();
+    const order: string[] = [];
+    client.transcript = async () => {
+      order.push(`load with catch-up ${client.feedSettings.catchUp ? "on" : "off"}`);
+      return runningLoad();
+    };
+    const { controller, stop, setNow, runStaleChecks } = await startedWatching(client);
+    for (const seconds of [31, 62, 93]) {
+      setNow(1_000_000 + seconds * 1_000);
+      runStaleChecks();
+      await settle();
+      await settle();
+    }
+    assert.equal(controller.store.get().threads["s1"]?.stalled, true, "its reloads are spent, so it would never load again unasked");
+    order.length = 0;
+
+    await controller.setCatchUp(true);
+    assert.deepEqual(order, ["load with catch-up on"], "the load the server starts following it from");
+
+    await controller.setCatchUp(true);
+    assert.deepEqual(order, ["load with catch-up on"], "a switch already on has nothing to pick up");
+    stop();
+  });
+
+  it("takes the stalled notice down when the thread's events arrive after all", async () => {
+    const client = new FakeClient();
+    let loads = 0;
+    client.transcript = async () => {
+      loads += 1;
+      return runningLoad();
+    };
+    const { controller, stop, setNow, runStaleChecks } = await startedWatching(client);
+    for (const seconds of [31, 62, 93]) {
+      setNow(1_000_000 + seconds * 1_000);
+      runStaleChecks();
+      await settle();
+      await settle();
+    }
+    assert.equal(controller.store.get().threads["s1"]?.stalled, true);
+    assert.equal(loads, 3);
+
+    // Catch-up delivers what push did not. The turn is still running, and visibly moving.
+    client.handler?.({
+      type: "msp",
+      sessionId: "s1",
+      method: "item/completed",
+      params: { sessionId: "s1", item: { itemId: "late", kind: "agentMessage", revision: 1, status: "completed", text: "still here" } },
+      at: 1_000_000 + 94_000,
+    });
+    controller.flush();
+    assert.equal(controller.store.get().threads["s1"]?.fold.activeTurnId, "live-1");
+    assert.equal(controller.store.get().threads["s1"]?.stalled, false, "a thread that is receiving updates has not stopped receiving them");
+
+    setNow(1_000_000 + 94_000 + 91_000);
+    runStaleChecks();
+    await settle();
+    await settle();
+    assert.equal(loads, 4, "and the turn has its reloads back, should it go quiet again");
+    stop();
+  });
+
+  it("takes it down as well when what arrives is the turn's ending, after which nothing vouches for the turn", async () => {
+    const client = new FakeClient();
+    client.transcript = async () => runningLoad();
+    const { controller, stop, setNow, runStaleChecks } = await startedWatching(client);
+    for (const seconds of [31, 62, 93]) {
+      setNow(1_000_000 + seconds * 1_000);
+      runStaleChecks();
+      await settle();
+      await settle();
+    }
+    assert.equal(controller.store.get().threads["s1"]?.stalled, true);
+
+    // The turn's ending is delivered at last.
+    client.handler?.({ type: "msp", sessionId: "s1", method: "turn/completed", params: { sessionId: "s1", turnId: "live-1", terminal: "completed" }, at: 1_000_000 + 94_000 });
+    controller.flush();
+    assert.equal(controller.store.get().threads["s1"]?.fold.activeTurnId, null);
+    assert.equal(controller.store.get().threads["s1"]?.stalled, false);
+    stop();
+  });
+
+  it("keeps the stalled notice down when the turn is confirmed while a reload is on its way", async () => {
+    const client = new FakeClient();
+    client.transcript = async () => runningLoad();
+    const { controller, stop, setNow, runStaleChecks } = await startedWatching(client);
+    for (const seconds of [31, 62, 93]) {
+      setNow(1_000_000 + seconds * 1_000);
+      runStaleChecks();
+      await settle();
+      await settle();
+    }
+    assert.equal(controller.store.get().threads["s1"]?.stalled, true);
+
+    let resolve!: (value: TranscriptLoad) => void;
+    client.transcript = () => new Promise<TranscriptLoad>((r) => (resolve = r));
+    const reload = controller.retryStalledThread("s1");
+    await settle();
+    client.handler?.({ type: "feed", sessionId: "s1", activeTurnId: "live-1", at: 1_000_000 + 94_000 });
+    assert.equal(controller.store.get().threads["s1"]?.stalled, false);
+
+    // History lands with the turn still running, as the confirmation said it was.
+    resolve(runningLoad());
+    await reload;
+    assert.equal(controller.store.get().threads["s1"]?.load, "ready");
+    assert.equal(controller.store.get().threads["s1"]?.stalled, false, "what the load found before the confirmation does not put the notice back");
+    stop();
+  });
+
+  it("reloads a thread mid-turn that is not the open one when the event stream comes back", async () => {
+    const client = new FakeClient();
+    let loads = 0;
+    client.transcript = async () => {
+      loads += 1;
+      return runningLoad();
+    };
+    const { controller, stop } = await startedWatching(client);
+    controller.navigate({ kind: "home" });
+    assert.equal(loads, 1);
+
+    client.handler?.({ type: "connection", state: "lost" });
+    client.handler?.({ type: "hello", version: "0.21.0" });
+    await settle();
+    await settle();
+    assert.equal(loads, 2, "what was sent while the stream was down is filled in from history, not left to a quiet reload a confirmed turn never gets");
     stop();
   });
 

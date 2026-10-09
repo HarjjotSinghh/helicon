@@ -47,6 +47,10 @@ describe("SessionManager", () => {
     const forked = await manager.forkSession("s1");
     assert.equal(forked.sessionId, "s2");
     assert.deepEqual(lastCall(conn), { method: "session/fork", params: { sessionId: "s1", excludeItems: true } });
+    conn.reply("session/sideChat", { session: { sessionId: "s3", sideFrom: { sessionId: "s1", commandId: "c1", cutCursor: "x" } } });
+    const side = await manager.sideChat("s1");
+    assert.equal(side.sessionId, "s3");
+    assert.deepEqual(lastCall(conn), { method: "session/sideChat", params: { sessionId: "s1" } });
   });
 
   it("lists sessions scoped to a workspace", async () => {
@@ -280,6 +284,8 @@ describe("SessionManager", () => {
 
     await manager.cancelWorkflow("s1", "run-1");
     assert.deepEqual(lastCall(conn), { method: "workflow/cancel", params: { sessionId: "s1", workflowRunId: "run-1" } });
+    await manager.pauseWorkflow("s1", "run-1");
+    assert.deepEqual(lastCall(conn), { method: "workflow/pause", params: { sessionId: "s1", workflowRunId: "run-1" } });
     await manager.controlWorkflowChild("s1", "run-1", "child-a", 2, "retry");
     assert.deepEqual(lastCall(conn).params, { sessionId: "s1", workflowRunId: "run-1", childId: "child-a", attempt: 2, action: "retry" });
     assert.equal(isWorkflowChildAction("skip"), true);

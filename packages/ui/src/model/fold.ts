@@ -4,6 +4,7 @@ import type {
   ContextUsage,
   Goal,
   MspItem,
+  SessionSummary,
   TodoItem,
   TokenTotals,
   TranscriptLoad,
@@ -769,12 +770,45 @@ export interface TurnView {
   running: boolean;
 }
 
-export function buildTurns(fold: ThreadFold): TurnView[] {
+/**
+ * The turns a side chat carries over from its thread. Muse builds a side chat as a fork: the
+ * thread's turns come along as reference for the model, then the side chat's own turns start.
+ * Anything recorded before the side chat was opened (`since`) is the thread's, not the side chat's.
+ * Both times come from Muse (item record times, session creation), so the client clock plays no part.
+ */
+export function inheritedTurns(fold: ThreadFold, since: number | null): Set<string> {
+  const inherited = new Set<string>();
+  if (since === null || !Number.isFinite(since)) {
+    return inherited;
+  }
+  for (const id of fold.order) {
+    const item = fold.items[id];
+    const at = item?.recordedAt ? Date.parse(item.recordedAt) : Number.NaN;
+    if (item?.turnId && at < since) {
+      inherited.add(item.turnId);
+    }
+  }
+  return inherited;
+}
+
+/** When a side chat was opened, which is where its own turns begin; null for any other thread. */
+export function sideStart(session: Pick<SessionSummary, "sideOf" | "createdAt"> | undefined): number | null {
+  if (!session?.sideOf) {
+    return null;
+  }
+  const at = Date.parse(session.createdAt);
+  return Number.isNaN(at) ? null : at;
+}
+
+export function buildTurns(fold: ThreadFold, inherited: ReadonlySet<string> = new Set()): TurnView[] {
   const byKey = new Map<string, TurnView>();
   const views: TurnView[] = [];
   for (const id of fold.order) {
     const item = fold.items[id];
     if (!item || HIDDEN_KINDS.has(item.kind) || (item.kind === "userMessage" && item.retracted)) {
+      continue;
+    }
+    if (item.turnId && inherited.has(item.turnId)) {
       continue;
     }
     const key = item.turnId ? `turn:${item.turnId}` : `item:${id}`;
@@ -808,7 +842,16 @@ export function buildTurns(fold: ThreadFold): TurnView[] {
       view.entries = view.entries.slice(0, -1);
     }
   }
-  return views;
+  return views.filter((view) => !isMirroredPrefix(view.info));
+}
+
+/**
+ * Muse 1.4.4 seeds a new side chat with copies of its thread's turns, each one failed with this
+ * reason, though a side chat is meant to open empty (Muse #49416). They are not the side chat's own
+ * turns, and retrying one re-sends the thread's prompt, so the transcript leaves them out.
+ */
+export function isMirroredPrefix(info: TurnInfo | null): boolean {
+  return info?.terminal === "failed" && /mirrored from the exact prefix/i.test(info.error?.message ?? "");
 }
 
 /** The pending approval or question that gates a given tool item, if any. */
