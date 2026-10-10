@@ -52,10 +52,50 @@ export function isTranslucent(color: string): boolean {
   return value === "transparent";
 }
 
+/** A CSS custom property name the stylesheet may declare. */
+const TOKEN_NAME = /^--[a-z0-9-]+$/;
+/** A host color name, the part after `--vscode-`. */
+const HOST_VAR_NAME = /^[A-Za-z0-9-]+$/;
+/** What a host value may never contain: a url or expression, or anything that ends the declaration or rule. */
+// eslint-disable-next-line no-control-regex
+const UNSAFE_VALUE = /url\(|image-set\(|expression|javascript:|@import|[;{}<>\\]|\/\*|\*\/|!\s*important|[\u0000-\u001f\u007f]/i;
+const MAX_VALUE_LENGTH = 300;
+
+/** The value trimmed if it is a plain CSS value a host may set, or null if it could inject CSS. */
+export function safeCssValue(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed.length > MAX_VALUE_LENGTH || UNSAFE_VALUE.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+/** The host's variables with unusable names and unsafe values dropped. */
+export function sanitizeHostVars(vars: unknown): HostVars {
+  const clean: HostVars = {};
+  if (!vars || typeof vars !== "object") {
+    return clean;
+  }
+  for (const [name, value] of Object.entries(vars)) {
+    const safe = safeCssValue(value);
+    if (HOST_VAR_NAME.test(name) && safe !== null) {
+      clean[name] = safe;
+    }
+  }
+  return clean;
+}
+
 /** The stylesheet that maps editor colors onto Helicon's tokens, or "" to use Helicon's own. */
-export function hostStylesheet(vars: HostVars): string {
+export function hostStylesheet(input: HostVars): string {
+  const vars = sanitizeHostVars(input);
   const rules: string[] = [];
   for (const [token, sources] of Object.entries(TOKEN_SOURCES)) {
+    if (!TOKEN_NAME.test(token)) {
+      continue;
+    }
     const value = sources
       .map((name) => vars[name])
       .find((v) => typeof v === "string" && v.trim() !== "" && !(OPAQUE.has(token) && isTranslucent(v)));
@@ -88,6 +128,45 @@ function applyHostStyle(vars: HostVars): void {
 
 function framed(): boolean {
   return typeof window !== "undefined" && window.parent !== window;
+}
+
+/**
+ * The origin of the page framing Helicon, from the browser's own record of the frame chain (the
+ * nearest ancestor first) or, where that is missing, the referrer. Null when neither names a real
+ * origin, such as an opaque or sandboxed host; Helicon then neither sends to nor listens to it.
+ */
+export function resolveHostOrigin(ancestorOrigins: readonly string[] | undefined, referrer: string): string | null {
+  const nearest = ancestorOrigins?.[0];
+  if (nearest && nearest !== "null") {
+    return nearest;
+  }
+  if (referrer) {
+    try {
+      const origin = new URL(referrer).origin;
+      return origin === "null" ? null : origin;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Whether a message came from the framing page itself: its window, and the origin that framed us. */
+export function fromHost(event: { source: unknown; origin: string }, parent: unknown, expectedOrigin: string | null): boolean {
+  return expectedOrigin !== null && event.source === parent && event.origin === expectedOrigin;
+}
+
+let cachedHostOrigin: string | null | undefined;
+
+function hostOrigin(): string | null {
+  if (cachedHostOrigin === undefined) {
+    cachedHostOrigin = resolveHostOrigin(window.location.ancestorOrigins as unknown as readonly string[] | undefined, document.referrer);
+  }
+  return cachedHostOrigin;
+}
+
+function isHostEvent(event: MessageEvent): boolean {
+  return fromHost(event, window.parent, hostOrigin());
 }
 
 let editorHosted = false;
@@ -196,7 +275,7 @@ export function installEditorClipboard(isMac: boolean): () => void {
   };
   const onMessage = (event: MessageEvent) => {
     const data = event.data as { type?: unknown; id?: unknown; text?: unknown } | null;
-    if (event.source === window.parent && data?.type === "helicon-paste" && typeof data.id === "number") {
+    if (isHostEvent(event) && data?.type === "helicon-paste" && typeof data.id === "number") {
       pastes.get(data.id)?.(typeof data.text === "string" ? data.text : "");
       pastes.delete(data.id);
     }
@@ -211,8 +290,10 @@ export function installEditorClipboard(isMac: boolean): () => void {
 
 /** Sends a message to the page framing Helicon, when there is one. */
 export function postToHost(message: { type: string; [key: string]: unknown }): void {
-  if (framed()) {
-    window.parent.postMessage(message, "*");
+  // Pinned to the framing page's origin, so a page that navigates the host away can't read these.
+  const target = framed() ? hostOrigin() : null;
+  if (target) {
+    window.parent.postMessage(message, target);
   }
 }
 
@@ -227,7 +308,7 @@ export function useHostTheme(initial: "light" | "dark" | undefined): "light" | "
       return;
     }
     const onMessage = (event: MessageEvent) => {
-      if (event.source !== window.parent) {
+      if (!isHostEvent(event)) {
         return;
       }
       const data = event.data as { type?: unknown; theme?: unknown; kind?: unknown; vars?: unknown } | null;

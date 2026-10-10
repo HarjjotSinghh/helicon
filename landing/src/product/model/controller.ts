@@ -2263,6 +2263,11 @@ export class HeliconController {
     return this.client.usage(days);
   }
 
+  /** Imports OMP sessions made through the `muse-code` provider into the usage page. */
+  importOmpUsage(): Promise<import("../types").OmpImportResult> {
+    return this.client.importOmpUsage();
+  }
+
   /** Moves a project in the sidebar, taking the new order from the row it was dropped on. */
   async reorderProjects(cwd: string, beforeCwd: string | null): Promise<void> {
     const current = this.state.projects;
