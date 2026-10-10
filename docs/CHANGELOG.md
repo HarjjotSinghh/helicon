@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.21.6
+
+### New
+
+- **Import OMP usage** ([#112](https://github.com/HarjjotSinghh/helicon/pull/112), thanks to Amin, [@aminamos](https://github.com/aminamos), closes [#110](https://github.com/HarjjotSinghh/helicon/issues/110)). OMP sessions that use the `muse-code` provider bill the same Muse plan, but never pass through Helicon, so the Usage page missed them. The Usage page now has an Import OMP button that reads your local OMP sessions (`~/.omp/agent/sessions`, or `OMP_AGENT_DIR`) and adds their calls. Importing again only adds new calls, and the imported sessions stay out of the sidebar.
+
+### Fixed
+
+- **The plan card shows <1% instead of 0%** for a window Muse has reported use in ([#118](https://github.com/HarjjotSinghh/helicon/pull/118), [#26](https://github.com/HarjjotSinghh/helicon/issues/26)). Muse sends whole percentages, so a little use read as "0% used". The card and the sidebar pill now say <1% until the window resets, and the card notes that Meta's usage dashboard can read higher.
+
+### Changed
+
+- **Safer embedding** ([#120](https://github.com/HarjjotSinghh/helicon/pull/120)). The interface only talks to the page that embeds it, ignores messages from any other origin, and drops unsafe theme values. The server tells browsers which pages may frame it (the editor extension and Helicon itself); `--frame-ancestor` adds others, for example a self-hosted code-server.
+
 ## 0.21.5
 
 ### New

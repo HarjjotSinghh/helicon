@@ -2,6 +2,12 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.21.6
+
+- Import usage from OMP sessions that use the muse-code provider (#112).
+- The plan card shows <1% instead of 0% for a window with a little use (#118).
+- Safer embedding: the panel only talks to the editor that hosts it (#120).
+
 ## 0.21.5
 
 - A side chat shows only its own turns, not a copy of its thread.
