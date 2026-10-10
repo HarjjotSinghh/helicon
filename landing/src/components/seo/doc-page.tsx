@@ -223,6 +223,7 @@ export function DocPage({
           {page.h1}
         </h1>
         <AnswerBlock>{page.answer}</AnswerBlock>
+        {page.answerCta ? <PlatformCta placement="answer-cta" /> : null}
         <p className="mt-5 text-[13px] text-subtle">
           Last updated <time dateTime={page.updated}>{formatDate(page.updated)}</time>
           {" · "}

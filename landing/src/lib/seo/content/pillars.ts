@@ -31,6 +31,7 @@ export const PILLAR_PAGES: SeoPage[] = [
     ],
     updated: UPDATED,
     ogEyebrow: "Muse Code GUI",
+    answerCta: true,
     itemList: {
       name: "Graphical interfaces for Muse Code",
       items: [
@@ -87,7 +88,7 @@ export const PILLAR_PAGES: SeoPage[] = [
           ["Stores credentials", "No. Authentication stays with your muse login"],
           ["Bypasses approvals", "No. Allow all is an explicit, dangerous opt in"],
           ["Protocol or scraping", "Muse Code Session Protocol, via the official MIT SDK"],
-          ["Signed binaries", "Signed Windows installer; macOS DMG updater signed, not Apple notarized yet"],
+          ["Signed binaries", "Not yet. Windows installer is not Authenticode signed and macOS DMG is not Apple notarized; updates are signature checked by the app"],
           ["Source", "MIT, one public repository for app, daemon and this site"],
         ],
       },

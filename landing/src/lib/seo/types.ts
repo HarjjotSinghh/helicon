@@ -125,6 +125,8 @@ export type SeoPage = {
   itemList?: { name: string; items: string[] };
   /** Overrides the default og image line. */
   ogEyebrow?: string;
+  /** Shows the download buttons right under the answer as well as at the end of the page. */
+  answerCta?: boolean;
 };
 
 export type Section = {
