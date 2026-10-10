@@ -11,6 +11,7 @@ import type {
   EnvironmentStatus,
   GoalAction,
   ModelOption,
+  OmpImportResult,
   OutputRange,
   PlanUsage,
   ProjectView,
@@ -461,6 +462,11 @@ export class DemoClient implements HeliconClient {
 
   async usage(days?: number): Promise<UsageReport> {
     return usageReport(this.now, [...this.sessions.values()].map((s) => s.summary), days ?? 30);
+  }
+
+  /** The demo has no OMP sessions on disk, so an import finds nothing. */
+  async importOmpUsage(): Promise<OmpImportResult> {
+    return { files: 0, sessions: 0, calls: 0, skipped: 0 };
   }
 
   async listSessions(options?: { archived?: boolean }) {

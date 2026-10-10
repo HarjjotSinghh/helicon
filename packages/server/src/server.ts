@@ -130,6 +130,29 @@ export type ShellRunner = (
   args: string[],
 ) => Promise<{ output: string; exitCode: number | null; truncated: boolean }>;
 
+/**
+ * Who may frame the UI the server serves. `'self'` covers the UI framing its own file previews. The
+ * editor extension frames it from a webview, whose page (and the pages above it, which
+ * `frame-ancestors` also checks) sits on `vscode-webview:` and `vscode-file:` in VS Code and its forks,
+ * or on `*.vscode-cdn.net` in the browser build. Loopback hosts cover local dev shells. The desktop app
+ * and the landing demo load the UI top-level or from their own bundle, so they need no entry here.
+ * Embedders not listed (a self-hosted code-server, say) are added with `--frame-ancestor`.
+ */
+export const FRAME_ANCESTORS = [
+  "'self'",
+  "vscode-webview:",
+  "vscode-file:",
+  "https://*.vscode-cdn.net",
+  "http://127.0.0.1:*",
+  "http://localhost:*",
+];
+
+/** The `Content-Security-Policy` value that limits who may frame the UI. */
+export function frameAncestorsPolicy(extra: string[] = []): string {
+  const safe = extra.filter((source) => /^[^\s;,'"]+$/.test(source));
+  return `frame-ancestors ${[...FRAME_ANCESTORS, ...safe].join(" ")}`;
+}
+
 export interface ServerOptions {
   port?: number;
   host?: string;
@@ -138,6 +161,8 @@ export interface ServerOptions {
   token?: string | null;
   /** Browser origins allowed to reach this daemon from another site. Empty means same-origin only. */
   allowOrigins?: string[];
+  /** Extra page origins allowed to frame the UI, on top of `FRAME_ANCESTORS`. */
+  frameAncestors?: string[];
   platform?: string;
   distro?: string;
   musePath?: string | null;
@@ -804,6 +829,7 @@ export class HeliconServer {
       staticDir: options.staticDir ? resolve(options.staticDir) : null,
       token: options.token ?? null,
       allowOrigins: options.allowOrigins ?? [],
+      frameAncestors: options.frameAncestors ?? [],
       platform: options.platform ?? process.platform,
       distro: options.distro,
       musePath: options.musePath,
@@ -1951,6 +1977,8 @@ export class HeliconServer {
       res.writeHead(200, {
         "content-type": MIME[extname(file)] ?? "application/octet-stream",
         "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
+        "content-security-policy": frameAncestorsPolicy(this.options.frameAncestors),
+        "x-content-type-options": "nosniff",
       });
       res.end(body);
       return true;

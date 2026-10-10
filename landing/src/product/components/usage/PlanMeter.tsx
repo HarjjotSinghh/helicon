@@ -69,7 +69,7 @@ function MeterCard(props: { view: PlanView; title: string; now: number }) {
             <div className="flex items-baseline gap-2 text-xs">
               <span className="text-muted">{row.label}</span>
               <span className="flex-1" />
-              <span className={cn("font-medium tabular-nums", TEXT[row.tone])}>{row.percent}% used</span>
+              <span className={cn("font-medium tabular-nums", TEXT[row.tone])}>{row.used} used</span>
               <span className="shrink-0 text-2xs text-subtle">{view.age === "just now" ? "just now" : `${view.age} ago`}</span>
             </div>
             <div
@@ -88,7 +88,8 @@ function MeterCard(props: { view: PlanView; title: string; now: number }) {
       </div>
       <p className="mt-2.5 text-2xs leading-4 text-pretty text-subtle">
         These come from Muse with each model call, so they only move when you send a prompt from a thread here. Work
-        done in the terminal counts against your plan without showing up in this card.
+        done in the terminal counts against your plan without showing up in this card. Muse sends whole percentages,
+        and Meta's usage dashboard can read higher than this.
       </p>
     </section>
   );
@@ -133,7 +134,7 @@ export function PlanPill() {
   if (!view || !first) {
     return null;
   }
-  const label = view.rows.map((row) => `${row.label}: ${row.percent}% used, ${row.resets.toLowerCase()}`).join(". ");
+  const label = view.rows.map((row) => `${row.label}: ${row.used} used, ${row.resets.toLowerCase()}`).join(". ");
   return (
     <Tip label={label} side="top">
       <button
@@ -146,7 +147,7 @@ export function PlanPill() {
         )}
       >
         <GaugeIcon size={12} />
-        {first.percent}%
+        {first.used}
       </button>
     </Tip>
   );

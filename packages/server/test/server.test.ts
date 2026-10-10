@@ -1,7 +1,7 @@
 import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAonia } from "@harjjotsinghh/aonia";
@@ -9,6 +9,7 @@ import {
   HeliconServer,
   deriveTitle,
   eventsFromHistory,
+  frameAncestorsPolicy,
   mergeSessionSkills,
   normalizeIso,
   parseSkillList,
@@ -354,6 +355,29 @@ describe("HeliconServer", () => {
     assert.equal(allowed.status, 200);
     assert.equal(allowed.headers.get("access-control-allow-origin"), "https://helicon.example");
     assert.equal(allowed.headers.get("access-control-allow-credentials"), "true");
+  });
+
+  it("limits who may frame the UI with a frame-ancestors policy", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "helicon-static-"));
+    await writeFile(join(dir, "index.html"), "<!doctype html><title>h</title>");
+    const { base } = await start(new FakeConnection(), { staticDir: dir, frameAncestors: ["https://code.example"] });
+    const page = await fetch(`${base}/`);
+    const csp = page.headers.get("content-security-policy") ?? "";
+    assert.match(csp, /^frame-ancestors /);
+    for (const source of ["'self'", "vscode-webview:", "vscode-file:", "https://*.vscode-cdn.net", "https://code.example"]) {
+      assert.ok(csp.split(" ").includes(source), `${source} in ${csp}`);
+    }
+    // Never a wildcard that lets any site frame it.
+    assert.ok(!csp.split(" ").includes("*"));
+    assert.ok(!csp.split(" ").includes("https:"));
+  });
+
+  it("drops frame ancestors that could break out of the directive", () => {
+    const csp = frameAncestorsPolicy(["https://ok.example", "https://x.example; script-src *", "'none'", "a,b"]);
+    assert.ok(csp.includes("https://ok.example"));
+    assert.ok(!csp.includes("script-src"));
+    assert.ok(!csp.includes("'none'"));
+    assert.ok(!csp.includes("a,b"));
   });
 
   it("answers a preflight for an allowed origin", async () => {
