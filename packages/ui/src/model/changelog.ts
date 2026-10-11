@@ -43,3 +43,88 @@ export function newEntries(
     (entry) => compareVersions(entry.version, seen) > 0 && compareVersions(entry.version, current) <= 0,
   );
 }
+
+/** Where the full notes live; the in-app card only carries a few lines of them. */
+export const CHANGELOG_URL = "https://helicon.sh/changelog";
+
+/**
+ * The version running now. A desktop shell that can update itself reports its own, and until it
+ * has, there is nothing to compare. Every other host (the browser, the editor extension) runs the
+ * interface it was built with, and the newest built-in entry is that version: the changelog test
+ * keeps the two in step.
+ */
+export function runningVersion(
+  updates: { currentVersion: string | null } | null | undefined,
+  entries: readonly ChangelogEntry[] = CHANGELOG,
+): string | null {
+  if (updates) {
+    return updates.currentVersion;
+  }
+  return entries[0]?.version ?? null;
+}
+
+/** Sections in the order their items are worth reading; anything unlisted comes last. */
+const SECTION_ORDER = ["new", "added", "changed", "fixed"];
+
+const MAX_HIGHLIGHT = 96;
+
+/** Markdown down to the words a reader sees: link text kept, emphasis and code marks dropped. */
+function plainText(markdown: string): string {
+  return markdown
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\*\*|`/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** The headline of one changelog item: its bold lead when it has one, else its first sentence. */
+function headline(item: string): string {
+  const bold = /^\*\*(.+?)\*\*/.exec(item);
+  const lead = bold ? bold[1] : (plainText(item).split(/(?<=[.!?])\s/)[0] ?? "");
+  let text = plainText(lead).replace(/[\s.,:;]+$/, "");
+  if (text.length > MAX_HIGHLIGHT) {
+    const cut = text.slice(0, MAX_HIGHLIGHT);
+    text = `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 1))}…`;
+  }
+  return text;
+}
+
+/**
+ * A few lines worth reading from the given entries, for a card too small for the whole notes.
+ *
+ * New things come before changes and changes before fixes, newest release first within each, so
+ * someone who skipped three releases sees the biggest news rather than the latest fix. An entry
+ * written as a paragraph instead of a list gives its first sentence.
+ */
+export function highlights(entries: readonly ChangelogEntry[], max = 4): string[] {
+  const found: { rank: number; order: number; text: string }[] = [];
+  entries.forEach((entry, index) => {
+    let section = "";
+    let listed = false;
+    for (const line of entry.body.split("\n")) {
+      const heading = /^#{2,4}\s+(.+)$/.exec(line);
+      if (heading) {
+        section = heading[1].trim().toLowerCase();
+        continue;
+      }
+      if (line.startsWith("- ")) {
+        listed = true;
+        const rank = SECTION_ORDER.indexOf(section);
+        found.push({ rank: rank === -1 ? SECTION_ORDER.length : rank, order: index, text: headline(line.slice(2)) });
+      }
+    }
+    if (!listed) {
+      const paragraph = entry.body.split("\n").find((line) => line.trim() && !line.startsWith("#"));
+      if (paragraph) {
+        found.push({ rank: SECTION_ORDER.length, order: index, text: headline(paragraph) });
+      }
+    }
+  });
+  const seen = new Set<string>();
+  return found
+    .filter((item) => item.text.length > 0)
+    .sort((a, b) => a.rank - b.rank || a.order - b.order)
+    .map((item) => item.text)
+    .filter((text) => (seen.has(text) ? false : (seen.add(text), true)))
+    .slice(0, max);
+}
