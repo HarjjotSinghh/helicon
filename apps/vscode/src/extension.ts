@@ -395,6 +395,8 @@ function frameHtml(origin: string, src: string, surface: "sideBar" | "editor", b
     const data = event.data;
     if (!data || typeof data !== "object") return;
     if (event.source === frame.contentWindow) {
+      // Only the Helicon page itself may run commands, not whatever the frame was navigated to.
+      if (event.origin !== origin) return;
       if (data.type === "helicon-host-ready") sendStyle();
       if (data.type === "helicon-command" && typeof data.command === "string") vscode.postMessage({ type: "command", command: data.command, args: data.args });
       return;
