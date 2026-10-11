@@ -2,6 +2,7 @@
 
 import posthog from "posthog-js";
 import { classifyCta } from "./cta-events";
+import { deviceClass } from "./device";
 
 export function trackEvent(
   event: string,
@@ -24,6 +25,8 @@ export function trackHref(
     event,
     {
       ...properties,
+      // A phone tap is a download_click that cannot lead to a download, so funnels filter on this.
+      ...(event === "download_click" ? { device: deviceClass() } : {}),
       placement: extra.placement,
       ...(extra.label ? { cta_label: extra.label } : {}),
     },
