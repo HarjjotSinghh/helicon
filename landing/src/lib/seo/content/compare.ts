@@ -253,7 +253,7 @@ const ENTRIES: Entry[] = [
       "You want Muse Code specific behaviour surfaced exactly, not bridged.",
       "You supervise several threads across repos and want one list.",
       "You want cost and approval history that outlives the editor session.",
-      "You are on Windows and want a signed installer.",
+      "You are on Windows and want an installer that updates itself.",
     ],
     together:
       "Use the editor bridge while you are writing, and Helicon when you are supervising. Both run against the same muse CLI and the same subscription, so nothing has to be chosen once and for all.",
@@ -405,7 +405,7 @@ const ENTRIES: Entry[] = [
     pickHelicon: [
       "Your subscription is Muse Code and you want it out of the terminal.",
       "You want the client to be open source and auditable.",
-      "You are on Windows and want a signed installer with auto update.",
+      "You are on Windows and want an installer with auto update.",
       "You want the same interface in a browser against a remote machine.",
     ],
     together:

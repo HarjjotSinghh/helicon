@@ -378,7 +378,7 @@ export const INSTALL_PAGES: SeoPage[] = [
         items: [
           "Open your WSL2 shell and confirm `muse --version` answers.",
           "Run `muse login` in that same shell.",
-          "Install Helicon on Windows with the signed installer.",
+          "Install Helicon on Windows with the installer (not code-signed yet, so SmartScreen may warn).",
           "Add your project. If the project lives inside the distribution, add its WSL2 path.",
         ],
       },
@@ -406,7 +406,7 @@ export const INSTALL_PAGES: SeoPage[] = [
         },
         {
           name: "Install Helicon on Windows",
-          text: "Run the signed installer from the latest GitHub release. It runs on the Windows host, not inside WSL2.",
+          text: "Run the installer from the latest GitHub release. It is not code-signed yet, so SmartScreen may show \"Windows protected your PC\": click More info, then Run anyway. It runs on the Windows host, not inside WSL2.",
         },
         {
           name: "Add your project",
