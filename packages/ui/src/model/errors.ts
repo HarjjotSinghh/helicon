@@ -64,3 +64,19 @@ export function stuckThread(
   }
   return { kind: found.kind, remedy: found.remedy, message: found.message };
 }
+
+/**
+ * A turn that failed because the muse CLI is signed out. `muse serve` starts fine without credentials, so this is
+ * where a new user first finds out: the first turn fails with kind `authRequired` and "not logged in: run /login to
+ * add an API key". `/login` is the terminal UI's command and means nothing in Helicon, so the turn says what to run.
+ * The wording is matched too, for a host that reports the failure without a kind.
+ */
+export function signedOut(error: { kind?: string | null; message?: string | null } | null | undefined): boolean {
+  if (!error) {
+    return false;
+  }
+  if (error.kind === "authRequired") {
+    return true;
+  }
+  return /\bnot logged in\b|missing meta credentials/i.test(error.message ?? "");
+}

@@ -329,7 +329,7 @@ export function Onboarding(props: { compact?: boolean }) {
 }
 
 /** A plain link out to a helicon.sh guide. It carries no tracking parameters. */
-function HelpLink(props: { href: string; children: ReactNode }) {
+export function HelpLink(props: { href: string; children: ReactNode }) {
   return (
     <a
       href={props.href}
