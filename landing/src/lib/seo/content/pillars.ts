@@ -181,7 +181,7 @@ export const PILLAR_PAGES: SeoPage[] = [
       {
         kind: "ul",
         items: [
-          "Windows: signed installer with auto update. Native Muse Code, or Muse Code inside WSL2 with two way path translation.",
+          "Windows: installer with auto update (not code-signed yet, so SmartScreen may warn). Native Muse Code, or Muse Code inside WSL2 with two way path translation.",
           "macOS: one universal DMG for Apple Silicon and Intel, with auto update. Not Apple notarized yet, so first launch needs System Settings > Privacy & Security > Open Anyway.",
           "Linux: an x86_64 AppImage with auto update. No ARM build yet; source works there.",
           "Browser: the same React UI as a web app against a daemon you run.",
@@ -227,7 +227,7 @@ export const PILLAR_PAGES: SeoPage[] = [
       },
       {
         q: "Does it work on Windows?",
-        a: "Yes, with a signed installer and auto update. It runs Muse Code natively on Windows with PowerShell for shell commands, and uses Muse Code inside WSL2 with path translation when native is not installed.",
+        a: "Yes, with an installer and auto update (not code-signed yet, so SmartScreen may warn: click More info, then Run anyway). It runs Muse Code natively on Windows with PowerShell for shell commands, and uses Muse Code inside WSL2 with path translation when native is not installed.",
       },
       {
         q: "Do I need an API key?",

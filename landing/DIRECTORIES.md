@@ -106,7 +106,7 @@ Do not paste the same text everywhere. Answer engines cross-reference and down-w
 
 > The Codex and Claude-Code-desktop experience, for Meta's Muse Code. Projects and sessions in a
 > sidebar, resume anything including terminal sessions, diffs in the thread, approvals surfaced,
-> cost per thread. Signed Windows installer with WSL2 path translation, universal macOS DMG,
+> cost per thread. Windows installer with WSL2 path translation, universal macOS DMG,
 > Linux AppImage. Free and MIT.
 
 **Startup directories** (Product Hunt, BetaList, F6S, Fazier). Lead with the outcome.

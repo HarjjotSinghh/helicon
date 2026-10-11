@@ -34,7 +34,7 @@ function factsFor(version: string | null) {
   return [
     version ? `- Current version: v${version}` : "- Current version: see the latest GitHub release",
     "- License: MIT, free, no paid tier",
-    "- Platforms: Windows (signed installer, native or WSL2), macOS (universal DMG, Apple Silicon and Intel), Linux (x86_64 AppImage)",
+    "- Platforms: Windows (installer, native or WSL2; not code-signed yet, so SmartScreen may warn), macOS (universal DMG, Apple Silicon and Intel), Linux (x86_64 AppImage)",
     "- Requirements: the muse CLI, logged in. Node.js ships inside the desktop app.",
     "- Billing: uses your existing Muse Code subscription through the muse CLI; no separate API key",
     "- Status: unofficial community project; not made, sponsored or endorsed by Meta",
