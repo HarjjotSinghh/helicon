@@ -53,7 +53,9 @@ describe("downloadHref", () => {
 describe("copy of the landing rule", () => {
   // The demo is its own static build and cannot import the landing app, so the rule is copied.
   const rule = /export type DeviceSignals[\s\S]*?\nexport function isHandheld[\s\S]*?\n}\n/;
-  const read = (url: string) => readFileSync(fileURLToPath(new URL(url, import.meta.url)), "utf8");
+  // Normalise line endings: Windows CI checks files out with CRLF.
+  const read = (url: string) =>
+    readFileSync(fileURLToPath(new URL(url, import.meta.url)), "utf8").replace(/\r\n/g, "\n");
 
   it("matches landing/src/lib/device.ts", () => {
     // Compiled to apps/web/dist-test/test/, so the repo root is four levels up.
