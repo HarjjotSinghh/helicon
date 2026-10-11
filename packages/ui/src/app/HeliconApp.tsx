@@ -83,8 +83,7 @@ export function HeliconApp(props: HeliconAppProps) {
             {panel ? <PanelShell /> : <Shell />}
             {panel ? null : <CommandPalette />}
             {panel ? null : <AddProjectDialog />}
-            {panel ? null : <WhatsNew />}
-            <Toasts />
+            <Toasts leading={<WhatsNew />} />
             <WindowControls />
             <LiveAnnouncer />
             <RouteAnnouncer />

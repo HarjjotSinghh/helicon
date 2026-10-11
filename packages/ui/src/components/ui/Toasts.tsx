@@ -2,6 +2,7 @@
 // Adapted: driven by the Helicon store, project tokens, no backdrop blur, chronological stack.
 import { CheckIcon, InfoIcon, WarningCircleIcon, XIcon } from "./icons.js";
 import { AnimatePresence, motion, useReducedMotion, type Transition } from "motion/react";
+import type { ReactNode } from "react";
 import { useApp, useController } from "../../app/context.js";
 import type { Toast } from "../../model/store.js";
 import { cn } from "./primitives.js";
@@ -15,7 +16,8 @@ const TONE: Record<Toast["tone"], { icon: JSX.Element; className: string }> = {
   info: { icon: <InfoIcon size={14} />, className: "bg-active text-muted" },
 };
 
-export function Toasts() {
+/** `leading` sits at the top of the stack, above every toast: a card that outlives them, like What's new. */
+export function Toasts(props: { leading?: ReactNode }) {
   const controller = useController();
   const toasts = useApp((s) => s.toasts);
   const reduce = useReducedMotion();
@@ -25,6 +27,7 @@ export function Toasts() {
       aria-atomic="false"
       className="pointer-events-none fixed right-4 bottom-4 z-[var(--z-toast)] flex w-[min(380px,calc(100vw-32px))] flex-col gap-2"
     >
+      {props.leading}
       <AnimatePresence initial={false} mode="popLayout">
         {toasts.map((toast) => (
           <motion.li
