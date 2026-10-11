@@ -19,6 +19,9 @@ const nextConfig: NextConfig = {
       { source: "/gui", destination: "/muse-code-gui", permanent: true },
       { source: "/desktop", destination: "/muse-code-desktop-app", permanent: true },
       { source: "/app", destination: "/muse-code-desktop-app", permanent: true },
+      // The link phone visitors send to their computer. Temporary so the target can change, and
+      // the utm_* query passes through to the home page, where the install section picks the OS.
+      { source: "/download", destination: "/#install", permanent: false },
       { source: "/windows", destination: "/install/windows", permanent: true },
       { source: "/mac", destination: "/install/macos", permanent: true },
       { source: "/macos", destination: "/install/macos", permanent: true },
