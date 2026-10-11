@@ -168,11 +168,65 @@ const FEATURED_BADGES = [
   },
 ];
 
+const BADGE_LINK =
+  "flex shrink-0 items-center justify-center rounded-[6px] opacity-80 transition-opacity duration-200 ease-out [@media(hover:hover)]:hover:opacity-100";
+/** One height for every badge, width from its own aspect ratio. */
+const BADGE_IMG = "block h-5 w-auto max-w-full object-contain sm:h-[22px]";
+
+/**
+ * The nine directory badges as plain list items. Each is the price of a free listing: the directory
+ * checks this page for a crawlable link back (and some for their own image), so the hrefs, rels and
+ * image URLs stay exactly as each directory issued them and the links carry no nofollow. Lazy, so
+ * they cost nothing above the fold. Embed codes are kept in marketing/badges/README.md.
+ */
+function BadgeItems({ itemClass }: { itemClass: string }) {
+  return (
+    <>
+      <li className={itemClass}>
+        {/*
+          AlternativeTo ships one badge per theme; both are self-hosted so this badge makes no
+          third-party request. 244x83 is the SVG's own size, so the space is reserved before paint.
+        */}
+        <TrackedLink
+          href={ALTERNATIVETO_URL}
+          placement="footer"
+          eventLabel="AlternativeTo"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={BADGE_LINK}
+        >
+          <img
+            src="/badges/alternativeto-light.svg"
+            alt="Helicon on AlternativeTo"
+            width={244}
+            height={83}
+            className={`theme-light-only ${BADGE_IMG}`}
+          />
+          <img
+            src="/badges/alternativeto-dark.svg"
+            alt="Helicon on AlternativeTo"
+            width={244}
+            height={83}
+            className={`theme-dark-only ${BADGE_IMG}`}
+          />
+        </TrackedLink>
+      </li>
+      {FEATURED_BADGES.map((b) => (
+        <li key={b.name} className={itemClass}>
+          <a href={b.href} target="_blank" rel="noopener" className={BADGE_LINK}>
+            <img src={b.src} alt={b.alt} width={b.width} height={b.height} loading="lazy" className={BADGE_IMG} />
+          </a>
+        </li>
+      ))}
+    </>
+  );
+}
+
 export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
   return (
     <footer>
-      <div className="grid gap-10 px-5 py-12 sm:px-8 md:grid-cols-[1fr_auto] lg:px-12">
-        <div className="max-w-[40ch]">
+      <div className="grid gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[1fr_auto] lg:px-12">
+        <div>
           <div className="flex items-center gap-2.5">
             <Logo size={26} />
             <span className="font-headline text-[15px] font-semibold text-fg sm:text-[17px]">Helicon</span>
@@ -181,10 +235,10 @@ export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
             The long form of this notice lives in the FAQ ("Is this official?") and in the README.
             Two lines here: unaffiliated, licensed, and whose trademark the name is.
           */}
-          <p className="mt-4 text-[14px] leading-relaxed text-subtle">
+          <p className="mt-4 max-w-[40ch] text-[14px] leading-relaxed text-subtle">
             Unofficial, MIT licensed, not affiliated with Meta. &ldquo;Muse Code&rdquo; is Meta&apos;s trademark.
           </p>
-          <p className="mt-3 text-[14px] leading-relaxed text-subtle">
+          <p className="mt-3 max-w-[40ch] text-[14px] leading-relaxed text-subtle">
             Made with{" "}
             <Heart aria-label="care" weight="fill" className="inline size-3.5 align-[-2px] text-del-fg" /> by{" "}
             <a
@@ -198,55 +252,13 @@ export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
             and contributors.
           </p>
           {/*
-            AlternativeTo ships one badge per theme; both are self-hosted so the footer makes no
-            third-party request. The width and height attributes are the SVG's own 244x83 so the
-            aspect ratio reserves the right space before paint; w-[140px] is the rendered size.
+            Directory badges, tucked into the brand column so they add no height on wide screens. One
+            shared height, each badge at its own aspect ratio, flowing left to right and wrapping
+            wherever the column runs out.
           */}
-          <TrackedLink
-            href={ALTERNATIVETO_URL}
-            placement="footer"
-            eventLabel="AlternativeTo"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-6 block w-fit rounded-[12px] transition-opacity duration-200 ease-out [@media(hover:hover)]:hover:opacity-80"
-          >
-            <img
-              src="/badges/alternativeto-light.svg"
-              alt="Helicon on AlternativeTo"
-              width={244}
-              height={83}
-              className="theme-light-only block h-auto w-[120px]"
-            />
-            <img
-              src="/badges/alternativeto-dark.svg"
-              alt="Helicon on AlternativeTo"
-              width={244}
-              height={83}
-              className="theme-dark-only h-auto w-[120px]"
-            />
-          </TrackedLink>
-
-          {/*
-            Directory badges. Each is the price of a free listing: the directory checks this page for
-            a crawlable link back (and some for their own image), so the hrefs and image URLs stay
-            exactly as each directory issued them and the links carry no nofollow. Lazy, so they
-            cost nothing above the fold. Embed codes are kept in marketing/badges/README.md.
-          */}
-          <ul aria-label="Featured on" className="mt-4 flex flex-wrap items-center gap-2">
-            {FEATURED_BADGES.map((b) => (
-              <li key={b.name}>
-                <a
-                  href={b.href}
-                  target="_blank"
-                  rel="noopener"
-                  className="block rounded-[8px] opacity-80 transition-opacity duration-200 ease-out [@media(hover:hover)]:hover:opacity-100"
-                >
-                  <img src={b.src} alt={b.alt} width={b.width} height={b.height} loading="lazy" className="block h-8 w-auto" />
-                </a>
-              </li>
-            ))}
+          <ul aria-label="Featured on" className="mt-5 flex max-w-[440px] flex-wrap items-center gap-1.5 sm:gap-2">
+            <BadgeItems itemClass="flex" />
           </ul>
-
           <div className="mt-6 flex items-center gap-3 sm:hidden">
             <span className="text-[13px] font-semibold text-fg">Theme</span>
             <ThemeToggle />
