@@ -1,10 +1,20 @@
 # Changelog
 
+## 0.21.7
+
+### Fixed
+
+- **A signed-out first turn says to sign in** ([#123](https://github.com/HarjjotSinghh/helicon/pull/123)). Muse Code starts without credentials, so a new user who never signed in only found out when their first turn failed, with an error that pointed to `/login`, a command Helicon does not have. The turn now says "Sign in to Muse Code first", shows `muse login` with a copy button and a link to the sign-in guide, and keeps Retry so you can send the turn again once you are signed in.
+
+### Changed
+
+- **Safer editor extension** ([#122](https://github.com/HarjjotSinghh/helicon/pull/122)). The VS Code extension now also checks where a command message comes from, and drops any that do not come from Helicon's own panel, so a page the panel was navigated to cannot open files or read the clipboard.
+
 ## 0.21.6
 
 ### New
 
-- **Import OMP usage** ([#112](https://github.com/HarjjotSinghh/helicon/pull/112), thanks to Amin, [@aminamos](https://github.com/aminamos), closes [#110](https://github.com/HarjjotSinghh/helicon/issues/110)). OMP sessions that use the `muse-code` provider bill the same Muse plan, but never pass through Helicon, so the Usage page missed them. The Usage page now has an Import OMP button that reads your local OMP sessions (`~/.omp/agent/sessions`, or `OMP_AGENT_DIR`) and adds their calls. Importing again only adds new calls, and the imported sessions stay out of the sidebar.
+- **Import OMP usage** ([#112](https://github.com/HarjjotSinghh/helicon/pull/112), thanks to Amin, [@aminamos](https://github.com/aminamos), closes [#110](https://github.com/HarjjotSinghh/helicon/issues/110)). OMP sessions that use the `muse-code` provider bill the same Muse plan, but never pass through Helicon, so the Usage page missed them. The Usage page now has an Import OMP button that reads your local OMP sessions (`~/.omp/agent/sessions`, or `PI_CODING_AGENT_DIR`) and adds their calls. Importing again only adds new calls, and the imported sessions stay out of the sidebar.
 
 ### Fixed
 

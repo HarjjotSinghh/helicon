@@ -2,6 +2,11 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.21.7
+
+- A signed-out first turn says to sign in to Muse Code, shows `muse login` and keeps Retry (#123).
+- The panel drops command messages that do not come from Helicon's own frame (#122).
+
 ## 0.21.6
 
 - Import usage from OMP sessions that use the muse-code provider (#112).
