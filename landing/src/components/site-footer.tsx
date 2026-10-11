@@ -158,6 +158,14 @@ const FEATURED_BADGES = [
     width: 200,
     height: 50,
   },
+  {
+    name: "AI Agents Listing",
+    href: "https://aiagentslisting.com/helicon",
+    src: "https://aiagentslisting.com/helicon/badge.svg?theme=light",
+    alt: "Helicon badge",
+    width: 200,
+    height: 50,
+  },
 ];
 
 export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
