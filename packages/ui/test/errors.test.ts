@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { stuckThread } from "../src/model/errors.js";
+import { signedOut, stuckThread } from "../src/model/errors.js";
 
 describe("stuck threads", () => {
   it("knows an unreadable image poisons every later turn", () => {
@@ -38,5 +38,27 @@ describe("stuck threads", () => {
     assert.equal(stuckThread("The turn failed."), null);
     assert.equal(stuckThread(""), null);
     assert.equal(stuckThread(null), null);
+  });
+});
+
+describe("signed-out turns", () => {
+  it("knows the host's authRequired kind", () => {
+    // What muse serve 1.4.4 sends for a first turn with no credentials: the session itself starts fine.
+    assert.equal(signedOut({ kind: "authRequired", message: "not logged in: run /login to add an API key" }), true);
+  });
+
+  it("knows the wording when the host gives no kind", () => {
+    assert.equal(signedOut({ kind: "error", message: "not logged in: run /login to add an API key" }), true);
+    assert.equal(
+      signedOut({ message: "missing meta credentials: run `muse login` or set META_API_KEY, or save credentials at ~/.config/muse/auth.json" }),
+      true,
+    );
+  });
+
+  it("leaves other failures alone", () => {
+    assert.equal(signedOut({ kind: "error", message: "API error 500: upstream timed out" }), false);
+    assert.equal(signedOut({ kind: "error", message: "the login page returned 500" }), false);
+    assert.equal(signedOut(null), false);
+    assert.equal(signedOut(undefined), false);
   });
 });

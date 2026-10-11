@@ -18,7 +18,8 @@ import {
 } from "../../model/format.js";
 import { streamingSpeed, turnCosts, turnSpeeds, type TurnCost, type TurnSpeed } from "../../model/usage.js";
 import { formatCost } from "../../model/pricing.js";
-import { stuckThread } from "../../model/errors.js";
+import { signedOut, stuckThread } from "../../model/errors.js";
+import { HelpLink, MUSE_HELP_URL } from "../home/Home.js";
 import type { ThreadState } from "../../model/store.js";
 import type { AttachmentView, MspItem, OutgoingAttachment, ShellRun, UserInputAnswer } from "../../types.js";
 import { CodeBlock, FileLinksContext, type FileLinks } from "../ui/Markdown.js";
@@ -313,6 +314,7 @@ const TurnBlock = memo(
         ) : failed ? (
           <TurnError
             message={info?.error?.message ?? "The turn failed."}
+            kind={info?.error?.kind ?? null}
             retryable={info?.error?.retryable ?? true}
             prompt={props.isLast && !props.readOnly ? (turn.prompt?.displayText ?? turn.prompt?.text ?? null) : null}
             sessionId={props.sessionId}
@@ -690,6 +692,8 @@ function PendingPrompt(props: { echo: LocalEcho }) {
 
 function TurnError(props: {
   message: string;
+  /** The host's error kind, e.g. `authRequired`; null when the host gave none. */
+  kind: string | null;
   retryable: boolean;
   prompt: string | null;
   sessionId: string;
@@ -702,6 +706,8 @@ function TurnError(props: {
   const hadImages = props.files.some((file) => file.kind === "image");
   // Some failures are about the thread, not the turn: retrying sends the same history and fails the same way.
   const stuck = stuckThread(props.message, { ownImages: hadImages });
+  // Muse reports signing out as not retryable, but signing in is exactly what makes the same prompt work.
+  const login = !stuck && signedOut({ kind: props.kind, message: props.message });
   /**
    * Sends the prompt again with the same files: their bytes live on the server, so they are read back
    * rather than left out, which would quietly ask the model a different question. Nothing goes at all
@@ -731,9 +737,28 @@ function TurnError(props: {
     <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-3.5 py-3" role="alert">
       <WarningCircleIcon size={16} className="mt-0.5 shrink-0 text-danger" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-fg">{stuck ? "This thread cannot go on as it is" : "This turn failed"}</p>
-        <p className="mt-0.5 text-sm break-words text-muted">{stuck ? stuck.message : props.message}</p>
-        {stuck ? <p className="mt-1 text-2xs break-words text-subtle">{props.message}</p> : null}
+        <p className="text-sm font-medium text-fg">
+          {stuck ? "This thread cannot go on as it is" : login ? "Sign in to Muse Code first" : "This turn failed"}
+        </p>
+        <p className="mt-0.5 text-sm break-words text-muted">
+          {stuck
+            ? stuck.message
+            : login
+              ? "The muse CLI this project runs on is not signed in. Run this in a terminal (on the remote machine for an SSH project) and sign in with an account that has a Muse Code plan, then retry. Still signed out after that? Quit and reopen Helicon."
+              : props.message}
+        </p>
+        {login ? (
+          <div className="mt-2 flex items-center gap-2 rounded-lg bg-sunken py-1 pr-1 pl-3 font-mono text-xs text-fg shadow-[0_0_0_1px_var(--border)]">
+            <span className="min-w-0 flex-1 truncate">muse login</span>
+            <CopyButton text="muse login" label="Copy command" />
+          </div>
+        ) : null}
+        {stuck || login ? <p className="mt-1 text-2xs break-words text-subtle">{props.message}</p> : null}
+        {login ? (
+          <p className="mt-1.5">
+            <HelpLink href={MUSE_HELP_URL}>Sign-in help</HelpLink>
+          </p>
+        ) : null}
       </div>
       {stuck && stuck.remedy !== "none" && !props.readOnly ? (
         <Tip
@@ -783,8 +808,8 @@ function TurnError(props: {
             <ArrowCounterClockwiseIcon size={13} /> Compact the thread
           </Button>
         </Tip>
-      ) : props.prompt && props.retryable ? (
-        <Tip label="Send the same prompt again">
+      ) : props.prompt && (props.retryable || login) ? (
+        <Tip label={login ? "Send the same prompt again once you have signed in" : "Send the same prompt again"}>
           <Button
             size="sm"
             variant="secondary"
