@@ -168,6 +168,13 @@ const FEATURED_BADGES = [
   },
 ];
 
+/** One cell per badge: equal width in the grid, the badge centred in it. */
+const BADGE_CELL = "flex min-w-0 items-center justify-center";
+const BADGE_LINK =
+  "flex max-w-full items-center justify-center rounded-[8px] opacity-80 transition-opacity duration-200 ease-out [@media(hover:hover)]:hover:opacity-100";
+/** One height for every badge, width from its own aspect ratio. */
+const BADGE_IMG = "block h-7 w-auto max-w-full object-contain sm:h-9 xl:h-7";
+
 export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
   return (
     <footer>
@@ -197,56 +204,6 @@ export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
             </a>{" "}
             and contributors.
           </p>
-          {/*
-            AlternativeTo ships one badge per theme; both are self-hosted so the footer makes no
-            third-party request. The width and height attributes are the SVG's own 244x83 so the
-            aspect ratio reserves the right space before paint; w-[140px] is the rendered size.
-          */}
-          <TrackedLink
-            href={ALTERNATIVETO_URL}
-            placement="footer"
-            eventLabel="AlternativeTo"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-6 block w-fit rounded-[12px] transition-opacity duration-200 ease-out [@media(hover:hover)]:hover:opacity-80"
-          >
-            <img
-              src="/badges/alternativeto-light.svg"
-              alt="Helicon on AlternativeTo"
-              width={244}
-              height={83}
-              className="theme-light-only block h-auto w-[120px]"
-            />
-            <img
-              src="/badges/alternativeto-dark.svg"
-              alt="Helicon on AlternativeTo"
-              width={244}
-              height={83}
-              className="theme-dark-only h-auto w-[120px]"
-            />
-          </TrackedLink>
-
-          {/*
-            Directory badges. Each is the price of a free listing: the directory checks this page for
-            a crawlable link back (and some for their own image), so the hrefs and image URLs stay
-            exactly as each directory issued them and the links carry no nofollow. Lazy, so they
-            cost nothing above the fold. Embed codes are kept in marketing/badges/README.md.
-          */}
-          <ul aria-label="Featured on" className="mt-4 flex flex-wrap items-center gap-2">
-            {FEATURED_BADGES.map((b) => (
-              <li key={b.name}>
-                <a
-                  href={b.href}
-                  target="_blank"
-                  rel="noopener"
-                  className="block rounded-[8px] opacity-80 transition-opacity duration-200 ease-out [@media(hover:hover)]:hover:opacity-100"
-                >
-                  <img src={b.src} alt={b.alt} width={b.width} height={b.height} loading="lazy" className="block h-8 w-auto" />
-                </a>
-              </li>
-            ))}
-          </ul>
-
           <div className="mt-6 flex items-center gap-3 sm:hidden">
             <span className="text-[13px] font-semibold text-fg">Theme</span>
             <ThemeToggle />
@@ -282,6 +239,65 @@ export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
               </ul>
             </nav>
           ))}
+        </div>
+      </div>
+
+      {/*
+        Featured on. Each badge is the price of a free listing: the directory checks this page for a
+        crawlable link back (and some for their own image), so the hrefs, rels and image URLs stay
+        exactly as each directory issued them and the links carry no nofollow. Lazy, so they cost
+        nothing above the fold. Embed codes are kept in marketing/badges/README.md.
+
+        Nine badges of different shapes, so the layout gives them equal cells and one height: a 3x3
+        grid below xl, one edge-to-edge row from xl up. max-w-full plus object-contain lets a wide
+        badge shrink inside its cell on a phone instead of overflowing it; the art is never cropped.
+      */}
+      <div className="px-5 pb-12 sm:px-8 lg:px-12">
+        <div className="border-t border-line pt-8">
+          <h2 id="featured-on" className="text-center text-[13px] font-semibold text-subtle">
+            Featured on
+          </h2>
+          <ul
+            aria-labelledby="featured-on"
+            className="mx-auto mt-5 grid max-w-[720px] grid-cols-3 gap-x-3 gap-y-3 xl:flex xl:max-w-none xl:items-center xl:justify-between"
+          >
+            <li className={BADGE_CELL}>
+              {/*
+                AlternativeTo ships one badge per theme; both are self-hosted so this badge makes no
+                third-party request. 244x83 is the SVG's own size, so the space is reserved before paint.
+              */}
+              <TrackedLink
+                href={ALTERNATIVETO_URL}
+                placement="footer"
+                eventLabel="AlternativeTo"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={BADGE_LINK}
+              >
+                <img
+                  src="/badges/alternativeto-light.svg"
+                  alt="Helicon on AlternativeTo"
+                  width={244}
+                  height={83}
+                  className={`theme-light-only ${BADGE_IMG}`}
+                />
+                <img
+                  src="/badges/alternativeto-dark.svg"
+                  alt="Helicon on AlternativeTo"
+                  width={244}
+                  height={83}
+                  className={`theme-dark-only ${BADGE_IMG}`}
+                />
+              </TrackedLink>
+            </li>
+            {FEATURED_BADGES.map((b) => (
+              <li key={b.name} className={BADGE_CELL}>
+                <a href={b.href} target="_blank" rel="noopener" className={BADGE_LINK}>
+                  <img src={b.src} alt={b.alt} width={b.width} height={b.height} loading="lazy" className={BADGE_IMG} />
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
