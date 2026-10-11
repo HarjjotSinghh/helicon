@@ -3,8 +3,12 @@
 import posthog from "posthog-js";
 import { classifyCta } from "./cta-events";
 
-export function trackEvent(event: string, properties?: Record<string, unknown>) {
-  posthog.capture(event, properties);
+export function trackEvent(
+  event: string,
+  properties?: Record<string, unknown>,
+  options?: { beacon?: boolean },
+) {
+  posthog.capture(event, properties, options?.beacon ? { transport: "sendBeacon" } : undefined);
 }
 
 export function trackHref(
