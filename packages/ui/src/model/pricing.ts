@@ -20,6 +20,7 @@ const PRICES: Record<string, TokenPrice> = {
   "muse-spark-1.3": { input: 1.25, output: 4.25, cached: 0.15, currency: USD },
   "muse-spark-1.2-contributor": { input: 0.1, output: 0.2, cached: 0.002, currency: USD },
   "muse-spark-1.3-contributor": { input: 0.1, output: 0.2, cached: 0.002, currency: USD },
+  "muse-wonder-1.0": { input: 4, output: 20, cached: 0.2, currency: USD },
 };
 
 /** The published price for a model id, or null when none is known. Unknown minor versions fall back by family. */
@@ -30,6 +31,10 @@ export function listedPrice(modelId: string | null): TokenPrice | null {
   const exact = PRICES[modelId];
   if (exact) {
     return exact;
+  }
+  // Muse Wonder Full is subscription-only and Meta publishes no per-token rate for it; never price it as standard Wonder.
+  if (/^muse-wonder-full-/i.test(modelId)) {
+    return null;
   }
   const contributor = /contributor/i.test(modelId);
   const family = Object.keys(PRICES).find(
