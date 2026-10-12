@@ -2,6 +2,10 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.21.9
+
+- New threads run on the model you picked, Muse Wonder included (#134).
+
 ## 0.21.8
 
 - Muse Wonder (`muse-wonder-1.0` and its contributor tier) is in the model picker (#131).

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.9
+
+### Fixed
+
+- **New threads run on the model you picked** ([#134](https://github.com/HarjjotSinghh/helicon/pull/134)). A new thread ran on Muse's own default model whatever the picker showed, Muse Wonder included. Muse 1.4.6 takes a model when a session starts but does not use it, so Helicon now sets the model on the new session right after starting it. A new thread with no saved choice starts on the model the picker shows, which is the default in Muse's model list.
+
 ## 0.21.8
 
 ### New

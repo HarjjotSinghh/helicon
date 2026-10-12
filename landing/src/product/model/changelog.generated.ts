@@ -9,6 +9,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    "version": "0.21.9",
+    "body": "### Fixed\n\n- **New threads run on the model you picked** ([#134](https://github.com/HarjjotSinghh/helicon/pull/134)). A new thread ran on Muse's own default model whatever the picker showed, Muse Wonder included. Muse 1.4.6 takes a model when a session starts but does not use it, so Helicon now sets the model on the new session right after starting it. A new thread with no saved choice starts on the model the picker shows, which is the default in Muse's model list."
+  },
+  {
     "version": "0.21.8",
     "body": "### New\n\n- **Muse Wonder in the model picker** ([#131](https://github.com/HarjjotSinghh/helicon/pull/131)). Meta released Muse Wonder on 12 October. The Meta API already serves `muse-wonder-1.0` and its contributor tier, but Muse's model list does not include them yet, and Helicon's picker only showed what that list returned. The picker now offers both at the top, and a thread switched to Muse Wonder runs on it. Once Muse lists Wonder itself, its own entry replaces these. Muse Wonder Full is not in the picker yet, because its model id could not be checked. No price is shown for Wonder until Meta publishes one.\n- **What's new after an update, in every host** ([#125](https://github.com/HarjjotSinghh/helicon/pull/125)). The notes used to appear only in the desktop app, as a full modal. Now a small card at the top of the toasts lists a few headlines from the built-in changelog, with a link to the full notes, in the desktop app, the browser and the editor extension. Nothing is sent anywhere."
   },
