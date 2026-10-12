@@ -3,22 +3,22 @@
 ## 1. Lane and goal
 - Tag HEL-REVOICE. Product: the Harjot Codes channel Shorts (YouTube "Harjot Codes", IG @harjotcodes). Repo /Users/harjjotsinghh/Documents/Projects/helicon. All video work lives in /Users/harjjotsinghh/Documents/Projects/helicon/marketing/videos/ (gitignored).
 - Lane goal: replace the cloned-voice audio on 8 Shorts with Harjot's own recorded voice, re-render them and swap the uploads. That is done. What's left is post-launch housekeeping: pinned comments, the playlist question and one cleanup.
-- Reports go to COS, thread mcp:26708dfc-e479-4ebe-99e5-b4ebb3a322d5 (since 12 Oct; old 7cf0c3b5 rotated out). HEL-REVOICE r2 runs in thread mcp:4df7f024-8470-4757-bda0-6691e9dcdae9; the duplicate mcp:ee7dac56 was stopped. HEL main ("HEL · Launch marketing (fresh)", thread mcp:2d5dc841-32db-46c2-a99e-9f8c480b5f8d) owns the Muse PR and short-usage thumbnails.
+- Reports go to COS, thread mcp:26708dfc-e479-4ebe-99e5-b4ebb3a322d5 (since 12 Oct; old 7cf0c3b5 rotated out). HEL-REVOICE r2 runs in thread mcp:4df7f024-8470-4757-bda0-6691e9dcdae9; the duplicate mcp:ee7dac56 was stopped. HEL-CMO (main Helicon lane, thread mcp:5292a95b-1e3c-4afc-a4ee-0b7e78ff3eee since 12 Oct; old mcp:2d5dc841 and mcp:dba49ead are retired) owns the Muse PR and short-usage thumbnails.
 
 ## 2. State right now
 - Done:
   - All 8 videos are re-voiced with his own recording (declipped, then isolated, cut by Scribe word timings, breaths cut). The hc-* videos run at 1.2x speed, with tight gaps, an EQ-matched outro and Lucide SVG icons in place of symbol glyphs.
   - 7 uploads are scheduled (table in section 3). short-approvals is live with the old voice and was deliberately left alone.
   - Pair-1 custom thumbnails are saved on hc-01, hc-05, hc-02, hc-03 and hc-04. hc-05's title was changed.
-- Running: no background jobs, timers or reminders. No browser is open. HEL main may be using the Helicon browser profile for the Muse PR thumbnail redo, so check with HEL main before any browser work.
+- Running: no background jobs, timers or reminders. No browser is open. HEL-CMO may be using the Helicon browser profile for the Muse PR thumbnail redo, so check with HEL-CMO before any browser work.
 - Half-finished: nothing.
 
 ## 3. Scheduled Shorts (all IST, Studio channel account mynameisthis696969@gmail.com)
 | Video | YouTube id | IG reel id | Slot | AI label | Thumbnail |
 |---|---|---|---|---|---|
-| short-monitors (Muse PR) | lwVUf69ldsM | 3726326604187737 | Mon 12 Oct, 7:30 PM | No | HEL main redoing (ab-thumb-1 uploaded for now) |
+| short-monitors (Muse PR) | lwVUf69ldsM | 3726326604187737 | Mon 12 Oct, 7:30 PM | No | HEL-CMO redoing (ab-thumb-1 uploaded for now) |
 | hc-01-name | LM3-Ga_XAfQ | 1611262737107652 | Mon 12 Oct, 10:00 PM | No. Harjot confirmed on 12 Oct ("dont turn label on for it"), despite the clone clips. Never turn it on. | pair 1 saved |
-| short-usage | 5T5UJpVKNsI | 1691588212533862 | Tue 13 Oct, 7:30 PM | No | HEL main redoing |
+| short-usage | 5T5UJpVKNsI | 1691588212533862 | Tue 13 Oct, 7:30 PM | No | HEL-CMO redoing |
 | hc-05-three-lines | QLKKrPsPSDw | 1112278161451542 | Wed 14 Oct, 9:00 PM | No | pair 1 saved; title "Agent stuck retrying? Paste these 3 lines." |
 | hc-02-calls | 0yMcpATZ6Hk | not shown by Business Suite | Thu 15 Oct, 7:30 PM | No | pair 1 saved; Helicon playlist |
 | hc-03-five-releases | 8JLHF1Pq18M | not shown | Fri 16 Oct, 7:30 PM | No | pair 1 saved; no playlist |
@@ -34,13 +34,13 @@
    - hc-02 (after 7:30 PM, 15 Oct): "Has a dashboard ever missed a bill on you? Yes or no."
    - hc-03 (after 7:30 PM, 16 Oct): "Which one would you have patched first, 3 or 5?"
    - hc-04 (after 7:30 PM, 17 Oct): "Heads up: leave a session idle for over an hour and your next message re-reads everything too (the cache expires; 5 min on API or usage credits). How big is your CLAUDE.md?"
-   - short-monitors and short-usage belong to HEL main.
+   - short-monitors and short-usage belong to HEL-CMO.
 2. **Playlist question for Harjot.** The UPLOAD copy asked for "Ship Log" (hc-03) and "Agent Desk" (hc-04). Neither playlist exists, so none was created. Ask whether to create them and add those videos. Existing playlists: Helicon, Product Demos, My beats, VFX Work, 8D Music, Detoxify.
 3. Harjot never answered about trial reels. I advised keeping the scheduled reels normal and using trials only as a hook test (1-2 a week, posted by hand from the app). Ask him whether the "Trial" toggle shows in his app.
 4. Optional: add "Narration: my own voice. The failed name clips are my AI voice clone." to hc-01's YouTube description. It's only in the IG caption now. Needs Harjot's go.
 
 ## 5. Next steps
-1. At or after each publish time, send COS the pinned comment ask for that video. After the go, post and pin it via Studio > Comments, as a Sonnet browser subagent on the Helicon profile, after checking with HEL main.
+1. At or after each publish time, send COS the pinned comment ask for that video. After the go, post and pin it via Studio > Comments, as a Sonnet browser subagent on the Helicon profile, after checking with HEL-CMO.
 2. Put the playlist question (ask 2) and the trial-reel question (ask 3) in one numbered message to COS.
 3. After hc-01 is public, confirm YouTube shows the custom thumbnail. A read-only check is enough.
 
@@ -73,7 +73,7 @@
 - Humanizer on all prose. Times in 12-hour IST.
 - Every YouTube upload gets 3 title and thumbnail pairs. Shorts have no Test & compare in Studio, so upload pair 1 as the custom thumbnail and keep pairs 2 and 3 as files.
 - Upload, delete, reschedule, thumbnail, comment and title changes each need Harjot's explicit go per video. Agents never approve publisher posts.
-- Browser work goes in a Sonnet subagent, one browser agent at a time on the Helicon profile. Check with HEL main first.
+- Browser work goes in a Sonnet subagent, one browser agent at a time on the Helicon profile. Check with HEL-CMO first.
 - Memory: /Users/harjjotsinghh/.claude-swap-backup/sessions/2-harjot_whiskeylibrary.com/projects/-Users-harjjotsinghh-Documents-Projects-helicon/memory/ (manual-voiceover-rule, hc-outro-rule, svg-icons-only, humanizer-rule, youtube-ab-tests). Lane brief: /Users/harjjotsinghh/Documents/Projects/helicon/handover/brief.md
 
 ## 8. Gotchas
