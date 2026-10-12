@@ -23,6 +23,7 @@
 | hc-02-calls | 0yMcpATZ6Hk | not shown by Business Suite | Thu 15 Oct, 7:30 PM | No | pair 1 saved; Helicon playlist |
 | hc-03-five-releases | 8JLHF1Pq18M | not shown | Fri 16 Oct, 7:30 PM | No | pair 1 saved; no playlist |
 | hc-04-claude-limit | r-tHXqBvIR0 | not shown | Sat 17 Oct, 7:30 PM | No | pair 1 saved; no playlist |
+- HQ cards (ws5): hc-01 tmv58ttmlc1gt, hc-05 tmv58tuorwfmd, hc-02 tmv58tvv9nxuk, hc-03 tmv58tx4qfd3y, hc-04 tmv58ty6at73b. Status and time in the title. Move each to done once it is public, with live YouTube and IG URLs in links.
 - The publisher (PUB) has track_external records for all 14 posts, with the v3 file paths, refs = video folder names.
 - short-approvals is live with its old version. The v3 file is kept for a possible repost: /Users/harjjotsinghh/Documents/Projects/helicon/marketing/videos/short-approvals/revoice-v3/short-approvals-v3.mp4
 
