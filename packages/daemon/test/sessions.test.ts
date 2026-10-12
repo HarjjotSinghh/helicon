@@ -103,11 +103,15 @@ describe("SessionManager", () => {
       modelId: "muse-spark-1.3",
     });
     assert.equal(started.sessionId, "abc");
-    assert.deepEqual(lastCall(conn).params, {
+    assert.deepEqual(conn.calls.at(-2)?.params, {
       workspaceRoot: "/work/proj",
       approvalMode: "onRequest",
-      modelId: "muse-spark-1.3",
     });
+    // Muse ignores modelId on session/start, so the model is set with session/setModel instead.
+    assert.deepEqual(lastCall(conn), { method: "session/setModel", params: { sessionId: "abc", model: { modelId: "muse-spark-1.3" } } });
+    const before = conn.calls.length;
+    await manager.startSession({ workspaceRoot: "/work/proj" });
+    assert.deepEqual(conn.calls.slice(before).map((c) => c.method), ["session/start"]);
     conn.reply("session/start", { session: {} });
     await assert.rejects(() => manager.startSession({}), /sessionId/);
   });
