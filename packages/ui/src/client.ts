@@ -259,7 +259,40 @@ export function parseModelList(value: unknown): ModelOption[] {
       contributor: /contributor/i.test(modelId) || /product improvement/i.test(description ?? ""),
     });
   }
-  return options;
+  return withUnlistedModels(options);
+}
+
+const CONTRIBUTOR_NOTE = "Your content, including inter-session messages, may be used for product improvement.";
+
+/**
+ * Models Meta serves that Muse's catalog does not list yet. Muse Wonder (12 Oct 2026) answers on the Meta API and
+ * runs through `muse serve` when a session picks it, but `model/list` on Muse 1.4.6 still returns only Spark rows.
+ * Each id here was checked against the live API. A catalog row with the same id always wins, so these drop out
+ * on their own once Muse lists them.
+ */
+const UNLISTED_MODELS: { modelId: string; description: string | null }[] = [
+  { modelId: "muse-wonder-1.0", description: null },
+  { modelId: "muse-wonder-1.0-contributor", description: CONTRIBUTOR_NOTE },
+];
+
+/** Put the unlisted Meta models first, but only when the catalog is Meta's own (it lists Muse Spark). */
+function withUnlistedModels(options: ModelOption[]): ModelOption[] {
+  if (!options.some((m) => m.modelId.startsWith("muse-spark-"))) {
+    return options;
+  }
+  const listed = new Set(options.map((m) => m.modelId));
+  const extra: ModelOption[] = UNLISTED_MODELS.filter((m) => !listed.has(m.modelId)).map((m) => ({
+    modelId: m.modelId,
+    displayLabel: m.modelId,
+    description: m.description,
+    isDefault: false,
+    isActive: false,
+    contextLimit: null,
+    outputLimit: null,
+    cost: listedPrice(m.modelId),
+    contributor: /contributor/i.test(m.modelId),
+  }));
+  return [...extra, ...options];
 }
 
 /** Catalog prices arrive as decimal strings per million tokens. */

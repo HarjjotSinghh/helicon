@@ -311,11 +311,32 @@ describe("approvals and models", () => {
 
   it("parses the real model catalog and flags contributor tiers", () => {
     const models = parseModelList(modelList);
-    assert.equal(models.length, 4);
+    assert.equal(models.length, 6);
     const contributor = models.find((m) => m.modelId === "muse-spark-1.3-contributor");
     assert.equal(contributor?.contributor, true);
     assert.equal(contributor?.isDefault, true);
     assert.equal(models.find((m) => m.modelId === "muse-spark-1.3")?.contributor, false);
     assert.equal(modelDisplayName("muse-spark-1.3-contributor"), "muse-spark-1.3");
+  });
+
+  it("adds Muse Wonder ahead of the catalog until Muse lists it", () => {
+    const models = parseModelList(modelList);
+    assert.deepEqual(
+      models.slice(0, 2).map((m) => [m.modelId, m.contributor, m.isDefault, m.cost]),
+      [
+        ["muse-wonder-1.0", false, false, null],
+        ["muse-wonder-1.0-contributor", true, false, null],
+      ],
+    );
+    const listed = parseModelList({
+      models: [
+        { modelId: "muse-spark-1.3" },
+        { modelId: "muse-wonder-1.0", displayLabel: "Muse Wonder", contextLimit: 1000 },
+      ],
+    });
+    assert.deepEqual(listed.map((m) => m.modelId), ["muse-wonder-1.0-contributor", "muse-spark-1.3", "muse-wonder-1.0"]);
+    assert.equal(listed.find((m) => m.modelId === "muse-wonder-1.0")?.displayLabel, "Muse Wonder");
+    assert.deepEqual(parseModelList({ models: [{ modelId: "local-llama" }] }).map((m) => m.modelId), ["local-llama"]);
+    assert.deepEqual(parseModelList({ models: [] }), []);
   });
 });
