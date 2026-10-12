@@ -252,11 +252,14 @@ export class SessionManager {
     if (options.approvalMode !== undefined) {
       params["approvalMode"] = options.approvalMode;
     }
-    if (options.modelId !== undefined) {
-      params["modelId"] = options.modelId;
-    }
     const result = await this.connection.command("session/start", params);
-    return { sessionId: sessionIdOf(result), raw: result };
+    const sessionId = sessionIdOf(result);
+    // Muse 1.4.6 records a `modelId` passed to session/start but still runs the session on its own default, and a
+    // later session/setModel to that same id is then a no-op. So the model is only ever set with session/setModel.
+    if (options.modelId !== undefined) {
+      await this.connection.command("session/setModel", { sessionId, model: { modelId: options.modelId } });
+    }
+    return { sessionId, raw: result };
   }
 
   async resumeSession(sessionId: string, excludeItems = false): Promise<unknown> {
