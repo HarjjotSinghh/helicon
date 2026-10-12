@@ -3,7 +3,7 @@
 ## 1. Lane and goal
 - Tag HEL-REVOICE. Product: the Harjot Codes channel Shorts (YouTube "Harjot Codes", IG @harjotcodes). Repo /Users/harjjotsinghh/Documents/Projects/helicon. All video work lives in /Users/harjjotsinghh/Documents/Projects/helicon/marketing/videos/ (gitignored).
 - Lane goal: replace the cloned-voice audio on 8 Shorts with Harjot's own recorded voice, re-render them and swap the uploads. That is done. What's left is post-launch housekeeping: pinned comments, the playlist question and one cleanup.
-- Reports go to COS, thread 7cf0c3b5-9b9b-4a44-b8bf-2d760db4eb5f. HEL main ("HEL · Launch marketing (fresh)", thread mcp:2d5dc841-32db-46c2-a99e-9f8c480b5f8d) owns the Muse PR and short-usage thumbnails.
+- Reports go to COS, thread mcp:26708dfc-e479-4ebe-99e5-b4ebb3a322d5 (since 12 Oct; old 7cf0c3b5 rotated out). HEL-REVOICE r2 runs in thread mcp:4df7f024-8470-4757-bda0-6691e9dcdae9; the duplicate mcp:ee7dac56 was stopped. HEL main ("HEL · Launch marketing (fresh)", thread mcp:2d5dc841-32db-46c2-a99e-9f8c480b5f8d) owns the Muse PR and short-usage thumbnails.
 
 ## 2. State right now
 - Done:
@@ -28,7 +28,7 @@
 
 ## 4. Open asks
 1. **Pinned comments, after each Short is public. Each one needs Harjot's go.**
-   - hc-01 (after 10:00 PM, 12 Oct): "Worst take: 01 "Harjote" or 04 "her-Jote"?" (from hc-01-name/UPLOAD.md). The take names may not match the new cut, so check them first.
+   - hc-01 (after 10:00 PM, 12 Oct): "Worst take: 01 "Harjote" or 04 "Hur-jote"?" (checked against frames of the final cut on 12 Oct; sent to COS for Harjot's go). One-off scheduled task at 10:07 PM IST checks hc-01 is public and the thumbnail.
    - hc-05 (after 9:00 PM, 14 Oct): "What's the one line in your CLAUDE.md you'd never delete?"
    - hc-02 (after 7:30 PM, 15 Oct): "Has a dashboard ever missed a bill on you? Yes or no."
    - hc-03 (after 7:30 PM, 16 Oct): "Which one would you have patched first, 3 or 5?"
