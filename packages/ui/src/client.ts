@@ -263,16 +263,19 @@ export function parseModelList(value: unknown): ModelOption[] {
 }
 
 const CONTRIBUTOR_NOTE = "Your content, including inter-session messages, may be used for product improvement.";
+const FULL_NOTE = "Muse Code subscription: Power Usage and Maximum Usage plans.";
 
 /**
  * Models Meta serves that Muse's catalog does not list yet. Muse Wonder (12 Oct 2026) answers on the Meta API and
  * runs through `muse serve` when a session picks it, but `model/list` on Muse 1.4.6 still returns only Spark rows.
- * Each id here was checked against the live API. A catalog row with the same id always wins, so these drop out
+ * The Wonder ids were checked against the live API. Muse Wonder Full's id is the one Meta's model page prints;
+ * Muse itself refuses it on plans without it. A catalog row with the same id always wins, so these drop out
  * on their own once Muse lists them.
  */
 const UNLISTED_MODELS: { modelId: string; description: string | null }[] = [
   { modelId: "muse-wonder-1.0", description: null },
   { modelId: "muse-wonder-1.0-contributor", description: CONTRIBUTOR_NOTE },
+  { modelId: "muse-wonder-full-1.0", description: FULL_NOTE },
 ];
 
 /** Put the unlisted Meta models first, but only when the catalog is Meta's own (it lists Muse Spark). */

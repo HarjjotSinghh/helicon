@@ -12,6 +12,15 @@ describe("pricing", () => {
     assert.equal(listedPrice(null), null);
   });
 
+  it("prices Muse Wonder at the published rate and leaves Wonder Full unpriced", () => {
+    assert.deepEqual(listedPrice("muse-wonder-1.0"), { input: 4, output: 20, cached: 0.2, currency: "USD" });
+    assert.equal(listedPrice("muse-wonder-9.9")?.input, 4, "an unlisted Wonder version falls back to its family");
+    assert.equal(listedPrice("muse-wonder-1.0-contributor"), null, "Meta publishes no Contributor rate for Muse Wonder");
+    assert.equal(listedPrice("muse-wonder-full-1.0"), null, "Muse Wonder Full is subscription-only, with no per-token rate");
+    assert.equal(listedPrice("muse-wonder-full-1.0-contributor"), null);
+    assert.equal(listedPrice("muse-wonder-full-9.9"), null);
+  });
+
   it("counts cached prompt tokens at the cached rate", () => {
     const price = listedPrice("muse-spark-1.3");
     assert.ok(price);
