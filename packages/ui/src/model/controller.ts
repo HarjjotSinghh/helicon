@@ -1151,7 +1151,10 @@ export class HeliconController {
     }
     this.setBusy("start", true);
     try {
-      const { defaultMode, defaultModelId } = this.state.prefs;
+      const { defaultMode } = this.state.prefs;
+      // The model the composer shows: the saved choice, else the one Muse's catalog marks as default. Passing it
+      // explicitly keeps the new thread on the model the user saw, not whatever Muse picks on its own.
+      const defaultModelId = this.state.prefs.defaultModelId ?? this.state.models.find((m) => m.isDefault)?.modelId ?? null;
       // YOLO owns every thread's posture while it is on, new or old: a stale default from before it
       // was armed must never seed a thread that asks when the rest of the app does not.
       const approvalMode: ApprovalMode = this.state.yoloSettings?.enabled === true ? "allowAll" : defaultMode;

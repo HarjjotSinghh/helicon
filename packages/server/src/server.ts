@@ -2489,7 +2489,8 @@ export class HeliconServer {
       id: started.sessionId,
       projectId: project.id,
       origin: "helicon",
-      modelId: raw ? str(raw["modelId"]) : null,
+      // session/start's reply names Muse's default; the daemon sets the requested model right after it.
+      modelId: modelId ?? (raw ? str(raw["modelId"]) : null),
       createdAt: normalizeIso(raw?.["createdAt"]),
       // The creating host's own flags, not the live switch: a flip's restart may still be closing the old host.
       sandboxDisabled: host.target.args.includes("--disable-sandbox"),
