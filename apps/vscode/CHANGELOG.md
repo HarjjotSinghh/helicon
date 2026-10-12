@@ -2,6 +2,11 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.21.8
+
+- Muse Wonder (`muse-wonder-1.0` and its contributor tier) is in the model picker (#131).
+- A small What's new card shows after an update, in the editor too (#125).
+
 ## 0.21.7
 
 - A signed-out first turn says to sign in to Muse Code, shows `muse login` and keeps Retry (#123).

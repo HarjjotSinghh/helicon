@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.21.8
+
+### New
+
+- **Muse Wonder in the model picker** ([#131](https://github.com/HarjjotSinghh/helicon/pull/131)). Meta released Muse Wonder on 12 October. The Meta API already serves `muse-wonder-1.0` and its contributor tier, but Muse's model list does not include them yet, and Helicon's picker only showed what that list returned. The picker now offers both at the top, and a thread switched to Muse Wonder runs on it. Once Muse lists Wonder itself, its own entry replaces these. Muse Wonder Full is not in the picker yet, because its model id could not be checked. No price is shown for Wonder until Meta publishes one.
+- **What's new after an update, in every host** ([#125](https://github.com/HarjjotSinghh/helicon/pull/125)). The notes used to appear only in the desktop app, as a full modal. Now a small card at the top of the toasts lists a few headlines from the built-in changelog, with a link to the full notes, in the desktop app, the browser and the editor extension. Nothing is sent anywhere.
+
 ## 0.21.7
 
 ### Fixed
