@@ -17,7 +17,7 @@
 | Video | YouTube id | IG reel id | Slot | AI label | Thumbnail |
 |---|---|---|---|---|---|
 | short-monitors (Muse PR) | lwVUf69ldsM | 3726326604187737 | Mon 12 Oct, 7:30 PM | No | HEL-CMO redoing (ab-thumb-1 uploaded for now) |
-| hc-01-name | LM3-Ga_XAfQ | 1611262737107652 | Mon 12 Oct, 10:00 PM | No. Harjot confirmed on 12 Oct ("dont turn label on for it"), despite the clone clips. Never turn it on. | pair 1 saved |
+| hc-01-name (LIVE, IG reel DeZqxALgZCX) | LM3-Ga_XAfQ | 1611262737107652 | Mon 12 Oct, 10:00 PM | No. Harjot confirmed on 12 Oct ("dont turn label on for it"), despite the clone clips. Never turn it on. | pair 1 saved |
 | short-usage | 5T5UJpVKNsI | 1691588212533862 | Tue 13 Oct, 7:30 PM | No | HEL-CMO redoing |
 | hc-05-three-lines | QLKKrPsPSDw | 1112278161451542 | Wed 14 Oct, 9:00 PM | No | pair 1 saved; title "Agent stuck retrying? Paste these 3 lines." |
 | hc-02-calls | 0yMcpATZ6Hk | not shown by Business Suite | Thu 15 Oct, 7:30 PM | No | pair 1 saved; Helicon playlist |
@@ -29,7 +29,7 @@
 
 ## 4. Open asks
 1. **Pinned comments, after each Short is public. Each one needs Harjot's go.**
-   - hc-01 (after 10:00 PM, 12 Oct): "Worst take: 01 "Harjote" or 04 "Hur-jote"?" (checked against frames of the final cut on 12 Oct). Harjot gave his go ("pin it") on 12 Oct. The one-off scheduled task at 10:07 PM IST checks that hc-01 is public, then posts and pins the comment and sends the link to COS.
+   - hc-01: DONE. Pinned 12 Oct around 10:15 PM IST as @harjotcodes: https://www.youtube.com/watch?v=LM3-Ga_XAfQ&lc=UgyAc6_1BRMrBxiFcuZ4AaABAg . Public on YouTube 10:02 PM, IG reel https://www.instagram.com/reel/DeZqxALgZCX/ at 10:01 PM. Label off, custom thumbnail set. The 10:07 PM task is disabled because it ran by hand. All 13-17 Oct slots checked on YouTube and IG: they match.
    - hc-05 (after 9:00 PM, 14 Oct): "What's the one line in your CLAUDE.md you'd never delete?"
    - hc-02 (after 7:30 PM, 15 Oct): "Has a dashboard ever missed a bill on you? Yes or no."
    - hc-03 (after 7:30 PM, 16 Oct): "Which one would you have patched first, 3 or 5?"
