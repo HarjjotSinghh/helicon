@@ -260,9 +260,9 @@ export function DemoVideo({
       {!started ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element -- a poster frame, sized by the video box */}
-          <img src={poster.light} alt="" aria-hidden="true" className="theme-light-only pointer-events-none absolute inset-0 size-full object-cover" />
+          <img src={poster.light} alt="" aria-hidden="true" loading="lazy" decoding="async" className="theme-light-only pointer-events-none absolute inset-0 size-full object-cover" />
           {/* eslint-disable-next-line @next/next/no-img-element -- a poster frame, sized by the video box */}
-          <img src={poster.dark} alt="" aria-hidden="true" className="theme-dark-only pointer-events-none absolute inset-0 size-full object-cover" />
+          <img src={poster.dark} alt="" aria-hidden="true" loading="lazy" decoding="async" className="theme-dark-only pointer-events-none absolute inset-0 size-full object-cover" />
         </>
       ) : null}
 
