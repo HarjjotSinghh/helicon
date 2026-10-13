@@ -1,4 +1,5 @@
 import { Info } from "@phosphor-icons/react/ssr";
+import Image from "next/image";
 import { Fragment } from "react";
 import type { Block, Step } from "@/lib/seo/types";
 import { CopyCommand } from "./copy-command";
@@ -172,6 +173,20 @@ function BlockView({ block }: { block: Block }) {
       );
     case "steps":
       return <Steps steps={block.steps} />;
+    case "image":
+      return (
+        <figure className="mt-6 max-w-[68ch]">
+          <Image
+            src={block.src}
+            alt={block.alt}
+            width={block.width}
+            height={block.height}
+            sizes="(min-width: 768px) 68ch, 100vw"
+            className="h-auto w-full rounded-xl shadow-[0_0_0_1px_var(--line)]"
+          />
+          {block.caption ? <figcaption className="mt-2 text-[13.5px] text-subtle">{block.caption}</figcaption> : null}
+        </figure>
+      );
     case "table":
       return (
         <figure className="mt-6">

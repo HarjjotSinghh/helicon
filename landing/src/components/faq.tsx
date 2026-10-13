@@ -39,6 +39,18 @@ export function Faq({ audience, intro }: { audience: Audience; intro: string }) 
             <GitHubLogo aria-hidden="true" />
             Ask on GitHub
           </TrackedLink>
+          <p className="mt-5 max-w-[34ch] text-[14.5px] leading-relaxed text-muted">
+            Comparing options?{" "}
+            <TrackedLink
+              href="/muse-code-gui"
+              placement="faq"
+              eventLabel="Muse Code GUI options"
+              className="font-medium text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg"
+            >
+              Every Muse Code GUI, compared
+            </TrackedLink>
+            .
+          </p>
         </div>
 
         </div>

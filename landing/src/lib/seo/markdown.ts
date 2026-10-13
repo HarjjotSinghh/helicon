@@ -32,6 +32,8 @@ function renderBlock(block: Block): string {
       return block.steps
         .map((step, i) => `${i + 1}. **${step.name}** ${step.text}${step.code ? "\n   ```sh\n   " + step.code + "\n   ```" : ""}`)
         .join("\n");
+    case "image":
+      return `![${block.alt}](https://helicon.sh${block.src})${block.caption ? `\n\n_${block.caption}_` : ""}`;
     case "table": {
       const head = `| ${block.head.join(" | ")} |`;
       const rule = `| ${block.head.map(() => "---").join(" | ")} |`;

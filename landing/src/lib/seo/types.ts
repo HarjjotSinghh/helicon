@@ -90,7 +90,8 @@ export type Block =
   | { kind: "note"; text: string }
   | { kind: "quote"; text: string; cite?: string }
   | { kind: "stats"; items: { value: string; label: string; source?: string }[] }
-  | { kind: "steps"; steps: Step[] };
+  | { kind: "steps"; steps: Step[] }
+  | { kind: "image"; src: string; alt: string; width: number; height: number; caption?: string };
 
 export type SeoPage = {
   /** Path under the origin, with no leading or trailing slash. "compare/cursor". */

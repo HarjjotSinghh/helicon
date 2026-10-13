@@ -31,6 +31,8 @@ function blockText(block: Block): string {
       return block.steps.map((s) => `${s.name} ${s.text}`).join(" ");
     case "stats":
       return block.items.map((s) => `${s.value} ${s.label}`).join(" ");
+    case "image":
+      return `${block.alt} ${block.caption ?? ""}`;
   }
 }
 

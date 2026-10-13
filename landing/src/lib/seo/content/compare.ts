@@ -1146,6 +1146,7 @@ function toPage(entry: Entry): SeoPage {
       { kind: "h2", text: "Can you use both?" },
       { kind: "p", text: entry.together },
     ],
+    related: ["muse-code-gui"],
     faqs: entry.faqs,
   };
 }

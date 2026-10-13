@@ -119,7 +119,7 @@ export const INSTALL_PAGES: SeoPage[] = [
         a: "With the muse CLI, from your own muse login, in whichever environment you installed it. Helicon never stores or handles them.",
       },
     ],
-    related: ["install/wsl2", "guides/muse-code-windows-without-wsl", "compare/muse-code-terminal", "use-cases/windows-developers"],
+    related: ["muse-code-gui", "install/wsl2", "guides/muse-code-windows-without-wsl", "compare/muse-code-terminal", "use-cases/windows-developers"],
   },
   {
     slug: "install/macos",
@@ -220,7 +220,7 @@ export const INSTALL_PAGES: SeoPage[] = [
         a: "The published artifacts are the DMG and the Windows installer on GitHub Releases. Running from source also works and needs Node 22 or newer.",
       },
     ],
-    related: ["install/linux", "compare/claude-code-desktop", "features/session-history", "use-cases/macos-power-users"],
+    related: ["muse-code-gui", "install/linux", "compare/claude-code-desktop", "features/session-history", "use-cases/macos-power-users"],
   },
   {
     slug: "install/linux",

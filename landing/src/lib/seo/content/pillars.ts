@@ -13,8 +13,8 @@ export const PILLAR_PAGES: SeoPage[] = [
     icon: "squares",
     section: "page",
     label: "Muse Code GUI",
-    title: "Muse Code GUI: every graphical interface, compared",
-    h1: "Muse Code GUI options",
+    title: "Muse Code GUI: Helicon and every other option",
+    h1: "Muse Code GUI: every graphical interface, compared",
     description:
       "Yes, Muse Code has graphical interfaces. A standalone desktop and web app, VS Code extensions, ACP editor bridges and other open-source wrappers, compared honestly.",
     answer:
@@ -42,6 +42,30 @@ export const PILLAR_PAGES: SeoPage[] = [
       ],
     },
     blocks: [
+      {
+        kind: "image",
+        src: "/assets/thread.png",
+        alt: "Helicon, a Muse Code GUI, showing a thread with an inline diff next to the session list",
+        width: 1440,
+        height: 900,
+        caption: "Helicon, one Muse Code GUI: the session list, a live thread and its diff in one window.",
+      },
+      { kind: "h2", text: "Install a Muse Code GUI in three steps" },
+      {
+        kind: "steps",
+        steps: [
+          {
+            name: "Install the muse CLI",
+            text: "Every Muse Code GUI drives this CLI. Skip the step if `muse` already runs in your terminal.",
+            code: "curl -fsSL https://dev.meta.ai/install.sh | bash",
+          },
+          { name: "Sign in", text: "Authentication stays with your own account. Helicon never stores credentials.", code: "muse login" },
+          {
+            name: "Download Helicon",
+            text: "Pick the Windows installer or the universal macOS DMG from the [install page](/install). It is free and MIT licensed.",
+          },
+        ],
+      },
       { kind: "h2", text: "The three kinds, and who each is for" },
       {
         kind: "table",

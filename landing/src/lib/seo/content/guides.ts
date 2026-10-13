@@ -1018,7 +1018,7 @@ export const GUIDE_PAGES: SeoPage[] = [
         a: "Not for the desktop app, which bundles its own. Running the daemon from source needs Node 22 or newer, and on Windows that means on the Windows host.",
       },
     ],
-    related: ["install/windows", "install/wsl2", "install/macos"],
+    related: ["muse-code-gui", "install/windows", "install/wsl2", "install/macos"],
   },
   {
     slug: "guides/macos-first-launch",
@@ -1153,6 +1153,6 @@ export const GUIDE_PAGES: SeoPage[] = [
         a: "Uninstall the app. Your sessions and your CLI are untouched, because Helicon only ever read them.",
       },
     ],
-    related: ["compare/muse-code-terminal", "features/session-history", "guides/resume-a-muse-session"],
+    related: ["muse-code-gui", "compare/muse-code-terminal", "features/session-history", "guides/resume-a-muse-session"],
   },
 ];
