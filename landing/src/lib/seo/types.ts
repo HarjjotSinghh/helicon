@@ -128,6 +128,8 @@ export type SeoPage = {
   ogEyebrow?: string;
   /** Shows the download buttons right under the answer as well as at the end of the page. */
   answerCta?: boolean;
+  /** Utility page that should not compete for search results: noindex, follow, and left out of the sitemap. */
+  noindex?: boolean;
 };
 
 export type Section = {

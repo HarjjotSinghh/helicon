@@ -31,6 +31,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   );
 
   for (const page of ALL_PAGES) {
+    if (page.noindex) continue;
     const lastModified = new Date(`${page.updated}T00:00:00Z`);
     // The two head-term pillars and pricing sit above the rest of the generated pages.
     const priority = page.section === "page" ? 0.9 : page.section === "install" ? 0.8 : 0.7;

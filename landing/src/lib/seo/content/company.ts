@@ -125,6 +125,7 @@ export const COMPANY_PAGES: SeoPage[] = [
 
   {
     slug: "contact",
+    noindex: true,
     icon: "question",
     section: "page",
     label: "Contact",
@@ -241,6 +242,7 @@ export const COMPANY_PAGES: SeoPage[] = [
 
   {
     slug: "developers",
+    noindex: true,
     icon: "code",
     section: "page",
     label: "Developers",

@@ -29,6 +29,7 @@ export function metadataFor(page: SeoPage): Metadata {
     title: page.title,
     description: page.description,
     keywords: page.keywords,
+    ...(page.noindex ? { robots: { index: false, follow: true } } : {}),
     alternates: {
       canonical: path,
       types: { "text/markdown": [{ url: `${path}.md`, title: `${page.title} (Markdown)` }] },
