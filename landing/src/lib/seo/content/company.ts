@@ -242,7 +242,6 @@ export const COMPANY_PAGES: SeoPage[] = [
 
   {
     slug: "developers",
-    noindex: true,
     icon: "code",
     section: "page",
     label: "Developers",
