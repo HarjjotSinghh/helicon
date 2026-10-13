@@ -203,6 +203,7 @@ if (WITH_COVERAGE) {
 
   const buckets = new Map();
   const notIndexed = [];
+  const perUrl = {};
   for (let i = 0; i < urls.length; i += 6) {
     const results = await Promise.all(
       urls.slice(i, i + 6).map(async (url) => {
@@ -221,11 +222,16 @@ if (WITH_COVERAGE) {
     );
     for (const [url, state] of results) {
       buckets.set(state, (buckets.get(state) ?? 0) + 1);
+      perUrl[new URL(url).pathname] = state;
       if (!/^Submitted and indexed$/.test(state)) notIndexed.push([new URL(url).pathname, state]);
     }
     await new Promise((r) => setTimeout(r, 300));
   }
 
+  if (RECORD) {
+    mkdirSync(join(DATA, "reports"), { recursive: true });
+    writeFileSync(join(DATA, "reports", `coverage-${new Date().toISOString().slice(0, 10)}.json`), JSON.stringify(perUrl, null, 2) + "\n");
+  }
   coverage = {
     total: urls.length,
     indexed: buckets.get("Submitted and indexed") ?? 0,
