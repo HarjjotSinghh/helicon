@@ -19,7 +19,7 @@ const tryPage = {
     return html.replace(
       "<title>Helicon</title>",
       [
-        "<title>Try Helicon in your browser: the Muse Code desktop app, on sample data</title>",
+        "<title>Try Helicon in your browser: a Muse Code GUI demo</title>",
         '<meta name="description" content="Click around the real Helicon interface for Muse Code without installing anything: threads, approvals, diffs, usage and monitors, running on sample data." />',
         '<link rel="canonical" href="https://helicon.sh/try" />',
         // A link to /try shared on X or anywhere else gets a real card, not a bare URL.

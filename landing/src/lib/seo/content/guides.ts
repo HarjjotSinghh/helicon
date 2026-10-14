@@ -105,7 +105,7 @@ export const GUIDE_PAGES: SeoPage[] = [
     icon: "rewind",
     section: "guides",
     label: "Resume a session",
-    title: "How to resume a Muse Code session you started earlier",
+    title: "How to resume a Muse Code session from earlier",
     h1: "Resume a Muse Code session",
     description:
       "Find and reopen any past Muse Code thread, including ones started in the terminal TUI, with its full history, diffs and approval record intact.",
@@ -176,7 +176,7 @@ export const GUIDE_PAGES: SeoPage[] = [
     icon: "drives",
     section: "guides",
     label: "Remote daemon",
-    title: "How to run Muse Code on a remote machine with a web UI",
+    title: "How to run Muse Code remotely with a web UI",
     h1: "Drive Muse Code on a remote machine",
     description:
       "Put the Helicon daemon and the muse CLI on the machine that holds your code, then open the same UI in a browser from anywhere you trust the network.",
@@ -250,7 +250,7 @@ export const GUIDE_PAGES: SeoPage[] = [
     icon: "terminalWindow",
     section: "guides",
     label: "Muse Code over SSH",
-    title: "Run Muse Code on a remote server over SSH, with a GUI",
+    title: "Run Muse Code on a server over SSH, with a GUI",
     h1: "Run Muse Code on a remote server over SSH",
     description:
       "Point Helicon at a folder on a remote machine and Muse Code runs there over ssh, while you keep threads, approvals and diffs in a desktop app on your laptop.",
@@ -533,7 +533,7 @@ export const GUIDE_PAGES: SeoPage[] = [
     icon: "cursor",
     section: "guides",
     label: "Muse Code in Cursor",
-    title: "How to use Muse Code in Cursor, Windsurf and Antigravity",
+    title: "Use Muse Code in Cursor, Windsurf and Antigravity",
     h1: "Use Muse Code inside Cursor",
     description:
       "Cursor, Windsurf and Antigravity install Helicon from Open VSX: a Muse Code side panel with threads as tabs, readable approvals and the files each thread changed.",
@@ -873,7 +873,7 @@ export const GUIDE_PAGES: SeoPage[] = [
     icon: "keyboard",
     section: "guides",
     label: "Keyboard control",
-    title: "Muse Code GUI keyboard shortcuts and slash commands",
+    title: "Muse Code GUI shortcuts and slash commands",
     h1: "Driving Helicon from the keyboard",
     description:
       "The command palette, slash commands in the composer, and the model and reasoning effort picker. Everything in Helicon is reachable without a mouse.",
@@ -1095,7 +1095,7 @@ export const GUIDE_PAGES: SeoPage[] = [
     icon: "swap",
     section: "guides",
     label: "Move from the terminal",
-    title: "Moving from the muse terminal to a GUI without losing anything",
+    title: "Move from the muse terminal to a Muse Code GUI",
     h1: "Moving from the muse TUI to a GUI",
     description:
       "You do not have to choose. Sessions started in the terminal show up in Helicon, resume there, and the CLI keeps working exactly as before.",

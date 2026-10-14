@@ -204,7 +204,7 @@ const DEFS: Def[] = [
     slug: "ade",
     icon: "appWindow",
     term: "an ADE",
-    title: "What is an ADE, an agentic development environment?",
+    title: "What is an ADE (agentic development environment)?",
     description:
       "An ADE is the workspace you supervise coding agents from, the way an IDE is the workspace you write code in. What belongs in one and what does not.",
     answer:
@@ -486,7 +486,7 @@ const DEFS: Def[] = [
     slug: "tauri",
     icon: "cube",
     term: "Tauri",
-    title: "What is Tauri, and why build a desktop app with it?",
+    title: "What is Tauri, and why build a desktop app on it?",
     description:
       "Tauri builds desktop apps from web UI using the operating system's own webview and a Rust core. Why that matters for a small, auto updating app.",
     answer:

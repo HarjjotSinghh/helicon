@@ -21,7 +21,7 @@ export const SECTIONS: Section[] = [
     icon: "download",
     slug: "install",
     label: "Install",
-    title: "Install a Muse Code desktop app on Windows, macOS or Linux",
+    title: "Install Helicon on Windows, macOS or Linux",
     h1: "Install Helicon",
     description:
       "Platform by platform install guides for the Muse Code desktop app: Windows installer, universal macOS DMG, Linux AppImage, and WSL2 routing.",
@@ -36,7 +36,7 @@ export const SECTIONS: Section[] = [
     icon: "scales",
     slug: "compare",
     label: "Compare",
-    title: "Muse Code GUI comparisons: Helicon vs the alternatives",
+    title: "Muse Code GUI comparisons: Helicon vs alternatives",
     h1: "Comparisons",
     description:
       "Honest comparisons between a standalone Muse Code desktop app and the terminal, editor extensions, ACP bridges, other agent GUIs and other coding agents.",
@@ -51,7 +51,7 @@ export const SECTIONS: Section[] = [
     icon: "squares",
     slug: "features",
     label: "Features",
-    title: "Muse Code GUI features: sessions, diffs, approvals, cost",
+    title: "Muse Code GUI features: sessions, diffs, approvals",
     h1: "What the app does",
     description:
       "Session history and resume, inline diffs, an approval queue, cost at API rates, projects and worktrees, a file viewer, a remote daemon and full keyboard control.",
@@ -93,7 +93,7 @@ export const SECTIONS: Section[] = [
     icon: "bookmark",
     slug: "glossary",
     label: "Glossary",
-    title: "Muse Code glossary: MSP, muse serve, ADE, approvals",
+    title: "Muse Code glossary: MSP, muse serve, ADE and more",
     h1: "Glossary",
     description:
       "Plain definitions for the terms around Muse Code and agent tooling: the Muse Code Session Protocol, muse serve, ACP, ADEs, approvals, worktrees, subagents and more.",

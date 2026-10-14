@@ -9,7 +9,7 @@ import { coreNodes, jsonLd, IDS } from "@/lib/seo/schema";
 import { latestRelease, releaseNotes, type Change, type ChangeGroups } from "@/lib/github-release";
 import { RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL } from "@/lib/site";
 
-const TITLE = "Helicon changelog: every Muse Code desktop app release";
+const TITLE = "Changelog: every Muse Code desktop app release";
 const H1 = "Changelog";
 const DESCRIPTION =
   "Every Helicon release, with what changed, taken straight from GitHub. Windows installer, macOS DMG and daemon changes for the Muse Code desktop app.";

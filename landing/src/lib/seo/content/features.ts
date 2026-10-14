@@ -10,7 +10,7 @@ export const FEATURE_PAGES: SeoPage[] = [
     icon: "clock",
     section: "features",
     label: "Session history and resume",
-    title: "Muse Code session history: find and resume any thread",
+    title: "Muse Code session history: find and resume threads",
     h1: "Session history and resume",
     description:
       "Every Muse Code session, grouped by project, with full history and one click resume. Sessions started in the muse terminal TUI are discovered and resumable too.",
@@ -79,7 +79,7 @@ export const FEATURE_PAGES: SeoPage[] = [
     icon: "gitDiff",
     section: "features",
     label: "Inline diffs",
-    title: "Inline diffs for Muse Code: see every edit in the thread",
+    title: "Muse Code inline diffs: every edit in the thread",
     h1: "Inline diffs in the thread",
     description:
       "Every file the agent edits lands as a diff at the point in the conversation where it happened, with the touched file open in a viewer beside the thread.",
@@ -203,7 +203,7 @@ export const FEATURE_PAGES: SeoPage[] = [
     icon: "chart",
     section: "features",
     label: "Cost at API rates",
-    title: "Muse Code cost tracking: what each thread would cost",
+    title: "Muse Code cost tracking: each thread at API rates",
     h1: "Cost at API rates, per thread",
     description:
       "See what every Muse Code thread would have cost at published per token rates, broken down by day, by model and by thread. A meter reading on your subscription, not a bill.",
@@ -263,7 +263,7 @@ export const FEATURE_PAGES: SeoPage[] = [
     icon: "gauge",
     section: "features",
     label: "Plan meter",
-    title: "Muse Code usage limits: the 5 hour window, in the sidebar",
+    title: "Muse Code usage limits: the 5 hour window",
     h1: "Your real plan meter",
     description:
       "Helicon shows the Muse Code 5 hour window and weekly cap exactly as the CLI reports them, in the sidebar and on the usage page, so a limit never arrives as a surprise.",
@@ -497,7 +497,7 @@ export const FEATURE_PAGES: SeoPage[] = [
     icon: "globe",
     section: "features",
     label: "Remote daemon and web UI",
-    title: "Run Muse Code on a remote machine, drive it from a browser",
+    title: "Run Muse Code remotely, drive it from a browser",
     h1: "Remote daemon and the web build",
     description:
       "The same Helicon UI ships as a web app pointed at a daemon on another machine, so a laptop can supervise Muse Code running on a workstation or a server.",
@@ -558,7 +558,7 @@ export const FEATURE_PAGES: SeoPage[] = [
     icon: "tree",
     section: "features",
     label: "Subagents and workflows",
-    title: "Watch Muse Code subagents and workflows in one window",
+    title: "Muse Code subagents and workflows in one window",
     h1: "Subagents and workflow runs",
     description:
       "Parallel subagents and workflow runs are hard to follow in a terminal. Helicon shows them as structure: what is running, what finished, and what you can cancel or retry.",
@@ -673,7 +673,7 @@ export const FEATURE_PAGES: SeoPage[] = [
     icon: "queue",
     section: "features",
     label: "Background work",
-    title: "Background and stop controls for running Muse Code tools",
+    title: "Background and stop controls for Muse Code tools",
     h1: "Background work under control",
     description:
       "Send a running tool call to the background, stop one, or stop them all. Cancel a workflow run, or skip and retry its agents, without abandoning the thread.",

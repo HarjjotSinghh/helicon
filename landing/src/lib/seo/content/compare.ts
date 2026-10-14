@@ -354,7 +354,7 @@ const ENTRIES: Entry[] = [
     icon: "appWindow",
     label: "Claude Code desktop",
     name: "the Claude Code desktop app",
-    title: "Helicon vs the Claude Code desktop app",
+    title: "Helicon vs Claude Code desktop, a GUI alternative",
     h1: "Helicon vs the Claude Code desktop app",
     description:
       "Two desktop apps for two different coding agents. What Helicon borrows from the Claude Code desktop experience, and what changes because the agent underneath is Muse Code.",

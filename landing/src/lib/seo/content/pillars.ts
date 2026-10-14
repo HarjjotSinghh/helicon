@@ -168,7 +168,7 @@ export const PILLAR_PAGES: SeoPage[] = [
     icon: "appWindow",
     section: "page",
     label: "Muse Code desktop app",
-    title: "Muse Code desktop app for Windows, macOS and the web",
+    title: "Muse Code desktop app: Windows, macOS, Linux, web",
     h1: "A desktop app for Muse Code",
     description:
       "Helicon is a free, open-source desktop and web app for the Muse Code CLI. Windows installer, universal macOS DMG, sessions, diffs, approvals and cost in one window.",

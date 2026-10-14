@@ -126,7 +126,7 @@ export const INSTALL_PAGES: SeoPage[] = [
     icon: "apple",
     section: "install",
     label: "macOS",
-    title: "Muse Code desktop app for macOS: install Helicon",
+    title: "Install Helicon for Muse Code on macOS",
     h1: "Install Helicon on macOS",
     description:
       "One universal DMG for Apple Silicon and Intel, with auto update. Install the muse CLI, sign in, drag Helicon to Applications, and allow it once in Privacy & Security.",
@@ -435,7 +435,7 @@ export const INSTALL_PAGES: SeoPage[] = [
     icon: "code",
     section: "install",
     label: "VS Code and Cursor",
-    title: "Muse Code in VS Code and Cursor: the Helicon extension",
+    title: "Muse Code in VS Code and Cursor: Helicon extension",
     h1: "Helicon for VS Code, Cursor, Windsurf and Antigravity",
     description:
       "A Muse Code side panel inside your editor: threads as tabs, readable approvals, the files each thread changed. Uses your own muse login. Free and open source.",

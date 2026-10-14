@@ -96,7 +96,7 @@ export const LEGAL_PAGES: SeoPage[] = [
     icon: "shield",
     section: "page",
     label: "Privacy",
-    title: "Privacy: what Helicon collects, and what it never sees",
+    title: "Privacy: what Helicon collects and never sees",
     h1: "Privacy",
     description:
       "The Helicon desktop app has no account and no telemetry. It checks for updates and nothing else. This site uses analytics. Here is exactly what each one records.",
