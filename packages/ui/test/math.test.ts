@@ -40,6 +40,19 @@ describe("prepareMath", () => {
     assert.equal(prepareMath("Here:\n\n$$\n\\frac{a}{b}\n$$").hasMath, true);
     assert.equal(prepareMath("half $x").text, "half $x", "a lone dollar is just text");
   });
+
+  it("handles nested fences, inline code fences and closers at the end of a line", () => {
+    const nested = "- item\n\n    ```sh\n    echo $x$\n    ```";
+    assert.deepEqual(prepareMath(nested), { text: nested, hasMath: false });
+    assert.equal(prepareMath("```code``` and $y$").text, "```code``` and $$y$$");
+    assert.deepEqual(prepareMath("$$\nx = 1 $$"), { text: "$$\nx = 1\n$$", hasMath: true });
+  });
+
+  it("does not merge two display formulas on one line, and keeps indentation", () => {
+    const two = prepareMath("$$a$$ and $$b$$").text;
+    assert.ok(!two.startsWith("$$\na$$"), two);
+    assert.equal(prepareMath("  $$a$$").text, "  $$\n  a\n  $$");
+  });
 });
 
 describe("math rendering", () => {

@@ -273,7 +273,7 @@ function useMathKit(wanted: boolean): MathKit | null {
       live = false;
     };
   }, [wanted, kit]);
-  return wanted ? kit : null;
+  return wanted ? (kit ?? mathKit) : null;
 }
 
 interface HastNode {
@@ -342,7 +342,7 @@ export const Markdown = memo(function Markdown(props: { text: string; className?
   return (
     <div className={cn("prose-helicon", props.className)}>
       <ReactMarkdown remarkPlugins={remark} rehypePlugins={rehype} components={COMPONENTS}>
-        {math.text}
+        {kit ? math.text : sampled}
       </ReactMarkdown>
     </div>
   );

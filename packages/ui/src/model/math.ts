@@ -8,7 +8,8 @@
 /** $x$ in the usual typesetting sense: no space inside the dollars, and the closing one is not followed by a digit. */
 const INLINE_DOLLAR = /(?<![\\$])\$(?![\s$])((?:[^$\\\n]|\\.)+?)(?<![\s\\])\$(?![\d$])/g;
 const INLINE_PAREN = /\\\((.+?)\\\)/g;
-const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const FENCE = /^[ \t>]*(`{3,}|~{3,})(.*)$/;
+const INDENTED_CODE = /^(?: {4}|\t)/;
 
 export interface PreparedMath {
   text: string;
@@ -47,22 +48,27 @@ export function prepareMath(text: string): PreparedMath {
   for (const raw of lines) {
     const fenced = FENCE.exec(raw);
     if (fence) {
-      if (fenced && fenced[1]![0] === fence[0] && fenced[1]!.length >= fence.length && raw.trim() === fenced[1]) {
+      if (fenced && fenced[1]![0] === fence[0] && fenced[1]!.length >= fence.length && fenced[2]!.trim() === "") {
         fence = null;
       }
       out.push(raw);
       continue;
     }
-    if (blockAt < 0 && fenced) {
+    if (blockAt < 0 && fenced && !(fenced[1]![0] === "`" && fenced[2]!.includes("`"))) {
       fence = fenced[1]!;
       out.push(raw);
       continue;
     }
     const trimmed = raw.trim();
     if (blockAt >= 0) {
-      // Inside a $$ block: only its closing line matters.
+      // Inside a $$ block: only its closing matters.
       if (trimmed === "$$" || trimmed === "\\]") {
         out.push("$$");
+        blockAt = -1;
+        hasMath = true;
+      } else if (trimmed.endsWith("$$") || trimmed.endsWith("\\]")) {
+        // The closer sits at the end of a content line; give it a line of its own.
+        out.push(trimmed.slice(0, -2).trimEnd(), "$$");
         blockAt = -1;
         hasMath = true;
       } else {
@@ -75,14 +81,15 @@ export function prepareMath(text: string): PreparedMath {
       blockAt = out.length - 1;
       continue;
     }
-    if (/^\\\[.+\\\]$/.test(trimmed)) {
-      out.push("$$", trimmed.slice(2, -2).trim(), "$$");
+    const pad = /^\s*/.exec(raw)![0];
+    if (/^\\\[.+\\\]$/.test(trimmed) && !trimmed.slice(2, -2).includes("\\]")) {
+      out.push(`${pad}$$`, `${pad}${trimmed.slice(2, -2).trim()}`, `${pad}$$`);
       hasMath = true;
       continue;
     }
-    if (/^\$\$.+\$\$$/.test(trimmed)) {
+    if (/^\$\$.+\$\$$/.test(trimmed) && !trimmed.slice(2, -2).includes("$$")) {
       // A whole formula on one line is a display block.
-      out.push("$$", trimmed.slice(2, -2).trim(), "$$");
+      out.push(`${pad}$$`, `${pad}${trimmed.slice(2, -2).trim()}`, `${pad}$$`);
       hasMath = true;
       continue;
     }
