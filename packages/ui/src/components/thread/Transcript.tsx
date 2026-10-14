@@ -838,7 +838,7 @@ function LoadError(props: { sessionId: string; message: string | null }) {
         <p className="text-sm font-medium text-fg">{login ? "Sign in to Muse Code to open this thread" : "Could not open this thread"}</p>
         <p className="mt-0.5 text-sm break-words text-muted">
           {login
-            ? "This thread was made under a permission profile that needs a signed-in Muse. The muse CLI this project runs on is not signed in. Run this in a terminal (on the remote machine for an SSH project, inside WSL if Helicon uses WSL), sign in, then try again."
+            ? "Opening this thread needs a signed-in Muse, and the muse CLI this project runs on is not signed in. Run this in a terminal (on the remote machine for an SSH project, inside WSL if Helicon uses WSL), sign in, then try again."
             : (props.message ?? "Muse did not answer.")}
         </p>
         {login ? (
