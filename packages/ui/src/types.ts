@@ -476,7 +476,7 @@ export interface FileContent {
 export type GoalAction = "set" | "edit" | "pause" | "resume" | "clear";
 export type SubagentAction = "interrupt" | "stop" | "close" | "resume" | "reopen" | "sendMessage" | "followupTask" | "readResult";
 export type TaskAction = "background" | "stop" | "stopAll";
-export type WorkflowAction = "cancel" | "pause" | "skip" | "retry";
+export type WorkflowAction = "cancel" | "pause" | "resume" | "skip" | "retry";
 
 export interface TranscriptLoad {
   session: SessionSummary | null;
