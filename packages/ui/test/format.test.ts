@@ -9,6 +9,7 @@ import {
   diffLines,
   diffStats,
   extractDiff,
+  extractRevertSteps,
   formatDuration,
   formatTokens,
   lastLine,
@@ -340,5 +341,31 @@ describe("approvals and models", () => {
     assert.equal(listed.find((m) => m.modelId === "muse-wonder-1.0")?.displayLabel, "Muse Wonder");
     assert.deepEqual(parseModelList({ models: [{ modelId: "local-llama" }] }).map((m) => m.modelId), ["local-llama"]);
     assert.deepEqual(parseModelList({ models: [] }), []);
+  });
+});
+
+describe("extractRevertSteps", () => {
+  it("reads a replacement exactly as the tool wrote it", () => {
+    assert.deepEqual(extractRevertSteps(tool("edit", { path: "a.ts", old_string: "a\nb", new_string: "c" })), [{ before: "a\nb", after: "c" }]);
+  });
+
+  it("gives one step per edit and none when one is unreadable", () => {
+    const edits = [
+      { old_string: "a", new_string: "b" },
+      { old_string: "c", new_string: "d" },
+    ];
+    assert.deepEqual(extractRevertSteps(tool("multi_edit", { path: "a.ts", edits })), [
+      { before: "a", after: "b" },
+      { before: "c", after: "d" },
+    ]);
+    assert.equal(extractRevertSteps(tool("multi_edit", { path: "a.ts", edits: [...edits, { old_string: "e" }] })), null);
+  });
+
+  it("treats a whole-file write as a created file and refuses what it cannot reverse", () => {
+    assert.deepEqual(extractRevertSteps(tool("write", { path: "n.txt", content: "hi" })), [{ before: null, after: "hi" }]);
+    assert.equal(extractRevertSteps(tool("edit", { path: "a.ts", old_string: "a", new_string: "b", replace_all: true })), null);
+    assert.equal(extractRevertSteps(tool("apply_patch", { input: "*** Begin Patch\n--- a.ts\n+++ a.ts\n@@\n-old\n+new" })), null);
+    assert.equal(extractRevertSteps(tool("edit", { path: "a.ts", old_string: "a", new_string: "" })), null, "a deletion cannot be found again");
+    assert.equal(extractRevertSteps(tool("bash", { command: "ls" })), null);
   });
 });

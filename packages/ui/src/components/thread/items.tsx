@@ -9,6 +9,7 @@ import {
   diffLines,
   diffStats,
   extractDiff,
+  extractRevertSteps,
   formatDuration,
   formatTokens,
   humanize,
@@ -18,6 +19,7 @@ import {
   withoutDiffEcho,
   type DiffLine,
   type DiffView,
+  type RevertStep,
   type ToolKind,
 } from "../../model/format.js";
 import type { MspItem, OutputRef, UserInputAnswer } from "../../types.js";
@@ -360,13 +362,20 @@ export interface FileChanges {
   added: number;
   removed: number;
   diffs: DiffView[];
+  /** Changes made to this file in all, counting the ones already settled and left out of `diffs`. */
+  total: number;
+  /** What reversing every change takes, latest first; null when any of them cannot be reversed from its arguments. */
+  steps: RevertStep[] | null;
 }
 
-/** The files a list of items edited, one entry per path, in the order they were first touched. */
-export function collectFileChanges(items: Iterable<MspItem>): FileChanges[] {
+/**
+ * The files a list of items edited, one entry per path, in the order they were first touched. Calls that failed
+ * changed nothing and are left out. `settled` says how many of a file's first changes to skip (kept or undone).
+ */
+export function collectFileChanges(items: Iterable<MspItem>, settled?: (path: string) => number): FileChanges[] {
   const byPath = new Map<string, FileChanges>();
   for (const item of items) {
-    if (item.kind !== "toolCall") {
+    if (item.kind !== "toolCall" || item.status === "failed" || item.failureKind) {
       continue;
     }
     const diff = extractDiff(item);
@@ -374,14 +383,20 @@ export function collectFileChanges(items: Iterable<MspItem>): FileChanges[] {
       continue;
     }
     const key = diff.path ?? item.itemId;
+    const entry = byPath.get(key) ?? { path: diff.path ?? "file", added: 0, removed: 0, diffs: [], total: 0, steps: [] };
+    byPath.set(key, entry);
+    entry.total += 1;
+    if (diff.path && entry.total <= (settled?.(diff.path) ?? 0)) {
+      continue;
+    }
     const stats = diffStats(diff);
-    const entry = byPath.get(key) ?? { path: diff.path ?? "file", added: 0, removed: 0, diffs: [] };
     entry.added += stats.added;
     entry.removed += stats.removed;
     entry.diffs.push(diff);
-    byPath.set(key, entry);
+    const steps = extractRevertSteps(item);
+    entry.steps = entry.steps && steps && diff.path ? [...steps.slice().reverse(), ...entry.steps] : null;
   }
-  return [...byPath.values()];
+  return [...byPath.values()].filter((entry) => entry.diffs.length > 0);
 }
 
 /**

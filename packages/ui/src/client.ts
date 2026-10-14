@@ -167,6 +167,11 @@ export interface HeliconClient {
   readFile(cwd: string, path: string): Promise<FileContent>;
   /** Saves text back. Refused with kind `fileChanged` when the file moved on since `baseMtimeMs`. */
   writeFile(cwd: string, path: string, content: string, baseMtimeMs: number | null): Promise<{ path: string; size: number; mtimeMs: number }>;
+  /**
+   * Takes back what a thread's edits did to one file, `steps` latest first. Refused with kind `revertConflict` when the
+   * file no longer holds exactly what the thread wrote; a file the thread created is deleted when git says it is new.
+   */
+  revertChanges(cwd: string, path: string, steps: { before: string | null; after: string }[]): Promise<{ path: string; outcome: "reverted" | "deleted" }>;
   /** Files whose path contains every word of `query`. */
   searchFiles(cwd: string, query: string): Promise<FileEntry[]>;
   /** Opens a project file in the OS's default app. */

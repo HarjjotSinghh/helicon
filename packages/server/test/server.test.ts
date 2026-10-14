@@ -2170,6 +2170,86 @@ describe("file viewer", () => {
     const found = await get(base, `/api/files/search?cwd=${encodeURIComponent(cwd)}&q=guide`);
     assert.deepEqual(found.files.map((f: { path: string }) => f.path), ["docs/guide.md"], "node_modules is not searched");
   });
+
+  describe("undoing a thread's edits", () => {
+    const read = async (root: string, name: string) => (await import("node:fs/promises")).readFile(`${root}/${name}`, "utf8");
+    const revert = (base: string, cwd: string, path: string, steps: unknown) => send(base, "/api/files/revert", { cwd, path, steps });
+
+    it("puts an edited file back and refuses when it has moved on", async () => {
+      const { writeFile } = await import("node:fs/promises");
+      const { base, root, cwd } = await project();
+      await writeFile(`${root}/a.txt`, "one\nTWO\nthree\nFOUR\n");
+      const steps = [
+        { before: "four", after: "FOUR" },
+        { before: "two", after: "TWO" },
+      ];
+      const done = await revert(base, cwd, "a.txt", steps);
+      assert.equal(done.status, 200);
+      assert.equal(done.json.outcome, "reverted");
+      assert.equal(await read(root, "a.txt"), "one\ntwo\nthree\nfour\n");
+
+      await writeFile(`${root}/b.txt`, "one\nsomething else\n");
+      const conflict = await revert(base, cwd, "b.txt", [{ before: "two", after: "TWO" }]);
+      assert.equal(conflict.status, 409);
+      assert.equal(conflict.json.kind, "revertConflict");
+      assert.equal(await read(root, "b.txt"), "one\nsomething else\n", "a refused undo leaves the file alone");
+
+      await writeFile(`${root}/c.txt`, "x\nTWO\nTWO\n");
+      const twice = await revert(base, cwd, "c.txt", [{ before: "two", after: "TWO" }]);
+      assert.equal(twice.status, 409, "an edit that matches twice is ambiguous and refused");
+    });
+
+    it("keeps CRLF files as they are", async () => {
+      const { writeFile } = await import("node:fs/promises");
+      const { base, root, cwd } = await project();
+      await writeFile(`${root}/win.txt`, "a\r\nNEW\r\nb\r\n");
+      const done = await revert(base, cwd, "win.txt", [{ before: "old\n", after: "NEW\n" }]);
+      assert.equal(done.status, 200);
+      assert.equal(await read(root, "win.txt"), "a\r\nold\r\nb\r\n");
+    });
+
+    it("deletes a file the thread created only when git does not track it and it is unchanged", async () => {
+      const { writeFile, access } = await import("node:fs/promises");
+      const { execFileSync } = await import("node:child_process");
+      const { base, root, cwd } = await project();
+      execFileSync("git", ["init", "-q"], { cwd: root });
+      await writeFile(`${root}/new.txt`, "made by muse");
+      const edited = await revert(base, cwd, "new.txt", [{ before: null, after: "changed since" }]);
+      assert.equal(edited.status, 409, "a created file that changed afterwards is kept");
+      const done = await revert(base, cwd, "new.txt", [{ before: null, after: "made by muse", at: Date.now() - 1000 }]);
+      assert.equal(done.status, 200);
+      assert.equal(done.json.outcome, "deleted");
+      await writeFile(`${root}/old.txt`, "was here before");
+      const early = await revert(base, cwd, "old.txt", [{ before: null, after: "was here before", at: Date.now() + 60_000 }]);
+      assert.equal(early.status, 409, "a file that existed before the write is kept");
+      await writeFile(`${root}/.gitignore`, "mine.txt\n");
+      await writeFile(`${root}/mine.txt`, "private");
+      const ignored = await revert(base, cwd, "mine.txt", [{ before: null, after: "private", at: Date.now() - 1000 }]);
+      assert.equal(ignored.status, 409, "an ignored file is never deleted");
+      await assert.rejects(access(`${root}/new.txt`));
+
+      execFileSync("git", ["add", "README.md"], { cwd: root });
+      const tracked = await revert(base, cwd, "README.md", [{ before: null, after: "# Title\n\nBody\n" }]);
+      assert.equal(tracked.status, 409, "a tracked file is never deleted");
+      assert.equal(await read(root, "README.md"), "# Title\n\nBody\n");
+    });
+
+    it("refuses a file that is not valid UTF-8 or is already gone", async () => {
+      const { writeFile } = await import("node:fs/promises");
+      const { base, root, cwd } = await project();
+      await writeFile(`${root}/latin.txt`, Buffer.from([0x6f, 0x6c, 0x64, 0xe9]));
+      assert.equal((await revert(base, cwd, "latin.txt", [{ before: "x", after: "old" }])).status, 409);
+      assert.equal((await revert(base, cwd, "missing.txt", [{ before: "x", after: "y" }])).status, 404);
+    });
+
+    it("refuses paths outside the project and malformed bodies", async () => {
+      const { base, cwd } = await project();
+      assert.equal((await revert(base, cwd, "../../etc/passwd", [{ before: "a", after: "b" }])).status, 403);
+      assert.equal((await revert(base, cwd, "escape.txt", [{ before: "a", after: "b" }])).status, 403);
+      assert.equal((await revert(base, cwd, "README.md", "nope")).status, 400);
+      assert.equal((await revert(base, cwd, "README.md", [{ before: 1, after: "b" }])).status, 400);
+    });
+  });
 });
 
 describe("slash commands, skills and shell", () => {

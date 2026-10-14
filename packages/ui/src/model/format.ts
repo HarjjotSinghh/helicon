@@ -609,6 +609,56 @@ export function extractDiff(item: MspItem): DiffView | null {
   return null;
 }
 
+/**
+ * One recorded change, in the form the server can reverse: swap `after` back to `before` inside the file, or
+ * delete a file that a whole-file write put there (`before` is null, `after` is what was written).
+ */
+export interface RevertStep {
+  before: string | null;
+  after: string;
+  /** For a whole-file write: when the call ran (epoch ms), so a file that already existed then is never deleted. */
+  at?: number;
+}
+
+/**
+ * What undoing one edit-style tool call takes, or null when the arguments do not carry exact text (a patch,
+ * or a tool whose shape is unknown). Only the arguments are read, never the aligned diff, so the strings are
+ * exactly what the tool wrote.
+ */
+export function extractRevertSteps(item: MspItem): RevertStep[] | null {
+  const args = parseArgs(item.args);
+  if (!args) {
+    return null;
+  }
+  const oldKey = ["old_string", "oldString", "old_str", "find", "search", "old"].find((k) => typeof args[k] === "string");
+  const newKey = ["new_string", "newString", "new_str", "replace", "new"].find((k) => typeof args[k] === "string");
+  if (oldKey && newKey) {
+    // An empty replacement is a deletion: the text to find is gone, so it cannot be located again.
+    return args["replace_all"] === true || args["replaceAll"] === true || args[newKey] === ""
+      ? null
+      : [{ before: args[oldKey] as string, after: args[newKey] as string }];
+  }
+  if (Array.isArray(args["edits"])) {
+    const steps: RevertStep[] = [];
+    for (const edit of args["edits"] as unknown[]) {
+      const e = edit && typeof edit === "object" ? (edit as Record<string, unknown>) : null;
+      const o = e?.["old_string"] ?? e?.["oldString"] ?? e?.["old_str"];
+      const n = e?.["new_string"] ?? e?.["newString"] ?? e?.["new_str"];
+      if (typeof o !== "string" || typeof n !== "string" || n === "") {
+        return null;
+      }
+      steps.push({ before: o, after: n });
+    }
+    return steps.length > 0 ? steps : null;
+  }
+  const content = pickString(args, ["content", "contents", "text", "file_text"]);
+  if (content !== null && toolKind(item.tool, args) === "write") {
+    const at = item.recordedAt ? Date.parse(item.recordedAt) : NaN;
+    return [{ before: null, after: content, ...(Number.isFinite(at) ? { at } : {}) }];
+  }
+  return null;
+}
+
 export function diffStats(diff: DiffView): { added: number; removed: number } {
   if ("patch" in diff) {
     let added = 0;

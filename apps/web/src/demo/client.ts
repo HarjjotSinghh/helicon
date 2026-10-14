@@ -749,6 +749,9 @@ export class DemoClient implements HeliconClient {
   async writeFile(cwd: string, path: string, content: string) {
     return this.files.write(cwd, path, content);
   }
+  async revertChanges(): Promise<{ path: string; outcome: "reverted" | "deleted" }> {
+    throw new Error("Undoing changes is disabled in this demo.");
+  }
   async searchFiles(cwd: string, query: string) {
     return this.files.search(cwd, query);
   }

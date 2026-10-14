@@ -449,6 +449,10 @@ export class WebHeliconClient implements HeliconClient {
     return call("PUT", "/api/files/write", { cwd, path, content, baseMtimeMs });
   }
 
+  revertChanges(cwd: string, path: string, steps: { before: string | null; after: string }[]): Promise<{ path: string; outcome: "reverted" | "deleted" }> {
+    return call("POST", "/api/files/revert", { cwd, path, steps });
+  }
+
   async searchFiles(cwd: string, query: string): Promise<FileEntry[]> {
     return (await call<{ files: FileEntry[] }>("GET", `/api/files/search?cwd=${enc(cwd)}&q=${enc(query)}`)).files;
   }

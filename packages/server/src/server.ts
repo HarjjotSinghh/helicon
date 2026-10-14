@@ -41,7 +41,7 @@ import {
   type SubscriptionUsage,
   type TurnImage,
 } from "@helicon/daemon";
-import { FileError, listFolder, readProjectFile, resolveInRoot, searchProjectFiles, serveProjectFile, writeProjectFile } from "./files.js";
+import { FileError, listFolder, readProjectFile, resolveInRoot, revertProjectFile, searchProjectFiles, serveProjectFile, writeProjectFile } from "./files.js";
 import { PathError, createDirectory, listDirectory, resolveUserPath, type DirectoryListing, type PathContext } from "./paths.js";
 import {
   SSH_HOME_CACHE_MS,
@@ -3764,6 +3764,28 @@ export class HeliconServer {
       }
       const base = body["baseMtimeMs"];
       this.json(res, 200, await writeProjectFile(root, cwd, target, content, typeof base === "number" ? base : null));
+      return true;
+    }
+    if (method === "POST" && path === "/api/files/revert") {
+      const raw = body["steps"];
+      const steps = Array.isArray(raw)
+        ? raw.flatMap((entry: unknown) => {
+            const e = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : null;
+            return e && typeof e["after"] === "string" && (typeof e["before"] === "string" || e["before"] === null)
+              ? [
+                  {
+                    before: e["before"] as string | null,
+                    after: e["after"],
+                    ...(typeof e["at"] === "number" && Number.isFinite(e["at"]) ? { at: e["at"] } : {}),
+                  },
+                ]
+              : [];
+          })
+        : [];
+      if (!Array.isArray(raw) || steps.length !== raw.length) {
+        throw new HttpError(400, "steps must be a list of { before, after }.");
+      }
+      this.json(res, 200, await revertProjectFile(root, cwd, target, steps));
       return true;
     }
     if (method === "POST" && path === "/api/files/open") {

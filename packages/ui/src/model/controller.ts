@@ -18,7 +18,8 @@ import type {
   ViewEvent,
   WorkflowAction,
 } from "../types.js";
-import { describeTool, modelDisplayName } from "./format.js";
+import { withSettled } from "./changes.js";
+import { describeTool, modelDisplayName, type RevertStep } from "./format.js";
 import { fileKey, fileTarget, type LineRange } from "./files.js";
 import { goalPrompt } from "./goal.js";
 import { isSshPath } from "./paths.js";
@@ -3159,6 +3160,69 @@ export class HeliconController {
 
   fileUrl(cwd: string, path: string): string {
     return this.client.fileUrl(cwd, path);
+  }
+
+  /** Accepts these files' changes: they leave the "files changed" card until the thread edits them again. */
+  keepChanges(sessionId: string, files: { path: string; count: number }[]): void {
+    if (files.length > 0) {
+      this.setPrefs({ settledChanges: withSettled(this.state.prefs.settledChanges, sessionId, files) });
+    }
+  }
+
+  /**
+   * Takes back the thread's edits to these files, one file at a time, and settles the ones that came back. A file that
+   * no longer matches what the thread wrote is left as it is and named in the toast, never overwritten.
+   */
+  async undoChanges(sessionId: string, files: { path: string; count: number; steps: RevertStep[] | null }[]): Promise<void> {
+    const cwd = this.state.sessions[sessionId]?.cwd;
+    // A second click while the first undo of a file is still running would only report a false conflict.
+    files = files.filter((file) => !this.undoing.has(`${sessionId}|${file.path}`));
+    if (!cwd || files.length === 0) {
+      return;
+    }
+    const keys = files.map((file) => `${sessionId}|${file.path}`);
+    keys.forEach((k) => this.undoing.add(k));
+    try {
+      await this.undoFiles(sessionId, cwd, files);
+    } finally {
+      keys.forEach((k) => this.undoing.delete(k));
+    }
+  }
+
+  private readonly undoing = new Set<string>();
+
+  private async undoFiles(
+    sessionId: string,
+    cwd: string,
+    files: { path: string; count: number; steps: RevertStep[] | null }[],
+  ): Promise<void> {
+    const done: { path: string; count: number }[] = [];
+    const left: string[] = [];
+    let lastReason = "";
+    for (const file of files) {
+      if (!file.steps) {
+        left.push(file.path);
+        lastReason = "Muse changed it in a way Helicon cannot reverse from the record.";
+        continue;
+      }
+      try {
+        await this.client.revertChanges(cwd, file.path, file.steps);
+        done.push({ path: file.path, count: file.count });
+      } catch (error) {
+        left.push(file.path);
+        lastReason = errorMessage(error);
+      }
+    }
+    this.keepChanges(sessionId, done);
+    if (left.length === 0) {
+      this.toast("success", done.length === 1 ? "Change undone" : `${done.length} files restored`, "Muse is not told: say so in your next message if it should know.");
+      return;
+    }
+    this.toast(
+      "error",
+      done.length > 0 ? `Undid ${done.length}, left ${left.length} as they are` : "Could not undo",
+      left.length === 1 ? lastReason : `${left.slice(0, 3).join(", ")}${left.length > 3 ? ` and ${left.length - 3} more` : ""}: ${lastReason}`,
+    );
   }
 
   async openFileExternally(cwd: string, path: string): Promise<void> {
