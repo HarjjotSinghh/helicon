@@ -1,4 +1,4 @@
-import { ArrowCounterClockwiseIcon, CaretDownIcon, FlowArrowIcon, PauseIcon, SkipForwardIcon, SquareHalfIcon, StopCircleIcon } from "../ui/icons.js";
+import { ArrowCounterClockwiseIcon, CaretDownIcon, FlowArrowIcon, PauseIcon, PlayIcon, SkipForwardIcon, SquareHalfIcon, StopCircleIcon } from "../ui/icons.js";
 import { memo, useMemo, useState } from "react";
 import { useApp, useController } from "../../app/context.js";
 import { formatDuration, formatTokens, humanize } from "../../model/format.js";
@@ -112,12 +112,13 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
               {view.failed} of {view.used} {view.failed === 1 ? "agent" : "agents"} did not finish.
             </p>
           ) : null}
-          {view.paused ? <p className="mt-2 text-xs text-muted">Paused. Ask Muse to resume it, or cancel the run.</p> : null}
+          {view.paused ? <p className="mt-2 text-xs text-muted">Paused. Resume it, or cancel the run.</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button size="sm" variant="ghost" onClick={() => setDetail(true)}>
               <SquareHalfIcon size={13} /> Details
             </Button>
             {view.running && view.runId && sessionId ? <RunControl sessionId={sessionId} runId={view.runId} action="pause" /> : null}
+            {view.paused && view.runId && sessionId ? <RunControl sessionId={sessionId} runId={view.runId} action="resume" /> : null}
             {(view.running || view.paused) && view.runId && sessionId ? <RunControl sessionId={sessionId} runId={view.runId} action="cancel" /> : null}
           </div>
         </div>
@@ -135,10 +136,10 @@ export const WorkflowCard = memo(function WorkflowCard(props: { item: MspItem; s
 });
 
 /**
- * Pauses or cancels the whole run. Cancelling keeps what it had finished in its report. Muse has no
- * client resume for a paused run, so there is no button for it.
+ * Pauses, resumes or cancels the whole run. Cancelling keeps what it had finished in its report.
+ * Resuming needs Muse Code 1.4.6 or later; an older host answers with an error, which shows as a toast.
  */
-function RunControl(props: { sessionId: string; runId: string; action: "pause" | "cancel" }) {
+function RunControl(props: { sessionId: string; runId: string; action: "pause" | "resume" | "cancel" }) {
   const controller = useController();
   const readOnly = useApp((s) => s.threads[props.sessionId]?.readOnly ?? true);
   const busy = useApp((s) => Boolean(s.busy[`workflow:${props.sessionId}:${props.runId}:run`]));
@@ -150,6 +151,10 @@ function RunControl(props: { sessionId: string; runId: string; action: "pause" |
       {props.action === "pause" ? (
         <>
           <PauseIcon size={13} /> Pause run
+        </>
+      ) : props.action === "resume" ? (
+        <>
+          <PlayIcon size={13} /> Resume run
         </>
       ) : (
         <>

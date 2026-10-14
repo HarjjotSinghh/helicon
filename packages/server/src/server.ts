@@ -1500,6 +1500,8 @@ export class HeliconServer {
             await manager.cancelWorkflow(sessionId, workflowRunId);
           } else if (workflowAction === "pause") {
             await manager.pauseWorkflow(sessionId, workflowRunId);
+          } else if (workflowAction === "resume") {
+            await manager.resumeWorkflow(sessionId, workflowRunId);
           } else if (isWorkflowChildAction(workflowAction)) {
             const childId = str(body["childId"]);
             const attempt = body["attempt"];
@@ -1508,7 +1510,7 @@ export class HeliconServer {
             }
             await manager.controlWorkflowChild(sessionId, workflowRunId, childId, attempt, workflowAction);
           } else {
-            throw new HttpError(400, "Use cancel, pause, skip or retry.");
+            throw new HttpError(400, "Use cancel, pause, resume, skip or retry.");
           }
           this.json(res, 200, { ok: true });
           return true;

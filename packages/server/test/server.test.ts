@@ -892,6 +892,8 @@ describe("HeliconServer", () => {
     assert.deepEqual(last(), { method: "workflow/cancel", params: { sessionId: "s1", workflowRunId: "run-9" } });
     await send(base, "/api/sessions/s1/workflow", { action: "pause", workflowRunId: "run-9" });
     assert.deepEqual(last(), { method: "workflow/pause", params: { sessionId: "s1", workflowRunId: "run-9" } });
+    await send(base, "/api/sessions/s1/workflow", { action: "resume", workflowRunId: "run-9" });
+    assert.deepEqual(last(), { method: "workflow/resume", params: { sessionId: "s1", workflowRunId: "run-9" } });
     await send(base, "/api/sessions/s1/workflow", { action: "skip", workflowRunId: "run-9", childId: "c1", attempt: 2 });
     assert.deepEqual(last(), { method: "workflow/childControl", params: { sessionId: "s1", workflowRunId: "run-9", childId: "c1", attempt: 2, action: "skip" } });
     assert.equal((await send(base, "/api/sessions/s1/workflow", { action: "retry", workflowRunId: "run-9", childId: "c1", attempt: 0 })).status, 400);
