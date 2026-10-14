@@ -830,12 +830,29 @@ function TurnError(props: {
 
 function LoadError(props: { sessionId: string; message: string | null }) {
   const controller = useController();
+  const login = signedOut({ message: props.message });
   return (
     <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-3.5 py-3" role="alert">
       <WarningCircleIcon size={16} className="mt-0.5 shrink-0 text-danger" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-fg">Could not open this thread</p>
-        <p className="mt-0.5 text-sm break-words text-muted">{props.message ?? "Muse did not answer."}</p>
+        <p className="text-sm font-medium text-fg">{login ? "Sign in to Muse Code to open this thread" : "Could not open this thread"}</p>
+        <p className="mt-0.5 text-sm break-words text-muted">
+          {login
+            ? "Opening this thread needs a signed-in Muse, and the muse CLI this project runs on is not signed in. Run this in a terminal (on the remote machine for an SSH project, inside WSL if Helicon uses WSL), sign in, then try again."
+            : (props.message ?? "Muse did not answer.")}
+        </p>
+        {login ? (
+          <>
+            <div className="mt-2 flex items-center gap-2 rounded-lg bg-sunken py-1 pr-1 pl-3 font-mono text-xs text-fg shadow-[0_0_0_1px_var(--border)]">
+              <span className="min-w-0 flex-1 truncate">muse login</span>
+              <CopyButton text="muse login" label="Copy command" />
+            </div>
+            <p className="mt-1 text-2xs break-words text-subtle">{props.message}</p>
+            <p className="mt-1.5">
+              <HelpLink href={MUSE_HELP_URL}>Sign-in help</HelpLink>
+            </p>
+          </>
+        ) : null}
       </div>
       <Button size="sm" onClick={() => void controller.loadThread(props.sessionId)}>
         Try again
