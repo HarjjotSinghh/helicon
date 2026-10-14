@@ -55,6 +55,13 @@ describe("signed-out turns", () => {
     );
   });
 
+  it("knows a retained :auto-review session refused by a signed-out host", () => {
+    // Reproduced on Muse Code 1.4.7: session/read, session/resume and session/fork all refuse once auth.json is gone.
+    const refusal =
+      "retained session refused (class c): compose session permission profile: permission profile ':auto-review' cannot be used: the automated reviewer is unavailable on this host [/home/me/.local/share/muse/sessions/2026/10/14/01a1/session.jsonl]; remedy: retry with a compatible host that can read the retained permission frame, or start a new session";
+    assert.equal(signedOut({ message: refusal }), true);
+  });
+
   it("leaves other failures alone", () => {
     assert.equal(signedOut({ kind: "error", message: "API error 500: upstream timed out" }), false);
     assert.equal(signedOut({ kind: "error", message: "the login page returned 500" }), false);
