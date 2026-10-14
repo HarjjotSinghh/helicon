@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.22.0
+
+### New
+
+- **Keep, undo and review a thread's file changes** ([#140](https://github.com/HarjjotSinghh/helicon/pull/140), closes [#94](https://github.com/HarjjotSinghh/helicon/issues/94)). The files-changed card above the composer now has Keep, Undo and Review. Keep accepts a file's changes and hides it from the card until the thread edits it again. Undo reverses the thread's edits to a file, or to every file with Undo all. Helicon re-applies each recorded edit backwards on the current file, and refuses the undo if any edit no longer matches exactly once, so a file you changed since is never overwritten. A file the thread created is deleted only if it still has the content Muse wrote and git does not track it. Review expands the diffs inside the card. Edits made with patches or `replace_all` cannot be undone from the record, and SSH projects have no undo buttons. Muse is not told about an undo.
+- **LaTeX in messages** ([#141](https://github.com/HarjjotSinghh/helicon/pull/141), closes [#93](https://github.com/HarjjotSinghh/helicon/issues/93)). Math now typesets with KaTeX: `$x$`, `$$` blocks, `\(x\)` and `\[x\]`. A `$` opens a formula only when no space follows it and the closing `$` is not followed by a digit, so a sentence like "costs $5 and $10" stays text. Code is left alone. A `$$` block that is still streaming shows as plain text until it closes. KaTeX loads as its own chunk the first time a message holds a formula.
+- **Resume a paused workflow run** ([#138](https://github.com/HarjjotSinghh/helicon/pull/138)). A paused run has a Resume run button next to Cancel run. Muse Code 1.4.6 added the `workflow/resume` call it uses.
+
+### Changed
+
+- **Muse Code SDK 1.4.7** ([#138](https://github.com/HarjjotSinghh/helicon/pull/138)), up from 1.4.4.
+
+### Fixed
+
+- **Sign-in guidance for `:auto-review` threads** ([#139](https://github.com/HarjjotSinghh/helicon/pull/139), closes [#95](https://github.com/HarjjotSinghh/helicon/issues/95)). On a host with no Muse sign-in, opening or resuming a thread started with the `:auto-review` profile showed Muse's raw "retained session refused" error. It now says to run `muse login`, with a copy button and a link to the guide, and keeps the raw message below.
+
 ## 0.21.9
 
 ### Fixed

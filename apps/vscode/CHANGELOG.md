@@ -2,6 +2,13 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.22.0
+
+- Keep, undo and review a thread's file changes from the files-changed card (#140).
+- Math typesets in messages: `$x$`, `$$` blocks, `\(x\)` and `\[x\]` (#141).
+- A paused workflow run has a Resume run button (#138).
+- A thread started with the `:auto-review` profile on a signed-out host says to run `muse login` (#139).
+
 ## 0.21.9
 
 - New threads run on the model you picked, Muse Wonder included (#134).
