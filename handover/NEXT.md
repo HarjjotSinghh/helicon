@@ -73,3 +73,11 @@ T+2 run-ahead for social posts: see handover/brief.md.
 - Shipped #138 (SDK 1.4.7, Resume run), #139 (#95), #140 (#94 undo), #141 (#93 LaTeX), then Release 0.22.0 (#142, tag v0.22.0 on c9719ab). Details and the release recipe: /Users/harjjotsinghh/Documents/Projects/helicon/handover/CTO.md
 - Next: check the Release and Extension workflow runs finished; the HEL-CMO inbox already has the announce line.
 - Gotcha: landing/public/try was rebuilt in the release commit and now includes KaTeX fonts (woff2, woff, ttf).
+
+## HEL-CMO, 14 Oct: SEO desk free-pass fixes (all live on helicon.sh)
+- b341ab3: Linux added to home title, OG alt/title, llms-full.txt heading, features.tsx desktop caption.
+- 89cfe0f: 25 titles shortened in source (catalog.ts, seo/content/*.ts, changelog page, /try in apps/web/vite.config.ts + committed landing/public/try/index.html). 0 of 86 sitemap titles over 60.
+- a7599e7: /muse-code-gui gap fill (Linux install step, Windows signing note, cost + plan meter section). No rewrite until 28 Oct remeasure.
+- IndexNow 200 for 86 URLs. SEO inbox has 4 lines.
+- Open: 2 descriptions over 200 chars (/guides/macos-first-launch, /use-cases/windows-developers), not touched. AlternativeTo edit still in moderation.
+- Gotcha: /try title lives in apps/web/vite.config.ts; rebuilding /try needs VITE_POSTHOG_KEY, so patch the built index.html too.
