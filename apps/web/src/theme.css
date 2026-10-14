@@ -400,6 +400,10 @@
     color: var(--fg);
     overflow-wrap: anywhere;
   }
+  .prose-helicon .katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
   .prose-helicon > :first-child {
     margin-top: 0;
   }

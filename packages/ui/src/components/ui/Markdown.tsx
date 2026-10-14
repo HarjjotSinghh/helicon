@@ -2,6 +2,7 @@ import { copyText } from "../../app/host.js";
 import { CheckIcon, CopyIcon } from "./icons.js";
 import { Children, createContext, isValidElement, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { looksLikeFilePath, type FileTarget } from "../../model/files.js";
+import { prepareMath } from "../../model/math.js";
 import { STREAM_SAMPLE_MS, streamRenderMode } from "../../model/streaming.js";
 import { useSampledText } from "../../app/sampled.js";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -13,11 +14,14 @@ import { SwapIcon } from "./sourced.js";
 export function useCopy(timeout = 1400): [boolean, (text: string) => void] {
   const [copied, setCopied] = useState(false);
   const timer = useRef<number | null>(null);
-  useEffect(() => () => {
-    if (timer.current !== null) {
-      window.clearTimeout(timer.current);
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (timer.current !== null) {
+        window.clearTimeout(timer.current);
+      }
+    },
+    [],
+  );
   const copy = (text: string) => {
     void copyText(text).then(() => {
       setCopied(true);
@@ -49,7 +53,8 @@ export function CopyButton(props: { text: string; label?: string; className?: st
   );
 }
 
-const HIGHLIGHTABLE = /^(js|jsx|ts|tsx|javascript|typescript|json|jsonc|css|scss|html|xml|java|c|cpp|cs|go|rust|rs|swift|kotlin|php|py|python|rb|ruby|sh|bash|zsh|shell|ps1|powershell|sql|yaml|yml|toml|lua|dart)$/i;
+const HIGHLIGHTABLE =
+  /^(js|jsx|ts|tsx|javascript|typescript|json|jsonc|css|scss|html|xml|java|c|cpp|cs|go|rust|rs|swift|kotlin|php|py|python|rb|ruby|sh|bash|zsh|shell|ps1|powershell|sql|yaml|yml|toml|lua|dart)$/i;
 
 /** What a file extension implies about its language, for colouring a diff the same way a code block is coloured. */
 const EXTENSION_LANGUAGE: Record<string, string> = {
@@ -124,7 +129,9 @@ export const CodeBlock = memo(function CodeBlock(props: { code: string; language
     }
   }, [props.code, props.language]);
   return (
-    <div className={cn("code-surface group/code my-3 overflow-hidden rounded-xl bg-sunken shadow-[0_0_0_1px_var(--border)]", props.className)}>
+    <div
+      className={cn("code-surface group/code my-3 overflow-hidden rounded-xl bg-sunken shadow-[0_0_0_1px_var(--border)]", props.className)}
+    >
       <div className="flex h-8 items-center justify-between pr-1 pl-3.5">
         <span className="font-mono text-2xs text-subtle">{props.language ?? "text"}</span>
         <CopyButton text={props.code} label="Copy code" className="opacity-60 group-hover/code:opacity-100 focus-visible:opacity-100" />
@@ -241,6 +248,34 @@ const COMPONENTS: Components = {
 
 const PLUGINS = [remarkGfm];
 
+type MathKit = typeof import("./mathPlugins.js");
+let mathKit: MathKit | null = null;
+let mathLoad: Promise<void> | null = null;
+
+/** The math plugins, once loaded; null until a message with a formula asks for them (and when the chunk fails to load). */
+function useMathKit(wanted: boolean): MathKit | null {
+  const [kit, setKit] = useState(mathKit);
+  useEffect(() => {
+    if (!wanted || kit) {
+      return;
+    }
+    let live = true;
+    mathLoad ??= import("./mathPlugins.js").then((loaded) => {
+      mathKit = loaded;
+    });
+    mathLoad.then(
+      () => live && setKit(mathKit),
+      () => {
+        mathLoad = null;
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [wanted, kit]);
+  return wanted ? (kit ?? mathKit) : null;
+}
+
 interface HastNode {
   type: string;
   tagName?: string;
@@ -256,7 +291,14 @@ interface HastNode {
  */
 function rehypeWords() {
   const walk = (node: HastNode): void => {
-    if (!node.children || node.tagName === "pre" || node.tagName === "code") {
+    const classes = node.properties?.["className"];
+    // Typeset math is markup of its own; wrapping its text would break it.
+    if (
+      !node.children ||
+      node.tagName === "pre" ||
+      node.tagName === "code" ||
+      (Array.isArray(classes) && classes.some((c) => String(c).startsWith("katex")))
+    ) {
       return;
     }
     const next: HastNode[] = [];
@@ -291,11 +333,16 @@ const STREAM_PLUGINS = [rehypeWords];
  */
 export const Markdown = memo(function Markdown(props: { text: string; className?: string; stream?: boolean }) {
   const mode = streamRenderMode(props.text.length, props.stream ?? false);
-  const shown = useSampledText(props.text, mode === "sampled", STREAM_SAMPLE_MS);
+  const sampled = useSampledText(props.text, mode === "sampled", STREAM_SAMPLE_MS);
+  const math = useMemo(() => prepareMath(sampled), [sampled]);
+  const kit = useMathKit(math.hasMath);
+  const remark = kit ? [...PLUGINS, ...kit.MATH_REMARK] : PLUGINS;
+  const words = mode === "words" ? STREAM_PLUGINS : [];
+  const rehype = kit ? [...kit.MATH_REHYPE, ...words] : words;
   return (
     <div className={cn("prose-helicon", props.className)}>
-      <ReactMarkdown remarkPlugins={PLUGINS} rehypePlugins={mode === "words" ? STREAM_PLUGINS : undefined} components={COMPONENTS}>
-        {shown}
+      <ReactMarkdown remarkPlugins={remark} rehypePlugins={rehype} components={COMPONENTS}>
+        {kit ? math.text : sampled}
       </ReactMarkdown>
     </div>
   );
