@@ -17,7 +17,7 @@ export const SITE_URL = (
 ).replace(/\/$/, "");
 
 export const SITE_NAME = "Helicon";
-export const TITLE = "Helicon: Muse Code desktop app for Windows and macOS";
+export const TITLE = "Helicon: Muse Code desktop app for Windows, macOS and Linux";
 export const TAGLINE = "Same Muse Code. Same subscription. Better interface.";
 export const DESCRIPTION =
   "Free, open-source desktop and web app for Meta's Muse Code CLI. Every project, session, diff, approval and cost in one window, on the subscription you already have.";

@@ -295,7 +295,7 @@ function ShellPreview({ kind }: { kind: "desktop" | "web" }) {
         <span>
           <span className="block text-[14px] font-semibold text-fg">{desktop ? "Desktop app" : "Web app"}</span>
           <span className="block text-[13px] text-subtle">
-            {desktop ? "Tauri, with auto-update on Windows and macOS" : "Any browser, pointed at a remote daemon"}
+            {desktop ? "Tauri, with auto-update on Windows, macOS and Linux" : "Any browser, pointed at a remote daemon"}
           </span>
         </span>
       </figcaption>

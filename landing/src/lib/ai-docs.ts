@@ -122,7 +122,7 @@ ${pageIndex()}
 }
 
 export function llmsFullTxt(version: string | null) {
-  return `# ${SITE_NAME}: Muse Code desktop app for Windows and macOS
+  return `# ${SITE_NAME}: Muse Code desktop app for Windows, macOS and Linux
 
 > ${DESCRIPTION}
 

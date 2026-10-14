@@ -5,7 +5,7 @@ import { TAGLINE } from "./site";
 
 /** Shared by opengraph-image and twitter-image: the page's own frame, blueprint and wordmark. */
 export const ogSize = { width: 1200, height: 630 };
-export const ogAlt = "Helicon: Muse Code desktop app for Windows and macOS. A free, open-source desktop and web app for the muse CLI.";
+export const ogAlt = "Helicon: Muse Code desktop app for Windows, macOS and Linux. A free, open-source desktop and web app for the muse CLI.";
 
 export type OgContent = {
   /** The big line. Defaults to the home page headline. */
@@ -17,7 +17,7 @@ export type OgContent = {
 };
 
 export async function renderOgImage(version: string | null, content: OgContent = {}) {
-  const title = content.title ?? "Muse Code desktop app for Windows and macOS.";
+  const title = content.title ?? "Muse Code desktop app for Windows, macOS and Linux.";
   const subtitle = content.subtitle ?? TAGLINE;
   const pill = content.eyebrow ?? (version ? `v${version} · Free and MIT licensed` : "Free and MIT licensed");
   // Long titles need to come down a size or two so they stay inside the frame.
