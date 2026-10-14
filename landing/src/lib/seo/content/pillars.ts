@@ -62,7 +62,7 @@ export const PILLAR_PAGES: SeoPage[] = [
           { name: "Sign in", text: "Authentication stays with your own account. Helicon never stores credentials.", code: "muse login" },
           {
             name: "Download Helicon",
-            text: "Pick the Windows installer or the universal macOS DMG from the [install page](/install). It is free and MIT licensed.",
+            text: "Pick the Windows installer, the universal macOS DMG or the Linux AppImage from the [install page](/install). It is free and MIT licensed.",
           },
         ],
       },
@@ -93,6 +93,11 @@ export const PILLAR_PAGES: SeoPage[] = [
           "The same UI as a web app against a daemon on another machine.",
         ],
       },
+      { kind: "h2", text: "What it costs, and how the plan meter works" },
+      {
+        kind: "p",
+        text: "Helicon is free and adds no billing: it runs on the Muse Code subscription you already have. It shows what each thread would have cost at Meta's published per token rates, by day, model and thread, as a meter reading rather than a bill. The 5 hour window and weekly cap sit in the sidebar exactly as the CLI reports them. See [cost at API rates](/features/cost-and-usage) and [usage limits](/features/plan-limits).",
+      },
       { kind: "h2", text: "What to check before installing any of them" },
       {
         kind: "ol",
@@ -121,7 +126,7 @@ export const PILLAR_PAGES: SeoPage[] = [
         kind: "table",
         head: ["Platform", "Helicon", "Notes"],
         rows: [
-          ["Windows", "Installer, auto update", "Native Muse Code, or WSL2 with path translation"],
+          ["Windows", "Installer, auto update", "Native Muse Code, or WSL2 with path translation; installer not code signed yet, so SmartScreen warns once"],
           ["macOS", "Universal DMG, auto update", "Apple Silicon and Intel; Open Anyway in Privacy & Security on first launch"],
           ["Linux", "x86_64 AppImage, auto update", "Needs FUSE on some distributions; no ARM build yet"],
           ["Browser", "Web app against a daemon", "Same React UI, daemon on a machine you control"],
