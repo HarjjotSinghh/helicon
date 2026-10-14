@@ -2216,15 +2216,30 @@ describe("file viewer", () => {
       await writeFile(`${root}/new.txt`, "made by muse");
       const edited = await revert(base, cwd, "new.txt", [{ before: null, after: "changed since" }]);
       assert.equal(edited.status, 409, "a created file that changed afterwards is kept");
-      const done = await revert(base, cwd, "new.txt", [{ before: null, after: "made by muse" }]);
+      const done = await revert(base, cwd, "new.txt", [{ before: null, after: "made by muse", at: Date.now() - 1000 }]);
       assert.equal(done.status, 200);
       assert.equal(done.json.outcome, "deleted");
+      await writeFile(`${root}/old.txt`, "was here before");
+      const early = await revert(base, cwd, "old.txt", [{ before: null, after: "was here before", at: Date.now() + 60_000 }]);
+      assert.equal(early.status, 409, "a file that existed before the write is kept");
+      await writeFile(`${root}/.gitignore`, "mine.txt\n");
+      await writeFile(`${root}/mine.txt`, "private");
+      const ignored = await revert(base, cwd, "mine.txt", [{ before: null, after: "private", at: Date.now() - 1000 }]);
+      assert.equal(ignored.status, 409, "an ignored file is never deleted");
       await assert.rejects(access(`${root}/new.txt`));
 
       execFileSync("git", ["add", "README.md"], { cwd: root });
       const tracked = await revert(base, cwd, "README.md", [{ before: null, after: "# Title\n\nBody\n" }]);
       assert.equal(tracked.status, 409, "a tracked file is never deleted");
       assert.equal(await read(root, "README.md"), "# Title\n\nBody\n");
+    });
+
+    it("refuses a file that is not valid UTF-8 or is already gone", async () => {
+      const { writeFile } = await import("node:fs/promises");
+      const { base, root, cwd } = await project();
+      await writeFile(`${root}/latin.txt`, Buffer.from([0x6f, 0x6c, 0x64, 0xe9]));
+      assert.equal((await revert(base, cwd, "latin.txt", [{ before: "x", after: "old" }])).status, 409);
+      assert.equal((await revert(base, cwd, "missing.txt", [{ before: "x", after: "y" }])).status, 404);
     });
 
     it("refuses paths outside the project and malformed bodies", async () => {

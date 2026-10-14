@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { lstat, open, readdir, readFile, realpath, rename, stat, writeFile, unlink } from "node:fs/promises";
+import { chmod, lstat, open, readdir, readFile, realpath, rename, stat, writeFile, unlink } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
@@ -230,7 +230,8 @@ export async function writeProjectFile(
   }
   const temp = join(abs, `..`, `.${basename(abs)}.helicon-${process.pid}-${Date.now()}.tmp`);
   try {
-    await writeFile(temp, bytes, { mode: info.mode });
+    await writeFile(temp, bytes, { mode: info.mode & 0o7777 });
+    await chmod(temp, info.mode & 0o7777);
     await rename(temp, abs);
   } catch (error) {
     await unlink(temp).catch(() => undefined);
@@ -246,12 +247,26 @@ const execFileAsync = promisify(execFile);
 export interface RevertStep {
   before: string | null;
   after: string;
+  /** For a whole-file write: when the call ran (epoch ms), so a file that already existed then is never deleted. */
+  at?: number;
 }
 
-/** True only when git positively says the file is not tracked; not a repository, or any doubt, reads as tracked. */
+/**
+ * True only when git positively says the file is neither tracked nor ignored; not a repository, or any doubt, reads
+ * as "not new". An ignored file (.env.local, notes) is the user's own, so it never counts.
+ */
 async function untrackedInGit(root: string, rel: string): Promise<boolean> {
+  const git = (args: string[]) => execFileAsync("git", args, { cwd: root, timeout: 10_000 });
   try {
-    await execFileAsync("git", ["ls-files", "--error-unmatch", "--", rel], { cwd: root, timeout: 10_000 });
+    await git(["check-ignore", "-q", "--", rel]);
+    return false;
+  } catch (error) {
+    if ((error as { code?: unknown }).code !== 1) {
+      return false;
+    }
+  }
+  try {
+    await git(["--literal-pathspecs", "ls-files", "--error-unmatch", "--", rel]);
     return false;
   } catch (error) {
     const failure = error as { code?: unknown; stderr?: unknown };
@@ -261,7 +276,7 @@ async function untrackedInGit(root: string, rel: string): Promise<boolean> {
 
 /** Where `needle` sits in `content`, tried as written and then with the file's CRLF line endings. Null unless exactly one place. */
 function uniqueSpot(content: string, needle: string): { at: number; text: string } | null {
-  const forms = content.includes("\r\n") && !needle.includes("\r\n") ? [needle, needle.replace(/\n/g, "\r\n")] : [needle];
+  const forms = content.includes("\r\n") && !needle.includes("\r\n") ? [needle, needle.replace(/\r?\n/g, "\r\n")] : [needle];
   for (const text of forms) {
     if (text === "") {
       continue;
@@ -290,7 +305,12 @@ export async function revertProjectFile(
     throw new FileError(400, "Nothing to undo.");
   }
   const { abs, rel } = await resolveInRoot(root, requested, displayRoot);
-  const info = await lstat(abs);
+  const info = await lstat(abs).catch((error: unknown) => {
+    if ((error as { code?: unknown }).code === "ENOENT") {
+      throw new FileError(409, `${rel}: the file is gone, so there is nothing to undo.`, "revertConflict");
+    }
+    throw error;
+  });
   if (!info.isFile()) {
     throw new FileError(400, "Only a regular file can be undone.");
   }
@@ -298,7 +318,11 @@ export async function revertProjectFile(
     throw new FileError(413, "That file is too large to undo from here.");
   }
   const conflict = (why: string) => new FileError(409, `${rel}: ${why}`, "revertConflict");
-  let content = await readFile(abs, "utf8");
+  const raw = await readFile(abs);
+  let content = raw.toString("utf8");
+  if (!Buffer.from(content, "utf8").equals(raw)) {
+    throw conflict("the file is not valid UTF-8, so it cannot be edited safely from here.");
+  }
   let deletes = false;
   for (const [index, step] of steps.entries()) {
     if (step.before === null) {
@@ -309,7 +333,8 @@ export async function revertProjectFile(
       if (!written) {
         throw conflict("the file no longer matches what the thread wrote.");
       }
-      if (!(await untrackedInGit(root, rel))) {
+      const createdByThread = step.at !== undefined && info.birthtimeMs > 0 && info.birthtimeMs >= step.at - 5000;
+      if (!createdByThread || !(await untrackedInGit(root, rel))) {
         throw conflict("this thread wrote the whole file, and Helicon cannot tell it was new here. Restore it with git.");
       }
       deletes = true;
@@ -320,16 +345,21 @@ export async function revertProjectFile(
       throw conflict("the text this thread wrote is gone, changed, or appears more than once.");
     }
     const crlf = spot.text !== step.after;
-    const restored = crlf ? step.before.replace(/\n/g, "\r\n") : step.before;
+    const restored = crlf ? step.before.replace(/\r?\n/g, "\r\n") : step.before;
     content = `${content.slice(0, spot.at)}${restored}${content.slice(spot.at + spot.text.length)}`;
   }
   if (deletes) {
     await unlink(abs);
     return { path: rel, outcome: "deleted" };
   }
+  const now = await lstat(abs);
+  if (now.mtimeMs !== info.mtimeMs || now.size !== info.size) {
+    throw conflict("the file changed while it was being undone. Nothing was written.");
+  }
   const temp = join(abs, "..", `.${basename(abs)}.helicon-${process.pid}-${Date.now()}.tmp`);
   try {
-    await writeFile(temp, Buffer.from(content, "utf8"), { mode: info.mode });
+    await writeFile(temp, Buffer.from(content, "utf8"), { mode: info.mode & 0o7777 });
+    await chmod(temp, info.mode & 0o7777);
     await rename(temp, abs);
   } catch (error) {
     await unlink(temp).catch(() => undefined);

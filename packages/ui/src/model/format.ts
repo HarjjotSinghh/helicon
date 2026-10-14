@@ -616,6 +616,8 @@ export function extractDiff(item: MspItem): DiffView | null {
 export interface RevertStep {
   before: string | null;
   after: string;
+  /** For a whole-file write: when the call ran (epoch ms), so a file that already existed then is never deleted. */
+  at?: number;
 }
 
 /**
@@ -631,7 +633,8 @@ export function extractRevertSteps(item: MspItem): RevertStep[] | null {
   const oldKey = ["old_string", "oldString", "old_str", "find", "search", "old"].find((k) => typeof args[k] === "string");
   const newKey = ["new_string", "newString", "new_str", "replace", "new"].find((k) => typeof args[k] === "string");
   if (oldKey && newKey) {
-    return args["replace_all"] === true || args["replaceAll"] === true
+    // An empty replacement is a deletion: the text to find is gone, so it cannot be located again.
+    return args["replace_all"] === true || args["replaceAll"] === true || args[newKey] === ""
       ? null
       : [{ before: args[oldKey] as string, after: args[newKey] as string }];
   }
@@ -641,7 +644,7 @@ export function extractRevertSteps(item: MspItem): RevertStep[] | null {
       const e = edit && typeof edit === "object" ? (edit as Record<string, unknown>) : null;
       const o = e?.["old_string"] ?? e?.["oldString"] ?? e?.["old_str"];
       const n = e?.["new_string"] ?? e?.["newString"] ?? e?.["new_str"];
-      if (typeof o !== "string" || typeof n !== "string") {
+      if (typeof o !== "string" || typeof n !== "string" || n === "") {
         return null;
       }
       steps.push({ before: o, after: n });
@@ -650,7 +653,8 @@ export function extractRevertSteps(item: MspItem): RevertStep[] | null {
   }
   const content = pickString(args, ["content", "contents", "text", "file_text"]);
   if (content !== null && toolKind(item.tool, args) === "write") {
-    return [{ before: null, after: content }];
+    const at = item.recordedAt ? Date.parse(item.recordedAt) : NaN;
+    return [{ before: null, after: content, ...(Number.isFinite(at) ? { at } : {}) }];
   }
   return null;
 }

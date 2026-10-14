@@ -3175,9 +3175,27 @@ export class HeliconController {
    */
   async undoChanges(sessionId: string, files: { path: string; count: number; steps: RevertStep[] | null }[]): Promise<void> {
     const cwd = this.state.sessions[sessionId]?.cwd;
+    // A second click while the first undo of a file is still running would only report a false conflict.
+    files = files.filter((file) => !this.undoing.has(`${sessionId}|${file.path}`));
     if (!cwd || files.length === 0) {
       return;
     }
+    const keys = files.map((file) => `${sessionId}|${file.path}`);
+    keys.forEach((k) => this.undoing.add(k));
+    try {
+      await this.undoFiles(sessionId, cwd, files);
+    } finally {
+      keys.forEach((k) => this.undoing.delete(k));
+    }
+  }
+
+  private readonly undoing = new Set<string>();
+
+  private async undoFiles(
+    sessionId: string,
+    cwd: string,
+    files: { path: string; count: number; steps: RevertStep[] | null }[],
+  ): Promise<void> {
     const done: { path: string; count: number }[] = [];
     const left: string[] = [];
     let lastReason = "";

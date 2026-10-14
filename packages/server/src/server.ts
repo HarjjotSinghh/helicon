@@ -3772,7 +3772,13 @@ export class HeliconServer {
         ? raw.flatMap((entry: unknown) => {
             const e = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : null;
             return e && typeof e["after"] === "string" && (typeof e["before"] === "string" || e["before"] === null)
-              ? [{ before: e["before"] as string | null, after: e["after"] }]
+              ? [
+                  {
+                    before: e["before"] as string | null,
+                    after: e["after"],
+                    ...(typeof e["at"] === "number" && Number.isFinite(e["at"]) ? { at: e["at"] } : {}),
+                  },
+                ]
               : [];
           })
         : [];

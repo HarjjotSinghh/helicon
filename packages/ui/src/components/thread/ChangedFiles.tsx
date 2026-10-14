@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useApp, useController } from "../../app/context.js";
 import { basename } from "../../model/format.js";
 import { fileTarget } from "../../model/files.js";
-import { isSettled } from "../../model/changes.js";
+import { settledCount } from "../../model/changes.js";
 import { inheritedTurns, sideStart } from "../../model/fold.js";
 import { isSshPath } from "../../model/paths.js";
 import { cn } from "../ui/primitives.js";
@@ -28,22 +28,26 @@ export function ChangedFiles(props: { sessionId: string }) {
   const sideSince = useApp((s) => sideStart(s.sessions[props.sessionId]));
   const settled = useApp((s) => s.prefs.settledChanges);
   const [review, setReview] = useState(false);
-  // A side chat lists only its own edits, not the ones its thread made before it was opened.
+  // SSH projects cannot be undone from here, so nothing is ever settled there.
+  const canAct = cwd !== null && !isSshPath(cwd);
+  // A side chat lists only its own edits, not the ones its thread made before it was opened. Kept and undone changes
+  // are skipped, so a file the thread edits again lists only its new changes.
   const files = useMemo(() => {
     if (!fold) {
       return [];
     }
     const inherited = inheritedTurns(fold, sideSince);
     const items = fold.order.map((id) => fold.items[id]).filter((item) => item !== undefined);
-    return collectFileChanges(items.filter((item) => !item.turnId || !inherited.has(item.turnId)));
-  }, [fold, sideSince]);
-  // Kept and undone files drop out until the thread edits them again. SSH projects cannot be undone from here.
-  const canAct = cwd !== null && !isSshPath(cwd);
-  const pending = canAct ? files.filter((f) => !isSettled(settled, props.sessionId, f.path, f.diffs.length)) : files;
+    return collectFileChanges(
+      items.filter((item) => !item.turnId || !inherited.has(item.turnId)),
+      canAct ? (path) => settledCount(settled, props.sessionId, path) : undefined,
+    );
+  }, [fold, sideSince, settled, canAct, props.sessionId]);
+  const pending = files;
   if (pending.length === 0) {
     return null;
   }
-  const counted = (list: FileChanges[]) => list.map((f) => ({ path: f.path, count: f.diffs.length }));
+  const counted = (list: FileChanges[]) => list.map((f) => ({ path: f.path, count: f.total }));
   const undoAll = () => {
     const noun = pending.length === 1 ? "this file" : `these ${pending.length} files`;
     if (window.confirm(`Undo this thread's edits to ${noun}? Each file goes back to how it was before Muse changed it.`)) {

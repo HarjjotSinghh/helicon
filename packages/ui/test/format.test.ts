@@ -365,6 +365,7 @@ describe("extractRevertSteps", () => {
     assert.deepEqual(extractRevertSteps(tool("write", { path: "n.txt", content: "hi" })), [{ before: null, after: "hi" }]);
     assert.equal(extractRevertSteps(tool("edit", { path: "a.ts", old_string: "a", new_string: "b", replace_all: true })), null);
     assert.equal(extractRevertSteps(tool("apply_patch", { input: "*** Begin Patch\n--- a.ts\n+++ a.ts\n@@\n-old\n+new" })), null);
+    assert.equal(extractRevertSteps(tool("edit", { path: "a.ts", old_string: "a", new_string: "" })), null, "a deletion cannot be found again");
     assert.equal(extractRevertSteps(tool("bash", { command: "ls" })), null);
   });
 });
