@@ -354,6 +354,9 @@ class FakeClient implements HeliconClient {
     return [];
   }
   async openFileExternally() {}
+  async revertChanges() {
+    return { path: "", outcome: "reverted" as const };
+  }
   fileUrl(cwd: string, path: string) {
     return `/raw?${cwd}&${path}`;
   }

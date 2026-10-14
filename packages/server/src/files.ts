@@ -1,7 +1,9 @@
+import { execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { lstat, open, readdir, realpath, rename, stat, writeFile, unlink } from "node:fs/promises";
+import { lstat, open, readdir, readFile, realpath, rename, stat, writeFile, unlink } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
+import { promisify } from "node:util";
 
 /** A failure the HTTP layer turns into a status; `kind` lets the UI tell "changed on disk" apart from the rest. */
 export class FileError extends Error {
@@ -236,6 +238,104 @@ export async function writeProjectFile(
   }
   const saved = await stat(abs);
   return { path: rel, size: saved.size, mtimeMs: Math.round(saved.mtimeMs) };
+}
+
+const execFileAsync = promisify(execFile);
+
+/** One change to take back: `after` goes back to `before`, or, when `before` is null, the file `after` created goes away. */
+export interface RevertStep {
+  before: string | null;
+  after: string;
+}
+
+/** True only when git positively says the file is not tracked; not a repository, or any doubt, reads as tracked. */
+async function untrackedInGit(root: string, rel: string): Promise<boolean> {
+  try {
+    await execFileAsync("git", ["ls-files", "--error-unmatch", "--", rel], { cwd: root, timeout: 10_000 });
+    return false;
+  } catch (error) {
+    const failure = error as { code?: unknown; stderr?: unknown };
+    return failure.code === 1 && /did not match/.test(String(failure.stderr ?? ""));
+  }
+}
+
+/** Where `needle` sits in `content`, tried as written and then with the file's CRLF line endings. Null unless exactly one place. */
+function uniqueSpot(content: string, needle: string): { at: number; text: string } | null {
+  const forms = content.includes("\r\n") && !needle.includes("\r\n") ? [needle, needle.replace(/\n/g, "\r\n")] : [needle];
+  for (const text of forms) {
+    if (text === "") {
+      continue;
+    }
+    const first = content.indexOf(text);
+    if (first !== -1 && content.indexOf(text, first + text.length) === -1) {
+      return { at: first, text };
+    }
+  }
+  return null;
+}
+
+/**
+ * Takes back what a thread's edit tool calls did to one file. `steps` run latest first. The file is left
+ * alone unless every step lands: each swap needs the text it wrote to still be there exactly once, so a
+ * file someone edited since is reported as a conflict instead of being guessed at. A file the thread created
+ * is deleted only when git confirms it is untracked and it still holds exactly what was written.
+ */
+export async function revertProjectFile(
+  root: string,
+  displayRoot: string,
+  requested: string,
+  steps: RevertStep[],
+): Promise<{ path: string; outcome: "reverted" | "deleted" }> {
+  if (steps.length === 0) {
+    throw new FileError(400, "Nothing to undo.");
+  }
+  const { abs, rel } = await resolveInRoot(root, requested, displayRoot);
+  const info = await lstat(abs);
+  if (!info.isFile()) {
+    throw new FileError(400, "Only a regular file can be undone.");
+  }
+  if (info.size > MAX_WRITE_BYTES) {
+    throw new FileError(413, "That file is too large to undo from here.");
+  }
+  const conflict = (why: string) => new FileError(409, `${rel}: ${why}`, "revertConflict");
+  let content = await readFile(abs, "utf8");
+  let deletes = false;
+  for (const [index, step] of steps.entries()) {
+    if (step.before === null) {
+      if (index !== steps.length - 1) {
+        throw conflict("this thread wrote the whole file more than once, so the original is not recoverable.");
+      }
+      const written = content === step.after || content === step.after.replace(/\n/g, "\r\n");
+      if (!written) {
+        throw conflict("the file no longer matches what the thread wrote.");
+      }
+      if (!(await untrackedInGit(root, rel))) {
+        throw conflict("this thread wrote the whole file, and Helicon cannot tell it was new here. Restore it with git.");
+      }
+      deletes = true;
+      break;
+    }
+    const spot = uniqueSpot(content, step.after);
+    if (!spot) {
+      throw conflict("the text this thread wrote is gone, changed, or appears more than once.");
+    }
+    const crlf = spot.text !== step.after;
+    const restored = crlf ? step.before.replace(/\n/g, "\r\n") : step.before;
+    content = `${content.slice(0, spot.at)}${restored}${content.slice(spot.at + spot.text.length)}`;
+  }
+  if (deletes) {
+    await unlink(abs);
+    return { path: rel, outcome: "deleted" };
+  }
+  const temp = join(abs, "..", `.${basename(abs)}.helicon-${process.pid}-${Date.now()}.tmp`);
+  try {
+    await writeFile(temp, Buffer.from(content, "utf8"), { mode: info.mode });
+    await rename(temp, abs);
+  } catch (error) {
+    await unlink(temp).catch(() => undefined);
+    throw error;
+  }
+  return { path: rel, outcome: "reverted" };
 }
 
 /** Files whose path contains every word of `query`, breadth first, skipping heavy generated folders. */

@@ -9,6 +9,7 @@ import {
   diffLines,
   diffStats,
   extractDiff,
+  extractRevertSteps,
   formatDuration,
   formatTokens,
   humanize,
@@ -18,6 +19,7 @@ import {
   withoutDiffEcho,
   type DiffLine,
   type DiffView,
+  type RevertStep,
   type ToolKind,
 } from "../../model/format.js";
 import type { MspItem, OutputRef, UserInputAnswer } from "../../types.js";
@@ -360,6 +362,8 @@ export interface FileChanges {
   added: number;
   removed: number;
   diffs: DiffView[];
+  /** What reversing every change takes, latest first; null when any of them cannot be reversed from its arguments. */
+  steps: RevertStep[] | null;
 }
 
 /** The files a list of items edited, one entry per path, in the order they were first touched. */
@@ -375,10 +379,15 @@ export function collectFileChanges(items: Iterable<MspItem>): FileChanges[] {
     }
     const key = diff.path ?? item.itemId;
     const stats = diffStats(diff);
-    const entry = byPath.get(key) ?? { path: diff.path ?? "file", added: 0, removed: 0, diffs: [] };
+    const entry = byPath.get(key) ?? { path: diff.path ?? "file", added: 0, removed: 0, diffs: [], steps: [] };
     entry.added += stats.added;
     entry.removed += stats.removed;
     entry.diffs.push(diff);
+    // A call that did not land changed nothing, so there is nothing to reverse for it.
+    if (item.status !== "failed" && !item.failureKind) {
+      const steps = extractRevertSteps(item);
+      entry.steps = entry.steps && steps && diff.path ? [...steps.slice().reverse(), ...entry.steps] : null;
+    }
     byPath.set(key, entry);
   }
   return [...byPath.values()];
