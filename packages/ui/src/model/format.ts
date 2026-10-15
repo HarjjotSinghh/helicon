@@ -331,6 +331,16 @@ const VERBS: Record<ToolKind, [string, string]> = {
   generic: ["Used", "Using"],
 };
 
+/** The tool's own label for its current status, when Muse sent a complete one. */
+function toolLabel(item: MspItem): string | null {
+  const label = item.displayLabel;
+  if (!label || typeof label !== "object") {
+    return null;
+  }
+  const text = item.status === "inProgress" ? label.active : item.status === "completed" ? label.done : label.neutral;
+  return typeof text === "string" && text.trim() ? text.trim() : null;
+}
+
 export function describeTool(item: MspItem): ToolDescription {
   const args = parseArgs(item.args);
   const kind = toolKind(item.tool, args);
@@ -411,6 +421,10 @@ export function describeTool(item: MspItem): ToolDescription {
     }
     default: {
       const firstString = args ? Object.values(args).find((v): v is string => typeof v === "string" && v.length < 160) : null;
+      const label = toolLabel(item);
+      if (label) {
+        return { kind, verb: label, subject: null, mono: false, note: firstString ?? null };
+      }
       return {
         kind,
         verb: running ? "Using" : "Used",

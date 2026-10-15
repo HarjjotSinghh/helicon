@@ -104,6 +104,8 @@ export interface MspItem {
   retracted?: boolean;
   commandId?: string;
   tool?: string;
+  /** The tool's own words for this call (Muse 1.4.9+); the item's status picks the form. */
+  displayLabel?: { active: string; done: string; neutral: string };
   args?: string;
   callId?: string;
   approvalId?: string;

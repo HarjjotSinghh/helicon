@@ -162,6 +162,46 @@ describe("thread fold against a real muse transcript", () => {
     assert.deepEqual(fold.approvals, {}, "a redelivered request for a resolved approval stays resolved");
   });
 
+  it("shows an auto-reviewer hold as reviewing, not as a pending approval (Muse 1.4.9)", () => {
+    const ids = { sessionId: "s", approvalId: "a2", itemId: "tool2", currentRequirementId: { approvalId: "a2", sourceIndex: 0 } };
+    let fold = applyEvent(emptyFold(), { method: "approval/reviewing", params: ids });
+    assert.deepEqual(fold.reviewing, { a2: true });
+    assert.deepEqual(fold.approvals, {}, "nothing to decide while the reviewer holds it");
+    const request = { ...ids, availableChoices: [{ choiceId: "yes", label: "Allow once", decision: "approved", scope: "once" }], subject: { kind: "shell", command: "ls" } };
+    fold = applyEvent(fold, { method: "approval/requested", params: request });
+    assert.deepEqual(fold.reviewing, {}, "a release hands the decision to the user");
+    assert.equal(gateFor(fold, "tool2")?.kind, "approval");
+
+    let settled = applyEvent(emptyFold(), { method: "approval/reviewing", params: ids });
+    settled = applyEvent(settled, { method: "approval/resolved", params: { sessionId: "s", approvalId: "a2", decision: "approved", resolvedBy: "autoReviewer" } });
+    assert.deepEqual(settled.reviewing, {});
+    assert.deepEqual(settled.approvals, {});
+    settled = applyEvent(settled, { method: "approval/reviewing", params: ids });
+    assert.deepEqual(settled.reviewing, {}, "a late notice for a settled approval stays settled");
+
+    let ended = applyEvent(emptyFold(), { method: "approval/reviewing", params: ids });
+    ended = applyEvent(ended, { method: "turn/completed", params: { turnId: "t1", terminal: "interrupted" } });
+    assert.deepEqual(ended.reviewing, {}, "a hold ends with its turn even without a resolve");
+  });
+
+  it("drops a reviewing hold on load when the server lists it as pending", () => {
+    const ids = { sessionId: "s", approvalId: "a3", itemId: "tool3", currentRequirementId: { approvalId: "a3", sourceIndex: 0 } };
+    const request = { ...ids, availableChoices: [], subject: { kind: "shell", command: "ls" } };
+    const load = (approvals: unknown[]) =>
+      foldFromLoad({
+        session: null,
+        msp: null,
+        events: [{ method: "approval/reviewing", params: ids }],
+        truncated: false,
+        pending: { approvals: approvals as never[], userInputs: [] },
+        readOnly: false,
+        readOnlyReason: null,
+      });
+    assert.deepEqual(load([]).reviewing, { a3: true });
+    assert.deepEqual(load([request]).reviewing, {});
+    assert.ok(load([request]).approvals["a3"]);
+  });
+
   it("records failures, retries and cancellations per turn", () => {
     const fold = applyEvents(emptyFold(), [
       { method: "turn/started", params: { turnId: "t1" }, at: 1000 },
