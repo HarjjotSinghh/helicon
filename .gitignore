@@ -58,3 +58,6 @@ landing/seo-data/dashboard.html
 apps/vscode/LICENSE
 apps/vscode/*.vsix
 apps/vscode/.vscode-test/
+
+# local working notes, never commit
+handover/
