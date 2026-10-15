@@ -211,6 +211,8 @@ function touchedBy(events: readonly ViewEvent[]): Touched {
       touches.turns = true;
       // A retracted prompt is marked on the item as well as the turn.
       touches.items = true;
+      // A finished turn ends any auto-review hold that never got its own resolve.
+      touches.approvals ||= method === "turn/completed";
     } else if (method.startsWith("approval/")) {
       touches.approvals = true;
     } else if (method.startsWith("userInput/")) {
@@ -446,6 +448,9 @@ function applyOne(draft: Draft, event: ViewEvent): void {
       const turnId = str(params["turnId"]);
       if (!turnId) {
         break;
+      }
+      for (const id of Object.keys(d.reviewing)) {
+        delete d.reviewing[id];
       }
       const error = asRecord(params["error"]);
       d.turns[turnId] = {

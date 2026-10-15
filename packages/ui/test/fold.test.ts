@@ -178,6 +178,10 @@ describe("thread fold against a real muse transcript", () => {
     assert.deepEqual(settled.approvals, {});
     settled = applyEvent(settled, { method: "approval/reviewing", params: ids });
     assert.deepEqual(settled.reviewing, {}, "a late notice for a settled approval stays settled");
+
+    let ended = applyEvent(emptyFold(), { method: "approval/reviewing", params: ids });
+    ended = applyEvent(ended, { method: "turn/completed", params: { turnId: "t1", terminal: "interrupted" } });
+    assert.deepEqual(ended.reviewing, {}, "a hold ends with its turn even without a resolve");
   });
 
   it("drops a reviewing hold on load when the server lists it as pending", () => {

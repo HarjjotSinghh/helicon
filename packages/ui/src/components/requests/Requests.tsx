@@ -553,14 +553,6 @@ export function QueuedList(props: { sessionId: string; items: LocalEcho[] }) {
   );
 }
 
-/**
- * The thread still shows a turn running, but its stream went quiet and reloading from history did
- * not move it on. Saying so beats a spinner that will never resolve: the work itself usually
- * finished, and the transcript catches up once the backend starts talking again (#42).
- *
- * `onKeepLive` is passed only while catch-up is off in Settings. It is the way out that lasts: with
- * it on, Helicon asks Muse for the updates that stopped arriving, for this thread and every other.
- */
 /** Muse's auto-reviewer holds an approval: nothing to decide here unless it hands the call back. */
 export function ReviewingNotice(props: { count: number }) {
   return (
@@ -578,6 +570,14 @@ export function ReviewingNotice(props: { count: number }) {
   );
 }
 
+/**
+ * The thread still shows a turn running, but its stream went quiet and reloading from history did
+ * not move it on. Saying so beats a spinner that will never resolve: the work itself usually
+ * finished, and the transcript catches up once the backend starts talking again (#42).
+ *
+ * `onKeepLive` is passed only while catch-up is off in Settings. It is the way out that lasts: with
+ * it on, Helicon asks Muse for the updates that stopped arriving, for this thread and every other.
+ */
 export function StalledNotice(props: { onRetry: () => void; onKeepLive?: () => void; busy: boolean }) {
   const reload = (
     <Button size="sm" onClick={props.onRetry} loading={props.busy}>
