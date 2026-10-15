@@ -1002,6 +1002,7 @@ export class HeliconController {
       const waiting =
         Object.keys(thread.fold.userInputs).length > 0 ||
         Object.keys(thread.fold.approvals).length > 0 ||
+        Object.keys(thread.fold.reviewing).length > 0 ||
         (live?.pendingInputs ?? 0) > 0 ||
         (live?.pendingApprovals ?? 0) > 0;
       if (waiting) {
