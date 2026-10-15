@@ -1,6 +1,7 @@
 import { ArrowElbowLeftUpIcon, ArrowLeftIcon, FolderIcon, FolderPlusIcon, LinkIcon, TerminalWindowIcon } from "../ui/icons.js";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useApp, useController } from "../../app/context.js";
+import { useImeGuard } from "../../app/ime.js";
 import { errorMessage } from "../../client.js";
 import { cloneUrl, isFullPath, isSshPath, parentFolder, parseSshHost, repoName, sameFolder, splitBrowsePath, withTrailingSeparator } from "../../model/paths.js";
 import type { DirectoryListing } from "../../types.js";
@@ -99,6 +100,7 @@ const SOURCES: { id: SourceId; label: string; description: string; icon: ReactNo
  * browsing, a URL or `owner/repo` offers to clone, and the source rows cover the rest.
  */
 function Sources(props: { onPick: (id: SourceId) => void; onPath: (path: string) => void; onClone: (url: string) => void }) {
+  const ime = useImeGuard();
   const windows = useApp((s) => s.env?.platform === "win32");
   // SSH projects run `ssh` where the server runs; without a client the option would only fail later.
   const sshMissing = useApp((s) => s.env?.sshFound === false);
@@ -120,6 +122,9 @@ function Sources(props: { onPick: (id: SourceId) => void; onPath: (path: string)
     }
   };
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (ime.isImeKey(event)) {
+      return;
+    }
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setHighlight(Math.min(rows.length - 1, active + 1));
@@ -157,6 +162,9 @@ function Sources(props: { onPick: (id: SourceId) => void; onPath: (path: string)
             setValue(next);
             setHighlight(0);
           }}
+          onCompositionStart={ime.onCompositionStart}
+          onCompositionEnd={ime.onCompositionEnd}
+          onKeyUp={ime.onKeyUp}
           onKeyDown={onKeyDown}
           className={INPUT}
         />
@@ -200,6 +208,7 @@ function Sources(props: { onPick: (id: SourceId) => void; onPath: (path: string)
 }
 
 function RemoteInput(props: { provider: Provider; onBack: () => void; onContinue: (url: string) => void }) {
+  const ime = useImeGuard();
   const [value, setValue] = useState("");
   const [tried, setTried] = useState(false);
   const url = cloneUrl(value);
@@ -221,7 +230,13 @@ function RemoteInput(props: { provider: Provider; onBack: () => void; onContinue
           aria-label={github ? "GitHub repository" : "Git URL"}
           placeholder={github ? "owner/repo" : "https://github.com/owner/repo.git"}
           onChange={(event) => setValue(event.currentTarget.value)}
+          onCompositionStart={ime.onCompositionStart}
+          onCompositionEnd={ime.onCompositionEnd}
+          onKeyUp={ime.onKeyUp}
           onKeyDown={(event) => {
+            if (ime.isImeKey(event)) {
+              return;
+            }
             if (event.key === "Enter") {
               event.preventDefault();
               submit();
@@ -257,6 +272,7 @@ function RemoteInput(props: { provider: Provider; onBack: () => void; onContinue
 }
 
 function SshInput(props: { onBack: () => void; onContinue: (host: string) => void }) {
+  const ime = useImeGuard();
   const windows = useApp((s) => s.env?.platform === "win32");
   const [value, setValue] = useState("");
   const [tried, setTried] = useState(false);
@@ -278,7 +294,13 @@ function SshInput(props: { onBack: () => void; onContinue: (host: string) => voi
           aria-label="SSH hostname"
           placeholder="devbox.example.com or deploy@db1"
           onChange={(event) => setValue(event.currentTarget.value)}
+          onCompositionStart={ime.onCompositionStart}
+          onCompositionEnd={ime.onCompositionEnd}
+          onKeyUp={ime.onKeyUp}
           onKeyDown={(event) => {
+            if (ime.isImeKey(event)) {
+              return;
+            }
             if (event.key === "Enter") {
               event.preventDefault();
               submit();
@@ -358,6 +380,7 @@ function useListing(directory: string): { data: DirectoryListing | null; error: 
 }
 
 function FolderBrowser(props: { initial: string; clone: string | null; onBack: () => void }) {
+  const ime = useImeGuard();
   const controller = useController();
   const projects = useApp((s) => s.projects);
   const platform = useApp((s) => s.env?.platform ?? "");
@@ -439,7 +462,7 @@ function FolderBrowser(props: { initial: string; clone: string | null; onBack: (
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.nativeEvent.isComposing) {
+    if (ime.isImeKey(event)) {
       return;
     }
     if (event.key === "ArrowDown") {
@@ -517,6 +540,9 @@ function FolderBrowser(props: { initial: string; clone: string | null; onBack: (
             setInput(event.currentTarget.value);
             setHighlight(-1);
           }}
+          onCompositionStart={ime.onCompositionStart}
+          onCompositionEnd={ime.onCompositionEnd}
+          onKeyUp={ime.onKeyUp}
           onKeyDown={onKeyDown}
           className={INPUT}
         />

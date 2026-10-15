@@ -3,6 +3,7 @@ import { ArchiveIcon, ArrowsInIcon, CodeIcon, CopyIcon, DotsThreeIcon, FolderIco
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { announce, FOCUS_SCOPE } from "../../app/a11y.js";
 import { useApp, useController, useNow } from "../../app/context.js";
+import { useImeGuard } from "../../app/ime.js";
 import { speechChanges, threadSpeech, type ThreadSpeech } from "../../model/announce.js";
 import { CaptionSpacer, useOverlayDragProps } from "../../app/frame.js";
 import { basename, formatDuration } from "../../model/format.js";
@@ -250,6 +251,7 @@ function ProjectChip(props: { cwd: string }) {
 }
 
 function TitleField(props: { initial: string; onDone: (title: string | null) => void }) {
+  const ime = useImeGuard();
   const done = useRef(false);
   const finish = (value: string | null) => {
     if (!done.current) {
@@ -264,7 +266,13 @@ function TitleField(props: { initial: string; onDone: (title: string | null) => 
       defaultValue={props.initial}
       onFocus={(e) => e.currentTarget.select()}
       onBlur={(e) => finish(e.currentTarget.value)}
+      onCompositionStart={ime.onCompositionStart}
+      onCompositionEnd={ime.onCompositionEnd}
+      onKeyUp={ime.onKeyUp}
       onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+        if (ime.isImeKey(e)) {
+          return;
+        }
         if (e.key === "Enter") {
           finish(e.currentTarget.value);
         } else if (e.key === "Escape") {

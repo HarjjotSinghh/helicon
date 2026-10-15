@@ -1,6 +1,7 @@
 import { ArrowSquareOutIcon, ArrowsClockwiseIcon, CaretRightIcon, CodeIcon, EyeIcon, FileAudioIcon, FileCodeIcon, FileIcon, FileImageIcon, FileTextIcon, FileTxtIcon, FileVideoIcon, FolderIcon, FolderOpenIcon, MagnifyingGlassIcon, TreeViewIcon, XIcon } from "../ui/icons.js";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { shallowEqual, useApp, useController } from "../../app/context.js";
+import { useImeGuard } from "../../app/ime.js";
 import { useOverlayDragProps } from "../../app/frame.js";
 import { errorKind, errorMessage } from "../../client.js";
 import { basenameOf, dirnameOf, fileKey, fileTarget, formatFileSize, isMarkdownPath, type LineRange } from "../../model/files.js";
@@ -169,6 +170,7 @@ function ResizeHandle() {
 // ---------------------------------------------------------------- tree
 
 function FileTree(props: { sessionId: string; cwd: string }) {
+  const ime = useImeGuard();
   const controller = useController();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FileEntry[] | null>(null);
@@ -205,7 +207,13 @@ function FileTree(props: { sessionId: string; cwd: string }) {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onCompositionStart={ime.onCompositionStart}
+            onCompositionEnd={ime.onCompositionEnd}
+            onKeyUp={ime.onKeyUp}
             onKeyDown={(event) => {
+              if (ime.isImeKey(event)) {
+                return;
+              }
               if (event.key === "Escape") {
                 setQuery("");
               } else if (event.key === "Enter" && results?.[0]) {

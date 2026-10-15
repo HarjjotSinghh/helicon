@@ -2,6 +2,7 @@ import { Command } from "cmdk";
 import { ArrowClockwiseIcon, ArrowCounterClockwiseIcon, ArrowsClockwiseIcon, FolderIcon, FolderPlusIcon, MagnifyingGlassIcon, MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, MonitorIcon, MoonIcon, NotePencilIcon, ShieldSlashIcon, SidebarSimpleIcon, StackIcon, SunIcon } from "../ui/icons.js";
 import { useMemo, type ReactNode } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
+import { useImeGuard } from "../../app/ime.js";
 import { basename, relativeTime } from "../../model/format.js";
 import { threadStatus } from "../../model/status.js";
 import { Modal } from "../ui/overlays.js";
@@ -24,6 +25,7 @@ function Item(props: { value: string; keywords?: string[]; onSelect: () => void;
 }
 
 export function CommandPalette() {
+  const ime = useImeGuard();
   const controller = useController();
   const open = useApp((s) => s.paletteOpen);
   const sessions = useApp((s) => s.sessions);
@@ -61,6 +63,15 @@ export function CommandPalette() {
         <div className="flex items-center gap-2.5 border-b border-line px-4">
           <MagnifyingGlassIcon size={16} className="shrink-0 text-subtle" />
           <Command.Input
+            onCompositionStart={ime.onCompositionStart}
+            onCompositionEnd={ime.onCompositionEnd}
+            onKeyUp={ime.onKeyUp}
+            onKeyDown={(event) => {
+              // cmdk selects on Enter after compositionend in WebKit; stop IME keys before its root handler.
+              if (ime.isImeKey(event)) {
+                event.stopPropagation();
+              }
+            }}
             placeholder="Search threads, projects and actions"
             className="h-12 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-subtle"
           />

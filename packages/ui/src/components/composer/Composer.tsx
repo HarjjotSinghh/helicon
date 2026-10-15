@@ -17,6 +17,7 @@ import { CostMeter } from "./CostPanel.js";
 import { resolveSteer } from "./keys.js";
 import { Popover, Slider, Switch } from "radix-ui";
 import { shallowEqual, useApp, useController } from "../../app/context.js";
+import { useImeGuard } from "../../app/ime.js";
 import { useSampled } from "../../app/sampled.js";
 import { basename, formatDuration, formatSpeed, formatTokens, modelDisplayName } from "../../model/format.js";
 import { isSshPath } from "../../model/paths.js";
@@ -137,6 +138,7 @@ export function Composer(props: ComposerProps) {
     }
   }, [handoff, draftKey, controller, setText]);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const ime = useImeGuard();
   // One keypress, one send: clearing is React state, so a second Enter in the same frame re-reads the
   // same draft. The marker is synchronous where state is not; only an unchanged draft matches it, so a
   // genuinely new message typed while a send is in flight still goes.
@@ -284,7 +286,7 @@ export function Composer(props: ComposerProps) {
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.nativeEvent.isComposing) {
+    if (ime.isImeKey(event)) {
       return;
     }
     const live = menuAt(event.currentTarget.selectionStart);
@@ -437,6 +439,9 @@ export function Composer(props: ComposerProps) {
         }}
         onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
         onKeyDown={onKeyDown}
+        onKeyUp={ime.onKeyUp}
+        onCompositionStart={ime.onCompositionStart}
+        onCompositionEnd={ime.onCompositionEnd}
         onBlur={() => setDismissed(word)}
         onFocus={() => setDismissed(null)}
         className={cn(

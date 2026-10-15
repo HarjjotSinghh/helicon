@@ -1,6 +1,7 @@
 import { CaretDownIcon, CaretUpIcon, ChatCircleDotsIcon, CheckCircleIcon, CheckIcon, CircleIcon, ClockIcon, ListChecksIcon, LockIcon, PencilSimpleIcon, PlugsIcon, ShieldWarningIcon, XCircleIcon, XIcon } from "../ui/icons.js";
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { useApp, useController } from "../../app/context.js";
+import { useImeGuard } from "../../app/ime.js";
 import type { LocalEcho } from "../../model/fold.js";
 import { describeApproval } from "../../model/format.js";
 import type { ApprovalChoice, ApprovalRequest, TodoItem, UserInputAnswer, UserInputQuestion, UserInputRequest } from "../../types.js";
@@ -232,6 +233,7 @@ function answerFor(question: UserInputQuestion, picks: Picks, custom: Custom): U
  * Adapted: real MSP questions and answers, Helicon tokens, crossfade instead of a measured slide.
  */
 export function QuestionPanel(props: { request: UserInputRequest; keyboard: boolean }) {
+  const ime = useImeGuard();
   const controller = useController();
   const { request } = props;
   const busy = useApp((s) => Boolean(s.busy[`input:${request.userInputId}`]));
@@ -412,7 +414,13 @@ export function QuestionPanel(props: { request: UserInputRequest; keyboard: bool
                 setPicks((previous) => ({ ...previous, [question.id]: [] }));
               }
             }}
+            onCompositionStart={ime.onCompositionStart}
+            onCompositionEnd={ime.onCompositionEnd}
+            onKeyUp={ime.onKeyUp}
             onKeyDown={(event) => {
+              if (ime.isImeKey(event)) {
+                return;
+              }
               if (event.key === "Enter" && answered) {
                 event.preventDefault();
                 advance(picks, custom);

@@ -3,6 +3,7 @@ import { usePanel } from "../../app/panel.js";
 import { ArchiveIcon, ArrowClockwiseIcon, ArrowLineDownIcon, ArrowUUpLeftIcon, ArrowsClockwiseIcon, CaretRightIcon, ChartBarIcon, CheckIcon, CodeIcon, CopyIcon, DotsThreeIcon, DownloadSimpleIcon, FolderIcon, FolderOpenIcon, FolderPlusIcon, FunnelSimpleIcon, GearSixIcon, GitBranchIcon, MagnifyingGlassIcon, MonitorIcon, MoonIcon, NotePencilIcon, PauseIcon, PencilSimpleIcon, PlayIcon, PushPinIcon, PushPinSlashIcon, ShieldSlashIcon, SidebarSimpleIcon, StackIcon, SunIcon, TargetIcon, XIcon } from "../ui/icons.js";
 import { memo, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref } from "react";
 import { shallowEqual, useApp, useController, useNow } from "../../app/context.js";
+import { useImeGuard } from "../../app/ime.js";
 import { useOverlayDragProps, useTitlebarOverlay } from "../../app/frame.js";
 import { basename, formatElapsed, relativeTime } from "../../model/format.js";
 import { statusLabel } from "../../model/goal.js";
@@ -726,6 +727,7 @@ export const ThreadRow = memo(
 );
 
 function RenameField(props: { initial: string; onDone: (title: string | null) => void }) {
+  const ime = useImeGuard();
   const done = useRef(false);
   const finish = (value: string | null) => {
     if (!done.current) {
@@ -740,7 +742,13 @@ function RenameField(props: { initial: string; onDone: (title: string | null) =>
       aria-label="Thread title"
       onFocus={(e) => e.currentTarget.select()}
       onBlur={(e) => finish(e.currentTarget.value)}
+      onCompositionStart={ime.onCompositionStart}
+      onCompositionEnd={ime.onCompositionEnd}
+      onKeyUp={ime.onKeyUp}
       onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+        if (ime.isImeKey(e)) {
+          return;
+        }
         if (e.key === "Enter") {
           finish(e.currentTarget.value);
         } else if (e.key === "Escape") {
