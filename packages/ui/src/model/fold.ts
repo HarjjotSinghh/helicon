@@ -98,6 +98,8 @@ export interface ThreadFold {
   approvals: Record<string, ApprovalRequest>;
   userInputs: Record<string, UserInputRequest>;
   resolved: Record<string, { decision: string; resolvedBy: string }>;
+  /** Approvals the auto-reviewer holds (`approval/reviewing`): nothing to decide until it releases or settles them. */
+  reviewing: Record<string, true>;
   settled: Record<string, { outcome: string; answers: UserInputAnswer[] }>;
   echoes: LocalEcho[];
   meta: ThreadMeta;
@@ -116,6 +118,7 @@ export function emptyFold(): ThreadFold {
     approvals: {},
     userInputs: {},
     resolved: {},
+    reviewing: {},
     settled: {},
     echoes: [],
     meta: {
@@ -233,7 +236,7 @@ class Draft {
       ...base,
       ...(touches.items ? { items: { ...base.items } } : {}),
       ...(touches.turns ? { turns: { ...base.turns } } : {}),
-      ...(touches.approvals ? { approvals: { ...base.approvals }, resolved: { ...base.resolved } } : {}),
+      ...(touches.approvals ? { approvals: { ...base.approvals }, resolved: { ...base.resolved }, reviewing: { ...base.reviewing } } : {}),
       ...(touches.userInputs ? { userInputs: { ...base.userInputs }, settled: { ...base.settled } } : {}),
       // Small, and nearly every event reads or writes something in it.
       meta: { ...base.meta },
@@ -507,10 +510,18 @@ function applyOne(draft: Draft, event: ViewEvent): void {
       }
       break;
     }
+    case "approval/reviewing": {
+      const id = str(params["approvalId"]);
+      if (id && !d.resolved[id] && !d.approvals[id]) {
+        d.reviewing[id] = true;
+      }
+      break;
+    }
     case "approval/requested":
     case "approval/updated": {
       const id = str(params["approvalId"]);
       if (id && !d.resolved[id]) {
+        delete d.reviewing[id];
         d.approvals[id] = { ...d.approvals[id], ...(params as unknown as ApprovalRequest) };
       }
       break;
@@ -519,6 +530,7 @@ function applyOne(draft: Draft, event: ViewEvent): void {
       const id = str(params["approvalId"]);
       if (id) {
         delete d.approvals[id];
+        delete d.reviewing[id];
         d.resolved[id] = {
           decision: str(params["decision"]) ?? "resolved",
           resolvedBy: str(params["resolvedBy"]) ?? "user",
@@ -703,9 +715,17 @@ export function foldFromLoad(load: TranscriptLoad, previous?: ThreadFold | null)
   for (const input of load.pending.userInputs) {
     userInputs[input.userInputId] = input;
   }
+  // A hold the server already lists as pending was released while we were away.
+  const reviewing: Record<string, true> = {};
+  for (const id of Object.keys(fold.reviewing)) {
+    if (!approvals[id]) {
+      reviewing[id] = true;
+    }
+  }
   fold = {
     ...fold,
     approvals,
+    reviewing,
     userInputs,
     activeTurnId: load.msp ? load.msp.activeTurnId : fold.activeTurnId,
     echoes: carriedEchoes(fold, previous?.echoes ?? []),

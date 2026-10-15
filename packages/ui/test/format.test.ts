@@ -90,6 +90,19 @@ describe("tool descriptions", () => {
     assert.equal(describeTool(tool("bash", { command: "npm test" }, "inProgress")).verb, "Running");
   });
 
+  it("uses the tool's own label for its status on tools Helicon has no words for (Muse 1.4.9)", () => {
+    const labelled = (status: string): MspItem => ({
+      ...tool("lookup_docs", { query: "fold" }, status),
+      displayLabel: { active: "Looking up docs", done: "Looked up docs", neutral: "Look up docs" },
+    });
+    assert.equal(describeTool(labelled("inProgress")).verb, "Looking up docs");
+    assert.equal(describeTool(labelled("completed")).verb, "Looked up docs");
+    assert.equal(describeTool(labelled("failed")).verb, "Look up docs");
+    assert.equal(describeTool(labelled("completed")).note, "fold");
+    const blank: MspItem = { ...tool("lookup_docs", {}), displayLabel: { active: " ", done: " ", neutral: " " } };
+    assert.notEqual(describeTool(blank).verb.trim(), "", "a blank label falls back to Helicon's own words");
+  });
+
   it("describes questions, file tools, searches and unknown tools", () => {
     const question = describeTool(
       tool("request_user_input", { questions: [{ id: "q", header: "Color", question: "Which color?", options: [], selection: { mode: "single" } }] }),

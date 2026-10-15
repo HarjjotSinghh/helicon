@@ -13,7 +13,7 @@ import type { SessionSummary } from "../../types.js";
 import { SidebarToggle, TrafficLightSpacer } from "../chrome.js";
 import { Composer, ComposerFooter } from "../composer/Composer.js";
 import { TelemetryPills } from "../composer/TelemetryPills.js";
-import { ApprovalPanel, CloseCard, PlanPanel, QuestionPanel, QueuedList, ReadOnlyNotice, StalledNotice } from "../requests/Requests.js";
+import { ApprovalPanel, CloseCard, PlanPanel, QuestionPanel, QueuedList, ReadOnlyNotice, ReviewingNotice, StalledNotice } from "../requests/Requests.js";
 import { GoalPanel } from "./GoalPanel.js";
 import { revealLabel } from "../sidebar/Sidebar.js";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tip } from "../ui/overlays.js";
@@ -319,6 +319,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
   const { session, thread } = props;
   const fold = thread?.fold ?? null;
   const approvals = fold ? Object.values(fold.approvals) : [];
+  const reviewing = fold ? Object.keys(fold.reviewing).length : 0;
   const inputs = fold ? Object.values(fold.userInputs) : [];
   const queued = fold ? fold.echoes.filter((e) => e.disposition === "queued") : [];
   const todo = fold?.meta.todoList ?? null;
@@ -342,6 +343,7 @@ function Dock(props: { session: SessionSummary; thread: ThreadState | null; runn
             onKeepLive={catchUpOff ? () => void controller.keepThreadLive(session.sessionId) : undefined}
           />
         ) : null}
+        {reviewing > 0 && !thread?.readOnly ? <ReviewingNotice count={reviewing} /> : null}
         {approvals.map((request, index) => (
           <ApprovalPanel key={request.approvalId} request={request} primary={index === 0} />
         ))}
