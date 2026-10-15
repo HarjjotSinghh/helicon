@@ -1,6 +1,7 @@
 import { ArchiveIcon, ArrowsInIcon, ChartBarIcon, ClockCounterClockwiseIcon, DotsThreeIcon, GearSixIcon, MagnifyingGlassIcon, PencilSimpleIcon, PlusIcon, XIcon } from "../ui/icons.js";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
+import { useImeGuard } from "../../app/ime.js";
 import { postToHost } from "../../app/host.js";
 import { inFolder, usePanel } from "../../app/panel.js";
 import { basename, relativeTime } from "../../model/format.js";
@@ -499,6 +500,7 @@ function dateGroup(iso: string, now: number): string {
 
 /** Every thread in the folder, searchable by title and grouped by when it last moved. */
 function HistorySheet(props: { cwd: string | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const ime = useImeGuard();
   const controller = useController();
   const now = useNow(60_000);
   const [query, setQuery] = useState("");
@@ -542,7 +544,13 @@ function HistorySheet(props: { cwd: string | null; open: boolean; onOpenChange: 
           autoFocus
           value={query}
           onChange={(event) => setQuery(event.currentTarget.value)}
+          onCompositionStart={ime.onCompositionStart}
+          onCompositionEnd={ime.onCompositionEnd}
+          onKeyUp={ime.onKeyUp}
           onKeyDown={(event) => {
+            if (ime.isImeKey(event)) {
+              return;
+            }
             const first = shown[0];
             if (event.key === "Enter" && first) {
               open(first.sessionId);
