@@ -16,8 +16,8 @@ describe("ImeTracker", () => {
     let now = 1000;
     const ime = new ImeTracker(() => now);
     ime.compositionStart();
-    assert.equal(ime.isImeKey(key("Enter")), true);
     assert.equal(ime.isImeKey(key("Enter", { isComposing: true })), true);
+    assert.equal(ime.isImeKey(key("Enter", { keyCode: 229 })), true);
   });
 
   it("Enter right after compositionend (WebKit order) does not submit", () => {
@@ -80,7 +80,7 @@ describe("ImeTracker", () => {
     now += 5;
     assert.equal(ime.isImeKey(key("Enter", { shiftKey: true })), false);
     ime.compositionStart();
-    assert.equal(ime.isImeKey(key("Enter", { shiftKey: true })), true);
+    assert.equal(ime.isImeKey(key("Enter", { shiftKey: true, isComposing: true })), true);
   });
 
   it("other keys right after a commit are not treated as IME keys", () => {
@@ -103,6 +103,25 @@ describe("ImeTracker", () => {
     now += 5;
     assert.equal(ime.isImeKey(key("Enter")), true);
     ime.keyUp("Enter");
+    assert.equal(ime.isImeKey(key("Enter")), false);
+  });
+
+  it("a composition that never ended does not block Enter later", () => {
+    const ime = new ImeTracker(() => 1000);
+    // The input unmounted or lost focus mid-composition, so compositionend never came.
+    ime.compositionStart();
+    assert.equal(ime.isImeKey(key("Enter")), false);
+  });
+
+  it("a non-Enter key closes the confirm window, so a quick real Enter still sends", () => {
+    let now = 1000;
+    const ime = new ImeTracker(() => now);
+    ime.compositionStart();
+    ime.compositionEnd();
+    now += 5;
+    // Korean and some Japanese IMEs commit on Space or a click, then the user presses Enter at once.
+    assert.equal(ime.isImeKey(key(" ", { keyCode: 32 })), false);
+    now += 20;
     assert.equal(ime.isImeKey(key("Enter")), false);
   });
 });

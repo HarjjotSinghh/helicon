@@ -17,7 +17,6 @@ const CONFIRM_WINDOW_MS = 100;
  * a plain check on it sends the message too early. This remembers that the composition just ended.
  */
 export class ImeTracker {
-  private composing = false;
   private confirming = false;
   private endedAt = 0;
   private readonly now: () => number;
@@ -27,12 +26,10 @@ export class ImeTracker {
   }
 
   compositionStart(): void {
-    this.composing = true;
     this.confirming = false;
   }
 
   compositionEnd(): void {
-    this.composing = false;
     this.confirming = true;
     this.endedAt = this.now();
   }
@@ -46,8 +43,14 @@ export class ImeTracker {
 
   /** True when this keydown belongs to the IME, so the input must not act on it. */
   isImeKey(event: ImeKeyEvent): boolean {
-    if (event.nativeEvent.isComposing || event.keyCode === 229 || this.composing) {
+    // The live flags only: a remembered "composing" sticks if the input unmounts mid-composition.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) {
       return true;
+    }
+    // Space or a candidate click can end a composition too; any other key ends the window.
+    if (event.key !== "Enter") {
+      this.confirming = false;
+      return false;
     }
     // Shift+Enter keeps its newline behaviour even right after a commit.
     return this.confirming && event.key === "Enter" && !event.shiftKey && this.now() - this.endedAt <= CONFIRM_WINDOW_MS;
