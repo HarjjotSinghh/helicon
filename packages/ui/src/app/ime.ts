@@ -52,8 +52,9 @@ export class ImeTracker {
       this.confirming = false;
       return false;
     }
-    // Shift+Enter keeps its newline behaviour even right after a commit.
-    return this.confirming && event.key === "Enter" && !event.shiftKey && this.now() - this.endedAt <= CONFIRM_WINDOW_MS;
+    // Shift+Enter counts too: some IMEs (ATOK) confirm with it. A textarea that ignores the key
+    // still gets its native newline, so only the app's own action is held back.
+    return this.confirming && this.now() - this.endedAt <= CONFIRM_WINDOW_MS;
   }
 }
 

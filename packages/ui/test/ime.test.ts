@@ -71,14 +71,14 @@ describe("ImeTracker", () => {
     assert.equal(ime.isImeKey(key("Enter")), false);
   });
 
-  it("Shift+Enter is unchanged: a newline with no composition, held during composition", () => {
+  it("Shift+Enter acts as usual with no composition, and is held while one confirms", () => {
     let now = 1000;
     const ime = new ImeTracker(() => now);
     assert.equal(ime.isImeKey(key("Enter", { shiftKey: true })), false);
     ime.compositionStart();
     ime.compositionEnd();
     now += 5;
-    assert.equal(ime.isImeKey(key("Enter", { shiftKey: true })), false);
+    assert.equal(ime.isImeKey(key("Enter", { shiftKey: true })), true, "ATOK confirms with Shift+Enter");
     ime.compositionStart();
     assert.equal(ime.isImeKey(key("Enter", { shiftKey: true, isComposing: true })), true);
   });
