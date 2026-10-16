@@ -166,6 +166,30 @@ const FEATURED_BADGES = [
     width: 200,
     height: 50,
   },
+  {
+    name: "Fazier",
+    href: "https://fazier.com/launches/helicon.sh",
+    src: "https://fazier.com/api/v1//public/badges/launch_badges.svg?badge_type=launched&theme=light",
+    alt: "Fazier badge",
+    width: 103,
+    height: 44,
+  },
+  {
+    name: "StartupBase",
+    href: "https://startupbase.io/products/helicon?utm_source=startupbase&utm_medium=badge&utm_campaign=launch-badge-light",
+    src: "https://statics.startupbase.io/site/badges/launched-on-sb.svg",
+    alt: "Launched on StartupBase",
+    width: 300,
+    height: 80,
+  },
+  {
+    name: "PeerPush",
+    href: "https://peerpush.com/p/helicon",
+    src: "https://peerpush.com/p/helicon/badge.png",
+    alt: "Helicon on PeerPush",
+    width: 460,
+    height: 130,
+  },
 ];
 
 const BADGE_LINK =
@@ -174,7 +198,7 @@ const BADGE_LINK =
 const BADGE_IMG = "block h-5 w-auto max-w-full object-contain sm:h-[22px]";
 
 /**
- * The nine directory badges as plain list items. Each is the price of a free listing: the directory
+ * The twelve directory badges as plain list items. Each is the price of a free listing: the directory
  * checks this page for a crawlable link back (and some for their own image), so the hrefs, rels and
  * image URLs stay exactly as each directory issued them and the links carry no nofollow. Lazy, so
  * they cost nothing above the fold. Embed codes are kept in marketing/badges/README.md.
