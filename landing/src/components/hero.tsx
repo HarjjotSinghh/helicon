@@ -57,7 +57,7 @@ export function Hero({
         </TrackedLink>
 
         <h1
-          className="mt-7 font-headline text-[clamp(2.6rem,6.6vw,5.25rem)] leading-[1] font-semibold tracking-[-0.02em] text-fg max-[359px]:text-[2.2rem]"
+          className="mt-7 font-headline max-w-[13em] text-[clamp(2.25rem,5.6vw,4.5rem)] leading-[1] font-semibold tracking-[-0.02em] text-fg max-[359px]:text-[2rem]"
         >
           {copy.headlineContinue ? (
             <>
