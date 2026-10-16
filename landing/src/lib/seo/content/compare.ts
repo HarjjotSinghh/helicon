@@ -28,7 +28,8 @@ type Entry = {
   keywords: string[];
   /**
    * Rows of the at a glance table: [dimension, Helicon, the other tool, source]. The source is the
-   * other tool's docs or changelog page that backs its cell, checked on COMPARE_CHECKED.
+   * other tool's docs or changelog page that backs its cell, checked on COMPARE_CHECKED. It is empty when
+   * no page states the claim, so the table shows no date rather than a link that does not back it.
    */
   rows: [string, string, string, string][];
   what: string[];
@@ -59,12 +60,12 @@ const ENTRIES: Entry[] = [
       "muse code session history",
     ],
     rows: [
-      ["Where it runs", "Desktop app or browser against a daemon", "Any terminal emulator", "https://dev.meta.ai/products/muse-code/"],
-      ["Session history", "Every session listed per project, resumable", "Scrollback, until the tab closes", "https://dev.meta.ai/products/muse-code/"],
-      ["Several repos at once", "Sidebar grouped by working directory", "One terminal tab per repo", "https://dev.meta.ai/products/muse-code/"],
-      ["Diffs", "Inline in the thread, where the edit happened", "Patch text in the scroll", "https://dev.meta.ai/products/muse-code/"],
-      ["Approvals", "A queue you can see and act on", "Inline prompt you have to be watching for", "https://dev.meta.ai/products/muse-code/"],
-      ["Cost", "Per thread, per day, per model at API rates", "Not shown", "https://dev.meta.ai/products/muse-code/"],
+      ["Where it runs", "Desktop app or browser against a daemon", "Any terminal emulator", ""],
+      ["Session history", "Every session listed per project, resumable", "Scrollback, until the tab closes", ""],
+      ["Several repos at once", "Sidebar grouped by working directory", "One terminal tab per repo", ""],
+      ["Diffs", "Inline in the thread, where the edit happened", "Patch text in the scroll", ""],
+      ["Approvals", "A queue you can see and act on", "Inline prompt you have to be watching for", ""],
+      ["Cost", "Per thread, per day, per model at API rates", "Not shown", ""],
       ["Offline setup", "Needs the muse CLI installed and logged in", "Is the muse CLI", "https://dev.meta.ai/products/muse-code/"],
       ["Who ships it", "Community, MIT, unofficial", "Meta, official", "https://dev.meta.ai/products/muse-code/"],
     ],
@@ -142,14 +143,14 @@ const ENTRIES: Entry[] = [
       "vscode muse code",
     ],
     rows: [
-      ["Lives in", "Its own window, or a browser tab", "The VS Code sidebar", "https://dev.meta.ai/products/muse-code/"],
-      ["Scope", "All projects on the machine at once", "The open workspace", "https://dev.meta.ai/products/muse-code/"],
-      ["Editor lock in", "None, works beside any editor", "VS Code and forks", "https://dev.meta.ai/products/muse-code/"],
-      ["Session list", "Grouped by directory, all history", "Usually per window", "https://dev.meta.ai/products/muse-code/"],
-      ["Diffs", "Inline in the thread plus a file viewer", "Native editor diff", "https://dev.meta.ai/products/muse-code/"],
-      ["Cost view", "Per thread, day and model", "Not typically included", "https://dev.meta.ai/products/muse-code/"],
-      ["Remote machines", "Same UI against a remote daemon", "Via Remote SSH or dev containers", "https://dev.meta.ai/products/muse-code/"],
-      ["Billing", "Your Muse Code subscription", "Your Muse Code subscription", "https://dev.meta.ai/products/muse-code/"],
+      ["Lives in", "Its own window, or a browser tab", "The VS Code sidebar", ""],
+      ["Scope", "All projects on the machine at once", "The open workspace", ""],
+      ["Editor lock in", "None, works beside any editor", "VS Code and forks", ""],
+      ["Session list", "Grouped by directory, all history", "Usually per window", ""],
+      ["Diffs", "Inline in the thread plus a file viewer", "Native editor diff", ""],
+      ["Cost view", "Per thread, day and model", "Not typically included", ""],
+      ["Remote machines", "Same UI against a remote daemon", "Via Remote SSH or dev containers", ""],
+      ["Billing", "Your Muse Code subscription", "Your Muse Code subscription", ""],
     ],
     what: [
       "Several community extensions bring the muse CLI into VS Code. They give you a chat panel inside the editor, which means the agent's output is a click away from the file tree you already have open, and applying an edit lands in the editor's own diff view. For a single repository and a single task that is hard to beat.",
@@ -226,11 +227,11 @@ const ENTRIES: Entry[] = [
     rows: [
       ["Protocol", "Muse Code Session Protocol, direct", "Agent Client Protocol, bridged", "https://zed.dev/docs/ai/external-agents"],
       ["Surface", "Standalone app or browser", "Zed's agent panel", "https://zed.dev/docs/ai/external-agents"],
-      ["Project scope", "Every project on the machine", "The open Zed project", "https://zed.dev/docs/ai/external-agents"],
+      ["Project scope", "Every project on the machine", "The open Zed project", ""],
       ["Session resume", "Any past session, including TUI ones", "Depends on the bridge", "https://agentclientprotocol.com/protocol/overview"],
       ["Cost view", "Per thread, day and model", "Not part of ACP", "https://agentclientprotocol.com/protocol/overview"],
       ["Windows", "Installer, native or WSL2", "Zed's own platform support", "https://zed.dev/blog/zed-for-windows-is-here"],
-      ["License", "MIT", "Varies by bridge", "https://zed.dev/docs/ai/external-agents"],
+      ["License", "MIT", "Varies by bridge", ""],
     ],
     what: [
       "The Agent Client Protocol lets an editor talk to any conforming agent. Bridges exist that expose Muse Code over ACP so Zed and JetBrains IDEs can use it. You get the agent inside the editor, with the editor's own buffers, diffs and keybindings, and you can swap agents without changing editors.",
@@ -303,7 +304,7 @@ const ENTRIES: Entry[] = [
     rows: [
       ["Surface", "Standalone app or browser", "IDE tool window", "https://www.jetbrains.com/help/ai-assistant/acp.html"],
       ["Protocol", "Muse Code Session Protocol, direct", "Agent Client Protocol, bridged", "https://www.jetbrains.com/help/ai-assistant/acp.html"],
-      ["Project scope", "Every project on the machine", "The open IDE project", "https://www.jetbrains.com/help/ai-assistant/acp.html"],
+      ["Project scope", "Every project on the machine", "The open IDE project", ""],
       ["Refactoring tools", "Not applicable", "Full IDE toolset beside the agent", "https://www.jetbrains.com/help/idea/refactoring-source-code.html"],
       ["Cost view", "Per thread, day and model", "Not part of ACP", "https://agentclientprotocol.com/protocol/overview"],
       ["Memory footprint", "One Tauri window", "On top of the JVM the IDE already needs", "https://www.jetbrains.com/help/idea/system-requirements.html"],
@@ -904,9 +905,9 @@ const ENTRIES: Entry[] = [
     rows: [
       ["What it is", "Muse Code protocol client", "Terminal emulator with agent features", "https://docs.warp.dev/features/warp-ai/agent-mode"],
       ["Knows about Muse sessions", "Yes, indexed and resumable", "Recognizes Muse Code as a CLI agent", "https://docs.warp.dev/changelog/2026/"],
-      ["Diffs", "Rendered inline in the thread", "Whatever the CLI prints", "https://docs.warp.dev/agents/capabilities/agent-profiles-permissions/"],
-      ["Approvals", "Protocol level queue", "A prompt in the block", "https://docs.warp.dev/agents/capabilities/agent-profiles-permissions/"],
-      ["Cost", "Per thread, day and model", "Not available", "https://docs.warp.dev/agents/capabilities/agent-profiles-permissions/"],
+      ["Diffs", "Rendered inline in the thread", "Whatever the CLI prints. [Warp's diff review covers its own agent](https://docs.warp.dev/agents/capabilities/agent-profiles-permissions/)", "https://docs.warp.dev/agents/capabilities/agent-profiles-permissions/"],
+      ["Approvals", "Protocol level queue", "A prompt in the block", ""],
+      ["Cost", "Per thread, day and model", "Not available", ""],
       ["Multi repo triage", "Sidebar grouped by directory", "Tabs and panes", "https://docs.warp.dev/terminal/windows/split-panes/"],
       ["Billing", "Existing Muse Code subscription", "Warp plan for its own agent", "https://docs.warp.dev/support-and-community/plans-and-billing/plans-pricing-refunds/"],
     ],
@@ -977,14 +978,14 @@ const ENTRIES: Entry[] = [
       "t3 code alternative muse code",
     ],
     rows: [
-      ["Agents", "Muse Code only", "Many: Codex, Claude, Cursor, Muse Code and ACP agents", "https://github.com/pingdotgg/t3code"],
-      ["Muse Code support", "Stable, the whole product", "Beta, off by default", "https://github.com/pingdotgg/t3code"],
-      ["How it talks to Muse Code", "`muse serve` through the official SDK", "`muse serve` through the official SDK", "https://github.com/pingdotgg/t3code"],
-      ["Approval modes", "Muse Code's own modes, mapped one to one", "Supervised or Full access", "https://github.com/pingdotgg/t3code"],
-      ["Sessions started in the terminal", "Listed and resumable", "Its own threads only", "https://github.com/pingdotgg/t3code"],
-      ["Fork a session", "Native Muse Code fork", "Copies context into a new session", "https://github.com/pingdotgg/t3code"],
-      ["Plan usage", "5 hour and weekly meter, cost at API rates", "Token and context counts", "https://github.com/pingdotgg/t3code"],
-      ["Editor extension", "VS Code, Cursor, Windsurf, VSCodium", "None", "https://github.com/pingdotgg/t3code"],
+      ["Agents", "Muse Code only", "Many: Claude Code, Codex, Cursor, Grok Build, OpenCode and Antigravity", "https://github.com/pingdotgg/t3code"],
+      ["Muse Code support", "Stable, the whole product", "Beta, off by default", ""],
+      ["How it talks to Muse Code", "`muse serve` through the official SDK", "`muse serve` through the official SDK", ""],
+      ["Approval modes", "Muse Code's own modes, mapped one to one", "Supervised or Full access", ""],
+      ["Sessions started in the terminal", "Listed and resumable", "Its own threads only", ""],
+      ["Fork a session", "Native Muse Code fork", "Copies context into a new session", ""],
+      ["Plan usage", "5 hour and weekly meter, cost at API rates", "Token and context counts", ""],
+      ["Editor extension", "VS Code, Cursor, Windsurf, VSCodium", "None", ""],
       ["License", "MIT", "MIT", "https://github.com/pingdotgg/t3code"],
     ],
     what: [
@@ -1061,14 +1062,14 @@ const ENTRIES: Entry[] = [
       "muse code desktop client",
     ],
     rows: [
-      ["Packaged Windows installer", "Yes, with auto update", "Rare", "https://github.com/EtienneLescot/muse-desktop"],
-      ["Native Windows Muse Code", "Yes, PowerShell shell commands", "Varies", "https://github.com/EtienneLescot/muse-desktop"],
-      ["WSL2 path translation", "Both ways", "Varies", "https://github.com/EtienneLescot/muse-desktop"],
-      ["macOS universal DMG", "Yes, updater signed, not notarized yet", "Varies", "https://github.com/EtienneLescot/muse-desktop"],
-      ["Resumes terminal sessions", "Yes", "Varies", "https://github.com/EtienneLescot/muse-desktop"],
-      ["Approval modes mapped one to one", "Yes", "Varies", "https://github.com/EtienneLescot/muse-desktop"],
-      ["Cost at API rates", "Per thread, day and model", "Rare", "https://github.com/EtienneLescot/muse-desktop"],
-      ["Web build on the same UI", "Yes, against a remote daemon", "Rare", "https://github.com/EtienneLescot/muse-desktop"],
+      ["Packaged Windows installer", "Yes, with auto update", "Rare", ""],
+      ["Native Windows Muse Code", "Yes, PowerShell shell commands", "Varies", ""],
+      ["WSL2 path translation", "Both ways", "Varies", ""],
+      ["macOS universal DMG", "Yes, updater signed, not notarized yet", "Varies", ""],
+      ["Resumes terminal sessions", "Yes", "Varies", ""],
+      ["Approval modes mapped one to one", "Yes", "Varies", ""],
+      ["Cost at API rates", "Per thread, day and model", "Rare", ""],
+      ["Web build on the same UI", "Yes, against a remote daemon", "Rare", ""],
     ],
     what: [
       "The category is young. A scan in September 2026 found a handful of Muse Code GUI projects, all of them small, none of them established. That is an honest description of the field and it is worth saying plainly rather than claiming a crown.",
@@ -1141,8 +1142,8 @@ function toPage(entry: Entry): SeoPage {
       {
         kind: "table",
         head: ["", "Helicon", entry.label, "Checked"],
-        rows: entry.rows.map(([dimension, helicon, other, source]) => [dimension, helicon, other, `[${checked}](${source})`]),
-        caption: `Helicon compared with ${entry.name}. The Checked column links the docs or changelog page behind each row.`,
+        rows: entry.rows.map(([dimension, helicon, other, source]) => [dimension, helicon, other, source ? `[${checked}](${source})` : ""]),
+        caption: `Helicon compared with ${entry.name}. The Checked column links the docs or changelog page behind each sourced row.`,
       },
       { kind: "h2", text: "What each one is" },
       ...entry.what.map((text) => ({ kind: "p", text }) as const),

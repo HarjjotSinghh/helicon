@@ -32,9 +32,14 @@ describe("compare sources", () => {
     for (const page of COMPARE_PAGES) {
       const table = page.blocks.find((block) => block.kind === "table");
       expect(table && table.kind === "table" ? table.head.at(-1) : "", page.slug).toBe("Checked");
-      for (const row of table && table.kind === "table" ? table.rows : []) {
+      const rows = table && table.kind === "table" ? table.rows : [];
+      for (const row of rows) {
         expect(row, page.slug).toHaveLength(4);
-        expect(row[3], `${page.slug}: ${row[0]}`).toMatch(/^\[\d{1,2} \w+ \d{4}\]\(https:\/\/[^)\s]+\)$/);
+        // A row either links the page that backs it or leaves Checked empty.
+        expect(row[3], `${page.slug}: ${row[0]}`).toMatch(/^(\[\d{1,2} \w+ \d{4}\]\(https:\/\/[^)\s]+\))?$/);
+      }
+      if (["compare/cline", "compare/warp", "compare/cursor"].includes(page.slug)) {
+        expect(rows.some((row) => row[3] !== ""), page.slug).toBe(true);
       }
     }
   });
