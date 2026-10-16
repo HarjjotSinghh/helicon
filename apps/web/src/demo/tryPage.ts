@@ -80,8 +80,10 @@ function formatDate(iso: string) {
 
 // Hidden for the first two seconds so a normal load goes straight to the app with no flash of text.
 // Without JavaScript, or on a connection too slow to start the app, the guide fades in instead.
+// The app's CSS locks html and body to the viewport, so the guide unlocks scrolling. The style tag
+// sits inside #root, so the lock comes back as soon as the app mounts.
 const GUIDE_STYLE =
-  "<style>.try-guide{max-width:44rem;margin:0 auto;padding:3rem 1.25rem;font:16px/1.65 system-ui,sans-serif;color:CanvasText;opacity:0;animation:try-guide-in 0s 2s forwards}" +
+  "<style>html,body,#root{height:auto!important;max-height:none!important;overflow:auto!important}.try-guide{max-width:44rem;margin:0 auto;padding:3rem 1.25rem;font:16px/1.65 system-ui,sans-serif;color:CanvasText;opacity:0;animation:try-guide-in 0s 2s forwards}" +
   ".try-guide h1{font-size:2rem;line-height:1.15;margin:0 0 1rem}.try-guide h2{font-size:1.25rem;margin:2.25rem 0 .5rem}" +
   ".try-guide small{opacity:.7}.try-guide code{font-size:.92em}@keyframes try-guide-in{to{opacity:1}}</style>";
 
