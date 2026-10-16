@@ -534,6 +534,13 @@ fn main() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             install_zoom_menu(app)?;
+            // Start the server before the window is built. The first WebView2 start on Windows takes seconds,
+            // and the server has no need to wait for it.
+            let (booted_tx, booted_rx) = mpsc::channel();
+            let boot_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let _ = booted_tx.send(boot_server(&boot_handle));
+            });
             // Open the window at once on a splash page; the server can take a few seconds to probe WSL.
             let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(SPLASH_PAGE.parse()?))
                 .title("Helicon")
@@ -570,9 +577,8 @@ fn main() {
                     .initialization_script(OVERLAY_SCRIPT);
             }
             let window = builder.build()?;
-            let handle = app.handle().clone();
             std::thread::spawn(move || {
-                let target = match boot_server(&handle) {
+                let target = match booted_rx.recv().unwrap_or(Err(BootError::ServerFailed)) {
                     Ok(url) => url,
                     Err(error) => {
                         // Error pages draw no window controls, so they get the native frame back.
