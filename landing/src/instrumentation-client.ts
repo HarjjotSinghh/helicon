@@ -107,15 +107,16 @@ function attributeDownload(event: MouseEvent) {
   const href = link?.getAttribute("href");
   if (!link || !href || !isDownloadHref(href, window.location.origin)) return;
   const loaded = Boolean((posthog as unknown as { __loaded?: boolean }).__loaded);
-  link.setAttribute(
-    "href",
-    withAttribution(href, window.location.origin, {
-      distinctId: loaded ? posthog.get_distinct_id() : readCookie(ANON_COOKIE),
-      sessionId: loaded ? posthog.get_session_id() : null,
-      firstTouch: touch,
-    }),
-  );
-  setTimeout(() => link.setAttribute("href", href), 0);
+  const attributed = withAttribution(href, window.location.origin, {
+    distinctId: loaded ? posthog.get_distinct_id() : readCookie(ANON_COOKIE),
+    sessionId: loaded ? posthog.get_session_id() : null,
+    firstTouch: touch,
+  });
+  link.setAttribute("href", attributed);
+  setTimeout(() => {
+    // Leave it alone if React has given the link a new href in the meantime.
+    if (link.getAttribute("href") === attributed) link.setAttribute("href", href);
+  }, 0);
 }
 
 document.addEventListener("click", attributeDownload, true);

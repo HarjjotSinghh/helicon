@@ -28,6 +28,8 @@ function cookieValue(header: string, name: string) {
 export function identityFromCookies(cookieHeader: string | null): {
   distinctId: string;
   sessionId: string | null;
+  /** posthog: PostHog's own cookie; anon: the landing cookie only; none: no cookie at all. */
+  source: "posthog" | "anon" | "none";
 } {
   const header = cookieHeader ?? "";
   const key = projectKey();
@@ -44,15 +46,18 @@ export function identityFromCookies(cookieHeader: string | null): {
         return {
           distinctId,
           sessionId: typeof session === "string" ? session : null,
+          source: "posthog",
         };
       }
     } catch {
       // Fall through to the anonymous landing cookie.
     }
   }
+  const anon = cookieValue(header, ANON_COOKIE);
   return {
-    distinctId: cookieValue(header, ANON_COOKIE) ?? "anonymous",
+    distinctId: anon ?? "anonymous",
     sessionId: null,
+    source: anon ? "anon" : "none",
   };
 }
 

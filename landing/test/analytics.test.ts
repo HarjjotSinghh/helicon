@@ -103,7 +103,7 @@ describe("download attribution", () => {
     expect(theirs.firstTouch).toEqual({ referring_domain: "www.google.com" });
   });
 
-  it("counts the download as the person in the link, ahead of the cookie", async () => {
+  it("counts the download as the person in the link when PostHog's cookie is missing", async () => {
     vi.stubEnv("POSTHOG_KEY", "phc_test");
     const fetchSpy = vi.fn(async (_url: string, _init: RequestInit) => new Response("{}"));
     vi.stubGlobal("fetch", fetchSpy);
@@ -131,6 +131,27 @@ describe("download attribution", () => {
       $referring_domain: "www.producthunt.com",
       ref: "producthunt",
       identity_source: "link",
+      $set_once: { $initial_referring_domain: "www.producthunt.com", $initial_ref: "producthunt" },
     });
+  });
+
+  it("keeps PostHog's own cookie ahead of an id in the link", async () => {
+    vi.stubEnv("POSTHOG_KEY", "phc_test");
+    const fetchSpy = vi.fn(async (_url: string, _init: RequestInit) => new Response("{}"));
+    vi.stubGlobal("fetch", fetchSpy);
+    const { GET } = await import("../src/app/download/[os]/route");
+
+    const persisted = encodeURIComponent(JSON.stringify({ distinct_id: "cookie-person", $sesid: [0, "cookie-session", 0] }));
+    const href = withAttribution("/download/macos?src=hero", origin, { distinctId: "someone-else" });
+    await GET(
+      new Request(new URL(href, origin), {
+        headers: { host: "helicon.sh", "user-agent": browserUa, cookie: `ph_phc_test_posthog=${persisted}` },
+      }),
+      { params: Promise.resolve({ os: "macos" }) },
+    );
+
+    const body = JSON.parse(String(fetchSpy.mock.calls[0][1].body));
+    expect(body.distinct_id).toBe("cookie-person");
+    expect(body.properties).toMatchObject({ $session_id: "cookie-session", identity_source: "cookie" });
   });
 });

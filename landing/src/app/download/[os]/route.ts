@@ -24,12 +24,14 @@ export async function GET(request: Request, context: { params: Promise<{ os: str
   const asset = await latestInstaller(kind);
   const cookies = identityFromCookies(request.headers.get("cookie"));
   const referer = request.headers.get("referer");
-  // The page writes the visitor's PostHog identity into the link at click time, which survives
-  // the cases where cookies do not reach this route. Cookies are the fallback, not the source.
+  // PostHog's own cookie is the strongest identity. When it did not reach this route, use the one
+  // the page wrote into the link at click time, then the landing's anonymous cookie.
   const link = attributionFromSearchParams(url.searchParams, referer, url.hostname);
-  const distinctId = link.distinctId ?? cookies.distinctId;
-  const sessionId = link.sessionId ?? cookies.sessionId;
-  const identitySource = link.distinctId ? "link" : cookies.distinctId !== "anonymous" ? "cookie" : "none";
+  const fromCookie = cookies.source === "posthog";
+  const distinctId = fromCookie ? cookies.distinctId : (link.distinctId ?? cookies.distinctId);
+  const sessionId = (fromCookie ? cookies.sessionId : null) ?? link.sessionId ?? null;
+  const identitySource = fromCookie ? "cookie" : link.distinctId ? "link" : cookies.source === "anon" ? "anon_cookie" : "none";
+  const touch = firstTouchProperties(link.firstTouch);
 
   // Crawlers follow these links from the site's own pages and never install anything, and each
   // arrives without a cookie, so counting them inflates downloads and the people behind them.
@@ -46,7 +48,11 @@ export async function GET(request: Request, context: { params: Promise<{ os: str
         version: asset?.version ?? null,
         referrer: referer ?? null,
         identity_source: identitySource,
-        ...firstTouchProperties(link.firstTouch),
+        ...touch,
+        // The same first touch on the person, kept from the first time it is seen.
+        $set_once: Object.fromEntries(
+          Object.entries(touch).map(([key, value]) => [key.startsWith("$") ? `$initial_${key.slice(1)}` : `$initial_${key}`, value]),
+        ),
         $current_url: url.toString(),
         ...(sessionId ? { $session_id: sessionId } : {}),
       },
