@@ -2,72 +2,19 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { tryHtml } from "./src/demo/tryPage";
 
 // The web app compiles the shared UI straight from source, so edits hot-reload without a package build.
 const uiEntry = fileURLToPath(new URL("../../packages/ui/src/index.ts", import.meta.url));
 
 /**
- * `npm run build:try` builds the demo for helicon.sh/try: served from /try/, with its own title and
- * description so the page reads as the demo rather than as the app.
+ * `npm run build:try` builds the demo for helicon.sh/try: served from /try/, with its own head and a
+ * written guide to the demo, so the page reads as the demo rather than as the app.
  */
-const tryJsonLd = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "Organization",
-      "@id": "https://helicon.sh/#publisher",
-      name: "Helicon",
-      url: "https://helicon.sh/",
-      logo: "https://helicon.sh/assets/logo-light.png",
-      description:
-        "Helicon is an unofficial, MIT licensed community project: a desktop and web client for Meta's Muse Code CLI. Not made, sponsored or endorsed by Meta.",
-      sameAs: [
-        "https://github.com/HarjjotSinghh/helicon",
-        "https://x.com/harjjotsinghh",
-        "https://www.linkedin.com/in/harjjotsinghh/",
-        "https://alternativeto.net/software/helicon/about/",
-      ],
-    },
-    {
-      "@type": "WebApplication",
-      name: "Helicon demo",
-      url: "https://helicon.sh/try",
-      applicationCategory: "DeveloperApplication",
-      operatingSystem: "Web",
-      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-      publisher: { "@id": "https://helicon.sh/#publisher" },
-    },
-  ],
-};
-
 const tryPage = {
   name: "helicon-try-page",
   transformIndexHtml(html: string) {
-    if (!process.env.VITE_TRY) {
-      return html;
-    }
-    return html.replace(
-      "<title>Helicon</title>",
-      [
-        "<title>Try Helicon in your browser: a Muse Code GUI demo</title>",
-        '<meta name="description" content="Click around the real Helicon interface for Muse Code without installing anything: threads, approvals, diffs, usage and monitors, running on sample data." />',
-        '<link rel="canonical" href="https://helicon.sh/try" />',
-        // A link to /try shared on X or anywhere else gets a real card, not a bare URL.
-        '<meta property="og:type" content="website" />',
-        '<meta property="og:url" content="https://helicon.sh/try" />',
-        '<meta property="og:title" content="Try Helicon in your browser" />',
-        '<meta property="og:description" content="The real Helicon interface for Muse Code, running on sample data. Nothing to install." />',
-        '<meta property="og:image" content="https://helicon.sh/brand/og-dark.png" />',
-        '<meta name="twitter:card" content="summary_large_image" />',
-        '<meta name="twitter:image" content="https://helicon.sh/brand/og-dark.png" />',
-        // The publisher node matches the one on every helicon.sh page (same @id), so the graphs merge.
-        `<script type="application/ld+json">${JSON.stringify(tryJsonLd)}</script>`,
-      ].join("\n    ").concat(""),
-    ).replace(
-      '<div id="root"></div>',
-      // One heading for crawlers and for anyone without JavaScript; the app replaces #root's content.
-      '<div id="root"><noscript><h1>Try Helicon in your browser</h1><p>The demo needs JavaScript. You can <a href="https://helicon.sh/#install">download Helicon</a> instead.</p></noscript></div>',
-    );
+    return process.env.VITE_TRY ? tryHtml(html) : html;
   },
 };
 
