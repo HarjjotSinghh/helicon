@@ -1,6 +1,9 @@
 import { ALL_PAGES, SECTIONS } from "./seo/catalog";
 import { API_BASE_PATH, API_VERSION } from "./api/contract";
 import { AUTHOR, CONTACT, ISSUES_URL, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL } from "./site";
+import { DESKTOP_OS, MUSE_CODE_DOCS_URL, MUSE_CODE_TESTED } from "./tested";
+
+export { DESKTOP_OS, DESKTOP_OS_TEXT, MUSE_CODE_DOCS_URL, MUSE_CODE_TESTED } from "./tested";
 
 /**
  * The checkable facts, as plain data. An agent evaluating Helicon on someone's behalf should not
@@ -27,6 +30,12 @@ export function factsBody(release: FactsRelease) {
     unrelated_to: "The Muse assistant app for Mac. Helicon is a client for the Muse Code CLI.",
     license: "MIT",
     price: { amount: 0, currency: "USD", model: "free", paid_tier: false, trial: false, account_required: false },
+    tested: {
+      muse_code_version: MUSE_CODE_TESTED.version,
+      muse_code_date: MUSE_CODE_TESTED.date,
+      muse_code_docs: MUSE_CODE_DOCS_URL,
+      desktop_os: [...DESKTOP_OS],
+    },
     requires: {
       cli: "The muse CLI, installed and signed in with the user's own `muse login`",
       subscription: "An existing Muse Code subscription. No API key, no second bill.",

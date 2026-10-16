@@ -1,6 +1,7 @@
 import { ArrowRight } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Inline } from "./blocks";
 import { AnswerBlock, Breadcrumbs, LastUpdated, PageCta } from "./doc-page";
 import { DocShell } from "./doc-shell";
 import { IconTile } from "./icons";
@@ -56,7 +57,7 @@ export async function SectionHubRoute({ slug }: { slug: string }) {
         </h1>
         <AnswerBlock>{section.answer}</AnswerBlock>
         {updated ? <LastUpdated date={updated} /> : null}
-        <p className="mt-5 max-w-[62ch] text-[15.5px] leading-[1.7] text-muted sm:text-[16.5px]">{section.intro}</p>
+        <p className="mt-5 max-w-[62ch] text-[15.5px] leading-[1.7] text-muted sm:text-[16.5px]"><Inline text={section.intro} /></p>
         <PageCards pages={pages} />
         <PageCta
           title="Same Muse Code. Same subscription. Better interface."

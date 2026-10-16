@@ -1,5 +1,7 @@
 import { ArrowUpRight, Key, Receipt, Scales, Database, Sparkle, Monitor } from "@phosphor-icons/react/ssr";
 import { RELEASES_URL } from "@/lib/site";
+import { DESKTOP_OS_TEXT, MUSE_CODE_DOCS_URL, MUSE_CODE_TESTED } from "@/lib/facts";
+import { formatDate } from "@/lib/seo/freshness";
 import type { PageCopy } from "@/lib/copy";
 import { DemoVideo } from "./demo-video";
 import { CtaRow } from "./cta-row";
@@ -127,6 +129,30 @@ export function Hero({
           </div>
         ))}
       </CellGrid>
+
+      <Rule />
+
+      <p className={`${bandX} py-3 text-[13.5px] leading-snug text-subtle`}>
+        Tested with{" "}
+        <a
+          href={MUSE_CODE_DOCS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-muted underline-offset-4 hover:underline"
+        >
+          Muse Code
+        </a>{" "}
+        {MUSE_CODE_TESTED.version} on {DESKTOP_OS_TEXT}, {formatDate(MUSE_CODE_TESTED.date)}. Every build&apos;s changes are in the{" "}
+        <a
+          href={notesUrl || RELEASES_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-muted underline-offset-4 hover:underline"
+        >
+          release notes
+        </a>
+        .
+      </p>
     </div>
   );
 }

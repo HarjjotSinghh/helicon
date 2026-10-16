@@ -1,5 +1,7 @@
 import type { Section, SectionId, SeoPage } from "./types";
-import { COMPARE_PAGES } from "./content/compare";
+import { COMPARE_CHECKED, COMPARE_PAGES } from "./content/compare";
+import { DESKTOP_OS_TEXT, MUSE_CODE_DOCS_URL, MUSE_CODE_TESTED } from "../tested";
+import { formatDate } from "./freshness";
 import { FEATURE_PAGES } from "./content/features";
 import { GUIDE_PAGES } from "./content/guides";
 import { GLOSSARY_PAGES } from "./content/glossary";
@@ -43,7 +45,7 @@ export const SECTIONS: Section[] = [
     answer:
       "These pages compare a standalone Muse Code desktop app with the alternatives people actually weigh it against: the muse terminal, VS Code extensions, Agent Client Protocol bridges, other open-source Muse GUIs, and coding agents with their own billing such as Cursor, Windsurf and Aider.",
     intro:
-      "Several of these are not competitors at all, because they run a different agent on different billing. The comparisons say so.",
+      `Several of these are not competitors at all, because they run a different agent on different billing. The comparisons say so. Every claim about another tool links its docs or changelog, checked ${formatDate(COMPARE_CHECKED)}.`,
     keywords: ["muse code gui comparison", "muse code alternatives", "best muse code client", "coding agent gui comparison"],
   },
   {
@@ -57,7 +59,7 @@ export const SECTIONS: Section[] = [
       "Session history and resume, inline diffs, an approval queue, cost at API rates, projects and worktrees, a file viewer, a remote daemon and full keyboard control.",
     answer:
       "Helicon's capabilities come from reading the Muse Code Session Protocol directly: session history with resume, inline diffs, an approval queue mapped one to one, cost at published per token rates, projects grouped by working directory, a file viewer, subagent and workflow controls, and full keyboard operation.",
-    intro: "One page per capability, written for the thing you would actually search for.",
+    intro: `One page per capability, written for the thing you would actually search for. Each was tested with [Muse Code](${MUSE_CODE_DOCS_URL}) ${MUSE_CODE_TESTED.version} on ${DESKTOP_OS_TEXT}.`,
     keywords: ["muse code gui features", "coding agent gui capabilities", "muse code client features"],
   },
   {

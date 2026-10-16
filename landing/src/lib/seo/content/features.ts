@@ -1,10 +1,19 @@
-import type { SeoPage } from "../types";
+import { DESKTOP_OS_TEXT, MUSE_CODE_DOCS_URL, MUSE_CODE_TESTED } from "../../tested";
+import { RELEASES_URL } from "../../site";
+import { formatDate } from "../freshness";
+import type { Block, SeoPage } from "../types";
 
 /** One page per capability, written for the query someone types when they want that capability. */
 
-const UPDATED = "2026-09-19";
+const UPDATED = "2026-10-17";
 
-export const FEATURE_PAGES: SeoPage[] = [
+/** Closes every feature page: what this build was tested against, with the sources linked. */
+const TESTED: Block = {
+  kind: "note",
+  text: `Tested with [Muse Code](${MUSE_CODE_DOCS_URL}) ${MUSE_CODE_TESTED.version} on ${DESKTOP_OS_TEXT}, ${formatDate(MUSE_CODE_TESTED.date)}. Each build's changes are in the [release notes on GitHub](${RELEASES_URL}).`,
+};
+
+const PAGES: SeoPage[] = [
   {
     slug: "features/session-history",
     icon: "clock",
@@ -730,3 +739,5 @@ export const FEATURE_PAGES: SeoPage[] = [
     related: ["features/subagents-and-workflows", "features/approvals", "features/goals"],
   },
 ];
+
+export const FEATURE_PAGES: SeoPage[] = PAGES.map((page) => ({ ...page, blocks: [...page.blocks, TESTED] }));
