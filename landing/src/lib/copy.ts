@@ -41,10 +41,9 @@ export function getPageCopy(os: VisitorOs): PageCopy {
   if (audience === "windows") {
     return {
       audience,
-      headline: "Muse Code on Windows,",
-      headlineContinue: "with a real UI.",
-      lead: "Native on Windows. Your existing Muse Code plan. No second bill.",
-      body: "A free, open-source Windows app for Muse Code, Meta's coding agent CLI, with every project, session and diff in one window.",
+      headline: "A Windows app for Muse Code, Meta's coding agent.",
+      lead: "Every session, diff and approval in one window, on the Muse Code plan you already pay for.",
+      body: "Free and open source. Native on Windows (no WSL), macOS and Linux, plus VS Code.",
       ctas: [
         { label: "Download for Windows", href: installerPath("windows", "hero"), kind: "primary" },
         source,
@@ -67,9 +66,9 @@ export function getPageCopy(os: VisitorOs): PageCopy {
   if (audience === "macos") {
     return {
       audience,
-      headline: "Muse Code, without living in the terminal.",
-      lead: "Same Muse Code. Same subscription. Better interface.",
-      body: "A free, open-source Mac app for Muse Code, Meta's coding agent CLI. Every project, session and diff in one window.",
+      headline: "A desktop app for Muse Code, Meta's coding agent.",
+      lead: "Every session, diff and approval in one window, on the Muse Code plan you already pay for.",
+      body: "Free and open source. Native on Windows (no WSL), macOS and Linux, plus VS Code.",
       ctas: [
         { label: "Download for macOS", href: installerPath("macos", "hero"), kind: "primary" },
         source,
@@ -89,9 +88,9 @@ export function getPageCopy(os: VisitorOs): PageCopy {
 
   return {
     audience,
-    headline: "Muse Code, without living in the terminal.",
-    lead: "Same Muse Code. Same subscription. Better interface.",
-    body: `A free, open-source desktop and web app for Muse Code, Meta's coding agent CLI, with every project, session and diff in one window.`,
+    headline: "A desktop app for Muse Code, Meta's coding agent.",
+    lead: "Every session, diff and approval in one window, on the Muse Code plan you already pay for.",
+    body: "Free and open source. Native on Windows (no WSL), macOS and Linux, plus VS Code.",
     ctas: [
       { label: "Download for Windows", href: installerPath("windows", "hero"), kind: "primary" },
       { label: "Download for macOS", href: installerPath("macos", "hero"), kind: "outline" },
