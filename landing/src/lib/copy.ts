@@ -41,7 +41,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
   if (audience === "windows") {
     return {
       audience,
-      headline: "Meta's Muse Code agent, in a real Windows app.",
+      headline: "Meta's Muse\u00a0Code agent, in a real Windows app.",
       lead: "Sessions, diffs, approvals and your plan meter in one window. Free and MIT.",
       body: "A free, open-source Windows app for Muse Code, Meta's coding agent CLI, with every project, session and diff in one window.",
       ctas: [
@@ -66,7 +66,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
   if (audience === "macos") {
     return {
       audience,
-      headline: "Meta's Muse Code agent, in a real app.",
+      headline: "Meta's Muse\u00a0Code agent, in a real app.",
       lead: "Sessions, diffs, approvals and your plan meter in one window. Free and MIT.",
       body: "A free, open-source Mac app for Muse Code, Meta's coding agent CLI. Every project, session and diff in one window.",
       ctas: [
@@ -88,7 +88,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
 
   return {
     audience,
-    headline: "Meta's Muse Code agent, in a real app.",
+    headline: "Meta's Muse\u00a0Code agent, in a real app.",
     lead: "Sessions, diffs, approvals and your plan meter in one window. Free and MIT.",
     body: `A free, open-source desktop and web app for Muse Code, Meta's coding agent CLI, with every project, session and diff in one window.`,
     ctas: [
