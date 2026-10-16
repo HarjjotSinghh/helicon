@@ -12,7 +12,8 @@
  */
 
 const KEY = import.meta.env.VITE_POSTHOG_KEY as string | undefined;
-const HOST = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) ?? "https://us.i.posthog.com";
+// The landing site's same-origin relay to PostHog (landing/next.config.ts), so content blockers keep the events.
+const HOST = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) ?? "/relay-hx";
 const ANON_COOKIE = "helicon-anon";
 const INTERNAL_COOKIE = "helicon-internal";
 

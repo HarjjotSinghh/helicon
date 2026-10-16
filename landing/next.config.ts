@@ -1,9 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // The hosted demo is a static build of the app (apps/web `npm run build:try`) under public/try.
+  // PostHog's endpoints end in a slash; without this Next would redirect them and drop the body.
+  skipTrailingSlashRedirect: true,
   async rewrites() {
-    return [{ source: "/try", destination: "/try/index.html" }];
+    return [
+      // The hosted demo is a static build of the app (apps/web `npm run build:try`) under public/try.
+      { source: "/try", destination: "/try/index.html" },
+      // Analytics goes through the site's own origin, so content blockers that drop requests to
+      // posthog.com don't drop the site's page views. The path is neutral for the same reason.
+      // src/instrumentation-client.ts and apps/web/src/demo/tryAnalytics.ts use the same path.
+      { source: "/relay-hx/static/:path*", destination: "https://us-assets.i.posthog.com/static/:path*" },
+      { source: "/relay-hx/array/:path*", destination: "https://us-assets.i.posthog.com/array/:path*" },
+      { source: "/relay-hx/:path*", destination: "https://us.i.posthog.com/:path*" },
+    ];
   },
   // One canonical host: www.helicon.sh permanently redirects to helicon.sh.
   async redirects() {

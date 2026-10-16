@@ -55,6 +55,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // try/ is the static demo build: no Markdown twin, no visitor headers.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|assets/|try(?:/|$)|.*\\.(?:png|svg|ico|txt|xml|webmanifest)$).*)"],
+  // try/ is the static demo build: no Markdown twin, no visitor headers. relay-hx/ is the analytics
+  // relay (see next.config.ts) and passes through untouched.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|assets/|try(?:/|$)|relay-hx/|.*\\.(?:png|svg|ico|txt|xml|webmanifest)$).*)"],
 };

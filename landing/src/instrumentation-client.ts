@@ -41,7 +41,8 @@ if (key && !isLocalHost(window.location.hostname) && !internal) {
   const anon = readCookie(ANON_COOKIE);
 
   posthog.init(key, {
-    api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com",
+    // Same-origin relay (next.config.ts rewrites it to PostHog), so content blockers keep the events.
+    api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "/relay-hx",
     ui_host: "https://us.posthog.com",
     defaults: "2026-05-30",
     autocapture: true,
