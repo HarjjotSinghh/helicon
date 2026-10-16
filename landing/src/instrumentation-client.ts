@@ -1,4 +1,11 @@
 import posthog from "posthog-js";
+import {
+  FIRST_TOUCH_KEY,
+  firstTouchFrom,
+  isDownloadHref,
+  withAttribution,
+  type FirstTouch,
+} from "./lib/download-attribution";
 import { ANON_COOKIE, INTERNAL_COOKIE, parseVisitorOs } from "./lib/os";
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
@@ -72,3 +79,44 @@ if (key && !isLocalHost(window.location.hostname) && !internal) {
     },
   });
 }
+
+/** Where this browser first came from, kept for the life of its localStorage. */
+function firstTouch(): FirstTouch | null {
+  try {
+    const stored = localStorage.getItem(FIRST_TOUCH_KEY);
+    if (stored) return JSON.parse(stored) as FirstTouch;
+    const touch = firstTouchFrom(window.location.href, document.referrer, window.location.hostname);
+    localStorage.setItem(FIRST_TOUCH_KEY, JSON.stringify(touch));
+    return touch;
+  } catch {
+    // Storage blocked: work it out from this page load alone.
+    return firstTouchFrom(window.location.href, document.referrer, window.location.hostname);
+  }
+}
+
+const touch = firstTouch();
+
+/**
+ * Write the visitor's identity and first touch into an installer link the moment it is clicked, so
+ * the server-side download event joins this visit even when no cookie reaches the route (see
+ * lib/download-attribution.ts). Capture phase, so it runs before any other handler reads the href.
+ * The original href comes back on the next tick: a link copied later never carries this visitor's id.
+ */
+function attributeDownload(event: MouseEvent) {
+  const link = (event.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+  const href = link?.getAttribute("href");
+  if (!link || !href || !isDownloadHref(href, window.location.origin)) return;
+  const loaded = Boolean((posthog as unknown as { __loaded?: boolean }).__loaded);
+  link.setAttribute(
+    "href",
+    withAttribution(href, window.location.origin, {
+      distinctId: loaded ? posthog.get_distinct_id() : readCookie(ANON_COOKIE),
+      sessionId: loaded ? posthog.get_session_id() : null,
+      firstTouch: touch,
+    }),
+  );
+  setTimeout(() => link.setAttribute("href", href), 0);
+}
+
+document.addEventListener("click", attributeDownload, true);
+document.addEventListener("auxclick", attributeDownload, true);

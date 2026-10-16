@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { identityFromCookies, isBotRequest, track, visitorOsFromRequest } from "@/lib/analytics";
 import { latestInstaller, type InstallerKind } from "@/lib/github-release";
+import { attributionFromSearchParams, firstTouchProperties } from "@/lib/download-attribution";
 import { RELEASES_URL } from "@/lib/site";
 
 export const runtime = "nodejs";
@@ -21,7 +22,14 @@ export async function GET(request: Request, context: { params: Promise<{ os: str
   }
 
   const asset = await latestInstaller(kind);
-  const { distinctId, sessionId } = identityFromCookies(request.headers.get("cookie"));
+  const cookies = identityFromCookies(request.headers.get("cookie"));
+  const referer = request.headers.get("referer");
+  // The page writes the visitor's PostHog identity into the link at click time, which survives
+  // the cases where cookies do not reach this route. Cookies are the fallback, not the source.
+  const link = attributionFromSearchParams(url.searchParams, referer, url.hostname);
+  const distinctId = link.distinctId ?? cookies.distinctId;
+  const sessionId = link.sessionId ?? cookies.sessionId;
+  const identitySource = link.distinctId ? "link" : cookies.distinctId !== "anonymous" ? "cookie" : "none";
 
   // Crawlers follow these links from the site's own pages and never install anything, and each
   // arrives without a cookie, so counting them inflates downloads and the people behind them.
@@ -36,7 +44,9 @@ export async function GET(request: Request, context: { params: Promise<{ os: str
         src,
         asset: asset?.name ?? null,
         version: asset?.version ?? null,
-        referrer: request.headers.get("referer") ?? null,
+        referrer: referer ?? null,
+        identity_source: identitySource,
+        ...firstTouchProperties(link.firstTouch),
         $current_url: url.toString(),
         ...(sessionId ? { $session_id: sessionId } : {}),
       },
