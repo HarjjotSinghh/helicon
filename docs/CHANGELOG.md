@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.22.2
+
+### New
+
+- **A "Sign in to Muse" card before your first prompt** ([#159](https://github.com/HarjjotSinghh/helicon/pull/159)). On macOS and Linux, Helicon said "Muse ready" as soon as it found the muse command, even if `muse login` had never run, so a new user only learned they weren't signed in when the first prompt failed. Helicon now reads Muse's sign-in file. When nobody is signed in, the home screen shows the `muse login` command with a Check again button, and the sidebar status says "Sign in to Muse". Windows and WSL behave as before.
+
+### Fixed
+
+- **Muse found right after you install it** ([#159](https://github.com/HarjjotSinghh/helicon/pull/159)). On macOS and Linux, Check again looked only on the PATH Helicon started with. The Muse installer creates `~/.local/bin`, so a fresh install stayed "not found" until you restarted Helicon. Helicon now also looks in `~/.local/bin`, `/opt/homebrew/bin` and `/usr/local/bin`.
+- **Narrow windows** ([#160](https://github.com/HarjjotSinghh/helicon/pull/160)). Below 768 px wide, the sidebar squeezed the page into a thin strip. It now hides by itself on narrow windows and opens over the page, with a backdrop that closes it. It also closes when you pick a thread or page, and it comes back when the window is wide again.
+- **Faster start on Windows** ([#155](https://github.com/HarjjotSinghh/helicon/pull/155)). The desktop server now starts while the window is still being built, instead of waiting for WebView2's first start, which can take a few seconds.
+- The welcome screen's folder example is now `~/code/my-app`, the same as the Add Project dialog, in place of a Linux-only path ([#159](https://github.com/HarjjotSinghh/helicon/pull/159)).
+
 ## 0.22.1
 
 ### New

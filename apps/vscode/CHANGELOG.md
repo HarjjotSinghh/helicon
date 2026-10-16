@@ -2,6 +2,11 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.22.2
+
+- A "Sign in to Muse" card shows on macOS and Linux when Muse isn't signed in, and Muse is found right after you install it (#159).
+- The sidebar floats over the page in narrow panels instead of squeezing it (#160).
+
 ## 0.22.1
 
 - A notice shows while Muse's auto-reviewer checks an action, and unfamiliar tools use Muse's own labels (#150).
