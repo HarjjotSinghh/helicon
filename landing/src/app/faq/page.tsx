@@ -7,7 +7,8 @@ import { FAQ_PAGE_META, faqGroups } from "@/lib/seo/faq";
 import { ogImagePath } from "@/lib/seo/metadata";
 import { coreNodes, jsonLd, IDS } from "@/lib/seo/schema";
 import { latestRelease } from "@/lib/github-release";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_NAME, SITE_OTHER_META, SITE_URL } from "@/lib/site";
+import { formatDate, modifiedMeta } from "@/lib/seo/freshness";
 import { pageBySlug } from "@/lib/seo/catalog";
 
 const image = {
@@ -34,6 +35,7 @@ export const metadata: Metadata = {
     images: [image],
   },
   twitter: { card: "summary_large_image", title: FAQ_PAGE_META.title, description: FAQ_PAGE_META.description, images: [image] },
+  other: { ...SITE_OTHER_META, ...modifiedMeta(FAQ_PAGE_META.updated) },
 };
 
 export default async function Page() {
@@ -91,6 +93,8 @@ export default async function Page() {
         </h1>
         <AnswerBlock>{FAQ_PAGE_META.answer}</AnswerBlock>
         <p className="mt-5 text-[13px] text-subtle">
+          Last updated <time dateTime={FAQ_PAGE_META.updated}>{formatDate(FAQ_PAGE_META.updated)}</time>
+          {" · "}
           <a href="/faq.md" className="underline decoration-line-strong underline-offset-4 hover:text-fg">
             Markdown version
           </a>

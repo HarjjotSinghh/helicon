@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { SITE_NAME, SITE_URL } from "../site";
+import { SITE_NAME, SITE_OTHER_META, SITE_URL } from "../site";
+import { pagesInSection } from "./catalog";
+import { modifiedMeta, sectionUpdated } from "./freshness";
 import type { Section, SeoPage } from "./types";
 
 /** The social card for a page, rendered by /api/og from the page's own title. */
@@ -47,7 +49,8 @@ export function metadataFor(page: SeoPage): Metadata {
     },
     twitter: { card: "summary_large_image", title: page.title, description: page.description, images: [image] },
     other: {
-      "article:modified_time": page.updated,
+      ...SITE_OTHER_META,
+      ...modifiedMeta(page.updated),
     },
   };
 }
@@ -78,6 +81,7 @@ export function metadataForSection(section: Section): Metadata {
       images: [image],
     },
     twitter: { card: "summary_large_image", title: section.title, description: section.description, images: [image] },
+    other: { ...SITE_OTHER_META, ...modifiedMeta(sectionUpdated(pagesInSection(section.id))) },
   };
 }
 

@@ -190,3 +190,10 @@ export const FAQS: [string, string][] = [
   ["Does Helicon phone home?", "Only to check for updates. The desktop app asks helicon.sh whether a newer version exists, and that request tells us an install is alive: the platform, the version, and a weekly hash of the IP it came from. Nothing about your code, prompts, threads or files ever leaves your machine, and there is no account."],
   ["Is it really free?", "Yes. MIT licensed, no paid tier, source on GitHub. It uses your existing Muse Code subscription, so there is no second bill."],
 ];
+
+/** Meta tags every page carries. Pages that set their own `other` spread this first, since Next replaces the key. */
+export const SITE_OTHER_META: Record<string, string> = {
+  // Read by a few answer engines and by people reading view-source. Harmless to the rest.
+  "ai-content-declaration": "human-authored",
+  "llms-txt": `${SITE_URL}/llms.txt`,
+};

@@ -4,7 +4,7 @@ import { DownloadNextSteps } from "@/components/download-next-steps";
 import { DownloadStarted } from "@/components/download-started";
 import { FontPicker } from "@/components/font-picker";
 import { GoogleAnalytics } from "@/components/analytics-scripts";
-import { AUTHOR, DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_URL, TAGLINE, TITLE } from "@/lib/site";
+import { AUTHOR, DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_OTHER_META, SITE_URL, TAGLINE, TITLE } from "@/lib/site";
 import "./globals.css";
 
 // Landing typefaces: Instrument Sans for headings, Manrope for everything else.
@@ -90,11 +90,7 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
   },
   formatDetection: { telephone: false, email: false, address: false },
-  other: {
-    // Read by a few answer engines and by people reading view-source. Harmless to the rest.
-    "ai-content-declaration": "human-authored",
-    "llms-txt": `${SITE_URL}/llms.txt`,
-  },
+  other: SITE_OTHER_META,
 };
 
 export const viewport: Viewport = {

@@ -9,9 +9,13 @@ import { Install } from "@/components/install";
 import { SiteHeader } from "@/components/site-header";
 import { ClosingCta, SiteFooter } from "@/components/site-footer";
 import { DemoApp } from "@/demo/demo-app";
-import { Rule } from "@/components/ui";
+import type { Metadata } from "next";
+import { Rule, bandX, cn } from "@/components/ui";
+import { LastUpdated } from "@/components/seo/doc-page";
 import { StructuredData } from "@/components/structured-data";
 import { getPageCopy } from "@/lib/copy";
+import { HOME_UPDATED, modifiedMeta } from "@/lib/seo/freshness";
+import { SITE_OTHER_META } from "@/lib/site";
 import { latestRelease, repoStars } from "@/lib/github-release";
 import { getVisitorOs } from "@/lib/visitor";
 
@@ -60,6 +64,8 @@ const shots: TourShot[] = [
 
 export const dynamic = "force-dynamic";
 
+export const metadata: Metadata = { other: { ...SITE_OTHER_META, ...modifiedMeta(HOME_UPDATED) } };
+
 export default async function Page() {
   const [os, release, stars] = await Promise.all([getVisitorOs(), latestRelease(), repoStars()]);
   const copy = getPageCopy(os);
@@ -90,6 +96,7 @@ export default async function Page() {
           <Faq audience={copy.audience} intro={copy.faqIntro} />
           <Rule />
           <ClosingCta copy={copy} stars={stars} />
+          <LastUpdated date={HOME_UPDATED} className={cn(bandX, "mt-0 py-5 text-center")} />
           <Rule />
         </main>
         <SiteFooter />

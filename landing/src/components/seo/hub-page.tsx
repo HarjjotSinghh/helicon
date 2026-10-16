@@ -1,11 +1,12 @@
 import { ArrowRight } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AnswerBlock, Breadcrumbs, PageCta } from "./doc-page";
+import { AnswerBlock, Breadcrumbs, LastUpdated, PageCta } from "./doc-page";
 import { DocShell } from "./doc-shell";
 import { IconTile } from "./icons";
 import { Rule, bandX, cn } from "../ui";
 import { pagesInSection, sectionBySlug } from "@/lib/seo/catalog";
+import { sectionUpdated } from "@/lib/seo/freshness";
 import { jsonLd, sectionGraph } from "@/lib/seo/schema";
 import { latestRelease } from "@/lib/github-release";
 import type { SeoPage } from "@/lib/seo/types";
@@ -43,6 +44,7 @@ export async function SectionHubRoute({ slug }: { slug: string }) {
   const pages = pagesInSection(section.id);
   const release = await latestRelease();
   const version = release?.version ?? null;
+  const updated = sectionUpdated(pages);
 
   return (
     <DocShell version={version} jsonLdString={jsonLd(sectionGraph(section, pages, version))}>
@@ -53,6 +55,7 @@ export async function SectionHubRoute({ slug }: { slug: string }) {
           {section.h1}
         </h1>
         <AnswerBlock>{section.answer}</AnswerBlock>
+        {updated ? <LastUpdated date={updated} /> : null}
         <p className="mt-5 max-w-[62ch] text-[15.5px] leading-[1.7] text-muted sm:text-[16.5px]">{section.intro}</p>
         <PageCards pages={pages} />
         <PageCta

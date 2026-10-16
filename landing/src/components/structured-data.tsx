@@ -1,5 +1,6 @@
 import { FAQS, SITE_URL, TITLE } from "@/lib/site";
 import { SECTIONS } from "@/lib/seo/catalog";
+import { HOME_UPDATED } from "@/lib/seo/freshness";
 import { IDS, coreNodes, jsonLd } from "@/lib/seo/schema";
 
 /**
@@ -23,6 +24,7 @@ export function StructuredData({ version }: { version: string | null }) {
         isPartOf: { "@id": IDS.website },
         about: { "@id": IDS.app },
         primaryImageOfPage: `${SITE_URL}/opengraph-image`,
+        dateModified: HOME_UPDATED,
         speakable: { "@type": "SpeakableSpecification", cssSelector: ["h1", "[data-answer]"] },
         mainEntity: { "@id": IDS.app },
         significantLink: SECTIONS.map((section) => `${SITE_URL}/${section.slug}`),

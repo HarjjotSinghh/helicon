@@ -6,15 +6,16 @@ import { IconTile } from "./icons";
 import { PlatformCta } from "./platform-cta";
 import { Rule, bandX, cn } from "../ui";
 import { relatedPages, sectionById } from "@/lib/seo/catalog";
+import { formatDate } from "@/lib/seo/freshness";
 import type { Faq, IconKey, SeoPage } from "@/lib/seo/types";
 
-function formatDate(iso: string) {
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+/** The visible half of a page's dateModified. Same date, so a reader and a crawler see one answer. */
+export function LastUpdated({ date, className }: { date: string; className?: string }) {
+  return (
+    <p className={cn("mt-5 text-[13px] text-subtle", className)}>
+      Last updated <time dateTime={date}>{formatDate(date)}</time>
+    </p>
+  );
 }
 
 export function Breadcrumbs({ trail }: { trail: { name: string; slug: string }[] }) {

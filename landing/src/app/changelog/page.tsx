@@ -7,7 +7,8 @@ import { Rule, bandX, cn } from "@/components/ui";
 import { ogImagePath } from "@/lib/seo/metadata";
 import { coreNodes, jsonLd, IDS } from "@/lib/seo/schema";
 import { latestRelease, releaseNotes, type Change, type ChangeGroups } from "@/lib/github-release";
-import { RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL } from "@/lib/site";
+import { RELEASES_URL, REPO_URL, SITE_NAME, SITE_OTHER_META, SITE_URL } from "@/lib/site";
+import { formatDate, modifiedMeta } from "@/lib/seo/freshness";
 
 const TITLE = "Changelog: every Muse Code desktop app release";
 const H1 = "Changelog";
@@ -18,7 +19,7 @@ const ANSWER =
 
 const image = { url: ogImagePath(H1, DESCRIPTION, "Releases"), width: 1200, height: 630, alt: DESCRIPTION };
 
-export const metadata: Metadata = {
+const baseMetadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   keywords: ["helicon changelog", "helicon releases", "muse code gui updates", "muse code desktop app version"],
@@ -32,6 +33,13 @@ export const metadata: Metadata = {
   openGraph: { type: "website", url: "/changelog", siteName: SITE_NAME, title: TITLE, description: DESCRIPTION, images: [image] },
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: [image] },
 };
+
+/** The page changes when a release lands, so its date is the newest release's publish date. */
+export async function generateMetadata(): Promise<Metadata> {
+  // Same argument as the page so the cached call is shared.
+  const [newest] = await releaseNotes(14);
+  return { ...baseMetadata, other: { ...SITE_OTHER_META, ...modifiedMeta(newest?.publishedAt || undefined) } };
+}
 
 export const revalidate = 900;
 
@@ -95,10 +103,6 @@ function Changes({ groups, commitCount }: { groups: ChangeGroups; commitCount: n
   );
 }
 
-function formatDate(iso: string) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-}
 
 export default async function Page() {
   const [releases, latest] = await Promise.all([releaseNotes(14), latestRelease()]);
@@ -154,6 +158,14 @@ export default async function Page() {
         </h1>
         <AnswerBlock>{ANSWER}</AnswerBlock>
         <p className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-subtle">
+          {releases[0]?.publishedAt ? (
+            <>
+              <span>
+                Last updated <time dateTime={releases[0].publishedAt}>{formatDate(releases[0].publishedAt)}</time>
+              </span>
+              <span aria-hidden="true">·</span>
+            </>
+          ) : null}
           <Rss aria-hidden="true" className="size-4 text-accent-text" />
           Subscribe:
           <a href="/rss.xml" className="underline decoration-line-strong underline-offset-4 hover:text-fg">

@@ -1,4 +1,5 @@
 import { AUTHOR, CONTACT, DESCRIPTION, ISSUES_URL, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL } from "../site";
+import { sectionUpdated } from "./freshness";
 import { ogImageUrl } from "./metadata";
 import type { Section, SeoPage } from "./types";
 
@@ -315,6 +316,7 @@ export function sectionGraph(section: Section, pages: SeoPage[], version: string
         breadcrumb: { "@id": `${url}#breadcrumb` },
         speakable: { "@type": "SpeakableSpecification", cssSelector: ["[data-answer]"] },
         keywords: section.keywords.join(", "),
+        dateModified: sectionUpdated(pages),
         mainEntity: {
           "@type": "ItemList",
           numberOfItems: pages.length,
