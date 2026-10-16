@@ -41,7 +41,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
   if (audience === "windows") {
     return {
       audience,
-      headline: "A Windows app for Muse Code, Meta's coding agent.",
+      headline: "A Windows app for Muse\u00a0Code, Meta's coding agent.",
       lead: "Every session, diff and approval in one window, on the Muse Code plan you already pay for.",
       body: "Free and open source. Native on Windows (no WSL), macOS and Linux, plus VS Code.",
       ctas: [
@@ -66,7 +66,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
   if (audience === "macos") {
     return {
       audience,
-      headline: "A desktop app for Muse Code, Meta's coding agent.",
+      headline: "A desktop app for Muse\u00a0Code, Meta's coding agent.",
       lead: "Every session, diff and approval in one window, on the Muse Code plan you already pay for.",
       body: "Free and open source. Native on Windows (no WSL), macOS and Linux, plus VS Code.",
       ctas: [
@@ -88,7 +88,7 @@ export function getPageCopy(os: VisitorOs): PageCopy {
 
   return {
     audience,
-    headline: "A desktop app for Muse Code, Meta's coding agent.",
+    headline: "A desktop app for Muse\u00a0Code, Meta's coding agent.",
     lead: "Every session, diff and approval in one window, on the Muse Code plan you already pay for.",
     body: "Free and open source. Native on Windows (no WSL), macOS and Linux, plus VS Code.",
     ctas: [
