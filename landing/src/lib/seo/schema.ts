@@ -1,4 +1,4 @@
-import { AUTHOR, CONTACT, DESCRIPTION, ISSUES_URL, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL } from "../site";
+import { AUTHOR, CONTACT, DESCRIPTION, ISSUES_URL, LINKEDIN_URL, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL, X_URL } from "../site";
 import { ogImageUrl } from "./metadata";
 import type { Section, SeoPage } from "./types";
 
@@ -17,7 +17,11 @@ export const IDS = {
   app: `${SITE_URL}/#app`,
 };
 
-/** The nodes every page carries: the site, who publishes it, and the application it describes. */
+/**
+ * The nodes every page carries: the site, who publishes it, and the application it describes.
+ * The Organization comes first on purpose: parsers that read "the publisher" take the first
+ * Organization or Person node they meet, and it should be the complete one.
+ */
 export function coreNodes(version: string | null): Json[] {
   return [
     {
@@ -38,13 +42,6 @@ export function coreNodes(version: string | null): Json[] {
       },
     },
     {
-      "@type": "Person",
-      "@id": IDS.author,
-      name: AUTHOR.name,
-      url: AUTHOR.url,
-      sameAs: [AUTHOR.url, "https://github.com/HarjjotSinghh"],
-    },
-    {
       "@type": "Organization",
       "@id": IDS.publisher,
       name: SITE_NAME,
@@ -52,7 +49,7 @@ export function coreNodes(version: string | null): Json[] {
       logo: `${SITE_URL}/assets/logo-light.png`,
       founder: { "@id": IDS.author },
       email: CONTACT.email,
-      sameAs: [REPO_URL, "https://alternativeto.net/software/helicon/about/"],
+      sameAs: [REPO_URL, X_URL, LINKEDIN_URL, "https://alternativeto.net/software/helicon/about/"],
       description:
         "Helicon is an unofficial, MIT licensed community project: a desktop and web client for Meta's Muse Code CLI. Not made, sponsored or endorsed by Meta.",
       // A real address and real ways to reach a person. An answer engine asked "who publishes
@@ -89,6 +86,14 @@ export function coreNodes(version: string | null): Json[] {
           availableLanguage: ["English"],
         },
       ],
+    },
+    {
+      "@type": "Person",
+      "@id": IDS.author,
+      name: AUTHOR.name,
+      url: AUTHOR.url,
+      description: "Maintainer of Helicon.",
+      sameAs: [AUTHOR.url, "https://github.com/HarjjotSinghh", X_URL, LINKEDIN_URL],
     },
     {
       "@type": "SoftwareApplication",

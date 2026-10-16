@@ -22,6 +22,9 @@ export const TAGLINE = "Same Muse Code. Same subscription. Better interface.";
 export const DESCRIPTION =
   "Free, open-source desktop and web app for Meta's Muse Code CLI. Every project, session, diff, approval and cost in one window, on the subscription you already have.";
 export const AUTHOR = { name: "Harjot Singh Rana", url: "https://harjotrana.com" };
+/** The maintainer's public profiles. Listed as sameAs so an engine can tie the site to the person behind it. */
+export const X_URL = "https://x.com/harjjotsinghh";
+export const LINKEDIN_URL = "https://www.linkedin.com/in/harjjotsinghh/";
 
 /**
  * The terms the home page is written for. Meta keywords are not a ranking signal for Google and
