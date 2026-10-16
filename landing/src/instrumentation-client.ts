@@ -42,7 +42,9 @@ if (key && !isLocalHost(window.location.hostname) && !internal) {
 
   posthog.init(key, {
     // Same-origin relay (next.config.ts rewrites it to PostHog), so content blockers keep the events.
-    api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "/relay-hx",
+    // Fixed rather than read from NEXT_PUBLIC_POSTHOG_HOST: that variable is PostHog's own host,
+    // which the server-side tracking in lib/analytics.ts still posts to directly.
+    api_host: "/relay-hx",
     ui_host: "https://us.posthog.com",
     defaults: "2026-05-30",
     autocapture: true,
