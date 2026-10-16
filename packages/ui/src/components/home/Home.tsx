@@ -53,6 +53,7 @@ export function NewThread(props: { cwd: string | null }) {
           </div>
           <ComposerFooter cwd={project.cwd} branch={null} running={false} />
           <HostErrorCard className="mt-4" />
+          <SignInCard className="mt-4" />
           {nearCap ? <p className="mt-2 text-xs text-muted">{nearCap}</p> : null}
           {recent.length > 0 ? (
             <section className="mt-12" aria-label={`Recent threads in ${project.displayName}`}>
@@ -210,6 +211,7 @@ export function Welcome() {
               "Threads you start from the Muse terminal show up here on their own."
             )}
           </p>
+          <SignInCard className="mt-6" />
         </div>
       </div>
     </div>
@@ -232,6 +234,43 @@ const INSTALL_POSIX = "curl -fsSL https://dev.meta.ai/install.sh | bash";
 
 /** A new GitHub issue, prefilled, for when Helicon itself would not start. */
 const REPORT_URL = "https://github.com/HarjjotSinghh/helicon/issues/new?title=Helicon+could+not+start&labels=bug";
+
+/** Shown before the first prompt when Muse is installed but its default login has no credentials yet. */
+export function SignInCard(props: { className?: string }) {
+  const controller = useController();
+  const signedOut = useApp((s) => s.env?.museSignedIn === false && !s.hostError);
+  const [checking, setChecking] = useState(false);
+  if (!signedOut) {
+    return null;
+  }
+  const check = () => {
+    setChecking(true);
+    void controller.recheckEnvironment().finally(() => setChecking(false));
+  };
+  return (
+    <section
+      role="status"
+      aria-label="Sign in to Muse"
+      className={cn("rounded-xl bg-raised p-3.5 shadow-[0_0_0_1px_var(--border)]", props.className)}
+    >
+      <p className="text-sm font-medium text-fg">Sign in to Muse</p>
+      <p className="mt-1 text-sm leading-relaxed text-pretty text-muted">
+        Muse is installed but not signed in yet, so prompts will fail. Run this once in a terminal. You need a Muse Code
+        plan or pay-as-you-go billing.
+      </p>
+      <div className="mt-2.5 flex items-center gap-2 rounded-lg bg-sunken py-1 pr-1 pl-3 font-mono text-xs text-fg shadow-[0_0_0_1px_var(--border)]">
+        <span className="min-w-0 flex-1 truncate">muse login</span>
+        <CopyButton text="muse login" label="Copy command" />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Button variant="secondary" size="sm" onClick={check} loading={checking}>
+          <ArrowsClockwiseIcon size={13} /> Check again
+        </Button>
+        <HelpLink href={MUSE_HELP_URL}>More fixes</HelpLink>
+      </div>
+    </section>
+  );
+}
 
 /** The setup screen. `compact` fits it in a narrow editor side panel: no logo, smaller heading, less padding. */
 export function Onboarding(props: { compact?: boolean }) {

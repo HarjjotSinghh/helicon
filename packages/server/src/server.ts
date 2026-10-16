@@ -26,6 +26,7 @@ import {
   planMuseCli,
   planServe,
   probeEnvironment,
+  museSignedIn,
   resolveMuseInDistro,
   defaultExec,
   toWslPath,
@@ -624,6 +625,8 @@ interface EnvView {
   defaultDistro: string | null;
   museFound: boolean;
   musePath: string | null;
+  /** Whether the default Muse login has credentials; null when Helicon cannot tell (Windows, WSL). */
+  museSignedIn: boolean | null;
   /** Whether an `ssh` client runs here, which SSH projects need. */
   sshFound: boolean;
   version: string;
@@ -1921,6 +1924,7 @@ export class HeliconServer {
       defaultDistro: probe.defaultDistro,
       museFound: probe.musePath !== null,
       musePath: probe.musePath,
+      museSignedIn: probe.runtime === "posix" && probe.musePath !== null ? museSignedIn(this.options.home) : null,
       sshFound: !(await this.options.sshRun(["-V"])).missing,
       version: HELICON_VERSION,
       persistent: this.options.dataDir !== ":memory:",

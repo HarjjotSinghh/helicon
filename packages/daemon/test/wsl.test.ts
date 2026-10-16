@@ -7,6 +7,7 @@ import {
   planHostCommand,
   planMuseCli,
   planServe,
+  museSignedIn,
   probeEnvironment,
   resolveMuseInDistro,
   toWindowsPath,
@@ -170,5 +171,43 @@ describe("environment probe", () => {
     const probe = await probeEnvironment(exec, "win32");
     assert.equal(probe.wslAvailable, false);
     assert.equal(probe.musePath, null);
+  });
+});
+
+describe("museSignedIn", () => {
+  const missing = (): string => {
+    throw Object.assign(new Error("no such file"), { code: "ENOENT" });
+  };
+
+  it("is false when Muse has never been signed in", () => {
+    assert.equal(museSignedIn("/Users/new", {}, missing), false);
+  });
+
+  it("is true when auth.json lists a provider, reading from ~/.config by default", () => {
+    const read = (path: string): string => {
+      assert.equal(path, "/Users/me/.config/muse/auth.json");
+      return JSON.stringify({ schema_version: 1, providers: { meta: { mechanism: "oauth", storage: "keychain" } } });
+    };
+    assert.equal(museSignedIn("/Users/me", {}, read), true);
+  });
+
+  it("follows XDG_CONFIG_HOME", () => {
+    const read = (path: string): string => {
+      assert.equal(path, "/xdg/muse/auth.json");
+      return JSON.stringify({ providers: { meta: {} } });
+    };
+    assert.equal(museSignedIn("/Users/me", { XDG_CONFIG_HOME: "/xdg" }, read), true);
+  });
+
+  it("is false after logout leaves no providers", () => {
+    assert.equal(museSignedIn("/Users/me", {}, () => JSON.stringify({ schema_version: 1, providers: {} })), false);
+  });
+
+  it("is unknown when the file cannot be read or parsed", () => {
+    const denied = (): string => {
+      throw Object.assign(new Error("denied"), { code: "EACCES" });
+    };
+    assert.equal(museSignedIn("/Users/me", {}, denied), null);
+    assert.equal(museSignedIn("/Users/me", {}, () => "{not json"), null);
   });
 });

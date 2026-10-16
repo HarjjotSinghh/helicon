@@ -935,10 +935,13 @@ function SidebarFooter() {
       ? { dot: "bg-warn", text: "Reconnecting to Helicon" }
       : hostError
         ? { dot: "bg-danger", text: "Muse needs attention" }
-        : env?.platform === "win32" && env.runtime !== "native"
-          ? { dot: "bg-ok", text: `Muse in WSL (${env.defaultDistro ?? "Ubuntu"})` }
-          : { dot: "bg-ok", text: "Muse ready" };
-  const detail = hostError ?? (env?.musePath ? `${env.musePath}  |  Helicon ${env.version}` : `Helicon ${env?.version ?? ""}`);
+        : env?.museSignedIn === false
+          ? { dot: "bg-warn", text: "Sign in to Muse" }
+          : env?.platform === "win32" && env.runtime !== "native"
+            ? { dot: "bg-ok", text: `Muse in WSL (${env.defaultDistro ?? "Ubuntu"})` }
+            : { dot: "bg-ok", text: "Muse ready" };
+  const signIn = env?.museSignedIn === false ? "Run muse login in a terminal, then check again." : null;
+  const detail = hostError ?? signIn ?? (env?.musePath ? `${env.musePath}  |  Helicon ${env.version}` : `Helicon ${env?.version ?? ""}`);
   return (
     <div className="flex h-11 shrink-0 items-center gap-0.5 border-t border-line px-2">
       <Tip label={detail} side="top" align="start">

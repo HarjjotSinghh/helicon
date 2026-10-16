@@ -12,6 +12,8 @@ export interface EnvironmentStatus {
   defaultDistro: string | null;
   museFound: boolean;
   musePath: string | null;
+  /** False when the default Muse login has no stored credentials; null or missing when Helicon cannot tell. */
+  museSignedIn?: boolean | null;
   /** Whether an `ssh` client runs where the server does, which SSH projects need. Older servers leave it out. */
   sshFound?: boolean;
   version: string;

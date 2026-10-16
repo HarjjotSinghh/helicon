@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { promisify } from "node:util";
 import { findNativeMuse, type MuseRuntime, type NativeMuse, type RuntimePreference } from "./native.js";
@@ -226,6 +226,32 @@ export interface EnvironmentProbe {
 export function findPosixMuse(home: string, exists: (path: string) => boolean = existsSync): string | null {
   const candidates = [`${home}/.local/bin/muse`, "/opt/homebrew/bin/muse", "/usr/local/bin/muse"];
   return candidates.find((path) => exists(path)) ?? null;
+}
+
+/**
+ * Whether the default Muse login on macOS or Linux has stored credentials. `muse login` and
+ * `muse auth set` record each provider in `$XDG_CONFIG_HOME/muse/auth.json` (the secret itself may
+ * sit in the keychain), so no file or no providers means a first prompt would fail. Null when the
+ * file is there but unreadable, since then Helicon cannot tell.
+ */
+export function museSignedIn(
+  home: string,
+  env: Record<string, string | undefined> = process.env,
+  read: (path: string) => string = (path) => readFileSync(path, "utf8"),
+): boolean | null {
+  const config = env["XDG_CONFIG_HOME"] || `${home}/.config`;
+  let text: string;
+  try {
+    text = read(`${config}/muse/auth.json`);
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT" ? false : null;
+  }
+  try {
+    const providers = (JSON.parse(text) as { providers?: unknown }).providers;
+    return typeof providers === "object" && providers !== null && Object.keys(providers).length > 0;
+  } catch {
+    return null;
+  }
 }
 
 export async function probeEnvironment(

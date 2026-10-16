@@ -473,6 +473,16 @@ export class HeliconController {
     void this.boot(true);
   }
 
+  /** Probes the environment again without a full reload, for when the person signs in to Muse after Helicon opened. */
+  async recheckEnvironment(): Promise<void> {
+    try {
+      const env = await this.client.probeEnvironment(true);
+      this.update((s) => ({ ...s, env }));
+    } catch {
+      // The card stays up and the person can try again.
+    }
+  }
+
   /** Clears the "Muse could not start" card once the person has fixed it, so the next prompt is a fresh try. */
   dismissHostError(): void {
     this.update((s) => ({ ...s, hostError: null }));
