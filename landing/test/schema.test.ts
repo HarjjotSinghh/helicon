@@ -12,6 +12,26 @@ type Json = Record<string, any>;
 const organization = coreNodes("0.14.2").find((node) => (node as Json)["@type"] === "Organization") as Json;
 
 describe("the Organization node", () => {
+  it("is the first publisher-type node, so parsers that take the first one get the complete one", () => {
+    const first = coreNodes("0.14.2").find((node) => ["Organization", "Person"].includes((node as Json)["@type"])) as Json;
+    expect(first["@type"]).toBe("Organization");
+  });
+
+  it("has name, url, an absolute logo, a description and sameAs profiles", () => {
+    expect(organization.name).toBe("Helicon");
+    expect(organization.url).toBe("https://helicon.sh/");
+    expect(organization.logo).toMatch(/^https:\/\/helicon\.sh\/.+\.png$/);
+    expect(organization.description).toBeTruthy();
+    expect(organization.sameAs).toEqual(
+      expect.arrayContaining([
+        "https://github.com/HarjjotSinghh/helicon",
+        "https://x.com/harjjotsinghh",
+        "https://www.linkedin.com/in/harjjotsinghh/",
+        "https://alternativeto.net/software/helicon/about/",
+      ]),
+    );
+  });
+
   it("exists, with the publisher identifier every page refers to", () => {
     expect(organization).toBeTruthy();
     expect(organization["@id"]).toBe("https://helicon.sh/#publisher");

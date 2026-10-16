@@ -10,6 +10,36 @@ const uiEntry = fileURLToPath(new URL("../../packages/ui/src/index.ts", import.m
  * `npm run build:try` builds the demo for helicon.sh/try: served from /try/, with its own title and
  * description so the page reads as the demo rather than as the app.
  */
+const tryJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://helicon.sh/#publisher",
+      name: "Helicon",
+      url: "https://helicon.sh/",
+      logo: "https://helicon.sh/assets/logo-light.png",
+      description:
+        "Helicon is an unofficial, MIT licensed community project: a desktop and web client for Meta's Muse Code CLI. Not made, sponsored or endorsed by Meta.",
+      sameAs: [
+        "https://github.com/HarjjotSinghh/helicon",
+        "https://x.com/harjjotsinghh",
+        "https://www.linkedin.com/in/harjjotsinghh/",
+        "https://alternativeto.net/software/helicon/about/",
+      ],
+    },
+    {
+      "@type": "WebApplication",
+      name: "Helicon demo",
+      url: "https://helicon.sh/try",
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Web",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      publisher: { "@id": "https://helicon.sh/#publisher" },
+    },
+  ],
+};
+
 const tryPage = {
   name: "helicon-try-page",
   transformIndexHtml(html: string) {
@@ -30,15 +60,8 @@ const tryPage = {
         '<meta property="og:image" content="https://helicon.sh/brand/og-dark.png" />',
         '<meta name="twitter:card" content="summary_large_image" />',
         '<meta name="twitter:image" content="https://helicon.sh/brand/og-dark.png" />',
-        `<script type="application/ld+json">${JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "WebApplication",
-          name: "Helicon demo",
-          url: "https://helicon.sh/try",
-          applicationCategory: "DeveloperApplication",
-          operatingSystem: "Web",
-          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-        })}</script>`,
+        // The publisher node matches the one on every helicon.sh page (same @id), so the graphs merge.
+        `<script type="application/ld+json">${JSON.stringify(tryJsonLd)}</script>`,
       ].join("\n    ").concat(""),
     ).replace(
       '<div id="root"></div>',
