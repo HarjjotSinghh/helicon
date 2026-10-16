@@ -278,10 +278,49 @@ function GlobalShortcuts(props: { panel: boolean }) {
   return null;
 }
 
+/** Below this width (phones, a narrow browser tab) the sidebar floats over the page instead of squeezing it. */
+const NARROW_QUERY = "(max-width: 767px)";
+
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches);
+  useEffect(() => {
+    const media = window.matchMedia(NARROW_QUERY);
+    const sync = () => setNarrow(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+  return narrow;
+}
+
 function Shell() {
+  const controller = useController();
   const boot = useApp((s) => s.boot);
   const env = useApp((s) => s.env);
   const collapsed = useApp((s) => s.prefs.sidebarCollapsed);
+  const routeKey = useApp((s) => JSON.stringify(s.route));
+  const narrow = useNarrow();
+  // A narrow window starts with the sidebar hidden, and gets it back on widening if Helicon was the one that hid it.
+  const autoHidden = useRef(false);
+  useEffect(() => {
+    if (narrow && !collapsed) {
+      autoHidden.current = true;
+      controller.setSidebarCollapsed(true);
+    } else if (!narrow && autoHidden.current) {
+      autoHidden.current = false;
+      controller.setSidebarCollapsed(false);
+    }
+    // Only crossing the width should act; the person's own toggles are left alone.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [narrow]);
+  // On a narrow window the sidebar covers the page, so picking a thread or page closes it.
+  useEffect(() => {
+    if (narrow) {
+      controller.setSidebarCollapsed(true);
+    }
+    // Only a route change should close it, not opening it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey]);
   // Boot, setup and error screens fill the window with no header, so they get a bare drag strip.
   let screen: ReactElement | null = null;
   if (!env) {
@@ -301,6 +340,15 @@ function Shell() {
   }
   return (
     <div className="flex h-full w-full bg-bg text-fg">
+      {narrow && !collapsed ? (
+        <button
+          type="button"
+          aria-label="Hide sidebar"
+          tabIndex={-1}
+          className="fixed inset-0 z-30 bg-black/30"
+          onClick={() => controller.setSidebarCollapsed(true)}
+        />
+      ) : null}
       {/* The sidebar stays mounted and wipes open/closed via the 0fr/1fr
           disclosure trick; visibility flips at the end of the close so the
           clipped panel leaves the tab order only once it is gone. */}
@@ -308,6 +356,7 @@ function Shell() {
         className={cn(
           "grid h-full transition-[grid-template-columns,visibility] duration-200 ease-drawer motion-reduce:transition-none",
           collapsed ? "grid-cols-[0fr] invisible" : "grid-cols-[1fr] visible",
+          narrow && "fixed inset-y-0 left-0 z-40 max-w-[85vw] shadow-xl",
         )}
       >
         <div className="min-w-0 overflow-hidden">

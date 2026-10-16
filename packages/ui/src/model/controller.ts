@@ -3008,6 +3008,12 @@ export class HeliconController {
     this.setZoom(1);
   }
 
+  setSidebarCollapsed(collapsed: boolean): void {
+    if (this.state.prefs.sidebarCollapsed !== collapsed) {
+      this.setPrefs({ sidebarCollapsed: collapsed });
+    }
+  }
+
   toggleSidebar(): void {
     this.setPrefs({ sidebarCollapsed: !this.state.prefs.sidebarCollapsed });
   }
