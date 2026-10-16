@@ -150,6 +150,21 @@ describe("environment probe", () => {
     assert.equal(await resolveMuseInDistro(exec, "Ubuntu"), "/home/harjot/.local/bin/muse");
   });
 
+  it("finds a posix Muse installed after startup when it is not on PATH", async () => {
+    const exec: ExecFn = async () => ({ stdout: "", exitCode: 1 });
+    const installed = new Set(["/Users/new/.local/bin/muse"]);
+    const probe = await probeEnvironment(exec, "darwin", { home: "/Users/new", exists: (path) => installed.has(path) });
+    assert.equal(probe.musePath, "/Users/new/.local/bin/muse");
+    const none = await probeEnvironment(exec, "darwin", { home: "/Users/new", exists: () => false });
+    assert.equal(none.musePath, null);
+  });
+
+  it("prefers the Muse on PATH over the install folders", async () => {
+    const exec: ExecFn = async () => ({ stdout: "/opt/homebrew/bin/muse\n", exitCode: 0 });
+    const probe = await probeEnvironment(exec, "darwin", { home: "/Users/new", exists: () => true });
+    assert.equal(probe.musePath, "/opt/homebrew/bin/muse");
+  });
+
   it("reports missing WSL cleanly", async () => {
     const exec: ExecFn = async () => ({ stdout: "", exitCode: 1 });
     const probe = await probeEnvironment(exec, "win32");

@@ -1,4 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { promisify } from "node:util";
 import { findNativeMuse, type MuseRuntime, type NativeMuse, type RuntimePreference } from "./native.js";
 
@@ -220,17 +222,30 @@ export interface EnvironmentProbe {
   musePath: string | null;
 }
 
+/** Folders the Muse installer and package managers put `muse` in, checked when it is not on PATH. */
+export function findPosixMuse(home: string, exists: (path: string) => boolean = existsSync): string | null {
+  const candidates = [`${home}/.local/bin/muse`, "/opt/homebrew/bin/muse", "/usr/local/bin/muse"];
+  return candidates.find((path) => exists(path)) ?? null;
+}
+
 export async function probeEnvironment(
   exec: ExecFn = defaultExec,
   platform: string = process.platform,
-  options: { preference?: RuntimePreference; findNative?: () => NativeMuse | null } = {},
+  options: {
+    preference?: RuntimePreference;
+    findNative?: () => NativeMuse | null;
+    home?: string;
+    exists?: (path: string) => boolean;
+  } = {},
 ): Promise<EnvironmentProbe> {
   if (platform !== "win32") {
     const found = await exec("sh", ["-lc", "command -v muse"]);
-    const musePath =
+    const onPath =
       found.exitCode === 0
         ? (found.stdout.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? null)
         : null;
+    // A Muse install made after Helicon started is not on its PATH yet, so look where installers put it.
+    const musePath = onPath ?? findPosixMuse(options.home ?? homedir(), options.exists ?? existsSync);
     return { platform, runtime: "posix", native: null, wslAvailable: false, distros: [], defaultDistro: null, musePath };
   }
   const preference = options.preference ?? "auto";

@@ -193,7 +193,7 @@ export function Welcome() {
               spellCheck={false}
               autoComplete="off"
               autoFocus
-              placeholder={windows ? "D:\\Projects\\my-app" : "/home/you/code/my-app"}
+              placeholder={windows ? "D:\\Projects\\my-app" : "~/code/my-app"}
               onChange={(event) => setPath(event.currentTarget.value)}
               className="h-10 min-w-0 flex-1 rounded-lg bg-raised px-3 font-mono text-base text-fg shadow-[0_0_0_1px_var(--border-strong)] outline-none focus-visible:shadow-[0_0_0_2px_var(--accent)] focus-visible:outline-none sm:text-sm"
             />

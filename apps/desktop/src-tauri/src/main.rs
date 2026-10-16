@@ -310,9 +310,13 @@ fn augmented_path(node: &Path) -> Option<OsString> {
         PathBuf::from("/opt/local/bin"),
     ];
     if let Some(home) = &home {
-        folders.extend([home.join(".local/bin"), home.join(".volta/bin"), home.join(".asdf/shims")]);
+        folders.extend([home.join(".volta/bin"), home.join(".asdf/shims")]);
     }
     prepend.extend(folders.into_iter().filter(|dir| dir.is_dir()));
+    // The Muse installer creates ~/.local/bin, often after Helicon is already open, so keep it even when missing.
+    if let Some(home) = &home {
+        prepend.push(home.join(".local/bin"));
+    }
     if prepend.is_empty() {
         return None;
     }
