@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.22.1
+
+### New
+
+- **A notice while Muse's auto-reviewer checks an action** ([#150](https://github.com/HarjjotSinghh/helicon/pull/150), closes [#149](https://github.com/HarjjotSinghh/helicon/issues/149)). Muse Code 1.4.9 can hold an action while its own auto-reviewer looks at it. Helicon showed nothing during that wait. The approval area now says "Auto-review is checking an action", and the notice clears when Muse hands the action to you or settles it.
+- **Muse's labels for unfamiliar tools** ([#150](https://github.com/HarjjotSinghh/helicon/pull/150)). A tool Helicon has no wording of its own for now shows the label Muse 1.4.9 sends, with one label while it runs and another when it finishes. Tools without a label keep the old text.
+
+### Changed
+
+- **Muse Code SDK 1.4.9** ([#148](https://github.com/HarjjotSinghh/helicon/pull/148), [#150](https://github.com/HarjjotSinghh/helicon/pull/150)), up from 1.4.7.
+
+### Fixed
+
+- **Enter while typing Chinese, Japanese or Korean** ([#151](https://github.com/HarjjotSinghh/helicon/pull/151), closes [#143](https://github.com/HarjjotSinghh/helicon/issues/143)). Pressing Enter to pick an input method candidate sent the message or ran the action. Enter and Escape now do nothing while the input method is composing, and for 100 ms after it commits, because the macOS app's WebKit reports the key after the commit. This covers the composer, search boxes, rename and title fields, the Add Project and SSH forms, question answers and the command palette.
+
 ## 0.22.0
 
 ### New

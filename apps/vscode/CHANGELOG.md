@@ -2,6 +2,12 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.22.1
+
+- A notice shows while Muse's auto-reviewer checks an action, and unfamiliar tools use Muse's own labels (#150).
+- Muse Code SDK 1.4.9 (#148, #150).
+- Enter no longer sends or runs an action while a Chinese, Japanese or Korean input method is composing (#151).
+
 ## 0.22.0
 
 - Keep, undo and review a thread's file changes from the files-changed card (#140).
