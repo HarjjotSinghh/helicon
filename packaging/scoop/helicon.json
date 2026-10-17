@@ -16,7 +16,7 @@
     "post_install": "Remove-Item \"$dir\\`$*\", \"$dir\\uninstall*\" -Force -Recurse -ErrorAction Ignore",
     "shortcuts": [
         [
-            "Helicon.exe",
+            "helicon.exe",
             "Helicon"
         ]
     ],

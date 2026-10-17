@@ -1,11 +1,12 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
 
 PackageIdentifier: HarjjotSinghh.Helicon
-PackageVersion: 0.14.1
+PackageVersion: 0.22.2
 PackageLocale: en-US
 Publisher: Harjot Singh Rana
 PublisherUrl: https://github.com/HarjjotSinghh
 PublisherSupportUrl: https://github.com/HarjjotSinghh/helicon/issues
+PrivacyUrl: https://helicon.sh/privacy
 Author: Harjot Singh Rana
 PackageName: Helicon
 PackageUrl: https://helicon.sh
@@ -31,6 +32,6 @@ Tags:
 - muse
 - muse-code
 - tauri
-ReleaseNotesUrl: https://github.com/HarjjotSinghh/helicon/releases/latest
+ReleaseNotesUrl: https://github.com/HarjjotSinghh/helicon/releases/tag/v0.22.2
 ManifestType: defaultLocale
 ManifestVersion: 1.12.0

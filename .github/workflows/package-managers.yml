@@ -31,7 +31,7 @@ jobs:
         run: |
           $dir = scoop prefix helicon
           Get-ChildItem $dir -Recurse -Depth 1 | Select-Object FullName, Length | Format-Table -AutoSize
-          foreach ($f in "Helicon.exe", "node.exe", "resources\server.cjs", "resources\frontend\index.html") {
+          foreach ($f in "helicon.exe", "node.exe", "resources\server.cjs", "resources\frontend\index.html") {
             if (-not (Test-Path (Join-Path $dir $f))) { throw "missing $f in $dir" }
           }
           # Installer leftovers must be gone, or Scoop would ship NSIS internals with the app.
@@ -56,3 +56,41 @@ jobs:
       - name: Uninstall
         shell: pwsh
         run: scoop uninstall helicon
+      - name: Check that autoupdate rebuilds the manifest
+        shell: pwsh
+        # The bucket keeps itself current with checkver and autoupdate. Forcing an update on a copy finds the
+        # latest release, downloads it from the autoupdate URL and recomputes the hash, as the bucket's job would.
+        run: |
+          $copy = Join-Path $env:RUNNER_TEMP "bucket"
+          New-Item -ItemType Directory $copy | Out-Null
+          Copy-Item packaging\scoop\helicon.json $copy
+          & "$(scoop prefix scoop)\bin\checkver.ps1" -App helicon -Dir $copy -Update -ForceUpdate
+          $m = Get-Content (Join-Path $copy "helicon.json") | ConvertFrom-Json
+          $latest = (Invoke-RestMethod https://api.github.com/repos/HarjjotSinghh/helicon/releases/latest -Headers @{ Authorization = "Bearer ${{ github.token }}" }).tag_name.TrimStart("v")
+          if ($m.version -ne $latest) { throw "autoupdate wrote $($m.version), latest release is $latest" }
+          if ($m.architecture.'64bit'.hash -notmatch '^[0-9a-f]{64}$') { throw "autoupdate did not write a hash" }
+          "autoupdate OK: $($m.version) $($m.architecture.'64bit'.hash)"
+
+  winget:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for winget
+        id: winget
+        shell: pwsh
+        run: |
+          if (Get-Command winget -ErrorAction SilentlyContinue) { winget --version; "ready=true" >> $env:GITHUB_OUTPUT }
+          else { "winget is not on this runner image, so the manifests are not checked here."; "ready=false" >> $env:GITHUB_OUTPUT }
+      - name: Validate the manifests
+        if: steps.winget.outputs.ready == 'true'
+        shell: pwsh
+        run: winget validate --manifest packaging\winget\manifests
+      - name: Install from the manifests
+        if: steps.winget.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          winget settings --enable LocalManifestFiles
+          winget install --manifest packaging\winget\manifests --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
+          $dir = Join-Path $env:LOCALAPPDATA "Helicon"
+          Get-ChildItem $dir | Select-Object Name, Length | Format-Table -AutoSize
+          if (-not (Test-Path (Join-Path $dir "helicon.exe"))) { throw "helicon.exe is not in $dir" }
