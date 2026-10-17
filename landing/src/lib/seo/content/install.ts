@@ -126,10 +126,10 @@ export const INSTALL_PAGES: SeoPage[] = [
     icon: "apple",
     section: "install",
     label: "macOS",
-    title: "Install Helicon for Muse Code on macOS",
+    title: "Muse Code Mac DMG: Helicon for Apple Silicon and Intel",
     h1: "Install Helicon on macOS",
     description:
-      "One universal DMG for Apple Silicon and Intel, with auto update. Install the muse CLI, sign in, drag Helicon to Applications, and allow it once in Privacy & Security.",
+      "A universal DMG of Helicon, a free desktop app for the Muse Code CLI on Mac. One build for Apple Silicon and Intel, auto update, and a one-time Open Anyway step.",
     answer:
       "Install the muse CLI and sign in with muse login, open the universal Helicon DMG from the latest GitHub release, and drag the app into Applications. One build covers Apple Silicon and Intel and updates itself. The builds are not Apple notarized yet, so the first launch needs System Settings > Privacy & Security > Open Anyway on macOS 15 or later.",
     keywords: [
@@ -139,6 +139,9 @@ export const INSTALL_PAGES: SeoPage[] = [
       "muse code gui macos",
       "install muse code mac",
       "muse code apple silicon",
+      "muse dmg",
+      "muse code dmg",
+      "muse code mac download",
     ],
     updated: UPDATED,
     ogEyebrow: "Install on macOS",

@@ -95,7 +95,7 @@ const DEFS: Def[] = [
       { q: "What does muse serve do?", a: "It starts a host that speaks the Muse Code Session Protocol over JSON-RPC, which is how applications drive a session properly." },
       { q: "Where does muse login store credentials?", a: "With the CLI itself. Clients like Helicon read nothing and store nothing." },
     ],
-    related: ["glossary/muse-serve", "glossary/msp", "guides/muse-cli-not-found"],
+    related: ["muse-code-download", "glossary/muse-serve", "glossary/msp", "guides/muse-cli-not-found"],
   },
   {
     slug: "msp",

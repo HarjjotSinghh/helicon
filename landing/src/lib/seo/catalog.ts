@@ -30,7 +30,7 @@ export const SECTIONS: Section[] = [
     answer:
       "Helicon installs from a Windows installer, a universal macOS DMG or an x86_64 Linux AppImage, all on the latest GitHub release, and all self updating. Every route needs the muse CLI installed and signed in with your own muse login, because Helicon drives Muse Code rather than replacing it.",
     intro:
-      "Pick your platform. Every route needs one thing first: a muse CLI that answers `muse --version` and is signed in.",
+      "Pick your platform. Every route needs one thing first: a muse CLI that answers `muse --version` and is signed in. No CLI yet? Start with [Download Muse Code](/muse-code-download).",
     keywords: ["install muse code gui", "muse code desktop app download", "muse code installer", "muse code setup"],
   },
   {

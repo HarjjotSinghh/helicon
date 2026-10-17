@@ -270,6 +270,99 @@ export const PILLAR_PAGES: SeoPage[] = [
     related: ["muse-code-gui", "install/windows", "install/macos", "pricing", "features/session-history"],
   },
   {
+    slug: "muse-code-download",
+    icon: "download",
+    section: "page",
+    label: "Download Muse Code",
+    title: "Download Muse Code: the muse CLI and a desktop app",
+    h1: "Download Muse Code, then add a desktop app",
+    description:
+      "Muse Code ships from Meta as the muse CLI. Install it with one command on Windows, macOS or Linux, run muse login, then add Helicon, a free desktop app for it.",
+    answer:
+      "Muse Code is Meta's AI coding agent, and you download it as the muse command line tool. On macOS and Linux, run Meta's curl installer. On Windows, run the PowerShell installer. Sign in once with muse login. If you want a desktop window for Muse Code, Helicon is a free, open-source app that runs on that same login.",
+    keywords: [
+      "muse cli download",
+      "muse code download",
+      "download muse code",
+      "muse code install",
+      "install muse cli",
+      "musecli",
+      "muse code cli download windows",
+    ],
+    updated: "2026-10-17",
+    ogEyebrow: "Download Muse Code",
+    answerCta: true,
+    blocks: [
+      { kind: "h2", text: "Install the muse CLI" },
+      {
+        kind: "p",
+        text: "Meta publishes the muse CLI with a one-line installer for each platform. Helicon does not bundle or redistribute it. The commands below are the ones in Meta's Muse Code docs.",
+      },
+      {
+        kind: "table",
+        head: ["Platform", "Command", "Shell"],
+        rows: [
+          ["macOS", "`curl -fsSL https://dev.meta.ai/install.sh | bash`", "Terminal"],
+          ["Linux", "`curl -fsSL https://dev.meta.ai/install.sh | bash`", "Any POSIX shell"],
+          ["Windows", "`irm https://dev.meta.ai/install.ps1 | iex`", "Windows PowerShell"],
+        ],
+        caption: "Source: Meta's Muse Code docs at dev.meta.ai/products/muse-code.",
+      },
+      {
+        kind: "note",
+        text: "On Windows, run the installer from Windows PowerShell, as Meta's docs show. Muse Code also runs inside WSL2 if that is where you work.",
+      },
+      { kind: "h2", text: "Sign in" },
+      { kind: "code", lang: "bash", code: "muse login\nmuse --version" },
+      {
+        kind: "p",
+        text: "muse login needs a Muse Code plan or pay-as-you-go billing. The CLI keeps the credentials. Every app that drives Muse Code, Helicon included, uses that login and stores none of its own.",
+      },
+      { kind: "h2", text: "Download a desktop app for Muse Code" },
+      {
+        kind: "p",
+        text: "The CLI runs in a terminal. Helicon is a free, MIT licensed desktop app that drives the same CLI through muse serve and gives each session a window: projects grouped by directory, resume with full history, inline diffs, an approval queue, and cost at published API rates.",
+      },
+      {
+        kind: "table",
+        head: ["Platform", "Helicon download", "Notes"],
+        rows: [
+          ["Windows", "x64 installer (Helicon_<version>_x64-setup.exe)", "Not Authenticode signed yet: SmartScreen may warn, click More info, then Run anyway"],
+          ["macOS", "Universal DMG, Apple Silicon and Intel", "Not Apple notarized yet: first launch needs Privacy & Security > Open Anyway on macOS 15 or later"],
+          ["Linux", "x86_64 AppImage", "Needs FUSE (libfuse2) on some distributions"],
+          ["VS Code, Cursor, Windsurf", "Editor extension", "Marketplace and Open VSX"],
+        ],
+        caption: "All three desktop builds update themselves. Tested with Muse Code 1.4.9 on 16 Oct 2026.",
+      },
+      { kind: "h2", text: "Who makes Helicon" },
+      {
+        kind: "ul",
+        items: [
+          "Helicon is an unofficial community project. It is not made by Meta or affiliated with Meta.",
+          "It runs on your Muse Code subscription. Helicon has no API key, account or paid tier of its own.",
+          "It is a client for the Muse Code CLI and has nothing to do with the Muse assistant app for Mac.",
+        ],
+      },
+    ],
+    howTo: {
+      name: "Download and set up Muse Code with a desktop app",
+      steps: [
+        { name: "Install the muse CLI", text: "Run Meta's installer for your platform. On Windows, use Windows PowerShell.", code: "curl -fsSL https://dev.meta.ai/install.sh | bash" },
+        { name: "Sign in", text: "Authenticate once. The CLI holds the credentials.", code: "muse login" },
+        { name: "Check the install", text: "Confirm the CLI is on your PATH.", code: "muse --version" },
+        { name: "Download Helicon", text: "Take the build for your platform from helicon.sh/download or the latest GitHub release." },
+        { name: "Add a project", text: "Point Helicon at a working directory. It lists the sessions already on disk, including ones started in the terminal." },
+      ],
+    },
+    faqs: [
+      { q: "Is there a Muse Code desktop app from Meta?", a: "Meta ships Muse Code as the muse CLI. Helicon is an unofficial, open-source desktop app that drives that CLI. Other community GUIs and editor extensions exist too." },
+      { q: "Does Helicon include the muse CLI?", a: "No. Install the muse CLI from Meta first. The Helicon desktop app bundles its own Node.js, so the CLI and a signed-in muse login are the only things it needs." },
+      { q: "Does Helicon cost anything?", a: "No. Helicon is free and MIT licensed. It runs on your existing Muse Code subscription, with no API key and no second bill." },
+      { q: "Where does the muse CLI install on Windows?", a: "Meta's PowerShell installer puts it in %LOCALAPPDATA%\\Programs\\muse and adds that folder to your user PATH. Open a new terminal before running muse login." },
+    ],
+    related: ["glossary/muse-cli", "install/windows", "install/macos", "install/linux", "muse-code-desktop-app", "guides/muse-cli-not-found"],
+  },
+  {
     slug: "pricing",
     icon: "tag",
     section: "page",

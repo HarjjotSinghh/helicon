@@ -964,10 +964,10 @@ const ENTRIES: Entry[] = [
     icon: "squares",
     label: "T3 Code",
     name: "T3 Code",
-    title: "Helicon vs T3 Code for Muse Code",
+    title: "T3 Code with Muse Code: beta provider vs Helicon",
     h1: "Helicon vs T3 Code for Muse Code",
     description:
-      "T3 Code added a beta Muse Code provider. How it compares with Helicon, a client built only for Muse Code: approval modes, terminal sessions, fork, usage and the editor extension.",
+      "T3 Code added a beta Muse Code provider in October 2026, off by default. What it covers next to Helicon: approval modes, terminal sessions, fork and the plan meter.",
     answer:
       "T3 Code is a multi agent GUI that added a beta Muse Code provider in October 2026, next to Codex, Claude, Cursor and others. Helicon is built only for Muse Code. Pick T3 Code if you switch between agents. Pick Helicon if Muse Code is your main agent and you want its full approval modes, terminal session resume, native fork and the plan meter.",
     keywords: [
