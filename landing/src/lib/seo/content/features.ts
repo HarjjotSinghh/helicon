@@ -740,4 +740,10 @@ const PAGES: SeoPage[] = [
   },
 ];
 
-export const FEATURE_PAGES: SeoPage[] = PAGES.map((page) => ({ ...page, blocks: [...page.blocks, TESTED] }));
+/** Points every feature page at the app it ships in, the browser demo and the install page. */
+const WHERE: Block = {
+  kind: "p",
+  text: "Every feature here ships in the free [Muse Code desktop app](/muse-code-desktop-app) for Windows, macOS and Linux. [Try Helicon in your browser](/try) on sample data, or [install Helicon](/install) and point it at your own muse login.",
+};
+
+export const FEATURE_PAGES: SeoPage[] = PAGES.map((page) => ({ ...page, blocks: [...page.blocks, WHERE, TESTED] }));

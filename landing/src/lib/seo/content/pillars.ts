@@ -1,4 +1,6 @@
-import type { SeoPage } from "../types";
+import { DESKTOP_OS_TEXT, MUSE_CODE_DOCS_URL, MUSE_CODE_TESTED } from "../../tested";
+import { formatDate } from "../freshness";
+import type { Block, SeoPage } from "../types";
 
 /**
  * Top level pages for the head terms. These are the pages that have to answer the question a
@@ -6,6 +8,12 @@ import type { SeoPage } from "../types";
  */
 
 const UPDATED = "2026-09-19";
+
+/** The build these pages describe, and what it was tested against. Read from lib/tested.ts. */
+const TESTED: Block = {
+  kind: "note",
+  text: `Tested with [Muse Code](${MUSE_CODE_DOCS_URL}) ${MUSE_CODE_TESTED.version} on ${DESKTOP_OS_TEXT}, ${formatDate(MUSE_CODE_TESTED.date)}.`,
+};
 
 export const PILLAR_PAGES: SeoPage[] = [
   {
@@ -29,15 +37,15 @@ export const PILLAR_PAGES: SeoPage[] = [
       "best muse code gui",
       "muse code frontend",
     ],
-    updated: UPDATED,
+    updated: "2026-10-18",
     ogEyebrow: "Muse Code GUI",
     answerCta: true,
     itemList: {
       name: "Graphical interfaces for Muse Code",
       items: [
-        "Helicon, a standalone desktop and web app",
         "VS Code extensions",
         "Agent Client Protocol bridges for Zed and JetBrains",
+        "Standalone desktop and web apps, such as Helicon",
         "Other open-source desktop wrappers",
       ],
     },
@@ -56,7 +64,7 @@ export const PILLAR_PAGES: SeoPage[] = [
         steps: [
           {
             name: "Install the muse CLI",
-            text: "Every Muse Code GUI drives this CLI. Skip the step if `muse` already runs in your terminal.",
+            text: "Every Muse Code GUI drives this CLI. Skip the step if `muse` already runs in your terminal. On Windows, [download Muse Code](/muse-code-download) with the PowerShell installer instead.",
             code: "curl -fsSL https://dev.meta.ai/install.sh | bash",
           },
           { name: "Sign in", text: "Authentication stays with your own account. Helicon never stores credentials.", code: "muse login" },
@@ -71,9 +79,9 @@ export const PILLAR_PAGES: SeoPage[] = [
         kind: "table",
         head: ["Kind", "Example", "Best when"],
         rows: [
-          ["Standalone app", "Helicon, desktop and web", "You run threads across several repositories"],
           ["Editor extension", "VS Code Muse extensions", "You work in one repository inside the editor"],
           ["ACP bridge", "Zed and JetBrains bridges", "You want one editor panel for several agents"],
+          ["Standalone app", "Helicon, desktop and web", "You run threads across several repositories"],
           ["Other wrappers", "Small open-source projects", "You want something minimal to modify"],
         ],
       },
@@ -81,7 +89,11 @@ export const PILLAR_PAGES: SeoPage[] = [
         kind: "p",
         text: "Nobody should claim to be the only option here, and this page does not. Editor integrations exist, several open-source wrappers exist, and they all drive the same CLI. The useful question is which shape fits the way you work.",
       },
-      { kind: "h2", text: "What a standalone app adds" },
+      { kind: "h2", text: "What does a standalone app add?" },
+      {
+        kind: "p",
+        text: "The list below describes Helicon. The [Muse Code desktop app](/muse-code-desktop-app) page has each platform build, and you can [try Helicon in your browser](/try) on sample data without installing anything.",
+      },
       {
         kind: "ul",
         items: [
@@ -93,10 +105,10 @@ export const PILLAR_PAGES: SeoPage[] = [
           "The same UI as a web app against a daemon on another machine.",
         ],
       },
-      { kind: "h2", text: "What it costs, and how the plan meter works" },
+      { kind: "h2", text: "What does a Muse Code GUI cost?" },
       {
         kind: "p",
-        text: "Helicon is free and adds no billing: it runs on the Muse Code subscription you already have. It shows what each thread would have cost at Meta's published per token rates, by day, model and thread, as a meter reading rather than a bill. The 5 hour window and weekly cap sit in the sidebar exactly as the CLI reports them. See [cost at API rates](/features/cost-and-usage) and [usage limits](/features/plan-limits).",
+        text: "[Helicon is free](/pricing) and adds no billing: it runs on the Muse Code subscription you already have. It shows what each thread would have cost at Meta's published per token rates, by day, model and thread, as a meter reading rather than a bill. The 5 hour window and weekly cap sit in the sidebar exactly as the CLI reports them. See [cost at API rates](/features/cost-and-usage) and [usage limits](/features/plan-limits).",
       },
       { kind: "h2", text: "What to check before installing any of them" },
       {
@@ -133,9 +145,14 @@ export const PILLAR_PAGES: SeoPage[] = [
         ],
       },
       {
+        kind: "p",
+        text: "When you want the full app, [install Helicon](/install) on Windows, macOS or Linux.",
+      },
+      {
         kind: "note",
         text: "Helicon is an unofficial community project, MIT licensed, not made, sponsored or endorsed by Meta. Muse and Muse Code are Meta trademarks, used here only to say what it connects to.",
       },
+      TESTED,
     ],
     faqs: [
       {
@@ -176,9 +193,9 @@ export const PILLAR_PAGES: SeoPage[] = [
     title: "Muse Code desktop app: Windows, macOS, Linux, web",
     h1: "A desktop app for Muse Code",
     description:
-      "Helicon is a free, open-source desktop and web app for the Muse Code CLI. Windows installer, universal macOS DMG, sessions, diffs, approvals and cost in one window.",
+      "Helicon is a free, open-source desktop app for the Muse Code CLI: Windows installer, macOS DMG, Linux AppImage. Sessions, diffs, approvals and cost in one window.",
     answer:
-      "Helicon is a free, MIT licensed desktop app for Meta's Muse Code CLI, with a Windows installer and a universal macOS DMG. It gives every Muse Code session a home: projects grouped by directory, resume with full history, inline diffs, an approval queue, and cost at published API rates. It runs on your existing subscription.",
+      "Helicon is a free, MIT licensed desktop app for Meta's Muse Code CLI, with a Windows installer, a universal macOS DMG and a Linux AppImage. It gives every Muse Code session a home: projects grouped by directory, resume with full history, inline diffs, an approval queue, and cost at published API rates. It runs on your existing subscription.",
     keywords: [
       "muse code desktop app",
       "muse code app",
@@ -188,10 +205,10 @@ export const PILLAR_PAGES: SeoPage[] = [
       "muse code app for mac",
       "is there a desktop app for muse code",
     ],
-    updated: UPDATED,
+    updated: "2026-10-18",
     ogEyebrow: "Desktop app",
     blocks: [
-      { kind: "h2", text: "What you get" },
+      { kind: "h2", text: "What does the desktop app do?" },
       {
         kind: "table",
         head: ["", "In the app"],
@@ -206,7 +223,11 @@ export const PILLAR_PAGES: SeoPage[] = [
           ["Keyboard", "Command palette, slash commands, model and effort picker"],
         ],
       },
-      { kind: "h2", text: "Platforms" },
+      { kind: "h2", text: "Which platforms does it run on?" },
+      {
+        kind: "p",
+        text: "Every build below comes from the same release. To pick one, [install Helicon](/install) from the page that matches your machine.",
+      },
       {
         kind: "ul",
         items: [
@@ -216,16 +237,16 @@ export const PILLAR_PAGES: SeoPage[] = [
           "Browser: the same React UI as a web app against a daemon you run.",
         ],
       },
-      { kind: "h2", text: "What it needs from you" },
+      { kind: "h2", text: "What do you need before installing it?" },
       {
         kind: "ul",
         items: [
-          "The muse CLI, installed and signed in with your own `muse login`.",
-          "A Muse Code subscription. There is no second bill and no API key.",
+          "The muse CLI, installed and signed in with your own `muse login`. [Download Muse Code](/muse-code-download) has Meta's command for each platform.",
+          "A Muse Code subscription. [Helicon is free](/pricing), so there is no second bill and no API key.",
           "Nothing else. The desktop app ships its own Node.js. Running from source needs Node 22 or newer.",
         ],
       },
-      { kind: "h2", text: "How it works underneath" },
+      { kind: "h2", text: "How does it work underneath?" },
       {
         kind: "ul",
         items: [
@@ -235,20 +256,25 @@ export const PILLAR_PAGES: SeoPage[] = [
           "One React codebase ships as the Tauri desktop app and as the web app.",
         ],
       },
-      { kind: "h2", text: "Privacy, stated plainly" },
+      { kind: "h2", text: "What leaves your machine?" },
       {
         kind: "p",
         text: "Nothing about your code, prompts, threads or files leaves your machine. The desktop app asks helicon.sh whether a newer version exists, and that request reports the platform, the version and a weekly hash of the IP it came from. There is no account, no sign up and no telemetry inside the app itself.",
       },
       {
+        kind: "p",
+        text: "Not sure a desktop app is the right shape? The [Muse Code GUI](/muse-code-gui) page compares it with editor extensions and ACP bridges, or you can [try Helicon in your browser](/try) on sample data first.",
+      },
+      {
         kind: "note",
         text: "Unofficial community project, MIT licensed. Not made, sponsored or endorsed by Meta, and unrelated to the Muse assistant app for Mac.",
       },
+      TESTED,
     ],
     faqs: [
       {
         q: "Is there a desktop app for Muse Code?",
-        a: "Yes. Helicon is a free, open-source desktop app for the Muse Code CLI, with a Windows installer and a universal macOS DMG, plus a web build against a daemon you run.",
+        a: "Yes. Helicon is a free, open-source desktop app for the Muse Code CLI, with a Windows installer, a universal macOS DMG and a Linux AppImage, plus a web build against a daemon you run.",
       },
       {
         q: "Is the Muse Code desktop app free?",
@@ -289,7 +315,7 @@ export const PILLAR_PAGES: SeoPage[] = [
       "musecli",
       "muse code cli download windows",
     ],
-    updated: "2026-10-17",
+    updated: "2026-10-18",
     ogEyebrow: "Download Muse Code",
     answerCta: true,
     blocks: [
@@ -312,16 +338,16 @@ export const PILLAR_PAGES: SeoPage[] = [
         kind: "note",
         text: "On Windows, run the installer from Windows PowerShell, as Meta's docs show. Muse Code also runs inside WSL2 if that is where you work.",
       },
-      { kind: "h2", text: "Sign in" },
+      { kind: "h2", text: "How do you sign in?" },
       { kind: "code", lang: "bash", code: "muse login\nmuse --version" },
       {
         kind: "p",
         text: "muse login needs a Muse Code plan or pay-as-you-go billing. The CLI keeps the credentials. Every app that drives Muse Code, Helicon included, uses that login and stores none of its own.",
       },
-      { kind: "h2", text: "Download a desktop app for Muse Code" },
+      { kind: "h2", text: "Is there a desktop app for Muse Code?" },
       {
         kind: "p",
-        text: "The CLI runs in a terminal. Helicon is a free, MIT licensed desktop app that drives the same CLI through muse serve and gives each session a window: projects grouped by directory, resume with full history, inline diffs, an approval queue, and cost at published API rates.",
+        text: "The CLI runs in a terminal. Helicon is a free, MIT licensed [Muse Code desktop app](/muse-code-desktop-app) that drives the same CLI through muse serve and gives each session a window: projects grouped by directory, resume with full history, inline diffs, an approval queue, and cost at published API rates.",
       },
       {
         kind: "table",
@@ -334,13 +360,17 @@ export const PILLAR_PAGES: SeoPage[] = [
         ],
         caption: "All three desktop builds update themselves. Tested with Muse Code 1.4.9 on 16 Oct 2026.",
       },
-      { kind: "h2", text: "Who makes Helicon" },
+      {
+        kind: "p",
+        text: "[Install Helicon](/install) from the page for your machine, or [try Helicon in your browser](/try) on sample data before you download anything.",
+      },
+      { kind: "h2", text: "Who makes Helicon?" },
       {
         kind: "ul",
         items: [
           "Helicon is an unofficial community project. It is not made by Meta or affiliated with Meta.",
-          "It runs on your Muse Code subscription. Helicon has no API key, account or paid tier of its own.",
-          "It is a client for the Muse Code CLI and has nothing to do with the Muse assistant app for Mac.",
+          "It runs on your Muse Code subscription. [Helicon is free](/pricing), with no API key, account or paid tier of its own.",
+          "It is one [Muse Code GUI](/muse-code-gui) among several, a client for the Muse Code CLI, and it has nothing to do with the Muse assistant app for Mac.",
         ],
       },
     ],
@@ -380,10 +410,10 @@ export const PILLAR_PAGES: SeoPage[] = [
       "muse code gui cost",
       "is helicon free",
     ],
-    updated: UPDATED,
+    updated: "2026-10-18",
     ogEyebrow: "Pricing",
     blocks: [
-      { kind: "h2", text: "The whole price list" },
+      { kind: "h2", text: "How much does Helicon cost?" },
       {
         kind: "table",
         head: ["Plan", "Price", "Limits", "Includes"],
@@ -397,12 +427,12 @@ export const PILLAR_PAGES: SeoPage[] = [
         ],
         caption: "There is one plan and it is free. This table exists so machines can read it.",
       },
-      { kind: "h2", text: "What you do pay for" },
+      { kind: "h2", text: "What do you pay for?" },
       {
         kind: "p",
-        text: "Muse Code itself, through Meta. Helicon drives the muse CLI you already have and adds no metering, no routing and no API billing of its own. If you have no Muse Code subscription, Helicon has nothing to drive.",
+        text: "Muse Code itself, through Meta. Helicon drives the muse CLI you already have and adds no metering, no routing and no API billing of its own. If you have no Muse Code subscription, Helicon has nothing to drive. The [Muse Code download](/muse-code-download) page covers getting the CLI itself.",
       },
-      { kind: "h2", text: "Why free" },
+      { kind: "h2", text: "Why is it free?" },
       {
         kind: "ul",
         items: [
@@ -411,11 +441,17 @@ export const PILLAR_PAGES: SeoPage[] = [
           "MIT licensed source means a paywall would be theatre.",
         ],
       },
-      { kind: "h2", text: "What the cost view in the app is" },
+      { kind: "h2", text: "What is the cost view in the app?" },
       {
         kind: "p",
-        text: "Helicon shows what each thread would have cost at Meta's published per token rates. That is a meter reading on a subscription you already pay for, not an invoice, and not a Helicon charge. Nobody is billing you that number.",
+        text: "Helicon shows what each thread would have cost at Meta's published per token rates. That is a meter reading on a subscription you already pay for, not an invoice, and not a Helicon charge. Nobody is billing you that number. The [cost and usage](/features/cost-and-usage) page shows how the meter reads.",
       },
+      { kind: "h2", text: "How do you get it?" },
+      {
+        kind: "p",
+        text: "The free [Muse Code desktop app](/muse-code-desktop-app) runs on Windows, macOS and Linux. [Install Helicon](/install) from the page for your machine, or [try Helicon in your browser](/try) on sample data first.",
+      },
+      TESTED,
       {
         kind: "note",
         text: "Machine readable version of this page: /pricing.md",
@@ -425,6 +461,8 @@ export const PILLAR_PAGES: SeoPage[] = [
       { q: "Is Helicon free?", a: "Yes. MIT licensed, no paid tier, no trial, no seats, no account." },
       { q: "Is there an enterprise plan?", a: "No. There is one plan and it is free. Managed, SSO and multi user deployment are out of scope today." },
       { q: "Do I need a Muse Code subscription?", a: "Yes. Helicon drives the muse CLI, so you need Muse Code and a working muse login." },
+      { q: "Do I need an API key?", a: "No. Helicon uses your existing Muse Code subscription through your own muse login. There is no API key and no second bill." },
+      { q: "Does Helicon store my credentials?", a: "No. Your muse login stays with the muse CLI. Helicon has no account and stores no credentials." },
       { q: "Will it start charging later?", a: "The source is MIT licensed, so any version you have stays yours. There is no paid tier today and no revenue path in the current version." },
     ],
     related: ["muse-code-desktop-app", "features/cost-and-usage", "guides/see-muse-code-cost"],

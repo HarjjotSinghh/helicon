@@ -17,6 +17,7 @@ import {
   Sun,
   TerminalWindow,
 } from "@phosphor-icons/react/ssr";
+import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 import { highlight } from "sugar-high";
 import { DemoApp } from "@/demo/demo-app";
@@ -30,10 +31,15 @@ function Cell({
   className,
   children,
   order = 0,
+  href,
+  linkLabel,
 }: {
   icon: ReactNode;
   title: string;
   body: string;
+  /** Feature page that explains this cell in full. */
+  href?: string;
+  linkLabel?: string;
   className?: string;
   children?: ReactNode;
   /** Position in the grid, so neighbouring cells cascade instead of arriving together. */
@@ -60,6 +66,11 @@ function Cell({
       <p data-reveal className="mt-3 max-w-[48ch] text-[15px] leading-relaxed text-muted">
         {body}
       </p>
+      {href && linkLabel ? (
+        <Link data-reveal href={href} className="mt-2 inline-block self-start text-[13.5px] text-accent-text hover:underline">
+          {linkLabel}
+        </Link>
+      ) : null}
       {children}
     </article>
   );
@@ -318,6 +329,8 @@ export function Features({ title, body }: { title: string; body: string }) {
           className="md:col-span-3"
           icon={<FolderSimple weight="duotone" />}
           title="Every project, grouped"
+          href="/features/projects-and-worktrees"
+          linkLabel="How projects and worktrees work"
           order={0}
           body="Threads grouped by folder, worktrees included. Resume any of them in one click."
         >
@@ -336,6 +349,8 @@ export function Features({ title, body }: { title: string; body: string }) {
           className="md:col-span-3"
           icon={<GitDiff weight="duotone" />}
           title="Inline diffs"
+          href="/features/inline-diffs"
+          linkLabel="How inline diffs work"
           order={1}
           body="Every edit lands in the thread as a diff, right where it happened. No scrollback digging."
         >
@@ -346,6 +361,8 @@ export function Features({ title, body }: { title: string; body: string }) {
           className="md:col-span-3 xl:col-span-2"
           icon={<ShieldCheck weight="duotone" />}
           title="Approvals stay approvals"
+          href="/features/approvals"
+          linkLabel="How approvals work"
           order={0}
           body="Every approval is surfaced the moment it arrives. None are batched or bypassed."
         >
@@ -356,6 +373,8 @@ export function Features({ title, body }: { title: string; body: string }) {
           className="md:col-span-3 xl:col-span-2"
           icon={<ChartBar weight="duotone" />}
           title="Cost, in the open"
+          href="/features/cost-and-usage"
+          linkLabel="How the cost view works"
           order={1}
           body="What each thread would cost at API rates, so you see what your plan is doing."
         >
@@ -371,6 +390,8 @@ export function Features({ title, body }: { title: string; body: string }) {
           className="md:col-span-6 xl:col-span-2"
           icon={<Command weight="duotone" />}
           title="Keyboard first"
+          href="/features/command-palette"
+          linkLabel="How the command palette works"
           order={2}
           body="Command palette, slash commands and a model picker. Reach any thread by keyboard."
         >
@@ -397,6 +418,9 @@ export function Features({ title, body }: { title: string; body: string }) {
               The same React interface ships as a Tauri desktop app and as a web app pointed at a remote
               daemon.
             </p>
+            <Link href="/features/remote-daemon" className="mt-2 inline-block text-[13.5px] text-accent-text hover:underline">
+              How the remote daemon works
+            </Link>
             <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-surface-2 py-1 pr-3 pl-2 text-[13px] text-muted shadow-[0_0_0_1px_var(--border)]">
               <TerminalWindow aria-hidden="true" weight="duotone" className="size-4 text-accent-text" />
               Same daemon, same threads, either way

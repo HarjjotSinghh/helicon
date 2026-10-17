@@ -1158,6 +1158,10 @@ function toPage(entry: Entry): SeoPage {
       { kind: "ul", items: entry.pickHelicon },
       { kind: "h2", text: "Can you use both?" },
       { kind: "p", text: entry.together },
+      {
+        kind: "p",
+        text: "Helicon is one [Muse Code GUI](/muse-code-gui) of several, and that page lists the rest. [Helicon is free](/pricing) and MIT licensed, and you can [try Helicon in your browser](/try) on sample data before you install anything.",
+      },
     ],
     related: ["muse-code-gui"],
     faqs: entry.faqs,

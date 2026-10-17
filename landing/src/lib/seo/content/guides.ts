@@ -301,7 +301,7 @@ export const GUIDE_PAGES: SeoPage[] = [
       { kind: "h2", text: "Install Muse Code on the server" },
       {
         kind: "p",
-        text: "Install the muse CLI on the server and run `muse login` there once. Then check that `muse` is on the PATH for non-interactive ssh commands, which is what Helicon uses:",
+        text: "[Install the muse CLI](/muse-code-download) on the server and run `muse login` there once. Then check that `muse` is on the PATH for non-interactive ssh commands, which is what Helicon uses:",
       },
       { kind: "code", lang: "bash", code: "ssh devbox 'command -v muse'" },
       {
@@ -948,7 +948,7 @@ export const GUIDE_PAGES: SeoPage[] = [
       { kind: "code", lang: "sh", code: "muse --version\nmuse login" },
       {
         kind: "p",
-        text: "Run both in the shell where you installed Muse Code. Helicon stores no credentials, so a CLI that is installed but not signed in will fail in exactly the same way as one that is missing.",
+        text: "Run both in the shell where you installed Muse Code. Helicon stores no credentials, so a CLI that is installed but not signed in will fail in exactly the same way as one that is missing. If muse is not installed at all, [download Muse Code](/muse-code-download) first.",
       },
       { kind: "h2", text: "Per platform" },
       {

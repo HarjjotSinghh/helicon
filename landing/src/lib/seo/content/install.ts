@@ -465,7 +465,7 @@ export const INSTALL_PAGES: SeoPage[] = [
       },
       {
         kind: "p",
-        text: "You need the muse CLI installed and signed in once with `muse login`, on a Muse Code plan or pay-as-you-go billing (the free Muse app doesn't include Muse Code). The extension uses that login; it never asks for an API key.",
+        text: "You need the muse CLI ([download Muse Code](/muse-code-download)) installed and signed in once with `muse login`, on a Muse Code plan or pay-as-you-go billing (the free Muse app doesn't include Muse Code). The extension uses that login; it never asks for an API key.",
       },
       { kind: "h2", text: "What the panel gives you" },
       {
