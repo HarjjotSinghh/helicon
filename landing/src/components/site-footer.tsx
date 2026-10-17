@@ -143,14 +143,6 @@ const FEATURED_BADGES = [
     height: 55,
   },
   {
-    name: "ScrollLaunch",
-    href: "https://www.scrolllaunch.com/products/helicon?ref=badge",
-    src: "https://www.scrolllaunch.com/api/badge/helicon",
-    alt: "Featured on ScrollLaunch",
-    width: 220,
-    height: 48,
-  },
-  {
     name: "AI Agents Directory",
     href: "https://aiagentsdirectory.com/agent/helicon",
     src: "https://aiagentsdirectory.com/featured-badge.svg?v=2024",
@@ -173,6 +165,14 @@ const FEATURED_BADGES = [
     alt: "Fazier badge",
     width: 103,
     height: 44,
+  },
+  {
+    name: "LaunchBuff",
+    href: "https://launchbuff.com/products/helicon-0ihdyh",
+    src: "https://launchbuff.com/badge-featured-light.svg",
+    alt: "Featured on LaunchBuff",
+    width: 256,
+    height: 80,
   },
   {
     name: "StartupBase",
