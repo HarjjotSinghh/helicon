@@ -16,6 +16,8 @@ export const IDS = {
   author: `${SITE_URL}/#author`,
   publisher: `${SITE_URL}/#publisher`,
   app: `${SITE_URL}/#app`,
+  /** The one plan. /pricing names it as its main entity, so the price on that page is machine readable. */
+  offer: `${SITE_URL}/pricing#offer`,
 };
 
 /**
@@ -131,10 +133,16 @@ export function coreNodes(version: string | null): Json[] {
       ],
       offers: {
         "@type": "Offer",
+        "@id": IDS.offer,
+        name: "Helicon",
+        description: "Free and MIT licensed. No paid tier, no trial, no seats and no account.",
         price: "0",
         priceCurrency: "USD",
         availability: "https://schema.org/InStock",
         url: `${SITE_URL}/pricing`,
+        category: "Free",
+        seller: { "@id": IDS.publisher },
+        itemOffered: { "@id": IDS.app },
       },
       author: { "@id": IDS.author },
       publisher: { "@id": IDS.publisher },
@@ -202,6 +210,8 @@ export function pageGraph(page: SeoPage, version: string | null, trail: { name: 
       author: { "@id": IDS.author },
       publisher: { "@id": IDS.publisher },
       breadcrumb: { "@id": `${url}#breadcrumb` },
+      // The pricing page is about the offer, so say so rather than leave the price buried in the app node.
+      ...(page.slug === "pricing" ? { mainEntity: { "@id": IDS.offer } } : {}),
       primaryImageOfPage: ogImageUrl(page.h1, page.description, page.ogEyebrow ?? SITE_NAME),
       keywords: page.keywords.join(", "),
       // The answer paragraph is the passage worth reading aloud, and the passage worth quoting.
