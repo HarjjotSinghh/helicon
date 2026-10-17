@@ -22,15 +22,16 @@
   },
   "categories": [
     "AI",
-    "Chat",
-    "Other"
+    "Chat"
   ],
   "keywords": [
     "muse code",
     "muse",
     "muse-code",
+    "muse cli",
     "meta",
     "coding agent",
+    "meta coding agent",
     "ai agent",
     "msp",
     "gui",
@@ -176,5 +177,5 @@
   "extensionKind": [
     "workspace"
   ],
-  "qna": "https://github.com/HarjjotSinghh/helicon/issues"
+  "qna": "https://github.com/HarjjotSinghh/helicon/discussions"
 }
