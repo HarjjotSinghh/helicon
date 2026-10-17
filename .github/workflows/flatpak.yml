@@ -72,7 +72,7 @@ jobs:
         run: |
           # Two errors are expected and are asked for in the Flathub review: the app runs host commands through
           # flatpak-spawn and reads the home folder. Anything else fails.
-          flatpak run --command=flatpak-builder-lint org.flatpak.Builder --json manifest packaging/flatpak/sh.helicon.Helicon.yml > /tmp/manifest-lint.json || true
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest packaging/flatpak/sh.helicon.Helicon.yml > /tmp/manifest-lint.json || true
           cat /tmp/manifest-lint.json
           python3 - <<'EOF'
           import json

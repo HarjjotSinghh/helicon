@@ -20,7 +20,7 @@ expect() {
   local label=$1 output=$2 line=$3
   if ! grep -qxF -- "$line" <<<"$output"; then
     echo "FAIL $label: missing line: $line"
-    echo "$output" | sed 's/^/    /'
+    printf '    %s\n' "${output//$'\n'/$'\n    '}"
     failures=$((failures + 1))
   fi
 }

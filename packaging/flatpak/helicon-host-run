@@ -25,5 +25,7 @@ for key in $(compgen -e); do
 done
 
 # The host session's PATH is often short (no ~/.local/bin, no Homebrew), which is where muse usually lives.
+# The single quotes are on purpose: $HOME and $PATH are the host's, and the host shell expands them.
+# shellcheck disable=SC2016
 exec flatpak-spawn "${args[@]}" /bin/sh -c \
   'PATH="$HOME/.local/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:$PATH"; exec "$@"' sh "$name" "$@"
