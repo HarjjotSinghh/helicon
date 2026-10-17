@@ -19,6 +19,14 @@ export function ogImageUrl(title: string, subtitle: string, eyebrow: string) {
  * Markdown alternate so agents can ask for the machine readable version, and an explicit
  * article:modified_time so freshness is legible to crawlers that weight it.
  */
+/**
+ * The root layout appends " | Helicon" to every title. Titles that already name Helicon skip it,
+ * so results read "Helicon vs Cursor for Muse Code users" and not "... | Helicon" twice.
+ */
+export function documentTitle(title: string): Metadata["title"] {
+  return title.includes(SITE_NAME) ? { absolute: title } : title;
+}
+
 export function metadataFor(page: SeoPage): Metadata {
   const path = `/${page.slug}`;
   const image = {
@@ -28,7 +36,7 @@ export function metadataFor(page: SeoPage): Metadata {
     alt: `${page.h1}. ${page.description}`,
   };
   return {
-    title: page.title,
+    title: documentTitle(page.title),
     description: page.description,
     keywords: page.keywords,
     ...(page.noindex ? { robots: { index: false, follow: true } } : {}),
@@ -64,7 +72,7 @@ export function metadataForSection(section: Section): Metadata {
     alt: `${section.h1}. ${section.description}`,
   };
   return {
-    title: section.title,
+    title: documentTitle(section.title),
     description: section.description,
     keywords: section.keywords,
     alternates: {
