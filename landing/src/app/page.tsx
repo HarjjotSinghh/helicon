@@ -10,8 +10,7 @@ import { SiteHeader } from "@/components/site-header";
 import { ClosingCta, SiteFooter } from "@/components/site-footer";
 import { DemoApp } from "@/demo/demo-app";
 import type { Metadata } from "next";
-import { Rule, bandX, cn } from "@/components/ui";
-import { LastUpdated } from "@/components/seo/doc-page";
+import { Rule } from "@/components/ui";
 import { StructuredData } from "@/components/structured-data";
 import { getPageCopy } from "@/lib/copy";
 import { HOME_UPDATED, modifiedMeta } from "@/lib/seo/freshness";
@@ -96,7 +95,6 @@ export default async function Page() {
           <Faq audience={copy.audience} intro={copy.faqIntro} />
           <Rule />
           <ClosingCta copy={copy} stars={stars} />
-          <LastUpdated date={HOME_UPDATED} className={cn(bandX, "mt-0 py-5 text-center")} />
           <Rule />
         </main>
         <SiteFooter />
