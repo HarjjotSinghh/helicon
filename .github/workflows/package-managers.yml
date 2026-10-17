@@ -1,0 +1,99 @@
+name: Package managers
+
+# Installs Helicon from the Scoop manifest on a Windows runner, the way a user would, and checks that the extracted
+# app has what it needs to start. Runs when the manifests change, so a broken manifest never reaches the bucket.
+on:
+  pull_request:
+    paths:
+      - "packaging/**"
+      - ".github/workflows/package-managers.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scoop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Scoop
+        shell: pwsh
+        # Runners are elevated, and Scoop refuses an elevated install unless told it is on purpose.
+        run: |
+          iex "& {$(irm get.scoop.sh)} -RunAsAdmin"
+          "$env:USERPROFILE\scoop\shims" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Install Helicon from the manifest
+        shell: pwsh
+        run: scoop install .\packaging\scoop\helicon.json
+      - name: Check the installed files
+        shell: pwsh
+        run: |
+          $dir = scoop prefix helicon
+          Get-ChildItem $dir -Recurse -Depth 1 | Select-Object FullName, Length | Format-Table -AutoSize
+          foreach ($f in "helicon.exe", "node.exe", "resources\server.cjs", "resources\frontend\index.html") {
+            if (-not (Test-Path (Join-Path $dir $f))) { throw "missing $f in $dir" }
+          }
+          # Installer leftovers must be gone, or Scoop would ship NSIS internals with the app.
+          if (Get-ChildItem $dir -Filter '$*') { throw "NSIS leftovers in $dir" }
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Scoop Apps\Helicon.lnk")) { throw "no Start menu shortcut" }
+      - name: Start the bundled server
+        shell: pwsh
+        # The same server the app starts on launch, run with the node.exe that ships next to it.
+        run: |
+          $dir = scoop prefix helicon
+          $out = Join-Path $env:RUNNER_TEMP "server.log"
+          $p = Start-Process (Join-Path $dir "node.exe") -ArgumentList "`"$dir\resources\server.cjs`"", "--port", "47820", "--static", "`"$dir\resources\frontend`"", "--data-dir", ":memory:" -RedirectStandardOutput $out -PassThru -NoNewWindow
+          try {
+            $ok = $false
+            foreach ($i in 1..30) {
+              Start-Sleep -Seconds 1
+              try { $r = Invoke-WebRequest "http://127.0.0.1:47820/" -UseBasicParsing; if ($r.Content -match '<div id="root">') { $ok = $true; break } } catch {}
+            }
+            Get-Content $out
+            if (-not $ok) { throw "the bundled server did not serve the UI" }
+          } finally { Stop-Process -Id $p.Id -Force -ErrorAction Ignore }
+      - name: Uninstall
+        shell: pwsh
+        run: scoop uninstall helicon
+      - name: Check that autoupdate rebuilds the manifest
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        # The bucket keeps itself current with checkver and autoupdate. Forcing an update on a copy finds the
+        # latest release, downloads it from the autoupdate URL and recomputes the hash, as the bucket's job would.
+        run: |
+          $copy = Join-Path $env:RUNNER_TEMP "bucket"
+          New-Item -ItemType Directory $copy | Out-Null
+          Copy-Item packaging\scoop\helicon.json $copy
+          & "$(scoop prefix scoop)\bin\checkver.ps1" -App helicon -Dir $copy -Update -ForceUpdate
+          $m = Get-Content (Join-Path $copy "helicon.json") | ConvertFrom-Json
+          $latest = (Invoke-RestMethod https://api.github.com/repos/HarjjotSinghh/helicon/releases/latest -Headers @{ Authorization = "Bearer ${{ github.token }}" }).tag_name.TrimStart("v")
+          if ($m.version -ne $latest) { throw "autoupdate wrote $($m.version), latest release is $latest" }
+          if ($m.architecture.'64bit'.hash -notmatch '^[0-9a-f]{64}$') { throw "autoupdate did not write a hash" }
+          "autoupdate OK: $($m.version) $($m.architecture.'64bit'.hash)"
+
+  winget:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for winget
+        id: winget
+        shell: pwsh
+        run: |
+          if (Get-Command winget -ErrorAction SilentlyContinue) { winget --version; "ready=true" >> $env:GITHUB_OUTPUT }
+          else { "winget is not on this runner image, so the manifests are not checked here."; "ready=false" >> $env:GITHUB_OUTPUT }
+      - name: Validate the manifests
+        if: steps.winget.outputs.ready == 'true'
+        shell: pwsh
+        # winget-pkgs validates against the 1.12 schema. An older winget on the runner only warns that it does not
+        # know that schema header and exits non-zero, so pass on its "validation succeeded" line instead.
+        run: |
+          $out = winget validate --manifest packaging\winget\manifests | Out-String
+          $out
+          if ($out -notmatch "Manifest validation succeeded") { throw "winget validate failed" }
+          if ($out -match "Manifest Error") { throw "winget validate reported errors" }
+          exit 0
+      # No install step here: `winget install --manifest` hangs on hosted runners with no output. The winget-pkgs
+      # pipeline installs the package in its own sandbox when a submission is validated, and the Scoop job above
+      # installs and starts the same setup.exe.

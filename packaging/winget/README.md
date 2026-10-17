@@ -2,6 +2,11 @@
 
 `winget install HarjjotSinghh.Helicon` once this lands.
 
+Status: the first version (0.21.1) is submitted as
+[microsoft/winget-pkgs#437145](https://github.com/microsoft/winget-pkgs/pull/437145). Its automated validation passed
+and it is waiting for a moderator. The manifests in `manifests/` match that submission, brought forward to the current
+release.
+
 The community repository ([microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)) takes manifests by pull
 request. The first version has to be submitted by hand; after that the Release workflow keeps it up to date.
 
@@ -39,13 +44,20 @@ wingetcreate new https://github.com/HarjjotSinghh/helicon/releases/download/vX.Y
 ## After that
 
 `.github/workflows/winget.yml` submits every later release on its own, using the version already in the repository as
-its template. It does nothing until `WINGET_TOKEN` exists.
+its template. It does nothing until `WINGET_TOKEN` exists, and it can only start once #437145 is merged, because it
+builds each new manifest from the one already published.
+
+`.github/workflows/package-managers.yml` validates these manifests on a Windows runner whenever `packaging/` changes,
+if the runner image has winget. It does not install from them: `winget install --manifest` hangs on hosted runners.
+The winget-pkgs pipeline runs the install in its own sandbox, and the Scoop job installs and starts the same setup.exe.
 
 ## Notes
 
 - The publishing action is pinned to a commit, not a tag, because it is handed a token that can push to our forks.
   Bump it deliberately.
 
+- The installer is not Authenticode signed. winget accepts unsigned installers, but new packages from unsigned
+  publishers go to manual review, which is where #437145 sits. SmartScreen may also warn on first launch.
 - Our installer is Tauri's NSIS bundle. It installs per user, so no elevation and `Scope: user`.
 - `InstallerType: nullsoft` is what tells winget the silent switch is `/S`; do not hand-write `InstallerSwitches`.
   winget has no `nsis` value, and `ReleaseNotesUrl` belongs to the locale manifest, not the installer one.
