@@ -1,0 +1,82 @@
+app-id: sh.helicon.Helicon
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node22
+command: helicon
+
+finish-args:
+  # Window, input and rendering.
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # The local server, the Muse API (through muse) and the sign-in links.
+  - --share=network
+  # Desktop notifications.
+  - --talk-name=org.freedesktop.Notifications
+  # Runs the host's muse, git, ssh and code (see helicon-host-run).
+  - --talk-name=org.freedesktop.Flatpak
+  # Project folders and the sessions muse keeps in the home folder.
+  - --filesystem=home
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
+  env:
+    CARGO_HOME: /run/build/helicon/cargo
+    CARGO_NET_OFFLINE: 'true'
+    npm_config_nodedir: /usr/lib/sdk/node22
+    npm_config_offline: 'true'
+    XDG_CACHE_HOME: /run/build/helicon/flatpak-node/cache
+    npm_config_cache: /run/build/helicon/flatpak-node/npm-cache
+    # The tauri identifier is the app id here, so the window and the app's data folders carry the Flatpak's name.
+    TAURI_CONFIG: '{"identifier":"sh.helicon.Helicon"}'
+
+modules:
+  - name: helicon
+    buildsystem: simple
+    build-commands:
+      # The workspace install, then the same builds the desktop release runs.
+      - npm ci --offline --ignore-scripts --no-audit --no-fund
+      - npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
+      - npm run build --workspace @helicon/web
+      - npm run bundle:server --workspace helicon-desktop
+      # tauri-build wants the Node sidecar by target name; the installed copy is the SDK extension's.
+      - mkdir -p apps/desktop/src-tauri/binaries
+      - install -Dm755 /usr/lib/sdk/node22/bin/node apps/desktop/src-tauri/binaries/node-x86_64-unknown-linux-gnu
+      - cargo build --release --offline --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+      - install -Dm755 apps/desktop/src-tauri/target/release/helicon /app/bin/helicon
+      - install -Dm755 /usr/lib/sdk/node22/bin/node /app/bin/node
+      # Tauri finds its resources at ../lib/<productName> beside the executable.
+      - install -Dm644 apps/desktop/src-tauri/resources/server.cjs /app/lib/Helicon/resources/server.cjs
+      - cp -r apps/desktop/src-tauri/resources/frontend /app/lib/Helicon/resources/frontend
+      # muse, git, ssh and code run on the host.
+      - install -Dm755 packaging/flatpak/helicon-host-run /app/libexec/helicon/helicon-host-run
+      - for name in muse git ssh code; do ln -s ../libexec/helicon/helicon-host-run "/app/bin/$name"; done
+
+      - install -Dm644 packaging/flatpak/sh.helicon.Helicon.desktop /app/share/applications/sh.helicon.Helicon.desktop
+      - install -Dm644 packaging/flatpak/sh.helicon.Helicon.metainfo.xml /app/share/metainfo/sh.helicon.Helicon.metainfo.xml
+      - install -Dm644 packaging/flatpak/icons/sh.helicon.Helicon.png /app/share/icons/hicolor/512x512/apps/sh.helicon.Helicon.png
+    sources:
+      # In this repository the build uses the checkout. The Flathub copy of this file swaps it for the release tag:
+      #   - type: git
+      #     url: https://github.com/HarjjotSinghh/helicon.git
+      #     tag: vX.Y.Z
+      #     commit: <the commit the tag points to>
+      - type: dir
+        path: ../..
+        skip:
+          - .git
+          - .github
+          - node_modules
+          - landing
+          - docs
+          - apps/desktop/src-tauri/target
+          - apps/desktop/src-tauri/binaries
+          - apps/desktop/src-tauri/resources
+          - apps/web/dist
+      - cargo-sources.json
+      - node-sources.json

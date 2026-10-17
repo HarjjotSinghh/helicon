@@ -1,0 +1,115 @@
+name: Flatpak
+
+# Builds the Flatpak from source with the dependency lists a Flathub build needs, lints the manifest and the AppStream
+# file the way Flathub does, and checks the host shim. Runs when the packaging or this workflow changes.
+on:
+  pull_request:
+    paths:
+      - "packaging/flatpak/**"
+      - ".github/workflows/flatpak.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # flatpak-builder-tools holds both generators. Pinned to a commit so the generated lists do not change under us.
+  BUILDER_TOOLS_SHA: 74697c75b630d7330e77250fc13cb5ea688d9479
+
+jobs:
+  host-shim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck packaging/flatpak/helicon-host-run packaging/flatpak/test-host-run.sh
+      - run: bash packaging/flatpak/test-host-run.sh
+
+  # Flathub builds with no network, so every crate and npm package is listed in a sources file. They come from the
+  # lock files; the committed copies must match what is generated here.
+  sources:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the generators
+        run: |
+          pip install aiohttp tomlkit
+          curl -sSL --fail -o /tmp/flatpak-cargo-generator.py \
+            "https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/${BUILDER_TOOLS_SHA}/cargo/flatpak-cargo-generator.py"
+          pipx install "git+https://github.com/flatpak/flatpak-builder-tools.git@${BUILDER_TOOLS_SHA}#subdirectory=node"
+      - name: Generate the sources files
+        run: |
+          mkdir -p /tmp/generated
+          python3 /tmp/flatpak-cargo-generator.py apps/desktop/src-tauri/Cargo.lock -o /tmp/generated/cargo-sources.json
+          flatpak-node-generator npm package-lock.json -o /tmp/generated/node-sources.json
+          ls -l /tmp/generated
+      - name: Check the committed copies
+        run: |
+          for f in cargo-sources.json node-sources.json; do
+            if [ -f "packaging/flatpak/$f" ] && ! cmp -s "packaging/flatpak/$f" "/tmp/generated/$f"; then
+              echo "::error file=packaging/flatpak/$f::out of date with the lock file; regenerate it from the artifact of this run"
+              exit 1
+            fi
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-sources
+          path: /tmp/generated/*.json
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install flatpak-builder-lint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.flatpak.Builder
+      - name: Lint the manifest
+        run: |
+          # Two errors are expected and are asked for in the Flathub review: the app runs host commands through
+          # flatpak-spawn and reads the home folder. Anything else fails.
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder --json manifest packaging/flatpak/sh.helicon.Helicon.yml > /tmp/manifest-lint.json || true
+          cat /tmp/manifest-lint.json
+          python3 - <<'EOF'
+          import json
+          expected = {"finish-args-flatpak-spawn-access", "finish-args-home-filesystem-access"}
+          report = json.load(open("/tmp/manifest-lint.json"))
+          errors = [e for e in report.get("errors", []) if e not in expected]
+          if errors:
+              raise SystemExit(f"unexpected lint errors: {errors}")
+          EOF
+      - name: Lint the AppStream file
+        run: |
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder appstream packaging/flatpak/sh.helicon.Helicon.metainfo.xml
+          flatpak run --command=desktop-file-validate org.flatpak.Builder packaging/flatpak/sh.helicon.Helicon.desktop
+
+  build:
+    needs: sources
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: flatpak-sources
+          path: packaging/flatpak
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: helicon.flatpak
+          manifest-path: packaging/flatpak/sh.helicon.Helicon.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+          arch: x86_64
+      - name: Check the installed app
+        run: |
+          flatpak install --user --noninteractive --bundle helicon.flatpak
+          app=sh.helicon.Helicon
+          flatpak run --command=/app/bin/node "$app" --version
+          flatpak run --command=sh "$app" -c 'ls -l /app/bin /app/lib/Helicon/resources'
+          # Every library the shell and the Node sidecar link against has to be in the runtime or the app.
+          flatpak run --command=sh "$app" -c '! ldd /app/bin/helicon /app/bin/node | grep "not found"'
