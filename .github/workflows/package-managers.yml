@@ -93,6 +93,7 @@ jobs:
           $out
           if ($out -notmatch "Manifest validation succeeded") { throw "winget validate failed" }
           if ($out -match "Manifest Error") { throw "winget validate reported errors" }
+          exit 0
       - name: Install from the manifests
         if: steps.winget.outputs.ready == 'true'
         shell: pwsh
