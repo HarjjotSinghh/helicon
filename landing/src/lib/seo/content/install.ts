@@ -10,12 +10,12 @@ export const INSTALL_PAGES: SeoPage[] = [
     icon: "windows",
     section: "install",
     label: "Windows",
-    title: "Muse Code for Windows: install the desktop app",
+    title: "Muse Code for Windows: winget or installer, no WSL",
     h1: "Install Helicon on Windows",
     description:
-      "A Windows installer for a Muse Code desktop app, with auto update. Runs Muse Code natively on Windows, or inside WSL2 with path translation both ways.",
+      "Install Helicon, a free desktop app for Muse Code on Windows, with winget or the x64 installer. Runs native Muse Code with no WSL, or Muse Code inside WSL2.",
     answer:
-      "Install the muse CLI, sign in with muse login, then run the Helicon installer from the latest GitHub release. Helicon drives Muse Code natively on Windows using your own Windows paths and PowerShell for shell commands, and falls back to Muse Code inside WSL2 with two way path translation when native Muse Code is not present.",
+      "Install the muse CLI with Meta's PowerShell installer and sign in with muse login. Then run winget install HarjjotSinghh.Helicon, or take the x64 installer from the latest GitHub release. Helicon drives native Windows Muse Code with your own paths and PowerShell, and uses Muse Code inside WSL2 when no native install is present.",
     keywords: [
       "muse code windows",
       "muse code for windows",
@@ -24,8 +24,12 @@ export const INSTALL_PAGES: SeoPage[] = [
       "muse code gui windows",
       "muse code windows 11",
       "install muse code on windows",
+      "muse code winget",
+      "winget helicon",
+      "muse code scoop",
+      "muse code windows without wsl",
     ],
-    updated: UPDATED,
+    updated: "2026-10-18",
     ogEyebrow: "Install on Windows",
     blocks: [
       { kind: "h2", text: "Before you start" },
@@ -52,11 +56,46 @@ export const INSTALL_PAGES: SeoPage[] = [
         kind: "p",
         text: "This is the part that usually costs Windows users an evening. Mixed Windows and WSL2 paths are the reason agent tooling breaks on Windows, and Helicon translates between them rather than asking you to.",
       },
+      { kind: "h2", text: "Install with winget" },
+      { kind: "code", lang: "powershell", code: "winget install HarjjotSinghh.Helicon" },
+      {
+        kind: "p",
+        text: "winget installs Helicon for your user only, so it needs no administrator rights. Helicon updates itself after that. To pull a new version through winget instead, run winget upgrade HarjjotSinghh.Helicon.",
+      },
+      { kind: "h2", text: "Install with Scoop" },
+      {
+        kind: "code",
+        lang: "powershell",
+        code: "scoop bucket add helicon https://github.com/HarjjotSinghh/scoop-bucket\nscoop install helicon/helicon",
+      },
+      {
+        kind: "p",
+        text: "Scoop unpacks the same release without running the installer, writes nothing to the registry and needs no administrator rights. Update with scoop update helicon. The in-app updater installs a separate copy outside Scoop, so Scoop users should update through Scoop.",
+      },
+      { kind: "h2", text: "Get past SmartScreen" },
+      {
+        kind: "p",
+        text: "The installer is not Authenticode signed yet. If you download it in a browser and run it, SmartScreen may show 'Windows protected your PC'.",
+      },
+      {
+        kind: "steps",
+        steps: [
+          { name: "Click More info", text: "The link sits under the warning text. The dialog then shows a Run anyway button." },
+          { name: "Click Run anyway", text: "The installer starts. It installs for your user only and asks for no administrator rights." },
+        ],
+      },
+      {
+        kind: "image",
+        src: "/assets/windows-smartscreen.jpg",
+        alt: "Windows SmartScreen dialog for the Helicon installer, with More info expanded and the Run anyway button showing",
+        width: 640,
+        height: 552,
+        caption: "Updates are signed with Helicon's updater key and checked by the app before they install.",
+      },
       { kind: "h2", text: "About the installer" },
       {
         kind: "ul",
         items: [
-          "Not code signed yet, so SmartScreen may show 'Windows protected your PC': click More info, then Run anyway. Updates are signature checked by the app itself.",
           "Auto update built in: the app checks helicon.sh for a newer version and updates itself.",
           "The file is named Helicon_<version>_x64-setup.exe on the release page.",
         ],
@@ -80,7 +119,8 @@ export const INSTALL_PAGES: SeoPage[] = [
       steps: [
         {
           name: "Install the muse CLI",
-          text: "Install Muse Code natively on Windows, or inside WSL2 Ubuntu if that is your setup.",
+          text: "In Windows PowerShell, run Meta's installer. If you work inside WSL2 Ubuntu, install Muse Code there instead.",
+          code: "irm https://dev.meta.ai/install.ps1 | iex",
         },
         {
           name: "Sign in",
@@ -88,12 +128,9 @@ export const INSTALL_PAGES: SeoPage[] = [
           code: "muse login",
         },
         {
-          name: "Download the installer",
-          text: "Take Helicon_<version>_x64-setup.exe from the latest GitHub release.",
-        },
-        {
-          name: "Run the installer",
-          text: "The installer sets up auto update, so future versions arrive without another download. It is not code signed yet, so SmartScreen may show 'Windows protected your PC': click More info, then Run anyway.",
+          name: "Install Helicon",
+          text: "Run winget install HarjjotSinghh.Helicon, or take Helicon_<version>_x64-setup.exe from the latest GitHub release. If SmartScreen warns, click More info, then Run anyway.",
+          code: "winget install HarjjotSinghh.Helicon",
         },
         {
           name: "Add a project",
@@ -113,6 +150,14 @@ export const INSTALL_PAGES: SeoPage[] = [
       {
         q: "Does Helicon work on Windows on ARM?",
         a: "The published installer is x64. ARM users can run from source, which needs Node 22 or newer on the Windows host.",
+      },
+      {
+        q: "Is Helicon on winget?",
+        a: "Yes. Run winget install HarjjotSinghh.Helicon. It installs for your user only, with no administrator rights, and the app updates itself from then on.",
+      },
+      {
+        q: "Can I install Helicon with Scoop?",
+        a: "Yes, from Helicon's own bucket: scoop bucket add helicon https://github.com/HarjjotSinghh/scoop-bucket, then scoop install helicon/helicon. Update it with scoop update helicon.",
       },
       {
         q: "Where do my Muse Code credentials live on Windows?",
