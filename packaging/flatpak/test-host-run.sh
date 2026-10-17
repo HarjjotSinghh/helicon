@@ -50,7 +50,7 @@ out=$(cd "$work/home" && HOME="$work/home" PATH="$work/bin:$PATH" git status)
 expect "git name" "$out" "git"
 
 # A working folder the host does not share is left out, and arguments with spaces stay whole.
-out=$(cd "$work/bin" && HOME="$work/home" PATH="$work/bin:$PATH" muse "two words")
+out=$(cd / && HOME="$work/home" PATH="$work/bin:$PATH" muse "two words")
 refuse "unshared folder" "$out" "--directory="
 expect "spaced argument" "$out" "two words"
 
