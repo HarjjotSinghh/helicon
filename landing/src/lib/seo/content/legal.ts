@@ -92,7 +92,6 @@ export const LEGAL_PAGES: SeoPage[] = [
   },
   {
     slug: "privacy",
-    noindex: true,
     icon: "shield",
     section: "page",
     label: "Privacy",
