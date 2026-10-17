@@ -58,6 +58,8 @@ jobs:
         run: scoop uninstall helicon
       - name: Check that autoupdate rebuilds the manifest
         shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         # The bucket keeps itself current with checkver and autoupdate. Forcing an update on a copy finds the
         # latest release, downloads it from the autoupdate URL and recomputes the hash, as the bucket's job would.
         run: |
@@ -84,7 +86,13 @@ jobs:
       - name: Validate the manifests
         if: steps.winget.outputs.ready == 'true'
         shell: pwsh
-        run: winget validate --manifest packaging\winget\manifests
+        # winget-pkgs validates against the 1.12 schema. An older winget on the runner only warns that it does not
+        # know that schema header and exits non-zero, so pass on its "validation succeeded" line instead.
+        run: |
+          $out = winget validate --manifest packaging\winget\manifests | Out-String
+          $out
+          if ($out -notmatch "Manifest validation succeeded") { throw "winget validate failed" }
+          if ($out -match "Manifest Error") { throw "winget validate reported errors" }
       - name: Install from the manifests
         if: steps.winget.outputs.ready == 'true'
         shell: pwsh
