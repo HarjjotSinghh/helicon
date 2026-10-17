@@ -47,8 +47,9 @@ wingetcreate new https://github.com/HarjjotSinghh/helicon/releases/download/vX.Y
 its template. It does nothing until `WINGET_TOKEN` exists, and it can only start once #437145 is merged, because it
 builds each new manifest from the one already published.
 
-`.github/workflows/package-managers.yml` validates these manifests and installs from them on a Windows runner whenever
-`packaging/` changes, if the runner image has winget.
+`.github/workflows/package-managers.yml` validates these manifests on a Windows runner whenever `packaging/` changes,
+if the runner image has winget. It does not install from them: `winget install --manifest` hangs on hosted runners.
+The winget-pkgs pipeline runs the install in its own sandbox, and the Scoop job installs and starts the same setup.exe.
 
 ## Notes
 
