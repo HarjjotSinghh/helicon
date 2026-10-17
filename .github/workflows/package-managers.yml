@@ -97,9 +97,14 @@ jobs:
       - name: Install from the manifests
         if: steps.winget.outputs.ready == 'true'
         shell: pwsh
+        timeout-minutes: 8
         run: |
           winget settings --enable LocalManifestFiles
-          winget install --manifest packaging\winget\manifests --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
+          $log = Join-Path $env:RUNNER_TEMP "winget.log"
+          $p = Start-Process winget -ArgumentList "install", "--manifest", "packaging\winget\manifests", "--silent", "--accept-package-agreements", "--disable-interactivity", "--verbose-logs", "--log", "`"$log`"" -PassThru -NoNewWindow
+          if (-not $p.WaitForExit(360000)) { Get-Content $log -ErrorAction Ignore | Select-Object -Last 60; Get-Process | Where-Object { $_.Name -match "helicon|setup|msedgewebview|MicrosoftEdge" } | Format-Table Name, Id, StartTime; throw "winget install did not finish in 6 minutes" }
+          Get-Content $log -ErrorAction Ignore | Select-Object -Last 15
           $dir = Join-Path $env:LOCALAPPDATA "Helicon"
           Get-ChildItem $dir | Select-Object Name, Length | Format-Table -AutoSize
           if (-not (Test-Path (Join-Path $dir "helicon.exe"))) { throw "helicon.exe is not in $dir" }
+          exit 0
