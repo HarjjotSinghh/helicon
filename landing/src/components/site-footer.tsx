@@ -103,6 +103,14 @@ export const FOOTER_GROUPS: FooterGroup[] = [
 
 const FEATURED_BADGES = [
   {
+    name: "Product Hunt",
+    href: "https://www.producthunt.com/products/helicon?utm_source=badge-featured&utm_medium=badge",
+    src: "https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1275161&theme=light",
+    alt: "Helicon - Featured on Product Hunt",
+    width: 250,
+    height: 54,
+  },
+  {
     name: "Dang.ai",
     href: "https://dang.ai",
     src: "https://assets.dang.ai/badges/dang-verified-dark.png",

@@ -28,6 +28,8 @@ You need the `muse` CLI installed and signed in (`muse login`) on a Muse Code pl
 [![Hacktoberfest](https://img.shields.io/badge/Hacktoberfest-2026-ff8ae2.svg)](https://github.com/HarjjotSinghh/helicon/issues?q=is%3Aissue+is%3Aopen+label%3Ahacktoberfest)
 [![Good first issues](https://img.shields.io/github/issues/HarjjotSinghh/helicon/good%20first%20issue.svg?label=good%20first%20issues&color=7057ff)](https://github.com/HarjjotSinghh/helicon/contribute)
 
+<a href="https://www.producthunt.com/products/helicon?utm_source=badge-featured&utm_medium=badge"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1275161&theme=light" alt="Helicon - Featured on Product Hunt" width="250" height="54"></a>
+
 > **Helicon** - home of the Muses. An open-source desktop + web ADE for Meta's **Muse Code CLI** (`muse`), in the spirit of the Claude Code desktop app and the Codex / ChatGPT desktop app.
 
 ### Helicon in 30 seconds
