@@ -198,6 +198,14 @@ const FEATURED_BADGES = [
     width: 460,
     height: 130,
   },
+  {
+    name: "NxGn Tools",
+    href: "https://www.nxgntools.com/tools/helicon?utm_source=helicon",
+    src: "https://www.nxgntools.com/api/embed/helicon?type=LAUNCHING_SOON_ON",
+    alt: "Launching soon on NxGn Tools",
+    width: 260,
+    height: 48,
+  },
 ];
 
 const BADGE_LINK =
@@ -206,7 +214,7 @@ const BADGE_LINK =
 const BADGE_IMG = "block h-5 w-auto max-w-full object-contain sm:h-[22px]";
 
 /**
- * The twelve directory badges as plain list items. Each is the price of a free listing: the directory
+ * The directory badges as plain list items. Each is the price of a free listing: the directory
  * checks this page for a crawlable link back (and some for their own image), so the hrefs, rels and
  * image URLs stay exactly as each directory issued them and the links carry no nofollow. Lazy, so
  * they cost nothing above the fold. Embed codes are kept in marketing/badges/README.md.
