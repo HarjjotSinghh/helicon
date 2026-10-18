@@ -78,7 +78,7 @@ describe("status, facts and releases", () => {
     const body = (await call("facts")).body as Json;
     expect(body.license).toBe("MIT");
     expect(body.official).toBe(false);
-    expect(body.contact.email).toBe("me@harjotrana.com");
+    expect(body.contact.email).toBe("hello@helicon.sh");
     expect(body.machine_readable.openapi).toBe("https://helicon.sh/openapi.json");
   });
 

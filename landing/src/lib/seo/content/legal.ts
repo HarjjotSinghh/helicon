@@ -202,7 +202,7 @@ export const LEGAL_PAGES: SeoPage[] = [
       { kind: "h2", text: "Contact and changes" },
       {
         kind: "p",
-        text: "Questions or a deletion request: open an issue on GitHub, or email the address on harjotrana.com. This page is dated, and the date changes when the behaviour does. Material changes are described in the changelog rather than applied quietly.",
+        text: "Questions or a deletion request: open an issue on GitHub, or email hello@helicon.sh. This page is dated, and the date changes when the behaviour does. Material changes are described in the changelog rather than applied quietly.",
       },
       {
         kind: "note",

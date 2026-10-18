@@ -43,7 +43,7 @@ describe("openApiDocument", () => {
     expect(doc.info.title).toContain("Helicon");
     expect(doc.info.license.identifier).toBe("MIT");
     expect(doc.servers[0].url).toBe("https://helicon.sh");
-    expect(doc.info.contact.email).toBe("me@harjotrana.com");
+    expect(doc.info.contact.email).toBe("hello@helicon.sh");
   });
 
   it("documents at least twelve operations, all under the versioned base path", () => {

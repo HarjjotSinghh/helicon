@@ -96,7 +96,7 @@ export const OPEN_VSX_URL = "https://open-vsx.org/extension/harjjotsinghh/helico
  * the address is the publisher's city, not an office you can visit.
  */
 export const CONTACT = {
-  email: "me@harjotrana.com",
+  email: "hello@helicon.sh",
   /** Anything reproducible belongs here rather than in email: it is public, and it gets fixed. */
   issues: ISSUES_URL,
   security: `${REPO_URL}/security/advisories/new`,

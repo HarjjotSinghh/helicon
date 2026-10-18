@@ -134,7 +134,7 @@ export const COMPANY_PAGES: SeoPage[] = [
     description:
       "How to reach the person who maintains Helicon: email for anything private, GitHub issues for bugs and features, and a private advisory channel for security reports.",
     answer:
-      "Email me@harjotrana.com for anything private, licensing or press related. Open a GitHub issue for bugs and feature requests, because those get fixed in public. Report security problems through a private GitHub Security Advisory rather than an issue. Helicon is maintained by one person in New Delhi, India.",
+      "Email hello@helicon.sh for anything private, licensing or press related. Open a GitHub issue for bugs and feature requests, because those get fixed in public. Report security problems through a private GitHub Security Advisory rather than an issue. Helicon is maintained by one person in New Delhi, India.",
     keywords: [
       "contact helicon",
       "helicon support",
@@ -234,7 +234,7 @@ export const COMPANY_PAGES: SeoPage[] = [
       },
       {
         q: "Is there commercial support for Helicon?",
-        a: "No. Helicon is free, MIT licensed and maintained by one person on a best effort basis. For licensing or commercial questions, email me@harjotrana.com.",
+        a: "No. Helicon is free, MIT licensed and maintained by one person on a best effort basis. For licensing or commercial questions, email hello@helicon.sh.",
       },
     ],
     related: ["about", "developers", "legal", "privacy"],
