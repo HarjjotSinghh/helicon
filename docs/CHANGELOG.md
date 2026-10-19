@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.22.3
+
+### New
+
+- **A "Sign in to Muse" card on native Windows** ([#184](https://github.com/HarjjotSinghh/helicon/pull/184)). Helicon now reads Muse's sign-in file on Windows, the same as on macOS and Linux. When nobody is signed in, the card shows there too. WSL behaves as before.
+
+### Changed
+
+- **Muse Code SDK 1.4.10** ([#183](https://github.com/HarjjotSinghh/helicon/pull/183)), up from 1.4.9.
+
+### Fixed
+
+- **A declined retract keeps its turn** ([#183](https://github.com/HarjjotSinghh/helicon/pull/183), closes [#163](https://github.com/HarjjotSinghh/helicon/issues/163) and [#166](https://github.com/HarjjotSinghh/helicon/issues/166)). Muse 1.4.10 can report that it declined to retract a turn. Helicon folded that turn away anyway, though the prompt still stood. The turn now stays in view.
+- **A META_API_KEY counts as signed in** ([#184](https://github.com/HarjjotSinghh/helicon/pull/184)). Muse runs without a sign-in file when META_API_KEY is set, so Helicon no longer asks that user to sign in.
+
 ## 0.22.2
 
 ### New

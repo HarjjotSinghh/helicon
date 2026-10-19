@@ -2,6 +2,11 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.22.3
+
+- A "Sign in to Muse" card now shows on native Windows too, and a META_API_KEY counts as signed in (#184).
+- Muse Code SDK 1.4.10. A turn whose retract Muse declined stays in view (#183).
+
 ## 0.22.2
 
 - A "Sign in to Muse" card shows on macOS and Linux when Muse isn't signed in, and Muse is found right after you install it (#159).
