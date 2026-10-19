@@ -1104,6 +1104,7 @@ function ThemeMenu() {
 
 function ResizeHandle() {
   const controller = useController();
+  const width = useApp((s) => s.prefs.sidebarWidth);
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     const handle = event.currentTarget;
@@ -1127,6 +1128,9 @@ function ResizeHandle() {
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize sidebar"
+      aria-valuenow={width}
+      aria-valuemin={220}
+      aria-valuemax={480}
       tabIndex={0}
       onPointerDown={onPointerDown}
       onDoubleClick={() => controller.setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)}

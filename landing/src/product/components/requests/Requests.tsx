@@ -102,7 +102,7 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
           <ShieldWarningIcon size={15} />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-fg">Muse wants to {lowerFirst(description.title)}</h3>
+          <h2 className="text-sm font-semibold text-fg">Muse wants to {lowerFirst(description.title)}</h2>
           <p className="mt-0.5 text-xs text-muted">
             {request.protectedWrite ? "This touches a protected path. " : ""}
             {request.judgeEscalated ? "A safety check flagged it for you to review. " : ""}
@@ -343,9 +343,9 @@ export function QuestionPanel(props: { request: UserInputRequest; keyboard: bool
         </span>
         <div key={question.id} className="enter-up min-w-0 flex-1">
           <p className="text-2xs font-medium text-subtle">{question.header || "Muse has a question"}</p>
-          <h3 id={`q-${request.userInputId}-${question.id}`} className="mt-0.5 text-md leading-snug font-medium text-pretty text-fg">
+          <h2 id={`q-${request.userInputId}-${question.id}`} className="mt-0.5 text-md leading-snug font-medium text-pretty text-fg">
             {question.question}
-          </h3>
+          </h2>
         </div>
       </div>
       <div

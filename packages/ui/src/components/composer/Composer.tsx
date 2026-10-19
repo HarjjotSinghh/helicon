@@ -544,7 +544,7 @@ function ModelPicker(props: { sessionId: string | null; side: PickerSide }) {
     <Menu open={open} onOpenChange={(next) => (next ? controller.setPicker("model") : controller.closePicker("model"))}>
       <MenuTrigger asChild>
         <ToolbarTrigger
-          aria-label={`Model: ${modelDisplayName(current)}`}
+          aria-label={`Model: ${modelDisplayName(current)}${contributor ? " Contributor" : ""}`}
           icon={<CpuIcon size={13} />}
           label={
             <>
