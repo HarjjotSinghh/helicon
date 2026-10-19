@@ -51,7 +51,11 @@ export function SiteSearch({ className }: { className?: string }) {
       if (!paletteLoaded) (document.activeElement as HTMLElement | null)?.blur?.();
       // If the palette's code will not load, the full search page still works.
       loadPalette().catch(() => router.push("/search"));
-    } else setEarly("");
+    } else {
+      setEarly("");
+      // Closed before the palette mounted (Escape or ⌘K): Radix never had focus, so hand it back here.
+      if (!paletteLoaded && openRef.current) button.current?.focus();
+    }
     openRef.current = next;
     setOpen(next);
   }, [router]);
@@ -72,11 +76,8 @@ export function SiteSearch({ className }: { className?: string }) {
       // Search is open but still loading: every key belongs to it. Shortcuts with a modifier pass
       // through (paste arrives as a paste event, below), except the ⌘K toggle handled after this.
       if (openRef.current && !paletteLoaded && !mod && !event.altKey) {
-        if (event.key === "Escape") {
-          show(false);
-          // The palette never mounted, so Radix cannot hand focus back; do it here.
-          button.current?.focus();
-        } else if (event.key === "Backspace") setEarly((text) => text.slice(0, -1));
+        if (event.key === "Escape") show(false);
+        else if (event.key === "Backspace") setEarly((text) => text.slice(0, -1));
         else if (event.key.length === 1) setEarly((text) => text + event.key);
         event.preventDefault();
         return;
