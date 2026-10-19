@@ -151,6 +151,8 @@ class PanelView implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | null = null;
   /** The page the frame was last pointed at; the tests read it. */
   loadedSrc: string | null = null;
+  /** A page asked for before the frame is up (a cold start); the next load opens on it. */
+  private pendingHash: string | null = null;
 
   async resolveWebviewView(view: vscode.WebviewView): Promise<void> {
     this.view = view;
@@ -171,6 +173,7 @@ class PanelView implements vscode.WebviewViewProvider {
     if (!view) {
       return;
     }
+    this.loadedSrc = null;
     view.webview.html = messageHtml("Starting Helicon…");
     try {
       const base = await externalUrl();
@@ -181,7 +184,8 @@ class PanelView implements vscode.WebviewViewProvider {
         void addProject(cwd);
       }
       const query = new URLSearchParams({ view: "panel", host: "editor", theme: editorTheme(), ...(cwd ? { cwd } : {}) });
-      this.loadedSrc = `${base}/?${query.toString()}`;
+      this.loadedSrc = `${base}/?${query.toString()}${this.pendingHash ?? ""}`;
+      this.pendingHash = null;
       view.webview.html = frameHtml(base, this.loadedSrc, "sideBar", panelBorder());
     } catch (error) {
       view.webview.html = messageHtml(
@@ -192,6 +196,12 @@ class PanelView implements vscode.WebviewViewProvider {
 
   post(message: unknown): Thenable<boolean> | undefined {
     return this.view?.webview.postMessage(message);
+  }
+
+  /** Moves the panel to a page, or remembers it while the panel is still starting and has no frame to message. */
+  navigate(hash: string): void {
+    if (this.loadedSrc) void this.post({ type: "navigate-hash", hash });
+    else this.pendingHash = hash;
   }
 }
 
@@ -249,7 +259,7 @@ async function focusPanel(): Promise<void> {
 async function newThreadInPanel(): Promise<void> {
   await focusPanel();
   const cwd = workspaceFolder();
-  await sideView?.post({ type: "navigate-hash", hash: cwd ? `#/new/${encodeURIComponent(cwd)}` : "#/new" });
+  sideView?.navigate(cwd ? `#/new/${encodeURIComponent(cwd)}` : "#/new");
 }
 
 /** The full app, sidebar and all, in an editor tab. */

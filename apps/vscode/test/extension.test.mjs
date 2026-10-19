@@ -296,6 +296,18 @@ test("helicon.newThread navigates the panel to a new thread in the workspace fol
   assert.deepEqual(view.webview.posted.at(-1), newThread("/work/app"));
 });
 
+test("helicon.newThread during a cold start opens the panel on the new thread once it loads", async (t) => {
+  const h = await harness(t, { workspaceFolders: folder("/work/app") });
+  const view = new FakeView();
+  const resolving = h.fake.viewProviders.get(PANEL).provider.resolveWebviewView(view);
+  await h.run("helicon.newThread");
+  await resolving;
+  assert.equal(view.webview.posted.some((message) => message.type === "navigate-hash"), false);
+  assert.ok(h.api.panelLoaded()?.endsWith(newThread("/work/app").hash), h.api.panelLoaded());
+  await h.run("helicon.newThread");
+  assert.deepEqual(view.webview.posted.at(-1), newThread("/work/app"));
+});
+
 test("helicon.newThread without a workspace folder navigates to a bare new thread", async (t) => {
   const h = await harness(t);
   const view = await resolve(h);
