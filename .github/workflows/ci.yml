@@ -25,6 +25,17 @@ jobs:
       - run: npm run test --workspace @helicon/web
       # The editor extension: bundles the server and UI, then starts the bundle and checks it serves both.
       - run: npm run test --workspace helicon
+      # PowerShell scripts in scripts/ are only run by hand on Windows, so at least make sure they parse.
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($file in Get-ChildItem scripts -Filter *.ps1) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$null, [ref]$errors) | Out-Null
+            foreach ($e in $errors) { Write-Host "::error file=scripts/$($file.Name),line=$($e.Extent.StartLineNumber)::$($e.Message)"; $failed = $true }
+          }
+          if ($failed) { exit 1 }
 
   # The desktop crate is only otherwise compiled while cutting a release, which is far too late to
   # find out that it does not build.
