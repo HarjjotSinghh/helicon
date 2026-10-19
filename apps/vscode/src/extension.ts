@@ -153,6 +153,8 @@ class PanelView implements vscode.WebviewViewProvider {
   loadedSrc: string | null = null;
   /** A page asked for before the frame is up (a cold start); the next load opens on it. */
   private pendingHash: string | null = null;
+  /** Counts loads, so a slow load that a newer one overtook does nothing when it finishes. */
+  private loads = 0;
 
   async resolveWebviewView(view: vscode.WebviewView): Promise<void> {
     this.view = view;
@@ -173,10 +175,14 @@ class PanelView implements vscode.WebviewViewProvider {
     if (!view) {
       return;
     }
+    const load = ++this.loads;
     this.loadedSrc = null;
     view.webview.html = messageHtml("Starting Helicon…");
     try {
       const base = await externalUrl();
+      if (load !== this.loads || this.view !== view) {
+        return;
+      }
       const cwd = workspaceFolder();
       if (cwd) {
         // Not awaited: adding a folder also lists its threads through Muse, which can take many seconds,
@@ -188,6 +194,9 @@ class PanelView implements vscode.WebviewViewProvider {
       this.pendingHash = null;
       view.webview.html = frameHtml(base, this.loadedSrc, "sideBar", panelBorder());
     } catch (error) {
+      if (load !== this.loads || this.view !== view) {
+        return;
+      }
       view.webview.html = messageHtml(
         `Helicon could not start: ${(error instanceof Error ? error.message : String(error)).replace(/\.$/, "")}. Run “Helicon: Show Log” for details, or “Helicon: Restart Server”.`,
       );
