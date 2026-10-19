@@ -4,7 +4,7 @@ import { ArrowRight, MagnifyingGlass } from "@phosphor-icons/react";
 import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
-import { useEffect, useMemo, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ICONS } from "./icons";
 import { trackEvent } from "@/lib/client-analytics";
 import { searchDocs, type SearchDoc } from "@/lib/seo/search-core";
@@ -58,13 +58,17 @@ export default function SearchPalette({
   open,
   onOpenChange,
   trigger,
+  initialQuery = "",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The header button. It is not a Dialog.Trigger, so Radix needs telling where focus goes back to. */
   trigger: RefObject<HTMLButtonElement | null>;
+  /** Typed while this chunk was still loading. Only read on mount, which is the first open. */
+  initialQuery?: string;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+  const input = useRef<HTMLInputElement>(null);
   const [index, setIndex] = useState<SearchDoc[]>([]);
   const router = useRouter();
 
@@ -104,6 +108,13 @@ export default function SearchPalette({
         <Dialog.Overlay className="overlay-fade fixed inset-0 z-[300] bg-[oklch(0.1_0.01_255/0.45)]" />
         <Dialog.Content
           aria-describedby={undefined}
+          onOpenAutoFocus={(event) => {
+            // Radix would select the input's text. Text typed before the palette loaded is already
+            // in there, so put the caret after it and let the next key add to it.
+            event.preventDefault();
+            input.current?.focus();
+            input.current?.setSelectionRange(query.length, query.length);
+          }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             trigger.current?.focus();
@@ -117,6 +128,7 @@ export default function SearchPalette({
               <Command.Input
                 value={query}
                 onValueChange={setQuery}
+                ref={input}
                 placeholder="Search install guides, comparisons, features…"
                 className="h-12 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-subtle"
               />

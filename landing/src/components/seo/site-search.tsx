@@ -13,7 +13,13 @@ import { useVisitorOs } from "@/lib/use-visitor-os";
  * instead of with the page. Hovering or focusing the button starts that load a moment early.
  */
 
-const loadPalette = () => import("./search-palette");
+// Set once the palette's chunk is in. Until then there is no input to type into, see `early` below.
+let paletteLoaded = false;
+const loadPalette = () =>
+  import("./search-palette").then((mod) => {
+    paletteLoaded = true;
+    return mod;
+  });
 const SearchPalette = dynamic(loadPalette, { ssr: false });
 
 function isTyping(target: EventTarget | null) {
@@ -28,9 +34,14 @@ export function SiteSearch({ className }: { className?: string }) {
   const [wanted, setWanted] = useState(false);
   const os = useVisitorOs();
   const button = useRef<HTMLButtonElement>(null);
+  // What was typed after opening but before the palette loaded, handed to it as its first query.
+  const [early, setEarly] = useState("");
+  const openRef = useRef(false);
 
   const show = useCallback((next: boolean) => {
     if (next) setWanted(true);
+    else setEarly("");
+    openRef.current = next;
     setOpen(next);
   }, []);
 
@@ -47,10 +58,17 @@ export function SiteSearch({ className }: { className?: string }) {
       // The live product demos on the home page are their own little app; leave their keys alone.
       if ((event.target as HTMLElement | null)?.closest?.(".helicon-app")) return;
       const mod = event.metaKey || event.ctrlKey;
+      if (openRef.current && !paletteLoaded && !mod && !event.altKey) {
+        if (event.key === "Escape") show(false);
+        else if (event.key === "Backspace") setEarly((text) => text.slice(0, -1));
+        else if (event.key.length === 1) setEarly((text) => text + event.key);
+        else return;
+        event.preventDefault();
+        return;
+      }
       if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setWanted(true);
-        setOpen((value) => !value);
+        show(!openRef.current);
       } else if (event.key === "/" && !mod && !isTyping(event.target)) {
         event.preventDefault();
         openPalette("slash");
@@ -58,7 +76,7 @@ export function SiteSearch({ className }: { className?: string }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openPalette]);
+  }, [openPalette, show]);
 
   return (
     <>
@@ -81,7 +99,7 @@ export function SiteSearch({ className }: { className?: string }) {
           </kbd>
         ) : null}
       </button>
-      {wanted ? <SearchPalette open={open} onOpenChange={show} trigger={button} /> : null}
+      {wanted ? <SearchPalette open={open} onOpenChange={show} trigger={button} initialQuery={early} /> : null}
     </>
   );
 }
