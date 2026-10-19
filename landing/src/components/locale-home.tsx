@@ -193,7 +193,12 @@ export function LocaleHome({
             <div id="demo">
               <DemoVideo
                 src="/demo/launch.mp4"
-                poster={{ light: "/demo/launch-poster-light.jpg", dark: "/demo/launch-poster-dark.jpg" }}
+                poster={{
+                  light: "/demo/launch-poster-light.jpg",
+                  dark: "/demo/launch-poster-dark.jpg",
+                  small: { light: "/demo/launch-poster-light-960.jpg", dark: "/demo/launch-poster-dark-960.jpg" },
+                }}
+                priority
                 label={copy.videoLabel}
                 labels={copy.ui.player}
               />

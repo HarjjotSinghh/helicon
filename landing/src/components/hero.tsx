@@ -109,7 +109,12 @@ export function Hero({
       <div id="demo">
         <DemoVideo
           src="/demo/launch.mp4"
-          poster={{ light: "/demo/launch-poster-light.jpg", dark: "/demo/launch-poster-dark.jpg" }}
+          poster={{
+            light: "/demo/launch-poster-light.jpg",
+            dark: "/demo/launch-poster-dark.jpg",
+            small: { light: "/demo/launch-poster-light-960.jpg", dark: "/demo/launch-poster-dark-960.jpg" },
+          }}
+          priority
           label="Helicon in 30 seconds: approvals you can read, diffs where the edit happened, and what each thread would have cost"
         />
       </div>

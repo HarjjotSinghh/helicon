@@ -67,11 +67,14 @@ export function DemoVideo({
   poster,
   label,
   labels = ENGLISH,
+  priority = false,
 }: {
   src: string;
-  /** One frame per site theme; the video element takes a single poster, so these are drawn over it until playback starts. */
-  poster: { light: string; dark: string };
+  /** One frame per site theme; the video element takes a single poster, so these are drawn over it until playback starts. `small` holds 960px-wide copies for phones. */
+  poster: { light: string; dark: string; small?: { light: string; dark: string } };
   label: string;
+  /** Load the poster straight away: the player is above the fold and its frame is the page's largest paint. */
+  priority?: boolean;
   /** Control names, in the page's language. */
   labels?: PlayerLabels;
 }) {
@@ -287,9 +290,9 @@ export function DemoVideo({
       {!started ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element -- a poster frame, sized by the video box */}
-          <img src={poster.light} alt="" aria-hidden="true" loading="lazy" decoding="async" className="theme-light-only pointer-events-none absolute inset-0 size-full object-cover" />
+          <img src={poster.light} srcSet={poster.small ? `${poster.small.light} 960w, ${poster.light} 1920w` : undefined} sizes="(min-width: 1248px) 1200px, 100vw" alt="" aria-hidden="true" loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : undefined} decoding="async" className="theme-light-only pointer-events-none absolute inset-0 size-full object-cover" />
           {/* eslint-disable-next-line @next/next/no-img-element -- a poster frame, sized by the video box */}
-          <img src={poster.dark} alt="" aria-hidden="true" loading="lazy" decoding="async" className="theme-dark-only pointer-events-none absolute inset-0 size-full object-cover" />
+          <img src={poster.dark} srcSet={poster.small ? `${poster.small.dark} 960w, ${poster.dark} 1920w` : undefined} sizes="(min-width: 1248px) 1200px, 100vw" alt="" aria-hidden="true" loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : undefined} decoding="async" className="theme-dark-only pointer-events-none absolute inset-0 size-full object-cover" />
         </>
       ) : null}
 
