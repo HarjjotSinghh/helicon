@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const capture = vi.fn();
 const deviceClass = vi.fn<() => "mobile" | "desktop">();
 
-vi.mock("posthog-js", () => ({ default: { capture } }));
 vi.mock("../src/lib/device", () => ({ deviceClass }));
 
 const { trackHref } = await import("../src/lib/client-analytics");
+const { posthogReady } = await import("../src/lib/posthog-client");
+posthogReady({ capture } as unknown as Parameters<typeof posthogReady>[0]);
 
 describe("trackHref", () => {
   beforeEach(() => {

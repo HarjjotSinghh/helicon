@@ -1,15 +1,17 @@
 "use client";
 
-import posthog from "posthog-js";
 import { classifyCta } from "./cta-events";
 import { deviceClass } from "./device";
+import { withPosthog } from "./posthog-client";
 
 export function trackEvent(
   event: string,
   properties?: Record<string, unknown>,
   options?: { beacon?: boolean },
 ) {
-  posthog.capture(event, properties, options?.beacon ? { transport: "sendBeacon" } : undefined);
+  withPosthog((posthog) =>
+    posthog.capture(event, properties, options?.beacon ? { transport: "sendBeacon" } : undefined),
+  );
 }
 
 export function trackHref(
@@ -21,15 +23,12 @@ export function trackHref(
   // Same-tab links (the installer downloads) unload the page right after the
   // click, so a normal XHR capture is dropped before it reaches PostHog. Send
   // the event with the beacon transport, which survives the navigation.
-  posthog.capture(
-    event,
-    {
-      ...properties,
-      // A phone tap is a download_click that cannot lead to a download, so funnels filter on this.
-      ...(event === "download_click" ? { device: deviceClass() } : {}),
-      placement: extra.placement,
-      ...(extra.label ? { cta_label: extra.label } : {}),
-    },
-    { transport: "sendBeacon" },
-  );
+  const props = {
+    ...properties,
+    // A phone tap is a download_click that cannot lead to a download, so funnels filter on this.
+    ...(event === "download_click" ? { device: deviceClass() } : {}),
+    placement: extra.placement,
+    ...(extra.label ? { cta_label: extra.label } : {}),
+  };
+  withPosthog((posthog) => posthog.capture(event, props, { transport: "sendBeacon" }));
 }
