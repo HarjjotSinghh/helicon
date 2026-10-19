@@ -6,6 +6,7 @@ import { Faq } from "@/components/faq";
 import { Features } from "@/components/features";
 import { Hero } from "@/components/hero";
 import { Install } from "@/components/install";
+import { ReplayDemo } from "@/components/replay-demo";
 import { SiteHeader } from "@/components/site-header";
 import { ClosingCta, SiteFooter } from "@/components/site-footer";
 import { DemoApp } from "@/demo/demo-app";
@@ -81,6 +82,8 @@ export default async function Page() {
         <SiteHeader copy={copy} />
         <main id="main" className="relative z-0">
           <Hero copy={copy} version={version} notesUrl={release?.notesUrl ?? ""} stars={stars} />
+          <Rule />
+          <ReplayDemo os={os} />
           <Rule />
           <Features title={copy.featuresTitle} body={copy.featuresBody} />
           <Rule />

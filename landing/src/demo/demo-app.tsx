@@ -223,11 +223,13 @@ export type DemoAppProps = {
   fluid?: boolean;
   /** Shown below the md breakpoint instead of a scaled-down live app. */
   poster?: { light: string; dark: string; alt: string };
+  /** Plays a different data source, like a recorded run, instead of the sample threads. */
+  client?: DemoClient;
 };
 
-export function DemoApp({ route = "", palette = false, width = 1100, height = 700, className, label, view = "app", fluid = false, poster }: DemoAppProps) {
+export function DemoApp({ route = "", palette = false, width = 1100, height = 700, className, label, view = "app", fluid = false, poster, client }: DemoAppProps) {
   const [controller] = useState(() => new HeliconController(
-      new DemoClient(),
+      client ?? new DemoClient(),
       // Sidebar card: only api-server expanded. Phone tour: main pane only, keep the last zoom.
       memoryPlatform(route, {
         zoom: sharedDemoZoom,

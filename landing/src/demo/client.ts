@@ -113,13 +113,13 @@ class Script {
   }
 }
 
-type Seeded = {
+export type Seeded = {
   summary: SessionSummary;
   events: ViewEvent[];
   approvals: ApprovalRequest[];
 };
 
-function summary(sessionId: string, cwd: string, title: string, activityAt: number, turnCount: number, live: SessionSummary["live"] = null): SessionSummary {
+export function summary(sessionId: string, cwd: string, title: string, activityAt: number, turnCount: number, live: SessionSummary["live"] = null): SessionSummary {
   return {
     sessionId,
     cwd,
@@ -379,8 +379,8 @@ const REPLY =
   "Install Helicon and this thread would stream from `muse serve` in your own project, with every tool call, diff and approval shown right here.";
 
 export class DemoClient implements HeliconClient {
-  private handlers = new Set<EventHandler>();
-  private sessions = new Map<string, Seeded>();
+  protected handlers = new Set<EventHandler>();
+  protected sessions = new Map<string, Seeded>();
   private timers = new Set<ReturnType<typeof setTimeout>>();
   private readonly now = Date.now();
   private readonly files = new DemoFiles(this.now);
@@ -394,7 +394,7 @@ export class DemoClient implements HeliconClient {
     this.timers.clear();
   }
 
-  private later(fn: () => void, ms: number) {
+  protected later(fn: () => void, ms: number) {
     const t = setTimeout(() => {
       this.timers.delete(t);
       fn();
@@ -402,14 +402,14 @@ export class DemoClient implements HeliconClient {
     this.timers.add(t);
   }
 
-  private emit(sessionId: string, method: string, params: Record<string, unknown>) {
+  protected emit(sessionId: string, method: string, params: Record<string, unknown>) {
     const entry = this.sessions.get(sessionId);
     const event: ViewEvent = { method, params: { sessionId, ...params }, at: Date.now() };
     entry?.events.push(event);
     for (const h of this.handlers) h({ type: "msp", sessionId, method, params: event.params, at: event.at! });
   }
 
-  private setLive(sessionId: string, live: SessionSummary["live"]) {
+  protected setLive(sessionId: string, live: SessionSummary["live"]) {
     const entry = this.sessions.get(sessionId);
     if (!entry) return;
     entry.summary = { ...entry.summary, live, activityAt: new Date().toISOString() };

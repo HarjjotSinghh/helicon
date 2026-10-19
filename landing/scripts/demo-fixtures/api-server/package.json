@@ -1,0 +1,6 @@
+{
+  "name": "api-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": { "start": "node src/server.js", "test": "node --test" }
+}
