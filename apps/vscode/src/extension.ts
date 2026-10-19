@@ -185,7 +185,7 @@ class PanelView implements vscode.WebviewViewProvider {
       view.webview.html = frameHtml(base, this.loadedSrc, "sideBar", panelBorder());
     } catch (error) {
       view.webview.html = messageHtml(
-        `Helicon could not start: ${error instanceof Error ? error.message : String(error)}. Run “Helicon: Show Log” for details, or “Helicon: Restart Server”.`,
+        `Helicon could not start: ${(error instanceof Error ? error.message : String(error)).replace(/\.$/, "")}. Run “Helicon: Show Log” for details, or “Helicon: Restart Server”.`,
       );
     }
   }

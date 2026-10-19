@@ -273,9 +273,7 @@ test("a server that cannot start shows the reason inside the panel and loads no 
   const h = await harness(t, { withServer: false });
   const view = await resolve(h);
   assert.equal(h.api.panelLoaded(), null);
-  // The message ends with a doubled period ("(code 1).. Run"), a bug in src/extension.ts:188 that
-  // this test does not pin: it checks the reason and the recovery hint only.
-  assert.ok(view.webview.html.includes("Helicon could not start: helicon-server exited before it was ready (code 1)"), view.webview.html);
+  assert.ok(view.webview.html.includes("Helicon could not start: helicon-server exited before it was ready (code 1). Run"), view.webview.html);
   assert.ok(view.webview.html.includes("Helicon: Show Log"), view.webview.html);
 });
 
