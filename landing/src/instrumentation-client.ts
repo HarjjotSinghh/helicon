@@ -6,7 +6,7 @@ import {
   type FirstTouch,
 } from "./lib/download-attribution";
 import { ANON_COOKIE, INTERNAL_COOKIE, parseVisitorOs } from "./lib/os";
-import { posthogNow, posthogOff, posthogReady } from "./lib/posthog-client";
+import { posthogNow, posthogOff, posthogReady, posthogStarting } from "./lib/posthog-client";
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
 
@@ -68,15 +68,7 @@ async function startPosthog(key: string) {
     persistence: "localStorage+cookie",
     bootstrap: !persisted && anon ? { distinctID: anon } : undefined,
     loaded: (client) => {
-      const uaData = (navigator as Navigator & { userAgentData?: { platform: string; mobile: boolean } })
-        .userAgentData;
-      client.register({
-        site: "helicon_landing",
-        visitor_os: parseVisitorOs(
-          navigator.userAgent,
-          uaData ? { platform: uaData.platform, mobile: uaData.mobile } : undefined,
-        ),
-      });
+      client.register(siteProperties());
       client.startSessionRecording();
     },
   });
@@ -90,7 +82,40 @@ function afterLoad(run: () => void) {
   else window.addEventListener("load", idle, { once: true });
 }
 
+/** The properties loaded() registers below, for events sent before posthog-js is up. */
+function siteProperties() {
+  const uaData = (navigator as Navigator & { userAgentData?: { platform: string; mobile: boolean } }).userAgentData;
+  return {
+    site: "helicon_landing",
+    visitor_os: parseVisitorOs(navigator.userAgent, uaData ? { platform: uaData.platform, mobile: uaData.mobile } : undefined),
+  };
+}
+
+/** The id posthog-js would use: the one it saved on an earlier visit, or the anon cookie it bootstraps from. */
+function knownDistinctId(key: string) {
+  try {
+    const persisted = readCookie(`ph_${key}_posthog`);
+    const id = persisted ? (JSON.parse(persisted) as { distinct_id?: unknown }).distinct_id : undefined;
+    if (typeof id === "string" && id) return id;
+  } catch {
+    // A cookie we cannot read is the same as no cookie.
+  }
+  return readCookie(ANON_COOKIE);
+}
+
 if (key && !isLocalHost(window.location.hostname) && !internal) {
+  posthogStarting({
+    key,
+    host: "/relay-hx",
+    distinctId: () => knownDistinctId(key),
+    properties: () => ({
+      ...siteProperties(),
+      $current_url: window.location.href,
+      $host: window.location.host,
+      $pathname: window.location.pathname,
+      $lib: "web-beacon",
+    }),
+  });
   afterLoad(() => void startPosthog(key).catch(posthogOff));
 } else {
   posthogOff();

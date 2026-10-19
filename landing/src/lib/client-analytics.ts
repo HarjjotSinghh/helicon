@@ -2,16 +2,14 @@
 
 import { classifyCta } from "./cta-events";
 import { deviceClass } from "./device";
-import { withPosthog } from "./posthog-client";
+import { capture } from "./posthog-client";
 
 export function trackEvent(
   event: string,
   properties?: Record<string, unknown>,
   options?: { beacon?: boolean },
 ) {
-  withPosthog((posthog) =>
-    posthog.capture(event, properties, options?.beacon ? { transport: "sendBeacon" } : undefined),
-  );
+  capture(event, properties, options);
 }
 
 export function trackHref(
@@ -30,5 +28,5 @@ export function trackHref(
     placement: extra.placement,
     ...(extra.label ? { cta_label: extra.label } : {}),
   };
-  withPosthog((posthog) => posthog.capture(event, props, { transport: "sendBeacon" }));
+  capture(event, props, { beacon: true });
 }
