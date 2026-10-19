@@ -429,7 +429,7 @@ test("helicon.openFile opens a reply's file at its line, and says why it cannot"
 
   openFile({ cwd: "/work/app", path: "src/b.ts", line: { start: 0 } });
   await until(() => opens().length === 2, "the relative file to open");
-  assert.equal(opens()[1].args[0].fsPath, "/work/app/src/b.ts");
+  assert.equal(opens()[1].args[0].fsPath.replaceAll("\\", "/"), "/work/app/src/b.ts");
   assert.equal("selection" in opens()[1].args[1], false, "a line of 0 selects nothing");
 
   openFile({ cwd: "/work/app", path: "src/missing.ts" });

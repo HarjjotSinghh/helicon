@@ -152,8 +152,10 @@ export function createFakeVscode({ workspaceFolders, config = {}, themeKind = Co
       }),
       fs: {
         stat: async (uri) => {
-          log.statted.push(uri.fsPath);
-          if (!files.has(uri.fsPath)) throw new Error(`ENOENT: ${uri.fsPath}`);
+          // Tests name files with forward slashes; on Windows join() hands back backslashes.
+          const path = uri.fsPath.replaceAll("\\", "/");
+          log.statted.push(path);
+          if (!files.has(path)) throw new Error(`ENOENT: ${path}`);
           return { type: 1 };
         },
       },
