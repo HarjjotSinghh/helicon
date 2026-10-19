@@ -1,7 +1,7 @@
 import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAonia } from "@harjjotsinghh/aonia";
@@ -501,6 +501,28 @@ describe("HeliconServer", () => {
     const script = ran[0]!.args.at(-1)!;
     assert.ok(script.startsWith("Set-Location -LiteralPath 'D:\\work\\it''s here'"), script);
     assert.ok(script.endsWith("\nGet-ChildItem"));
+  });
+
+  it("tells whether native Windows Muse is signed in from the same auth.json", async () => {
+    const home = await mkdtemp(join(tmpdir(), "helicon-winhome-"));
+    const xdg = process.env["XDG_CONFIG_HOME"];
+    delete process.env["XDG_CONFIG_HOME"];
+    try {
+      const binary = "C:\\Users\\ada\\AppData\\Local\\Programs\\muse\\muse-bin-1.4.10-R1.exe";
+      const { base } = await start(new FakeConnection(), {
+        platform: "win32",
+        musePath: undefined,
+        home,
+        findNativeMuse: () => ({ binary, dir: "C:\\Users\\ada\\AppData\\Local\\Programs\\muse", version: "1.4.10-R1", launcher: null }),
+      });
+      assert.equal((await get(base, "/api/env")).museSignedIn, false, "no auth.json yet");
+      await mkdir(join(home, ".config", "muse"), { recursive: true });
+      await writeFile(join(home, ".config", "muse", "auth.json"), JSON.stringify({ schema_version: 1, providers: { meta: {} } }));
+      assert.equal((await get(base, "/api/env?refresh=1")).museSignedIn, true);
+    } finally {
+      if (xdg === undefined) delete process.env["XDG_CONFIG_HOME"];
+      else process.env["XDG_CONFIG_HOME"] = xdg;
+    }
   });
 
   it("counts the monitors a thread has watching", async () => {

@@ -229,10 +229,12 @@ export function findPosixMuse(home: string, exists: (path: string) => boolean = 
 }
 
 /**
- * Whether the default Muse login on macOS or Linux has stored credentials. `muse login` and
- * `muse auth set` record each provider in `$XDG_CONFIG_HOME/muse/auth.json` (the secret itself may
- * sit in the keychain), so no file or no providers means a first prompt would fail. Null when the
- * file is there but unreadable, since then Helicon cannot tell.
+ * Whether the default Muse login on macOS, Linux or native Windows has stored credentials.
+ * `muse login` and `muse auth set` record each provider in `$XDG_CONFIG_HOME/muse/auth.json` (the
+ * secret itself may sit in the keychain). Windows Muse uses the same file under the user profile,
+ * `%USERPROFILE%\.config\muse\auth.json`, and honours XDG_CONFIG_HOME too (checked with Muse
+ * 1.4.10). No file or no providers means a first prompt would fail. Null when the file is there but
+ * unreadable, since then Helicon cannot tell.
  */
 export function museSignedIn(
   home: string,
