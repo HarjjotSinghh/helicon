@@ -2,7 +2,7 @@
 
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { buttonClass, cn } from "../ui";
 import { trackEvent } from "@/lib/client-analytics";
 import { useVisitorOs } from "@/lib/use-visitor-os";
@@ -27,6 +27,7 @@ export function SiteSearch({ className }: { className?: string }) {
   // Mounted on first open and kept, so closing still plays the dialog's exit animation.
   const [wanted, setWanted] = useState(false);
   const os = useVisitorOs();
+  const button = useRef<HTMLButtonElement>(null);
 
   const show = useCallback((next: boolean) => {
     if (next) setWanted(true);
@@ -62,6 +63,7 @@ export function SiteSearch({ className }: { className?: string }) {
   return (
     <>
       <button
+        ref={button}
         type="button"
         onClick={() => openPalette("button")}
         onPointerEnter={() => void loadPalette()}
@@ -79,7 +81,7 @@ export function SiteSearch({ className }: { className?: string }) {
           </kbd>
         ) : null}
       </button>
-      {wanted ? <SearchPalette open={open} onOpenChange={show} /> : null}
+      {wanted ? <SearchPalette open={open} onOpenChange={show} trigger={button} /> : null}
     </>
   );
 }

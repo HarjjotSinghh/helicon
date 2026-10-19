@@ -4,7 +4,7 @@ import { ArrowRight, MagnifyingGlass } from "@phosphor-icons/react";
 import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type RefObject } from "react";
 import { ICONS } from "./icons";
 import { trackEvent } from "@/lib/client-analytics";
 import { searchDocs, type SearchDoc } from "@/lib/seo/search-core";
@@ -54,7 +54,16 @@ function Row({ doc, onSelect }: { doc: SearchDoc; onSelect: (url: string) => voi
   );
 }
 
-export default function SearchPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export default function SearchPalette({
+  open,
+  onOpenChange,
+  trigger,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The header button. It is not a Dialog.Trigger, so Radix needs telling where focus goes back to. */
+  trigger: RefObject<HTMLButtonElement | null>;
+}) {
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState<SearchDoc[]>([]);
   const router = useRouter();
@@ -95,6 +104,10 @@ export default function SearchPalette({ open, onOpenChange }: { open: boolean; o
         <Dialog.Overlay className="overlay-fade fixed inset-0 z-[300] bg-[oklch(0.1_0.01_255/0.45)]" />
         <Dialog.Content
           aria-describedby={undefined}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            trigger.current?.focus();
+          }}
           className="modal-pop fixed top-[12%] left-1/2 z-[310] w-[min(620px,calc(100%-16px))] -translate-x-1/2 overflow-hidden rounded-2xl bg-raised text-fg shadow-pop outline-none"
         >
           <Dialog.Title className="sr-only">Search helicon.sh</Dialog.Title>
