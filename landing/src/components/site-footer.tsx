@@ -293,15 +293,15 @@ export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
             and contributors.
           </p>
           {/* Plain links, so the translated home pages are reachable by crawl and not only by hreflang. */}
-          <nav aria-label="Languages" className="mt-3">
-            <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[14px]">
+          <nav aria-label="Languages" className="mt-1.5">
+            <ul className="flex flex-wrap gap-x-4 text-[14px]">
               {translatedLocales("/").map((locale) => (
                 <li key={locale}>
                   <a
                     href={localePath(locale, "/")}
                     hrefLang={LOCALE_INFO[locale].hreflang}
                     lang={LOCALE_INFO[locale].hreflang}
-                    className="text-subtle underline decoration-line-strong underline-offset-4 transition-colors hover:text-fg hover:decoration-current"
+                    className="inline-block py-1.5 text-subtle underline decoration-line-strong underline-offset-4 transition-colors hover:text-fg hover:decoration-current"
                   >
                     {LOCALE_INFO[locale].name}
                   </a>
