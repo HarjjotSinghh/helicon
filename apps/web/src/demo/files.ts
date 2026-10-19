@@ -102,6 +102,7 @@ export class DemoFiles {
   write(cwd: string, path: string, content: string) {
     const file = this.file(cwd, path);
     file.content = content;
+    delete file.size;
     file.mtimeMs = Date.now();
     return { path, mtimeMs: file.mtimeMs, size: sizeOf(file) };
   }

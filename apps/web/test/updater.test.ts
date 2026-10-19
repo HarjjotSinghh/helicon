@@ -1,7 +1,7 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { desktopUpdater } from "../src/updater.js";
-import { stubGlobal, tauriWindow, tick } from "./stubs.js";
+import { captureConsoleError, stubGlobal, tauriWindow, tick } from "./stubs.js";
 
 const update = (rid: number, extra: Record<string, unknown> = {}) => ({
   rid,
@@ -207,6 +207,25 @@ describe("desktop updater", () => {
       tauri.calls.map((call) => call.cmd),
       ["plugin:process|restart"],
     );
+  });
+
+  it("logs a close listener that fails to start instead of leaving it unhandled", async () => {
+    const tauri = tauriWindow((cmd) => {
+      if (cmd === "plugin:event|listen") throw new Error("no event plugin");
+      return undefined;
+    });
+    restore = stubGlobal("window", tauri.window);
+    const logs = captureConsoleError();
+    try {
+      const updater = desktopUpdater();
+      assert.ok(updater);
+      updater.onClose(async () => {});
+      await tick();
+      await tick();
+      assert.equal(logs.messages[0]?.[0], "Helicon: close listener failed");
+    } finally {
+      logs.restore();
+    }
   });
 
   it("runs the close handler before the window is destroyed, and stops listening on cleanup", async () => {

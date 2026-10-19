@@ -62,6 +62,7 @@ export function desktopFrame(): WindowFrame | undefined {
     isMaximized: () => win.isMaximized(),
     onResized: (callback) => {
       const pending = win.onResized(() => callback());
+      pending.catch((error: unknown) => console.error("Helicon: resize listener failed", error));
       return () => {
         pending.then(
           (unlisten) => unlisten(),

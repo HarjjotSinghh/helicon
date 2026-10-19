@@ -57,6 +57,7 @@ export function desktopUpdater(): AppUpdater | undefined {
       const unlisten = getCurrentWindow().onCloseRequested(async () => {
         await handler();
       });
+      unlisten.catch((error: unknown) => console.error("Helicon: close listener failed", error));
       return () => {
         unlisten.then(
           (stop) => stop(),

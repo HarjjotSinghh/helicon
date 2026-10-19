@@ -118,6 +118,13 @@ describe("demo files", () => {
       assert.equal(files.read(README, "greeter.py").mtimeMs, saved.mtimeMs);
     });
 
+    it("reports the written size, not the sample file's preset one", () => {
+      const files = new DemoFiles(NOW);
+      const saved = files.write(README, "docs/screenshot.png", "tiny\n");
+      assert.equal(saved.size, 5);
+      assert.equal(files.read(README, "docs/screenshot.png").size, 5);
+    });
+
     it("leaves the sample project as it was for the next page", () => {
       const first = new DemoFiles(NOW);
       first.write(README, "greeter.py", "changed\n");

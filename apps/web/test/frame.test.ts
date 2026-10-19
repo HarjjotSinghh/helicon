@@ -147,6 +147,26 @@ describe("desktop window frame", () => {
     }
   });
 
+  it("logs a resize listener that fails to start instead of leaving it unhandled", async () => {
+    const tauri = tauriWindow((cmd) => {
+      if (cmd === "plugin:event|listen") throw new Error("no event plugin");
+      return undefined;
+    });
+    tauri.window.__HELICON_FRAME__ = "custom";
+    restores.push(stubGlobal("window", tauri.window));
+    const logs = captureConsoleError();
+    try {
+      const frame = desktopFrame();
+      assert.ok(frame);
+      frame.onResized(() => {});
+      await tick();
+      await tick();
+      assert.equal(logs.messages[0]?.[0], "Helicon: resize listener failed");
+    } finally {
+      logs.restore();
+    }
+  });
+
   it("calls back on resize until the returned cleanup stops listening", async () => {
     const tauri = tauriWindow((cmd) => (cmd === "plugin:event|listen" ? 3 : undefined));
     tauri.window.__HELICON_FRAME__ = "custom";
