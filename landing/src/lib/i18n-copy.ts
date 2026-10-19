@@ -260,7 +260,7 @@ const ja: HomeCopy = {
     items: [
       { title: "プロジェクトごとに整理", body: "スレッドはフォルダごとにまとまり、worktree も含みます。どのスレッドもワンクリックで再開できます。" },
       { title: "インライン差分", body: "すべての編集が、起きたその場所に差分としてスレッドに表示されます。スクロールして探す必要はありません。" },
-      { title: "承認は承認のまま", body: "承認の依頼は届いたその瞬間に表示します。まとめて処理したり、勝手に通したりはしません。" },
+      { title: "承認は承認のまま", body: "承認の依頼は届いたその瞬間に表示します。まとめたり、飛ばしたりはしません。" },
       { title: "コストを見える化", body: "各スレッドが API 料金ならいくらかを表示するので、プランが何をしているかがわかります。" },
       { title: "キーボード中心", body: "コマンドパレット、スラッシュコマンド、モデルの切り替え。どのスレッドにもキーボードで移動できます。" },
       { title: "ひとつの UI、ふたつの形", body: "同じ React の画面が、Tauri のデスクトップアプリとしても、リモートのデーモンにつなぐ Web アプリとしても動きます。" },
@@ -388,7 +388,7 @@ const ptBr: HomeCopy = {
   features: {
     title: "Tudo o que uma sessão precisa, em uma janela",
     intro:
-      "Subagentes em paralelo e um log de eventos que dá para rever se perdem no terminal. Projetos, diffs, aprovações e custo ficam lado a lado.",
+      "No terminal, subagentes em paralelo e um log de eventos para rever acabam se perdendo. Projetos, diffs, aprovações e custo ficam lado a lado.",
     items: [
       { title: "Projetos agrupados", body: "Threads agrupadas por pasta, worktrees incluídas. Retome qualquer uma com um clique." },
       { title: "Diffs inline", body: "Cada edição aparece na thread como diff, bem onde aconteceu. Nada de caçar no histórico do terminal." },
