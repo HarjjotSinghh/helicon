@@ -97,9 +97,10 @@ function Wait-ForHealthy([datetime]$After) {
         foreach ($dir in @((Join-Path $env:APPDATA $AppId), (Join-Path $env:LOCALAPPDATA $AppId))) {
             $file = Join-Path $dir 'server-port'
             if (Test-Path $file) {
-                $item = Get-Item $file
+                # A port file left by an earlier launch is fine to read: the script refuses to start while
+                # Helicon is running, and a stale port just fails the health check until the new one lands.
                 $value = 0
-                if ($item.LastWriteTime -ge $After -and [int]::TryParse((Get-Content -Path $file -Raw).Trim(), [ref]$value) -and $value -gt 0) {
+                if ([int]::TryParse((Get-Content -Path $file -Raw).Trim(), [ref]$value) -and $value -gt 0) {
                     $port = $value
                     break
                 }
