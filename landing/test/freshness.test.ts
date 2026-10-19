@@ -8,7 +8,7 @@ type Json = Record<string, any>;
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-/** The files whose words make up the home page. Wiring changes to src/app/page.tsx do not count. */
+/** The files whose words make up the home page. Wiring changes to src/app/(site)/page.tsx do not count. */
 const HOME_CONTENT = [
   "src/components/hero.tsx",
   "src/components/features.tsx",

@@ -18,7 +18,7 @@ image, its schema, its sitemap entry, its internal links and its llms.txt line a
 | schema.org graphs | `src/lib/seo/schema.ts` |
 | Per page `<head>` | `src/lib/seo/metadata.ts` |
 | Page layout | `src/components/seo/*` |
-| Route wrappers (two lines each) | `src/app/<section>/[slug]/page.tsx` |
+| Route wrappers (two lines each) | `src/app/(site)/<section>/[slug]/page.tsx` |
 
 ### Adding a page
 
@@ -54,7 +54,23 @@ From `.agents/product-marketing.md`:
 /guides                      hub → 10 task guides
 /use-cases                   hub → 8 persona pages
 /glossary                    hub → 13 definitions
+/ko, /ja, /pt-br             the home page in Korean, Japanese and Brazilian Portuguese
 ```
+
+### Languages
+
+English lives at the root. A translation is a path prefix and exists only for pages that are
+actually translated (today, just the home page), so a locale path never serves English. The list
+of translated pages and their dates is `TRANSLATED` in `src/lib/i18n.ts`. The page metadata,
+`sitemap.ts` and the language switcher all read it, so the hreflang sets they emit always agree:
+every version lists English, every translation and `x-default` (English).
+
+Each locale has its own root layout (`src/app/[locale]/layout.tsx`) so `<html lang>` matches the
+page. Nothing redirects on Accept-Language or IP. The English home shows a dismissible banner,
+read from `navigator.languages` on the client, offering the translation; the server response
+never varies by language. Translated copy lives in `src/lib/i18n-copy.ts` and has to say what the
+English page says. To translate another page, add it to `TRANSLATED` and give it a route under
+`[locale]`.
 
 Short redirects exist for `/gui`, `/desktop`, `/app`, `/windows`, `/mac`, `/macos`, `/linux`,
 `/wsl`, `/docs`, `/alternatives`, `/vs/:slug` and `/releases` (see `next.config.ts`).
@@ -111,7 +127,7 @@ Helicon renders the verification tag from an environment variable, so there is n
    vercel env add GOOGLE_SITE_VERIFICATION production
    vercel --prod
    ```
-   The tag is emitted from `src/app/layout.tsx`. An unset variable emits no tag at all.
+   The tag is emitted from `src/components/document-shell.tsx`. An unset variable emits no tag at all.
 3. Back in Search Console, press Verify.
 4. Submit the sitemap: Sitemaps → enter `sitemap.xml` → Submit.
 5. Use URL Inspection on `https://helicon.sh/` and `https://helicon.sh/muse-code-gui`, then

@@ -107,7 +107,7 @@ describe("download attribution", () => {
     vi.stubEnv("POSTHOG_KEY", "phc_test");
     const fetchSpy = vi.fn(async (_url: string, _init: RequestInit) => new Response("{}"));
     vi.stubGlobal("fetch", fetchSpy);
-    const { GET } = await import("../src/app/download/[os]/route");
+    const { GET } = await import("../src/app/(site)/download/[os]/route");
 
     const href = withAttribution("/download/macos?src=hero", origin, {
       distinctId: "visitor-from-posthog",
@@ -139,7 +139,7 @@ describe("download attribution", () => {
     vi.stubEnv("POSTHOG_KEY", "phc_test");
     const fetchSpy = vi.fn(async (_url: string, _init: RequestInit) => new Response("{}"));
     vi.stubGlobal("fetch", fetchSpy);
-    const { GET } = await import("../src/app/download/[os]/route");
+    const { GET } = await import("../src/app/(site)/download/[os]/route");
 
     const persisted = encodeURIComponent(JSON.stringify({ distinct_id: "cookie-person", $sesid: [0, "cookie-session", 0] }));
     const href = withAttribution("/download/macos?src=hero", origin, { distinctId: "someone-else" });

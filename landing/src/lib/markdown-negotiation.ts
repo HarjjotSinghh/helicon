@@ -7,6 +7,8 @@
  * else has to be able to ask for Markdown at the URL it was given.
  */
 
+import { LOCALES } from "./i18n";
+
 /** Paths that already serve their own plain-text or Markdown document. */
 export const OWN_TEXT_ROUTES = new Set(["/agents.md", "/llms.txt", "/llms-full.txt"]);
 
@@ -14,7 +16,15 @@ export const OWN_TEXT_ROUTES = new Set(["/agents.md", "/llms.txt", "/llms-full.t
  * Paths that are documents or machinery rather than pages. Rewriting these would turn a JSON API
  * response into a Markdown 404 for any client that happens to accept Markdown.
  */
-const NEVER_MARKDOWN = ["/api", "/download", "/openapi.json", "/_next", "/md/"];
+const NEVER_MARKDOWN = [
+  "/api",
+  "/download",
+  "/openapi.json",
+  "/_next",
+  "/md/",
+  // Translated pages have no Markdown mirror; the English one is a different language.
+  ...LOCALES.map((locale) => `/${locale}`),
+];
 
 /** Where the home page's Markdown mirror lives, since a catch-all cannot match an empty path. */
 export const HOME_MARKDOWN_SLUG = "index";
@@ -43,6 +53,7 @@ export function markdownRewriteTarget(pathname: string, accept: string | null): 
   if (pathname.startsWith("/md/")) return null;
 
   if (pathname.endsWith(".md")) {
+    if (isExcluded(pathname.slice(0, -3))) return null;
     const target = pathname.slice(0, -3);
     if (target === "" || target === "/") return `/md/${HOME_MARKDOWN_SLUG}`;
     return `/md${target}`;

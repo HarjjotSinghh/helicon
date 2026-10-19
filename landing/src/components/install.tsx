@@ -11,6 +11,7 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import Link from "next/link";
 import { AppleLogo, LinuxLogo, WindowsLogo } from "./os-logos";
 import { OPEN_VSX_URL, VSCODE_MARKETPLACE_URL, osesFor, type OsId } from "@/lib/site";
 import { installerPath } from "@/lib/downloads";
@@ -259,9 +260,9 @@ export function Install({ version }: { version: string | null }) {
                 Cursor, Windsurf, Antigravity
               </TrackedLink>
             </div>
-            <a href="/install/vscode" className="mt-3 inline-block text-[13.5px] text-accent-text hover:underline">
+            <Link href="/install/vscode" className="mt-3 inline-block text-[13.5px] text-accent-text hover:underline">
               How the extension works
-            </a>
+            </Link>
           </div>
         </aside>
       </CellGrid>

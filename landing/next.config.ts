@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // PostHog's endpoints end in a slash; without this Next would redirect them and drop the body.
   skipTrailingSlashRedirect: true,
+  // The site has two root layouts (English, and the translated pages), so unmatched URLs need
+  // app/global-not-found.tsx to get the real 404 page rather than Next's bare default.
+  experimental: { globalNotFound: true },
   async rewrites() {
     return [
       // The hosted demo is a static build of the app (apps/web `npm run build:try`) under public/try.

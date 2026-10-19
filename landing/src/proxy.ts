@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { markdownRewriteTarget } from "@/lib/markdown-negotiation";
 import { ANON_COOKIE, VISITOR_OS_HEADER, parseVisitorOs } from "@/lib/os";
 import { SITE_URL } from "@/lib/site";
+import { isLocale } from "@/lib/i18n";
 
 export function proxy(request: NextRequest) {
   const url = request.nextUrl;
@@ -29,7 +30,12 @@ export function proxy(request: NextRequest) {
   // advertised. Agents that honour Link headers can take the Markdown without a second guess.
   // Paths that already are a document (anything with an extension) and the API get nothing.
   const clean = url.pathname.replace(/\/$/, "");
-  const isDocument = /\.[a-z0-9]+$/i.test(clean) || clean.startsWith("/api") || clean.startsWith("/download");
+  const isDocument =
+    /\.[a-z0-9]+$/i.test(clean) ||
+    clean.startsWith("/api") ||
+    clean.startsWith("/download") ||
+    // Translated pages have no Markdown twin to point at.
+    isLocale(clean.split("/")[1] ?? "");
   // append, never set: Next puts its font preloads in this same header on statically generated
   // pages, and replacing it costs several seconds of LCP on a throttled connection.
   if (url.pathname === "/") {

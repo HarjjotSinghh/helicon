@@ -6,7 +6,14 @@ import { createPortal } from "react-dom";
 import { buttonClass } from "./ui";
 import { trackHref } from "@/lib/client-analytics";
 
-export function MobileNav({ links }: { links: { href: string; label: string }[] }) {
+export function MobileNav({
+  links,
+  labels = { open: "Open menu", close: "Close menu", panel: "Page sections" },
+}: {
+  links: { href: string; label: string }[];
+  /** Translated pages pass their own labels. */
+  labels?: { open: string; close: string; panel: string };
+}) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
 
@@ -37,7 +44,7 @@ export function MobileNav({ links }: { links: { href: string; label: string }[] 
         className={buttonClass("ghost", "icon")}
         aria-expanded={open}
         aria-controls={panelId}
-        aria-label={open ? "Close menu" : "Open menu"}
+        aria-label={open ? labels.close : labels.open}
         onClick={() => setOpen((value) => !value)}
       >
         {open ? <X weight="bold" /> : <List weight="bold" />}
@@ -48,7 +55,7 @@ export function MobileNav({ links }: { links: { href: string; label: string }[] 
               id={panelId}
               role="dialog"
               aria-modal="true"
-              aria-label="Page sections"
+              aria-label={labels.panel}
               className="fixed inset-x-0 bottom-0 z-[200] overflow-y-auto bg-bg p-2 lg:hidden"
               style={{ top: "var(--header-offset)" }}
             >

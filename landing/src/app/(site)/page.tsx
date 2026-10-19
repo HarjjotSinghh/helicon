@@ -15,7 +15,12 @@ import { Rule } from "@/components/ui";
 import { StructuredData } from "@/components/structured-data";
 import { getPageCopy } from "@/lib/copy";
 import { HOME_UPDATED, modifiedMeta } from "@/lib/seo/freshness";
-import { SITE_OTHER_META } from "@/lib/site";
+import { SITE_OTHER_META, SITE_URL } from "@/lib/site";
+import { ALTERNATE_TYPES } from "@/components/document-shell";
+import { LanguageHint } from "@/components/language-hint";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { languageAlternates } from "@/lib/i18n";
+import { HOME_HINTS } from "@/lib/i18n-copy";
 import { latestRelease, repoStars } from "@/lib/github-release";
 import { getVisitorOs } from "@/lib/visitor";
 
@@ -64,7 +69,12 @@ const shots: TourShot[] = [
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { other: { ...SITE_OTHER_META, ...modifiedMeta(HOME_UPDATED) } };
+export const metadata: Metadata = {
+  // Metadata merges shallowly, so declaring the translations here means restating the canonical
+  // and the alternate formats the layout already sets.
+  alternates: { canonical: SITE_URL, languages: languageAlternates("/"), types: ALTERNATE_TYPES },
+  other: { ...SITE_OTHER_META, ...modifiedMeta(HOME_UPDATED) },
+};
 
 export default async function Page() {
   const [os, release, stars] = await Promise.all([getVisitorOs(), latestRelease(), repoStars()]);
@@ -79,7 +89,8 @@ export default async function Page() {
         Skip to content
       </a>
       <div className="page-frame relative mx-auto min-h-dvh w-full max-w-[1200px] border-line bg-bg max-[360px]:border-x-0 min-[361px]:w-[calc(100%-1rem)] min-[361px]:border-x sm:w-[calc(100%-3rem)] pb-[env(safe-area-inset-bottom)]">
-        <SiteHeader copy={copy} />
+        <SiteHeader copy={copy} languages={<LanguageSwitcher current="en" path="/" label="Language" />} />
+        <LanguageHint path="/" hints={HOME_HINTS} />
         <main id="main" className="relative z-0">
           <Hero copy={copy} version={version} notesUrl={release?.notesUrl ?? ""} stars={stars} />
           <Rule />

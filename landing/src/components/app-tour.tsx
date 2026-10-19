@@ -16,7 +16,18 @@ export type TourShot = {
 /** How long each screen shows before the tour moves on by itself. */
 const AUTOPLAY_MS = 3000;
 
-export function AppTour({ shots }: { shots: TourShot[] }) {
+export function AppTour({
+  shots,
+  title = "Try the app right here",
+  intro = "This is the real Helicon interface running on sample data in your browser. Pick a screen, then click around: open threads, approve a command, or send a message.",
+  tabsLabel = "App screens",
+}: {
+  shots: TourShot[];
+  /** The translated home pages pass their own heading, intro and tab label. */
+  title?: string;
+  intro?: string;
+  tabsLabel?: string;
+}) {
   const [active, setActive] = useState(0);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const section = useRef<HTMLDivElement>(null);
@@ -55,9 +66,8 @@ export function AppTour({ shots }: { shots: TourShot[] }) {
   return (
     <section id="tour" aria-labelledby="tour-title">
       <div data-reveal="rise" className={`${bandX} pt-14 sm:pt-20`}>
-      <SectionHeading id="tour-title" icon={<MonitorPlay weight="duotone" />} title="Try the app right here">
-        This is the real Helicon interface running on sample data in your browser. Pick a screen, then
-        click around: open threads, approve a command, or send a message.
+      <SectionHeading id="tour-title" icon={<MonitorPlay weight="duotone" />} title={title}>
+        {intro}
       </SectionHeading>
       </div>
 
@@ -73,7 +83,7 @@ export function AppTour({ shots }: { shots: TourShot[] }) {
       >
       <div
         role="tablist"
-        aria-label="App screens"
+        aria-label={tabsLabel}
         data-stagger="40"
         data-base="100"
         onKeyDown={onKey}

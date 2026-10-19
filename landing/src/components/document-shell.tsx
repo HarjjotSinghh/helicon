@@ -1,11 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, Inter, JetBrains_Mono, Manrope, Newsreader } from "next/font/google";
+import type { ReactNode } from "react";
 import { DownloadNextSteps } from "@/components/download-next-steps";
 import { DownloadStarted } from "@/components/download-started";
 import { FontPicker } from "@/components/font-picker";
 import { GoogleAnalytics } from "@/components/analytics-scripts";
-import { AUTHOR, DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_OTHER_META, SITE_URL, TAGLINE, TITLE } from "@/lib/site";
-import "./globals.css";
+import { AUTHOR, SITE_NAME, SITE_OTHER_META, SITE_URL } from "@/lib/site";
+
+/*
+ * The <html> document both root layouts render: the English site in app/(site) and the translated
+ * pages in app/[locale]. They are separate root layouts only so that each can set its own
+ * <html lang>; everything else about the document is shared from here.
+ */
 
 // Landing typefaces: Instrument Sans for headings, Manrope for everything else.
 const instrumentSans = Instrument_Sans({
@@ -38,27 +44,23 @@ const jetbrainsMono = JetBrains_Mono({
   preload: false,
 });
 
-export const metadata: Metadata = {
+/** The machine-readable twins every page advertises. Pages that set `alternates` repeat these, since Next replaces the key. */
+export const ALTERNATE_TYPES = {
+  "text/plain": [{ url: "/llms.txt", title: "llms.txt" }],
+  "text/markdown": [{ url: "/agents.md", title: "AGENTS.md" }],
+  "application/json": [{ url: "/facts.json", title: "Checkable facts about Helicon" }],
+  "application/rss+xml": [{ url: "/rss.xml", title: "Helicon releases (RSS)" }],
+  "application/atom+xml": [{ url: "/atom.xml", title: "Helicon releases (Atom)" }],
+};
+
+/** The parts of the metadata that do not depend on the page's language. */
+export const baseMetadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: TITLE, template: `%s | ${SITE_NAME}` },
-  description: DESCRIPTION,
   applicationName: SITE_NAME,
   authors: [{ name: AUTHOR.name, url: AUTHOR.url }],
   creator: AUTHOR.name,
   publisher: AUTHOR.name,
   category: "Developer tools",
-  keywords: SITE_KEYWORDS,
-  alternates: {
-    // Next normalises this to the bare origin; the sitemap's home entry matches it exactly.
-    canonical: SITE_URL,
-    types: {
-      "text/plain": [{ url: "/llms.txt", title: "llms.txt" }],
-      "text/markdown": [{ url: "/agents.md", title: "AGENTS.md" }],
-      "application/json": [{ url: "/facts.json", title: "Checkable facts about Helicon" }],
-      "application/rss+xml": [{ url: "/rss.xml", title: "Helicon releases (RSS)" }],
-      "application/atom+xml": [{ url: "/atom.xml", title: "Helicon releases (Atom)" }],
-    },
-  },
   // Search Console and Webmaster Tools verification. Set the env vars once per property; an
   // unset var leaves the tag out entirely rather than emitting an empty one.
   verification: {
@@ -70,19 +72,6 @@ export const metadata: Metadata = {
       // SaaSHub ownership check for the Helicon listing. The code is public by design.
       "saashub-verification": "oyn14flr07jw",
     },
-  },
-  openGraph: {
-    type: "website",
-    url: "/",
-    siteName: SITE_NAME,
-    title: TITLE,
-    description: `${TAGLINE} A free, open-source desktop and web app for the muse CLI.`,
-    locale: "en_US",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: TITLE,
-    description: `${TAGLINE} Free and MIT licensed.`,
   },
   robots: {
     index: true,
@@ -104,10 +93,10 @@ export const viewport: Viewport = {
 // Runs before first paint: a saved choice wins, otherwise the system theme.
 const themeScript = `(function(){var d=document.documentElement,t=null;try{t=localStorage.getItem("helicon-theme")}catch(e){}if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}d.setAttribute("data-theme",t)})()`;
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export function DocumentShell({ lang, children }: { lang: string; children: ReactNode }) {
   return (
     <html
-      lang="en"
+      lang={lang}
       data-theme="light"
       suppressHydrationWarning
       className={`${instrumentSans.variable} ${manrope.variable} ${inter.variable} ${newsreader.variable} ${jetbrainsMono.variable}`}

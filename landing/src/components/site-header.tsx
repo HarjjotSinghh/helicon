@@ -41,6 +41,7 @@ export function SiteHeader({
   nav = links,
   homeHref = "#top",
   cta,
+  languages,
 }: {
   copy: PageCopy;
   nav?: { href: string; label: string; icon: typeof MonitorPlay }[];
@@ -51,6 +52,8 @@ export function SiteHeader({
    * has.
    */
   cta?: ReactNode;
+  /** Language switcher, on pages that have translations. */
+  languages?: ReactNode;
 }) {
   return (
     <header className="sticky top-0 z-[210] isolate bg-bg/85 pt-[env(safe-area-inset-top)] backdrop-blur-md backdrop-saturate-150 supports-[not(backdrop-filter:blur(1px))]:bg-bg">
@@ -79,6 +82,7 @@ export function SiteHeader({
 
         <div className="ml-auto flex items-center gap-1.5">
           <SiteSearch />
+          {languages}
           <ThemeToggle className="max-sm:hidden" />
           <TrackedLink
             href={REPO_URL}
