@@ -42,7 +42,7 @@ export function Inline({ text }: { text: string }) {
               href={href}
               target={external ? "_blank" : undefined}
               rel={external ? "noopener noreferrer" : undefined}
-              className="font-medium text-accent-text underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-current"
+              className="font-medium text-accent-text underline decoration-line-strong underline-offset-4 transition-colors [overflow-wrap:anywhere] hover:decoration-current"
             >
               {label}
             </a>
