@@ -745,7 +745,7 @@ const ENTRIES: Entry[] = [
     title: "Helicon vs Aider: GUI over CLI, two ways",
     h1: "Helicon vs Aider",
     description:
-      "Aider is a terminal pair programmer driven by git commits and your own API keys. Helicon is a desktop and web GUI for Meta's Muse Code CLI. Different agents, different workflows.",
+      "Aider is a terminal pair programmer built on git commits and your own API keys. Helicon is a desktop and web GUI for Meta's Muse Code CLI.",
     answer:
       "Aider is a terminal pair programmer that works in tight commit sized loops against your own API keys. Helicon is a graphical client for Meta's Muse Code CLI on your existing subscription, built for supervising longer agent threads across several repositories rather than driving one edit at a time.",
     keywords: [

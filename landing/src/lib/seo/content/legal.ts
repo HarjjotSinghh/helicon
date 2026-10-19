@@ -242,7 +242,7 @@ export const LEGAL_PAGES: SeoPage[] = [
     title: "Terms: MIT licence, no warranty, unofficial",
     h1: "Terms",
     description:
-      "Helicon is MIT licensed and provided without warranty. It is an unofficial community project, not made or endorsed by Meta, and you remain responsible for what the agent does.",
+      "Helicon is MIT licensed and comes without warranty. It is an unofficial project, not made or endorsed by Meta, and you are responsible for what the agent does.",
     answer:
       "Helicon is free software under the MIT licence, provided as is and without warranty of any kind. It is an unofficial community project, not made, sponsored or endorsed by Meta. You remain responsible for what a coding agent does on your machine, which is why approvals are never bypassed.",
     keywords: [

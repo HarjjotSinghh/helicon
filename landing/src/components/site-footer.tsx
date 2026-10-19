@@ -8,6 +8,7 @@ import {
   Question,
 } from "@phosphor-icons/react/ssr";
 import type { ComponentType } from "react";
+import { LOCALE_INFO, localePath, translatedLocales } from "@/lib/i18n";
 import { ALTERNATIVETO_URL, ISSUES_URL, RELEASES_URL, REPO_URL } from "@/lib/site";
 import { closingCta, type PageCopy } from "@/lib/copy";
 import { GitHubLogo } from "./os-logos";
@@ -291,6 +292,23 @@ export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
             </a>{" "}
             and contributors.
           </p>
+          {/* Plain links, so the translated home pages are reachable by crawl and not only by hreflang. */}
+          <nav aria-label="Languages" className="mt-3">
+            <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[14px]">
+              {translatedLocales("/").map((locale) => (
+                <li key={locale}>
+                  <a
+                    href={localePath(locale, "/")}
+                    hrefLang={LOCALE_INFO[locale].hreflang}
+                    lang={LOCALE_INFO[locale].hreflang}
+                    className="text-subtle underline decoration-line-strong underline-offset-4 transition-colors hover:text-fg hover:decoration-current"
+                  >
+                    {LOCALE_INFO[locale].name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
           {/*
             Directory badges, tucked into the brand column so they add no height on wide screens. One
             shared height, each badge at its own aspect ratio, flowing left to right and wrapping

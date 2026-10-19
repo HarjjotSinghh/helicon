@@ -749,7 +749,7 @@ export const GUIDE_PAGES: SeoPage[] = [
     title: "How to review what a Muse Code agent changed",
     h1: "Review what the agent changed",
     description:
-      "Read a finished Muse Code run: inline diffs at the point of the edit, tool calls with their output, the approval record, and the touched files in a viewer beside the thread.",
+      "Read a finished Muse Code run: inline diffs where each edit landed, tool calls with output, the approval record, and touched files beside the thread.",
     answer:
       "Scroll the thread. Each edit is rendered as a diff at the turn that produced it, tool calls show the command and its output, and approvals show what you allowed and when. Click any path the agent mentions and it opens in the file viewer beside the conversation.",
     keywords: [
@@ -1028,7 +1028,7 @@ export const GUIDE_PAGES: SeoPage[] = [
     title: "Fix: macOS blocks Helicon on first launch",
     h1: "Opening Helicon the first time on macOS",
     description:
-      "The macOS builds are not Apple notarized yet, so Gatekeeper blocks the first launch. On macOS 15 or later, click Open Anyway in System Settings > Privacy & Security, and later launches are normal.",
+      "The macOS builds are not notarized yet, so Gatekeeper blocks the first launch. On macOS 15+, click Open Anyway in System Settings > Privacy & Security.",
     answer:
       "The macOS DMG is updater signed but not Apple notarized yet, so Gatekeeper blocks the first launch. On macOS 15 or later, open Helicon once and click Done, then go to System Settings > Privacy & Security, scroll down, click Open Anyway and enter your password. On macOS 14 or earlier, right click the app and choose Open. Or run xattr -dr com.apple.quarantine /Applications/Helicon.app in Terminal. macOS remembers the decision and every later launch is normal. Notarization is a known gap, not a policy.",
     keywords: [

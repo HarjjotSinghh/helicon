@@ -22,7 +22,7 @@ export const LOCALE_INFO: Record<SiteLocale, { hreflang: string; og: string; nam
  * switcher all read this one map, so the hreflang sets they emit always agree.
  */
 const TRANSLATED: Record<string, { locales: readonly Locale[]; updated: string }> = {
-  "/": { locales: LOCALES, updated: "2026-10-19" },
+  "/": { locales: LOCALES, updated: "2026-10-20" },
 };
 
 export function isLocale(value: string): value is Locale {

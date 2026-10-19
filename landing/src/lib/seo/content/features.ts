@@ -148,7 +148,7 @@ const PAGES: SeoPage[] = [
     title: "Muse Code approvals, surfaced and never bypassed",
     h1: "Approvals you can actually see",
     description:
-      "Every approval Muse Code raises appears in Helicon the moment it arrives. onRequest, promptUnmatched and denyUnmatched are mapped one to one, and allow all is an explicit opt in.",
+      "Every approval Muse Code raises shows up in Helicon as it arrives. onRequest, promptUnmatched and denyUnmatched map one to one, and allow all is opt in.",
     answer:
       "Helicon surfaces every approval request Muse Code raises, as it arrives, and never batches or bypasses one. The three protocol modes, onRequest, promptUnmatched and denyUnmatched, are mapped one to one, so the app behaves exactly as the CLI would. Allow all exists but sits behind a deliberate opt in.",
     keywords: [

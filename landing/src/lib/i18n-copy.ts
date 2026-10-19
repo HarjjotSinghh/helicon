@@ -323,9 +323,9 @@ const ja: HomeCopy = {
 
 const ptBr: HomeCopy = {
   meta: {
-    title: "Helicon: app desktop do Muse Code para Windows, macOS e Linux",
+    title: "Helicon: app desktop do Muse Code (Windows, macOS, Linux)",
     description:
-      "App desktop e web, gratuito e de código aberto, para a CLI Muse Code da Meta. Todos os projetos, sessões, diffs, aprovações e custos em uma janela, na assinatura que você já tem.",
+      "App desktop e web, gratuito e de código aberto, para a CLI Muse Code da Meta. Projetos, sessões, diffs, aprovações e custos em uma janela, no seu plano atual.",
     ogDescription: "O mesmo Muse Code, a mesma assinatura, uma interface melhor. App gratuito e de código aberto para a CLI muse.",
   },
   ui: {

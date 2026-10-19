@@ -13,7 +13,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
     title: "Muse Code for Windows developers",
     h1: "Muse Code for Windows developers",
     description:
-      "An installer with auto update (not code-signed yet), native Windows Muse Code with PowerShell, and WSL2 path translation when you need it. The Windows setup tax, paid once by the app instead of by you.",
+      "An auto-updating installer (not code-signed yet), native Windows Muse Code with PowerShell, and WSL2 path translation for when you need it.",
     answer:
       "Windows has historically been the worst platform for terminal coding agents: WSL2 plumbing, mixed path formats and binaries you build yourself. Helicon ships a Windows installer with auto update, runs Muse Code natively with PowerShell for shell commands, and falls back to Muse Code inside WSL2 with two way path translation.",
     keywords: [

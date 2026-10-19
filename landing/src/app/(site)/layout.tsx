@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ALTERNATE_TYPES, DocumentShell, baseMetadata } from "@/components/document-shell";
+import { ogAlt, ogSize } from "@/lib/og-image";
 import { DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_URL, TAGLINE, TITLE } from "@/lib/site";
 import "../globals.css";
 
@@ -22,11 +23,15 @@ export const metadata: Metadata = {
     title: TITLE,
     description: `${TAGLINE} A free, open-source desktop and web app for the muse CLI.`,
     locale: "en_US",
+    // app/opengraph-image.tsx renders this card, but with two root layouts Next does not attach it
+    // to the home page on its own, so it is named here. Pages with their own card override it.
+    images: [{ url: "/opengraph-image", ...ogSize, alt: ogAlt }],
   },
   twitter: {
     card: "summary_large_image",
     title: TITLE,
     description: `${TAGLINE} Free and MIT licensed.`,
+    images: [{ url: "/opengraph-image", alt: ogAlt }],
   },
 };
 
