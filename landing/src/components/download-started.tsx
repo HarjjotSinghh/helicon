@@ -52,7 +52,8 @@ export function DownloadStarted({ steps }: { steps: Record<InstallerOs, ReactNod
       if (name !== "download_click") return;
       const target = properties.target_os;
       if (target !== "windows" && target !== "macos") return;
-      opener.current = link as HTMLElement;
+      // Links inside the dialog (wrong-OS installer, "download anyway") are gone once it updates.
+      if (!link.closest('[role="dialog"]')) opener.current = link as HTMLElement;
       if (!link.hasAttribute("data-download-anyway") && isHandheldBrowser()) {
         event.preventDefault();
         setShown({ mode: "send", os: target, href });

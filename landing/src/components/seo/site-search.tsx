@@ -72,8 +72,11 @@ export function SiteSearch({ className }: { className?: string }) {
       // Search is open but still loading: every key belongs to it. Shortcuts with a modifier pass
       // through (paste arrives as a paste event, below), except the ⌘K toggle handled after this.
       if (openRef.current && !paletteLoaded && !mod && !event.altKey) {
-        if (event.key === "Escape") show(false);
-        else if (event.key === "Backspace") setEarly((text) => text.slice(0, -1));
+        if (event.key === "Escape") {
+          show(false);
+          // The palette never mounted, so Radix cannot hand focus back; do it here.
+          button.current?.focus();
+        } else if (event.key === "Backspace") setEarly((text) => text.slice(0, -1));
         else if (event.key.length === 1) setEarly((text) => text + event.key);
         event.preventDefault();
         return;
