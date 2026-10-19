@@ -2,7 +2,7 @@
 
 import { ArrowCounterClockwise, ArrowRight, DownloadSimple, FilmReel, Pause, Play } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { DemoApp } from "@/demo/demo-app";
+import { DemoApp } from "@/demo/lazy-demo-app";
 import { ReplayClient, runDuration, type Recording, type ReplayState } from "@/demo/replay";
 import { trackEvent } from "@/lib/client-analytics";
 import { installerPath } from "@/lib/downloads";

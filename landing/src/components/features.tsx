@@ -20,7 +20,7 @@ import {
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 import { highlight } from "sugar-high";
-import { DemoApp } from "@/demo/demo-app";
+import { DemoApp } from "@/demo/lazy-demo-app";
 import { ApprovalDemo } from "./approval-demo";
 import { CellGrid, Rule, SectionHeading, bandX, cn } from "./ui";
 

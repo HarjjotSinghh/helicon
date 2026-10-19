@@ -9,7 +9,7 @@ import { Install } from "@/components/install";
 import { ReplayDemo } from "@/components/replay-demo";
 import { SiteHeader } from "@/components/site-header";
 import { ClosingCta, SiteFooter } from "@/components/site-footer";
-import { DemoApp } from "@/demo/demo-app";
+import { DemoApp } from "@/demo/lazy-demo-app";
 import type { Metadata } from "next";
 import { Rule } from "@/components/ui";
 import { StructuredData } from "@/components/structured-data";

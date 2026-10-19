@@ -24,7 +24,7 @@ import {
   TerminalWindow,
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
-import { DemoApp } from "@/demo/demo-app";
+import { DemoApp } from "@/demo/lazy-demo-app";
 import { installerPath } from "@/lib/downloads";
 import { localePath, type Locale } from "@/lib/i18n";
 import type { HomeCopy } from "@/lib/i18n-copy";
