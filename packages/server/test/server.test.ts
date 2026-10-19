@@ -506,7 +506,9 @@ describe("HeliconServer", () => {
   it("tells whether native Windows Muse is signed in from the same auth.json", async () => {
     const home = await mkdtemp(join(tmpdir(), "helicon-winhome-"));
     const xdg = process.env["XDG_CONFIG_HOME"];
+    const key = process.env["META_API_KEY"];
     delete process.env["XDG_CONFIG_HOME"];
+    delete process.env["META_API_KEY"];
     try {
       const binary = "C:\\Users\\ada\\AppData\\Local\\Programs\\muse\\muse-bin-1.4.10-R1.exe";
       const { base } = await start(new FakeConnection(), {
@@ -522,6 +524,7 @@ describe("HeliconServer", () => {
     } finally {
       if (xdg === undefined) delete process.env["XDG_CONFIG_HOME"];
       else process.env["XDG_CONFIG_HOME"] = xdg;
+      if (key !== undefined) process.env["META_API_KEY"] = key;
     }
   });
 

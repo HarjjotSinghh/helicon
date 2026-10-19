@@ -199,6 +199,11 @@ describe("museSignedIn", () => {
     assert.equal(museSignedIn("/Users/me", { XDG_CONFIG_HOME: "/xdg" }, read), true);
   });
 
+  it("is true with a META_API_KEY in the environment and no auth.json", () => {
+    assert.equal(museSignedIn("/Users/new", { META_API_KEY: "k" }, missing), true);
+    assert.equal(museSignedIn("/Users/new", { META_API_KEY: "  " }, missing), false, "a blank key does not count");
+  });
+
   it("is false after logout leaves no providers", () => {
     assert.equal(museSignedIn("/Users/me", {}, () => JSON.stringify({ schema_version: 1, providers: {} })), false);
   });

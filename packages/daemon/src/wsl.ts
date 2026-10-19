@@ -233,14 +233,18 @@ export function findPosixMuse(home: string, exists: (path: string) => boolean = 
  * `muse login` and `muse auth set` record each provider in `$XDG_CONFIG_HOME/muse/auth.json` (the
  * secret itself may sit in the keychain). Windows Muse uses the same file under the user profile,
  * `%USERPROFILE%\.config\muse\auth.json`, and honours XDG_CONFIG_HOME too (checked with Muse
- * 1.4.10). No file or no providers means a first prompt would fail. Null when the file is there but
- * unreadable, since then Helicon cannot tell.
+ * 1.4.10). A META_API_KEY in Helicon's environment also counts, since Muse inherits it and needs no
+ * file then. Otherwise no file or no providers means a first prompt would fail. Null when the file
+ * is there but unreadable, since then Helicon cannot tell.
  */
 export function museSignedIn(
   home: string,
   env: Record<string, string | undefined> = process.env,
   read: (path: string) => string = (path) => readFileSync(path, "utf8"),
 ): boolean | null {
+  if (env["META_API_KEY"]?.trim()) {
+    return true;
+  }
   const config = env["XDG_CONFIG_HOME"] || `${home}/.config`;
   let text: string;
   try {
