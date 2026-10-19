@@ -5,7 +5,7 @@ import type { SeoPage } from "./types";
  * components or lib/copy.ts. Bump it with any edit to that copy. test/freshness.test.ts fails if
  * git history shows a newer content change than this date.
  */
-export const HOME_UPDATED = "2026-10-18";
+export const HOME_UPDATED = "2026-10-19";
 
 /** Newest of a set of ISO dates. Dates compare correctly as strings in YYYY-MM-DD form. */
 export function newestDate(dates: string[]): string | undefined {

@@ -238,6 +238,14 @@
 .rule::after {
   right: -4px;
 }
+/* Below 361px the page frame drops its side borders, so there is no edge for the ticks to mark
+ * and they would stick out past the viewport. */
+@media (max-width: 360px) {
+  .rule::before,
+  .rule::after {
+    display: none;
+  }
+}
 /*
  * Footer wordmark: the box starts at the top of the tallest letters and ends where the footer cuts
  * them, and the fade spans that whole height, from invisible at the top to full strength at the cut; the letters themselves carry the final opacity. The
