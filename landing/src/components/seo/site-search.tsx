@@ -2,6 +2,7 @@
 
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { buttonClass, cn } from "../ui";
 import { trackEvent } from "@/lib/client-analytics";
@@ -22,6 +23,10 @@ const loadPalette = () =>
   });
 const SearchPalette = dynamic(loadPalette, { ssr: false });
 
+function preload() {
+  loadPalette().catch(() => {});
+}
+
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
   if (!el) return false;
@@ -37,13 +42,17 @@ export function SiteSearch({ className }: { className?: string }) {
   // What was typed after opening but before the palette loaded, handed to it as its first query.
   const [early, setEarly] = useState("");
   const openRef = useRef(false);
+  const router = useRouter();
 
   const show = useCallback((next: boolean) => {
-    if (next) setWanted(true);
-    else setEarly("");
+    if (next) {
+      setWanted(true);
+      // If the palette's code will not load, the full search page still works.
+      loadPalette().catch(() => router.push("/search"));
+    } else setEarly("");
     openRef.current = next;
     setOpen(next);
-  }, []);
+  }, [router]);
 
   const openPalette = useCallback(
     (source: string) => {
@@ -84,8 +93,8 @@ export function SiteSearch({ className }: { className?: string }) {
         ref={button}
         type="button"
         onClick={() => openPalette("button")}
-        onPointerEnter={() => void loadPalette()}
-        onFocus={() => void loadPalette()}
+        onPointerEnter={preload}
+        onFocus={preload}
         aria-label="Search the site"
         aria-haspopup="dialog"
         aria-expanded={open}

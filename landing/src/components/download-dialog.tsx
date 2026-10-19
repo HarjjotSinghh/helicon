@@ -2,7 +2,7 @@
 
 import { CheckCircle, DeviceMobile, X } from "@phosphor-icons/react";
 import { Dialog } from "radix-ui";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { installerPath } from "@/lib/downloads";
 import type { InstallerOs } from "./download-next-steps";
 import { SendToDesktop } from "./send-to-desktop";
@@ -20,11 +20,14 @@ export default function DownloadDialog({
   visitorOs,
   steps,
   onClose,
+  opener,
 }: {
   shown: Shown | null;
   visitorOs: InstallerOs | null;
   steps: Record<InstallerOs, ReactNode>;
   onClose: () => void;
+  /** The installer link that was clicked; focus returns to it on close. */
+  opener: RefObject<HTMLElement | null>;
 }) {
   const os = shown?.os ?? null;
   const send = shown?.mode === "send";
@@ -34,7 +37,13 @@ export default function DownloadDialog({
     <Dialog.Root open={shown !== null} onOpenChange={(open) => (open ? null : onClose())}>
       <Dialog.Portal>
         <Dialog.Overlay className="overlay-fade fixed inset-0 z-[300] bg-[oklch(0.1_0.01_255/0.45)]" />
-        <Dialog.Content className="modal-pop fixed top-1/2 left-1/2 z-[310] max-h-[calc(100dvh-32px)] w-[min(560px,calc(100%-16px))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-raised p-5 text-fg shadow-pop outline-none sm:p-7">
+        <Dialog.Content
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            if (opener.current?.isConnected) opener.current.focus();
+          }}
+          className="modal-pop fixed top-1/2 left-1/2 z-[310] max-h-[calc(100dvh-32px)] w-[min(560px,calc(100%-16px))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-raised p-5 text-fg shadow-pop outline-none sm:p-7"
+        >
           <div className="flex items-start gap-3">
             <span
               aria-hidden="true"

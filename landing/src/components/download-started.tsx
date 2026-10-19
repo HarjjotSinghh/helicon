@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { trackEvent } from "@/lib/client-analytics";
 import { classifyCta } from "@/lib/cta-events";
 import { isHandheldBrowser } from "@/lib/device";
@@ -10,7 +10,8 @@ import type { InstallerOs } from "./download-next-steps";
 import type { Shown } from "./download-dialog";
 
 // The dialog (and the Radix code under it) loads on the first installer click, not with the page.
-const DownloadDialog = dynamic(() => import("./download-dialog"), { ssr: false });
+const loadDialog = () => import("./download-dialog");
+const DownloadDialog = dynamic(loadDialog, { ssr: false });
 
 /** The computer the visitor is on, when it is one that has an installer. */
 function visitorInstallerOs(): InstallerOs | null {
@@ -38,6 +39,8 @@ export function DownloadStarted({ steps }: { steps: Record<InstallerOs, ReactNod
   const [everShown, setEverShown] = useState(false);
   if (shown && !everShown) setEverShown(true);
   const [visitorOs, setVisitorOs] = useState<InstallerOs | null>(null);
+  // The link that opened the dialog. There is no Dialog.Trigger, so focus goes back here by hand.
+  const opener = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     function onClick(event: MouseEvent) {
@@ -49,9 +52,15 @@ export function DownloadStarted({ steps }: { steps: Record<InstallerOs, ReactNod
       if (name !== "download_click") return;
       const target = properties.target_os;
       if (target !== "windows" && target !== "macos") return;
+      opener.current = link as HTMLElement;
       if (!link.hasAttribute("data-download-anyway") && isHandheldBrowser()) {
         event.preventDefault();
         setShown({ mode: "send", os: target, href });
+        // The click was cancelled for the dialog; if its code will not load, follow the link after all.
+        loadDialog().catch(() => {
+          setShown(null);
+          window.location.assign(href);
+        });
         trackEvent("send_to_desktop_shown", {
           target_os: target,
           placement: link.getAttribute("data-ph-placement") ?? null,
@@ -66,6 +75,6 @@ export function DownloadStarted({ steps }: { steps: Record<InstallerOs, ReactNod
   }, []);
 
   return shown || everShown ? (
-    <DownloadDialog shown={shown} visitorOs={visitorOs} steps={steps} onClose={() => setShown(null)} />
+    <DownloadDialog shown={shown} visitorOs={visitorOs} steps={steps} onClose={() => setShown(null)} opener={opener} />
   ) : null;
 }

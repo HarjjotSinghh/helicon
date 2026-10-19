@@ -30,7 +30,7 @@ let indexPromise: Promise<SearchDoc[]> | null = null;
 function loadIndex() {
   // One fetch per page load, shared by every open of the palette.
   indexPromise ??= fetch("/search-index.json")
-    .then((r) => (r.ok ? r.json() : []))
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`search index ${r.status}`))))
     .catch(() => {
       indexPromise = null;
       return [];
