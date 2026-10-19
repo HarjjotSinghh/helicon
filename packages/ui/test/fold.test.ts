@@ -308,6 +308,16 @@ describe("thread fold against a real muse transcript", () => {
     assert.deepEqual(fold.echoes.map((e) => e.localId), ["q1"]);
   });
 
+  it("marks a turn retracted only when Muse accepted the retract (Muse 1.4.10)", () => {
+    let fold = applyEvent(emptyFold(), { method: "turn/started", params: { turnId: "t7" } });
+    fold = applyEvent(fold, { method: "turn/retracted", params: { turnId: "t7", commandId: "c7", outcome: "declined" } });
+    assert.equal(fold.turns["t7"]?.retracted, undefined, "a declined retract leaves the turn running");
+    fold = applyEvent(fold, { method: "turn/retracted", params: { turnId: "t7", commandId: "c7" } });
+    assert.equal(fold.turns["t7"]?.retracted, true, "no outcome reads as accepted");
+    fold = applyEvent(fold, { method: "turn/retracted", params: { turnId: "t8", commandId: "c8", outcome: "accepted" } });
+    assert.equal(fold.turns["t8"]?.retracted, true);
+  });
+
   it("builds a fold from a resume load with the server's pending set", () => {
     const requested = liveEvents.findIndex((e) => e.method === "userInput/requested");
     const pendingInput = liveEvents[requested]?.params;

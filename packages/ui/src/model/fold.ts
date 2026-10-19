@@ -499,7 +499,9 @@ function applyOne(draft: Draft, event: ViewEvent): void {
     }
     case "turn/retracted": {
       const turnId = str(params["turnId"]);
-      if (turnId) {
+      // Muse 1.4.10 also reports a retract it declined; the prompt stood, so the turn is unchanged.
+      // An absent or unknown outcome means accepted, as older hosts only sent accepted retracts.
+      if (turnId && params["outcome"] !== "declined") {
         d.turns[turnId] = { ...d.turns[turnId], turnId, retracted: true };
       }
       break;
