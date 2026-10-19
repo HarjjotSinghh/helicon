@@ -155,7 +155,7 @@ function numberOr(value: unknown): number | undefined {
 }
 
 /** The stage index of an approval's current requirement (`currentRequirementId.sourceIndex`), if it has one. */
-function requirementIndex(request: unknown): number | undefined {
+export function requirementIndex(request: unknown): number | undefined {
   const requirement = (request as { currentRequirementId?: unknown } | undefined)?.currentRequirementId;
   return typeof requirement === "object" && requirement !== null ? numberOr((requirement as { sourceIndex?: unknown }).sourceIndex) : undefined;
 }
@@ -552,7 +552,10 @@ function applyOne(draft: Draft, event: ViewEvent): void {
       if (id) {
         reopenForLaterStage(d.resolved, id, params);
       }
-      if (id && !d.resolved[id]) {
+      const pending = id ? requirementIndex(d.approvals[id]) : undefined;
+      const incoming = requirementIndex(params);
+      const stale = pending !== undefined && incoming !== undefined && incoming < pending;
+      if (id && !d.resolved[id] && !stale) {
         delete d.reviewing[id];
         d.approvals[id] = { ...d.approvals[id], ...(params as unknown as ApprovalRequest) };
       }
@@ -561,7 +564,7 @@ function applyOne(draft: Draft, event: ViewEvent): void {
     case "approval/resolved": {
       const id = str(params["approvalId"]);
       if (id) {
-        const stage = requirementIndex(params) ?? requirementIndex(d.approvals[id]);
+        const stage = requirementIndex(params) ?? requirementIndex(d.approvals[id]) ?? d.resolved[id]?.stage;
         delete d.approvals[id];
         delete d.reviewing[id];
         d.resolved[id] = {

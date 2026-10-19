@@ -40,6 +40,7 @@ import {
   emptyFold,
   foldFromLoad,
   removeEcho,
+  requirementIndex,
   updateEcho,
   type EchoAttachment,
   type LocalEcho,
@@ -1525,7 +1526,9 @@ export class HeliconController {
     this.patchFold(request.sessionId, (f) => {
       const approvals = { ...f.approvals };
       delete approvals[request.approvalId];
-      return { ...f, approvals, resolved: { ...f.resolved, [request.approvalId]: { decision, resolvedBy: by } } };
+      const stage = requirementIndex(request);
+      const resolved = { decision, resolvedBy: by, ...(stage !== undefined ? { stage } : {}) };
+      return { ...f, approvals, resolved: { ...f.resolved, [request.approvalId]: resolved } };
     });
     try {
       await this.client.decideApproval({

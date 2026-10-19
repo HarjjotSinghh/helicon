@@ -1207,6 +1207,25 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("records which stage of a piped command it answered", async () => {
+    const client = new FakeClient();
+    const request = {
+      approvalId: "ap2",
+      sessionId: "s1",
+      currentRequirementId: { approvalId: "ap2", sourceIndex: 1 },
+      subject: { kind: "command", command: "cat a | rm b" },
+      availableChoices: [{ choiceId: "once", label: "Allow once", decision: "approved", scope: "once" }],
+    };
+    client.transcript = async () => load({ pending: { approvals: [request], userInputs: [] } });
+    const { controller, stop } = await started(client);
+    controller.setThreadBypass("s1", true);
+    await settle();
+    assert.deepEqual(client.decided, [{ approvalId: "ap2", choiceId: "once" }]);
+    // A later stage of the same command can still ask; a redelivered stage 1 stays answered.
+    assert.equal(controller.store.get().threads["s1"]!.fold.resolved["ap2"]?.stage, 1);
+    stop();
+  });
+
   it("leaves an approval alone when the only way to allow it writes a rule", async () => {
     const client = new FakeClient();
     const request = {

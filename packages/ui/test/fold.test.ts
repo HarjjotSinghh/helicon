@@ -10,6 +10,7 @@ import {
   emptyFold,
   foldFromLoad,
   gateFor,
+  requirementIndex,
   updateEcho,
 } from "../src/model/fold.js";
 import type { ViewEvent } from "../src/types.js";
@@ -180,8 +181,12 @@ describe("thread fold against a real muse transcript", () => {
     fold = applyEvent(fold, { method: "approval/requested", params: stage(1) });
     assert.equal(gateFor(fold, "pipe1")?.kind, "approval", "stage 1 asks");
     assert.equal(fold.resolved["p1"], undefined);
+    fold = applyEvent(fold, { method: "approval/requested", params: stage(0) });
+    assert.equal(requirementIndex(fold.approvals["p1"]), 1, "a late stage 0 redelivery keeps stage 1 pending");
     fold = applyEvent(fold, resolve);
     assert.equal(fold.resolved["p1"]?.stage, 1);
+    fold = applyEvent(fold, resolve);
+    assert.equal(fold.resolved["p1"]?.stage, 1, "a duplicate resolve keeps the recorded stage");
     fold = applyEvent(fold, { method: "approval/reviewing", params: stage(1) });
     assert.deepEqual(fold.reviewing, {}, "a late hold for a decided stage is ignored");
   });
