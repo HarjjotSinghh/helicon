@@ -118,7 +118,7 @@ export function LocaleHome({
             </nav>
             <div className="ml-auto flex items-center gap-1.5">
               <LanguageSwitcher current={locale} path="/" label={copy.ui.language} />
-              <ThemeToggle className="max-sm:hidden" />
+              <ThemeToggle className="max-sm:hidden" labels={copy.ui.theme} />
               <TrackedLink
                 href={REPO_URL}
                 placement="header"
@@ -195,6 +195,7 @@ export function LocaleHome({
                 src="/demo/launch.mp4"
                 poster={{ light: "/demo/launch-poster-light.jpg", dark: "/demo/launch-poster-dark.jpg" }}
                 label={copy.videoLabel}
+                labels={copy.ui.player}
               />
             </div>
 
@@ -387,7 +388,7 @@ export function LocaleHome({
             <p className="mt-4 max-w-[44ch] text-[14px] leading-relaxed text-subtle">{copy.footer.trademark}</p>
             <p className="mt-3 max-w-[44ch] text-[14px] leading-relaxed text-subtle">{copy.footer.englishNote}</p>
             <div className="mt-6 flex items-center gap-3 sm:hidden">
-              <ThemeToggle />
+              <ThemeToggle labels={copy.ui.theme} />
             </div>
           </div>
           <div className="flex flex-col items-start gap-1">

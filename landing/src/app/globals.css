@@ -96,6 +96,12 @@
     text-wrap: pretty;
   }
 
+  /* Korean puts spaces between words, so break lines there instead of between syllables. */
+  :lang(ko) {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
   ::selection {
     background: color-mix(in oklab, var(--accent) 28%, transparent);
   }

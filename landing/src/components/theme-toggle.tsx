@@ -5,14 +5,18 @@ import { useRef, useSyncExternalStore, type KeyboardEvent } from "react";
 import { readThemePref, setThemePref, subscribeThemePref, type ThemePref } from "@/lib/theme";
 import { cn } from "./ui";
 
-const OPTIONS: { value: ThemePref; label: string; icon: Icon }[] = [
-  { value: "system", label: "System theme", icon: Desktop },
-  { value: "light", label: "Light theme", icon: Sun },
-  { value: "dark", label: "Dark theme", icon: Moon },
+const OPTIONS: { value: ThemePref; icon: Icon }[] = [
+  { value: "system", icon: Desktop },
+  { value: "light", icon: Sun },
+  { value: "dark", icon: Moon },
 ];
 
+export type ThemeLabels = { group: string } & Record<ThemePref, string>;
+
+const ENGLISH: ThemeLabels = { group: "Color theme", system: "System theme", light: "Light theme", dark: "Dark theme" };
+
 /** System, light or dark. The choice is saved; system is the default. */
-export function ThemeToggle({ className }: { className?: string } = {}) {
+export function ThemeToggle({ className, labels = ENGLISH }: { className?: string; labels?: ThemeLabels } = {}) {
   // The server cannot know the saved choice, so it renders "system" and the client corrects it.
   const pref = useSyncExternalStore(subscribeThemePref, readThemePref, () => "system" as ThemePref);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
@@ -29,15 +33,16 @@ export function ThemeToggle({ className }: { className?: string } = {}) {
   return (
     <div
       role="radiogroup"
-      aria-label="Color theme"
+      aria-label={labels.group}
       onKeyDown={onKey}
       className={cn(
         "flex items-center gap-0.5 rounded-[10px] bg-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--border)]",
         className,
       )}
     >
-      {OPTIONS.map(({ value, label, icon: Glyph }, i) => {
+      {OPTIONS.map(({ value, icon: Glyph }, i) => {
         const checked = pref === value;
+        const label = labels[value];
         return (
           <button
             key={value}

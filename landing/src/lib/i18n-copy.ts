@@ -15,6 +15,18 @@ export type HomeCopy = {
     closeMenu: string;
     sections: string;
     language: string;
+    theme: { group: string; system: string; light: string; dark: string };
+    player: {
+      region: string;
+      start: string;
+      play: string;
+      pause: string;
+      mute: string;
+      unmute: string;
+      enterFullscreen: string;
+      exitFullscreen: string;
+      seek: string;
+    };
   };
   nav: { tour: string; features: string; how: string; install: string; faq: string };
   hero: {
@@ -60,6 +72,18 @@ const ko: HomeCopy = {
     closeMenu: "메뉴 닫기",
     sections: "페이지 섹션",
     language: "언어",
+    theme: { group: "색상 테마", system: "시스템 테마", light: "라이트 테마", dark: "다크 테마" },
+    player: {
+      region: "동영상 플레이어. 스페이스 키로 재생하거나 일시정지합니다",
+      start: "소개 영상 재생",
+      play: "재생",
+      pause: "일시정지",
+      mute: "음소거",
+      unmute: "음소거 해제",
+      enterFullscreen: "전체 화면",
+      exitFullscreen: "전체 화면 종료",
+      seek: "재생 위치",
+    },
   },
   nav: { tour: "데모", features: "기능", how: "동작 방식", install: "설치", faq: "FAQ" },
   hero: {
@@ -180,6 +204,18 @@ const ja: HomeCopy = {
     closeMenu: "メニューを閉じる",
     sections: "ページのセクション",
     language: "言語",
+    theme: { group: "カラーテーマ", system: "システムのテーマ", light: "ライトテーマ", dark: "ダークテーマ" },
+    player: {
+      region: "動画プレーヤー。スペースキーで再生と一時停止を切り替えます",
+      start: "紹介動画を再生",
+      play: "再生",
+      pause: "一時停止",
+      mute: "ミュート",
+      unmute: "ミュート解除",
+      enterFullscreen: "全画面表示",
+      exitFullscreen: "全画面表示を終了",
+      seek: "再生位置",
+    },
   },
   nav: { tour: "デモ", features: "機能", how: "仕組み", install: "インストール", faq: "FAQ" },
   hero: {
@@ -300,6 +336,18 @@ const ptBr: HomeCopy = {
     closeMenu: "Fechar menu",
     sections: "Seções da página",
     language: "Idioma",
+    theme: { group: "Tema de cores", system: "Tema do sistema", light: "Tema claro", dark: "Tema escuro" },
+    player: {
+      region: "Player de vídeo. Aperte Espaço para reproduzir ou pausar",
+      start: "Assistir ao vídeo",
+      play: "Reproduzir",
+      pause: "Pausar",
+      mute: "Silenciar",
+      unmute: "Ativar som",
+      enterFullscreen: "Tela cheia",
+      exitFullscreen: "Sair da tela cheia",
+      seek: "Posição do vídeo",
+    },
   },
   nav: { tour: "Demo", features: "Recursos", how: "Como funciona", install: "Instalar", faq: "Perguntas" },
   hero: {

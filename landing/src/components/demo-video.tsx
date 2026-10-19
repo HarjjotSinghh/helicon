@@ -38,15 +38,42 @@ function canAutoplayWithoutJank() {
   );
 }
 
+export type PlayerLabels = {
+  region: string;
+  start: string;
+  play: string;
+  pause: string;
+  mute: string;
+  unmute: string;
+  enterFullscreen: string;
+  exitFullscreen: string;
+  seek: string;
+};
+
+const ENGLISH: PlayerLabels = {
+  region: "Video player. Press Space to play or pause",
+  start: "Play walkthrough",
+  play: "Play",
+  pause: "Pause",
+  mute: "Mute",
+  unmute: "Unmute",
+  enterFullscreen: "Enter fullscreen",
+  exitFullscreen: "Exit fullscreen",
+  seek: "Seek",
+};
+
 export function DemoVideo({
   src,
   poster,
   label,
+  labels = ENGLISH,
 }: {
   src: string;
   /** One frame per site theme; the video element takes a single poster, so these are drawn over it until playback starts. */
   poster: { light: string; dark: string };
   label: string;
+  /** Control names, in the page's language. */
+  labels?: PlayerLabels;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -209,7 +236,7 @@ export function DemoVideo({
       className="demo-player group/player relative bg-black text-white outline-none"
       tabIndex={0}
       role="region"
-      aria-label="Video player. Press Space to play or pause"
+      aria-label={labels.region}
       onKeyDown={onKeyDown}
       onPointerMove={() => showControls()}
       onPointerLeave={() => {
@@ -271,7 +298,7 @@ export function DemoVideo({
           type="button"
           onClick={togglePlay}
           className="absolute top-1/2 left-1/2 inline-flex size-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-btn text-btn-fg shadow-[0_8px_32px_rgb(10_60_130/0.45)] transition-transform duration-150 ease-out hover:bg-btn-hover active:scale-[0.96] sm:size-[4.5rem]"
-          aria-label="Play walkthrough"
+          aria-label={labels.start}
         >
           <PlayGlyph className="size-7 sm:size-8" />
         </button>
@@ -283,7 +310,7 @@ export function DemoVideo({
         }`}
       >
         <label className="block">
-          <span className="sr-only">Seek</span>
+          <span className="sr-only">{labels.seek}</span>
           <input
             type="range"
             className="demo-seek"
@@ -299,7 +326,7 @@ export function DemoVideo({
           />
         </label>
         <div className="mt-2 flex items-center gap-1 sm:gap-1.5">
-          <button type="button" className="demo-ctrl" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
+          <button type="button" className="demo-ctrl" onClick={togglePlay} aria-label={playing ? labels.pause : labels.play}>
             {playing ? <Pause weight="fill" /> : <PlayGlyph />}
           </button>
           <p className="min-w-[5.75rem] px-1.5 text-[12.5px] font-medium tabular-nums text-white/80">
@@ -307,14 +334,14 @@ export function DemoVideo({
             <span className="text-white/45"> / {formatTime(duration)}</span>
           </p>
           <span className="flex-1" />
-          <button type="button" className="demo-ctrl" onClick={toggleMute} aria-label={muted ? "Unmute" : "Mute"}>
+          <button type="button" className="demo-ctrl" onClick={toggleMute} aria-label={muted ? labels.unmute : labels.mute}>
             {muted ? <SpeakerSlash weight="fill" /> : <SpeakerHigh weight="fill" />}
           </button>
           <button
             type="button"
             className="demo-ctrl"
             onClick={() => void toggleFullscreen()}
-            aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            aria-label={fullscreen ? labels.exitFullscreen : labels.enterFullscreen}
           >
             {fullscreen ? <CornersIn weight="bold" /> : <CornersOut weight="bold" />}
           </button>
