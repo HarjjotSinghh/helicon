@@ -47,6 +47,8 @@ export function SiteSearch({ className }: { className?: string }) {
   const show = useCallback((next: boolean) => {
     if (next) {
       setWanted(true);
+      // Until the palette's input exists, keys must not reach whatever had focus (Enter, paste).
+      if (!paletteLoaded) (document.activeElement as HTMLElement | null)?.blur?.();
       // If the palette's code will not load, the full search page still works.
       loadPalette().catch(() => router.push("/search"));
     } else setEarly("");
@@ -67,11 +69,12 @@ export function SiteSearch({ className }: { className?: string }) {
       // The live product demos on the home page are their own little app; leave their keys alone.
       if ((event.target as HTMLElement | null)?.closest?.(".helicon-app")) return;
       const mod = event.metaKey || event.ctrlKey;
+      // Search is open but still loading: every key belongs to it. Shortcuts with a modifier pass
+      // through (paste arrives as a paste event, below), except the ⌘K toggle handled after this.
       if (openRef.current && !paletteLoaded && !mod && !event.altKey) {
         if (event.key === "Escape") show(false);
         else if (event.key === "Backspace") setEarly((text) => text.slice(0, -1));
         else if (event.key.length === 1) setEarly((text) => text + event.key);
-        else return;
         event.preventDefault();
         return;
       }
@@ -83,8 +86,18 @@ export function SiteSearch({ className }: { className?: string }) {
         openPalette("slash");
       }
     };
+    const onPaste = (event: ClipboardEvent) => {
+      if (!openRef.current || paletteLoaded) return;
+      event.preventDefault();
+      const text = event.clipboardData?.getData("text").replace(/\s+/g, " ") ?? "";
+      setEarly((typed) => typed + text);
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("paste", onPaste);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("paste", onPaste);
+    };
   }, [openPalette, show]);
 
   return (
