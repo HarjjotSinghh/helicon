@@ -97,7 +97,8 @@ export interface ThreadFold {
   /** Pending approvals and questions for this thread, keyed by id. */
   approvals: Record<string, ApprovalRequest>;
   userInputs: Record<string, UserInputRequest>;
-  resolved: Record<string, { decision: string; resolvedBy: string }>;
+  /** `stage` is the requirement index that was decided, so a later stage of a piped command can still ask. */
+  resolved: Record<string, { decision: string; resolvedBy: string; stage?: number }>;
   /** Approvals the auto-reviewer holds (`approval/reviewing`): nothing to decide until it releases or settles them. */
   reviewing: Record<string, true>;
   settled: Record<string, { outcome: string; answers: UserInputAnswer[] }>;
@@ -151,6 +152,24 @@ function str(value: unknown): string | null {
 
 function numberOr(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/** The stage index of an approval's current requirement (`currentRequirementId.sourceIndex`), if it has one. */
+function requirementIndex(request: unknown): number | undefined {
+  const requirement = (request as { currentRequirementId?: unknown } | undefined)?.currentRequirementId;
+  return typeof requirement === "object" && requirement !== null ? numberOr((requirement as { sourceIndex?: unknown }).sourceIndex) : undefined;
+}
+
+/**
+ * A piped command asks once per stage under one approval id. Deciding stage 0 marks the id resolved, so a request
+ * for a later stage clears that mark. A redelivered request for the stage already decided stays resolved.
+ */
+function reopenForLaterStage(resolved: ThreadFold["resolved"], id: string, request: unknown): void {
+  const decided = resolved[id]?.stage;
+  const stage = requirementIndex(request);
+  if (decided !== undefined && stage !== undefined && stage > decided) {
+    delete resolved[id];
+  }
 }
 
 /** A goal block from `session/goalChanged`, or null when it is not one. Odd field types fall back to safe values. */
@@ -519,6 +538,9 @@ function applyOne(draft: Draft, event: ViewEvent): void {
     }
     case "approval/reviewing": {
       const id = str(params["approvalId"]);
+      if (id) {
+        reopenForLaterStage(d.resolved, id, params);
+      }
       if (id && !d.resolved[id] && !d.approvals[id]) {
         d.reviewing[id] = true;
       }
@@ -527,6 +549,9 @@ function applyOne(draft: Draft, event: ViewEvent): void {
     case "approval/requested":
     case "approval/updated": {
       const id = str(params["approvalId"]);
+      if (id) {
+        reopenForLaterStage(d.resolved, id, params);
+      }
       if (id && !d.resolved[id]) {
         delete d.reviewing[id];
         d.approvals[id] = { ...d.approvals[id], ...(params as unknown as ApprovalRequest) };
@@ -536,11 +561,13 @@ function applyOne(draft: Draft, event: ViewEvent): void {
     case "approval/resolved": {
       const id = str(params["approvalId"]);
       if (id) {
+        const stage = requirementIndex(params) ?? requirementIndex(d.approvals[id]);
         delete d.approvals[id];
         delete d.reviewing[id];
         d.resolved[id] = {
           decision: str(params["decision"]) ?? "resolved",
           resolvedBy: str(params["resolvedBy"]) ?? "user",
+          ...(stage !== undefined ? { stage } : {}),
         };
       }
       break;

@@ -162,6 +162,30 @@ describe("thread fold against a real muse transcript", () => {
     assert.deepEqual(fold.approvals, {}, "a redelivered request for a resolved approval stays resolved");
   });
 
+  it("asks again for the next stage of a piped command under the same approval id", () => {
+    const stage = (sourceIndex: number) => ({
+      sessionId: "s",
+      approvalId: "p1",
+      itemId: "pipe1",
+      currentRequirementId: { approvalId: "p1", sourceIndex },
+      availableChoices: [{ choiceId: "yes", label: "Allow once", decision: "approved", scope: "once" }],
+      subject: { kind: "shell", stages: [{ argv: ["cat", "a"], position: 0, totalStages: 2 }, { argv: ["rm", "b"], position: 1, totalStages: 2 }] },
+    });
+    const resolve = { method: "approval/resolved", params: { sessionId: "s", approvalId: "p1", decision: "approved", resolvedBy: "user" } };
+    let fold = applyEvent(emptyFold(), { method: "approval/requested", params: stage(0) });
+    fold = applyEvent(fold, resolve);
+    assert.equal(fold.resolved["p1"]?.stage, 0);
+    fold = applyEvent(fold, { method: "approval/requested", params: stage(0) });
+    assert.deepEqual(fold.approvals, {}, "stage 0 redelivered stays resolved");
+    fold = applyEvent(fold, { method: "approval/requested", params: stage(1) });
+    assert.equal(gateFor(fold, "pipe1")?.kind, "approval", "stage 1 asks");
+    assert.equal(fold.resolved["p1"], undefined);
+    fold = applyEvent(fold, resolve);
+    assert.equal(fold.resolved["p1"]?.stage, 1);
+    fold = applyEvent(fold, { method: "approval/reviewing", params: stage(1) });
+    assert.deepEqual(fold.reviewing, {}, "a late hold for a decided stage is ignored");
+  });
+
   it("shows an auto-reviewer hold as reviewing, not as a pending approval (Muse 1.4.9)", () => {
     const ids = { sessionId: "s", approvalId: "a2", itemId: "tool2", currentRequirementId: { approvalId: "a2", sourceIndex: 0 } };
     let fold = applyEvent(emptyFold(), { method: "approval/reviewing", params: ids });
