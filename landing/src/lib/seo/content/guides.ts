@@ -1056,6 +1056,16 @@ export const GUIDE_PAGES: SeoPage[] = [
           "Inside a running `muse` session, type `/login` to reopen the sign-in options.",
         ],
       },
+      { kind: "h2", text: "Sign in from inside Helicon" },
+      {
+        kind: "ul",
+        items: [
+          "When nobody is signed in, the home screen shows a Sign in to Muse card with the `muse login` command and a Check again button. The sidebar status also says Sign in to Muse.",
+          "Settings > Accounts lets you add named Muse profiles and sign in to each one without leaving the app. Helicon runs `muse login` under that profile and shows you the sign-in link and code to enter on Meta's page.",
+          "When Muse runs inside WSL, Accounts gives you the one command to run in a terminal instead.",
+          "If `META_API_KEY` is set, Helicon counts you as signed in and does not ask again.",
+        ],
+      },
       { kind: "h2", text: "Check that Helicon sees the login" },
       {
         kind: "p",
