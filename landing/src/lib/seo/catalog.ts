@@ -3,6 +3,7 @@ import { COMPARE_PAGES } from "./content/compare";
 import { DESKTOP_OS_TEXT, MUSE_CODE_DOCS_URL, MUSE_CODE_TESTED } from "../tested";
 import { FEATURE_PAGES } from "./content/features";
 import { GUIDE_PAGES } from "./content/guides";
+import { BUYER_INTENT_R2_PAGES } from "./content/buyer-intent-r2";
 import { GLOSSARY_PAGES } from "./content/glossary";
 import { INSTALL_PAGES } from "./content/install";
 import { USE_CASE_PAGES } from "./content/use-cases";
@@ -113,6 +114,7 @@ export const ALL_PAGES: SeoPage[] = [
   ...COMPARE_PAGES,
   ...FEATURE_PAGES,
   ...GUIDE_PAGES,
+  ...BUYER_INTENT_R2_PAGES,
   ...USE_CASE_PAGES,
   ...GLOSSARY_PAGES,
 ];
