@@ -74,7 +74,8 @@ export function Hero({
         <div
           className="mt-8 grid gap-7 lg:mt-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:gap-12"
         >
-          <div>
+          {/* Capped so the lead wraps the same whether or not the CTA column has streamed in yet. */}
+          <div className="lg:max-w-[34rem]">
             <p data-hero-lead className="text-[clamp(1.0625rem,0.8rem+0.7vw,1.25rem)] leading-snug font-semibold text-balance text-fg">
               {copy.lead}
             </p>

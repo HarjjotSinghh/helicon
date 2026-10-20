@@ -56,7 +56,7 @@ export function LanguageSwitcher({
         type="button"
         aria-expanded={open}
         aria-controls={menuId}
-        aria-label={`${label}: ${LOCALE_INFO[current].name}`}
+        aria-label={`${LOCALE_INFO[current].name} (${label})`}
         title={label}
         onClick={() => setOpen((value) => !value)}
         className={buttonClass("ghost", "sm", "gap-1.5 px-2.5 font-normal")}
