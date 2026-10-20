@@ -16,6 +16,8 @@ export type HomeCopy = {
     sections: string;
     language: string;
     theme: { group: string; system: string; light: string; dark: string };
+    /** The badge on live app demos: `name` always shows, `tryIt` from the sm breakpoint up. */
+    liveDemo: { name: string; tryIt: string };
     player: {
       region: string;
       start: string;
@@ -73,6 +75,7 @@ const ko: HomeCopy = {
     sections: "페이지 섹션",
     language: "언어",
     theme: { group: "색상 테마", system: "시스템 테마", light: "라이트 테마", dark: "다크 테마" },
+    liveDemo: { name: "라이브 데모", tryIt: ", 직접 써 보세요" },
     player: {
       region: "동영상 플레이어. 스페이스 키로 재생하거나 일시정지합니다",
       start: "소개 영상 재생",
@@ -141,7 +144,7 @@ const ko: HomeCopy = {
     nodes: [
       { title: "Helicon UI", detail: "Tauri 데스크톱 앱 또는 웹 앱" },
       { title: "로컬 데몬", detail: "SQLite 상태, 워크스페이스마다 호스트 하나" },
-      { title: "muse serve", detail: "@muse-code/sdk를 통한 Muse Session Protocol" },
+      { title: "muse serve", detail: "@muse-code/sdk를 통한 Muse Code Session Protocol" },
     ],
   },
   install: {
@@ -205,6 +208,7 @@ const ja: HomeCopy = {
     sections: "ページのセクション",
     language: "言語",
     theme: { group: "カラーテーマ", system: "システムのテーマ", light: "ライトテーマ", dark: "ダークテーマ" },
+    liveDemo: { name: "ライブデモ", tryIt: "、実際に操作できます" },
     player: {
       region: "動画プレーヤー。スペースキーで再生と一時停止を切り替えます",
       start: "紹介動画を再生",
@@ -273,7 +277,7 @@ const ja: HomeCopy = {
     nodes: [
       { title: "Helicon UI", detail: "Tauri のデスクトップアプリか Web アプリ" },
       { title: "ローカルのデーモン", detail: "SQLite で状態を保持、ワークスペースごとにホストひとつ" },
-      { title: "muse serve", detail: "@muse-code/sdk 経由の Muse Session Protocol" },
+      { title: "muse serve", detail: "@muse-code/sdk 経由の Muse Code Session Protocol" },
     ],
   },
   install: {
@@ -337,6 +341,7 @@ const ptBr: HomeCopy = {
     sections: "Seções da página",
     language: "Idioma",
     theme: { group: "Tema de cores", system: "Tema do sistema", light: "Tema claro", dark: "Tema escuro" },
+    liveDemo: { name: "Demo ao vivo", tryIt: ", experimente" },
     player: {
       region: "Player de vídeo. Aperte Espaço para reproduzir ou pausar",
       start: "Assistir ao vídeo",
@@ -392,7 +397,7 @@ const ptBr: HomeCopy = {
     items: [
       { title: "Projetos agrupados", body: "Threads agrupadas por pasta, worktrees incluídas. Retome qualquer uma com um clique." },
       { title: "Diffs inline", body: "Cada edição aparece na thread como diff, bem onde aconteceu. Nada de caçar no histórico do terminal." },
-      { title: "Aprovação é aprovação", body: "Cada pedido de aprovação aparece no momento em que chega. Nenhum é agrupado nem pulado." },
+      { title: "Aprovações sem atalhos", body: "Cada pedido de aprovação aparece no momento em que chega. Nenhum é agrupado nem pulado." },
       { title: "Custo à vista", body: "Quanto cada thread custaria nas tarifas da API, para você ver o que o seu plano está fazendo." },
       { title: "Teclado primeiro", body: "Paleta de comandos, comandos com barra e seletor de modelo. Chegue a qualquer thread pelo teclado." },
       { title: "Uma interface, dois formatos", body: "A mesma interface React roda como app desktop Tauri e como app web ligado a um daemon remoto." },
@@ -405,12 +410,12 @@ const ptBr: HomeCopy = {
     nodes: [
       { title: "Helicon UI", detail: "App desktop Tauri ou app web" },
       { title: "Daemon local", detail: "Estado em SQLite, um host por workspace" },
-      { title: "muse serve", detail: "Muse Session Protocol via @muse-code/sdk" },
+      { title: "muse serve", detail: "Muse Code Session Protocol via @muse-code/sdk" },
     ],
   },
   install: {
     title: "Instalar",
-    intro: "Você precisa da CLI muse instalada e com login na sua conta. O app desktop já vem com o próprio Node.js.",
+    intro: "Você precisa da CLI muse instalada e com login feito na sua conta. O app desktop já vem com o próprio Node.js.",
     allOptions: "Todas as opções de instalação (em inglês)",
     vscode: "Extensão do VS Code (em inglês)",
   },

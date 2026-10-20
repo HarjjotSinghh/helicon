@@ -74,6 +74,22 @@ describe("translated copy", () => {
     expect(text).toContain("Muse Code");
     expect(text).toContain("MIT");
   });
+
+  test.each(LOCALES)("%s has its own live demo badge", (locale) => {
+    const { name, tryIt } = HOME_COPY[locale].ui.liveDemo;
+    expect(name.length).toBeGreaterThan(0);
+    expect(tryIt.length).toBeGreaterThan(0);
+    expect(name).not.toBe("Live demo");
+  });
+
+  test.each(LOCALES)("%s uses the full protocol name", (locale) => {
+    expect(JSON.stringify(HOME_COPY[locale])).not.toContain("Muse Session Protocol");
+  });
+
+  test("the pt-BR install and features copy reads naturally", () => {
+    expect(HOME_COPY["pt-br"].install.intro).toContain("com login feito na sua conta");
+    expect(HOME_COPY["pt-br"].features.items[2].title).toBe("Aprovações sem atalhos");
+  });
 });
 
 describe("markdown mirror", () => {

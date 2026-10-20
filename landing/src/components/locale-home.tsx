@@ -226,7 +226,7 @@ export function LocaleHome({
 
           <Rule />
 
-          <AppTour shots={shots} title={copy.tour.title} intro={copy.tour.intro} tabsLabel={copy.tour.tabs} />
+          <AppTour shots={shots} title={copy.tour.title} intro={copy.tour.intro} tabsLabel={copy.tour.tabs} liveLabel={copy.ui.liveDemo} />
 
           <Rule />
 

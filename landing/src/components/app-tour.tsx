@@ -21,12 +21,14 @@ export function AppTour({
   title = "Try the app right here",
   intro = "This is the real Helicon interface running on sample data in your browser. Pick a screen, then click around: open threads, approve a command, or send a message.",
   tabsLabel = "App screens",
+  liveLabel,
 }: {
   shots: TourShot[];
-  /** The translated home pages pass their own heading, intro and tab label. */
+  /** The translated home pages pass their own heading, intro, tab label and live badge. */
   title?: string;
   intro?: string;
   tabsLabel?: string;
+  liveLabel?: { name: string; tryIt: string };
 }) {
   const [active, setActive] = useState(0);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -136,7 +138,7 @@ export function AppTour({
 
       <Rule />
       <div id="tour-panel" role="tabpanel" aria-labelledby={`tour-tab-${shot.id}`} className={`${bandX} min-w-0 py-10 sm:py-12`}>
-        <WindowFrame data-reveal="clip" title={shot.title} live>
+        <WindowFrame data-reveal="clip" title={shot.title} live liveLabel={liveLabel}>
           {/* Keyed so each screen starts fresh from its own sample state. */}
           <div key={shot.id} className="tour-fade">
             {shot.view}

@@ -177,6 +177,7 @@ export function WindowFrame({
   children,
   className,
   live,
+  liveLabel = { name: "Live demo", tryIt: ", try it" },
   badge,
   ...rest
 }: {
@@ -185,10 +186,12 @@ export function WindowFrame({
   className?: string;
   /** Marks the window as a working demo rather than a picture. */
   live?: boolean;
+  /** The live badge text: `name` always shows, `tryIt` only from the sm breakpoint up. */
+  liveLabel?: { name: string; tryIt: string };
   /** Quiet label in the title bar, e.g. a recorded walkthrough. */
   badge?: string;
 } & Omit<ComponentProps<"div">, "title">) {
-  const pill = live ? "Live demo, try it" : badge;
+  const pill = live ? liveLabel.name : badge;
   return (
     <div className={cn("overflow-hidden rounded-xl bg-bg shadow-frame", className)} {...rest}>
       <div className="grid h-10 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-line bg-surface-2 px-3 sm:px-4">
@@ -203,7 +206,7 @@ export function WindowFrame({
             {live ? <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-ok" /> : null}
             {live ? (
               <>
-                Live demo<span className="hidden sm:inline">, try it</span>
+                {liveLabel.name}<span className="hidden sm:inline">{liveLabel.tryIt}</span>
               </>
             ) : (
               pill
