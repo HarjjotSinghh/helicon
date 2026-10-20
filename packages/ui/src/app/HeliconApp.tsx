@@ -1,14 +1,12 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactElement } from "react";
 import type { HeliconClient } from "../client.js";
 import { AddProjectDialog } from "../components/sidebar/AddProjectDialog.js";
-import { WhatsNew } from "../components/app/WhatsNew.js";
 import { BootError, BootScreen, NewThread, Onboarding, Welcome } from "../components/home/Home.js";
+import { SettingsPage, UsagePage, WhatsNew } from "./lazy.js";
 import { CommandPalette } from "../components/palette/CommandPalette.js";
 import { isTyping } from "../components/requests/Requests.js";
-import { SettingsPage } from "../components/settings/SettingsPage.js";
 import { Sidebar } from "../components/sidebar/Sidebar.js";
 import { ThreadView } from "../components/thread/ThreadView.js";
-import { UsagePage } from "../components/usage/UsagePage.js";
 import { TooltipProvider } from "../components/ui/overlays.js";
 import { cn, isMac } from "../components/ui/primitives.js";
 import { Toasts } from "../components/ui/Toasts.js";
@@ -83,7 +81,13 @@ export function HeliconApp(props: HeliconAppProps) {
             {panel ? <PanelShell /> : <Shell />}
             {panel ? null : <CommandPalette />}
             {panel ? null : <AddProjectDialog />}
-            <Toasts leading={<WhatsNew />} />
+            <Toasts
+              leading={
+                <Suspense fallback={null}>
+                  <WhatsNew />
+                </Suspense>
+              }
+            />
             <WindowControls />
             <LiveAnnouncer />
             <RouteAnnouncer />
@@ -379,10 +383,18 @@ function Main() {
     return null;
   }
   if (route.kind === "usage") {
-    return <UsagePage />;
+    return (
+      <Suspense fallback={null}>
+        <UsagePage />
+      </Suspense>
+    );
   }
   if (route.kind === "settings") {
-    return <SettingsPage />;
+    return (
+      <Suspense fallback={null}>
+        <SettingsPage />
+      </Suspense>
+    );
   }
   if (route.kind === "thread") {
     return <ThreadView key={route.sessionId} sessionId={route.sessionId} />;
