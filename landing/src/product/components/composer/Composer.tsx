@@ -541,10 +541,11 @@ function ModelPicker(props: { sessionId: string | null; side: PickerSide }) {
     <Menu open={open} onOpenChange={(next) => (next ? controller.setPicker("model") : controller.closePicker("model"))}>
       <MenuTrigger asChild>
         <ToolbarTrigger
-          aria-label={`Model: ${modelDisplayName(current)}${contributor ? " Contributor" : ""}`}
           icon={<CpuIcon size={13} />}
           label={
             <>
+              {/* Name comes from the content, so it always contains the visible text (voice control). */}
+              <span className="sr-only">Model: </span>
               <span className="truncate">{modelDisplayName(current)}</span>
               {contributor ? (
                 <span className="ml-1.5">

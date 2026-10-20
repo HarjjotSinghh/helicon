@@ -211,14 +211,22 @@ function BlockView({ block }: { block: Block }) {
               <tbody>
                 {block.rows.map((row) => (
                   <tr key={row.join("|")} className="border-b border-line last:border-0">
-                    {row.map((cell, i) => (
-                      <td
-                        key={`${cell}-${i}`}
-                        className={cn("py-3 pr-4 align-top leading-relaxed", i === 0 ? "font-medium text-fg" : "text-muted")}
-                      >
-                        <Inline text={cell} />
-                      </td>
-                    ))}
+                    {row.map((cell, i) => {
+                      // The first cell names the row, so screen readers announce it with each value.
+                      const Cell = i === 0 ? "th" : "td";
+                      return (
+                        <Cell
+                          key={`${cell}-${i}`}
+                          scope={i === 0 ? "row" : undefined}
+                          className={cn(
+                            "py-3 pr-4 text-left align-top leading-relaxed",
+                            i === 0 ? "font-medium text-fg" : "text-muted",
+                          )}
+                        >
+                          <Inline text={cell} />
+                        </Cell>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
