@@ -119,10 +119,16 @@ jobs:
           xvfb-run -a /usr/bin/helicon > /tmp/helicon-deb-stdout.log 2>&1 &
           app=$!
           for _ in $(seq 1 60); do
-            if find "$HOME/.local/share" -name server-port -print -quit 2>/dev/null | grep -q .; then
-              echo "The server came up: $(find "$HOME/.local/share" -name server-port -exec cat {} \;)"
-              kill "$app" 2>/dev/null || true
-              exit 0
+            # The port file is written when the port is picked, before the server listens, so ask the server
+            # itself. Any HTTP status means it is up; 000 means nothing answered yet.
+            port=$(find "$HOME/.local/share" -name server-port -exec cat {} \; 2>/dev/null | head -n 1)
+            if [ -n "$port" ]; then
+              status=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/api/health" || true)
+              if [ -n "$status" ] && [ "$status" != "000" ]; then
+                echo "The server answered on port $port with HTTP $status"
+                kill "$app" 2>/dev/null || true
+                exit 0
+              fi
             fi
             if ! kill -0 "$app" 2>/dev/null; then
               echo "The app exited before its server started."
