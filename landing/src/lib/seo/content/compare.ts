@@ -1210,6 +1210,88 @@ const ENTRIES: Entry[] = [
     ],
   },
   {
+    slug: "pi",
+    checked: "2026-10-20",
+    icon: "terminalWindow",
+    label: "Pi",
+    name: "the Pi coding agent",
+    title: "Muse Code vs Pi: What Differs in 2026",
+    h1: "Muse Code vs Pi",
+    description:
+      "Muse Code vs Pi, the open source terminal coding agent from Earendil. Helicon is a free Muse Code client, so this page says what differs and which one fits you.",
+    answer:
+      "Helicon is a free, MIT licensed client for Meta's Muse Code CLI, not an agent of its own. So the choice is Muse Code against Pi, a minimal open source terminal agent from Earendil. Choose Pi for one customizable agent across many model providers. Choose Muse Code if you already pay for it and want its sessions in a window.",
+    keywords: [
+      "muse code vs pi",
+      "pi vs muse code",
+      "pi coding agent",
+      "pi coding agent vs muse code",
+    ],
+    rows: [
+      ["Who ships it", "Community, unofficial, not affiliated with Meta", "Earendil Inc., per its own site", "https://pi.dev"],
+      ["License", "MIT", "MIT, per its GitHub repository", "https://github.com/earendil-works/pi"],
+      ["Sign-in and billing", "Free. Uses your own muse login: a Muse Code plan, or pay-as-you-go billing on Meta's Model API", "Run /login inside Pi to connect a subscription or an API key. The site lists 15+ providers", "https://github.com/earendil-works/pi"],
+      ["Platforms", "Windows, macOS, Linux, the web and a VS Code extension", "Installers for macOS, Linux and Windows. Needs Node.js 22.19 or newer, which the installers can set up", "https://github.com/earendil-works/pi"],
+      ["Interface", "Session window with inline diffs and a file viewer", "Interactive terminal UI. Also print and JSON modes, RPC and an SDK", "https://pi.dev"],
+      ["Sub-agents and plan mode", "Controls for Muse Code subagents and workflows", "Skipped by default. You add them with extensions or packages", "https://github.com/earendil-works/pi"],
+      ["Price of the tool", "Free, no paid tier", "Not stated on the pages checked", ""],
+    ],
+    what: [
+      "This page compares Pi, the coding agent from Earendil at pi.dev. Pi describes itself as a minimal agent harness. You customize it with extensions, skills, prompt templates and themes. It runs in a terminal, in scripts, over RPC, or inside your own app through its SDK.",
+      "Muse Code is Meta's coding CLI. Helicon is a free, MIT licensed desktop and web client for it. It is community built and not affiliated with Meta. Helicon uses your own muse login and your own Muse Code subscription, and it is not a separate agent.",
+    ],
+    differences: [
+      [
+        "Window or terminal",
+        "Pi's main interface is a terminal UI, with a session tree you move around by command. Helicon is a window for Muse Code sessions. It lists sessions across projects, shows diffs inline, and lets you resume a past session.",
+      ],
+      [
+        "Models",
+        "Pi lets you switch between providers and models mid-session. Its site names Anthropic, OpenAI, Google, xAI, Ollama and others. Helicon works with Muse Code through the muse CLI and does not set up a model of its own.",
+      ],
+      [
+        "How you customize it",
+        "Pi's pitch is that you change the agent itself with TypeScript extensions, skills and shareable packages. Helicon is a client. You can read and change its source, which is MIT licensed, but it does not change how Muse Code behaves.",
+      ],
+      [
+        "Cost",
+        "Helicon costs nothing. You pay Meta for Muse Code, through your own plan or pay-as-you-go billing on Meta's Model API. The Pi pages checked say it is MIT licensed and do not state a price, so what you pay depends on the provider you connect.",
+      ],
+    ],
+    pickOther: [
+      "You want one agent that works across many model providers, and you want to switch models mid-session.",
+      "You want to shape the agent with extensions, skills and prompt templates instead of using it as shipped.",
+      "You want to embed an agent in your own app through Pi's RPC mode or SDK.",
+      "You prefer a minimal terminal tool and are happy to add features like plan mode yourself.",
+    ],
+    pickHelicon: [
+      "You already pay for Muse Code and want its sessions in a window.",
+      "You want approvals and inline diffs shown in each thread.",
+      "You want a free, MIT licensed client with no account.",
+      "You want one UI that also runs in a browser against a remote daemon.",
+    ],
+    together:
+      "You can open both on the same project folder. Use Pi in a terminal for one task and Helicon for Muse Code threads, with their history and approvals. They are separate agents with separate sessions, so neither sees the other's history.",
+    faqs: [
+      {
+        q: "What is Pi?",
+        a: "Pi is an open source coding agent from Earendil, described on pi.dev as a minimal agent harness. It runs in a terminal and can also be driven over RPC or embedded through its SDK.",
+      },
+      {
+        q: "Is Pi free?",
+        a: "The Pi pages checked say it is MIT licensed and do not state a price. You pay whichever model provider you connect. Check pi.dev for current terms.",
+      },
+      {
+        q: "Can Helicon run Pi?",
+        a: "No. Helicon is a Muse Code Session Protocol client. It drives the muse CLI and nothing else.",
+      },
+      {
+        q: "Is Helicon official?",
+        a: "No. It is an unofficial community project, MIT licensed, and not made, sponsored or endorsed by Meta.",
+      },
+    ],
+  },
+  {
     slug: "other-muse-code-guis",
     icon: "squares",
     label: "Other Muse GUIs",

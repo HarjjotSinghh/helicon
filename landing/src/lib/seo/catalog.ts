@@ -1,4 +1,5 @@
 import type { Section, SectionId, SeoPage } from "./types";
+import { BUYER_INTENT_PAGES } from "./content/buyer-intent";
 import { COMPARE_PAGES } from "./content/compare";
 import { DESKTOP_OS_TEXT, MUSE_CODE_DOCS_URL, MUSE_CODE_TESTED } from "../tested";
 import { FEATURE_PAGES } from "./content/features";
@@ -113,6 +114,7 @@ export const ALL_PAGES: SeoPage[] = [
   ...COMPARE_PAGES,
   ...FEATURE_PAGES,
   ...GUIDE_PAGES,
+  ...BUYER_INTENT_PAGES,
   ...USE_CASE_PAGES,
   ...GLOSSARY_PAGES,
 ];
