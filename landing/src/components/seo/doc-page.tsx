@@ -236,6 +236,19 @@ export function DocPage({
         <div className={cn("mt-12", hasToc && "xl:grid xl:grid-cols-[minmax(0,1fr)_14rem] xl:gap-12")}>
           <div className="min-w-0">
             <Blocks blocks={page.blocks} />
+            {page.source ? (
+              <p className="mt-8 text-[13.5px] text-subtle">
+                Source:{" "}
+                <a
+                  href={page.source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-accent-text underline decoration-line-strong underline-offset-4 transition-colors [overflow-wrap:anywhere] hover:decoration-current"
+                >
+                  {page.source.title}
+                </a>
+              </p>
+            ) : null}
             {page.howTo ? (
               <section aria-labelledby="howto" className="mt-12">
                 <h2 id="howto" className="scroll-mt-28 font-headline text-[clamp(1.375rem,2.6vw,1.75rem)] font-semibold tracking-[-0.012em] text-fg">

@@ -67,6 +67,10 @@ export function pageToMarkdown(page: SeoPage): string {
     blocksToMarkdown(page.blocks),
   ];
 
+  if (page.source) {
+    parts.push("", `Source: [${page.source.title}](${page.source.url})`);
+  }
+
   if (page.howTo) {
     parts.push(
       "",
