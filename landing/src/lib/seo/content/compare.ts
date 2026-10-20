@@ -1125,6 +1125,87 @@ const ENTRIES: Entry[] = [
     ],
   },
   {
+    slug: "grok-build",
+    icon: "terminalWindow",
+    label: "Grok Build",
+    name: "the xAI Grok Build coding agent",
+    title: "Muse Code vs Grok Build: What Differs in 2026",
+    h1: "Muse Code vs Grok Build",
+    description:
+      "Muse Code vs Grok Build, xAI's terminal coding agent. Helicon is a free Muse Code client, so this page says what differs and which one fits your work.",
+    answer:
+      "Helicon does not run its own agent. It is a free, MIT licensed client for Meta's Muse Code CLI, so the real choice is Muse Code, in Helicon or a terminal, against xAI's Grok Build. Choose Grok Build if you want an xAI agent for a custom model or for scripts in a terminal. Choose Muse Code if you already pay for it and want its sessions in a window.",
+    keywords: [
+      "muse code vs grok build",
+      "grok build vs muse code",
+      "grok build coding agent",
+      "xai grok build",
+    ],
+    rows: [
+      ["Who ships it", "Community, unofficial, not affiliated with Meta", "SpaceXSI (xAI), per its own docs", "https://docs.x.ai/build/overview"],
+      ["License", "MIT", "Not stated on the pages checked", ""],
+      ["Sign-in and billing", "Free. Uses your own muse login: a Muse Code plan, or pay-as-you-go billing on Meta's Model API", "Browser sign-in on first launch, or an XAI_API_KEY", "https://docs.x.ai/build/overview"],
+      ["Platforms", "Windows, macOS, Linux, the web and a VS Code extension", "macOS, Linux and WSL, and Windows through PowerShell", "https://docs.x.ai/build/overview"],
+      ["Editor", "Session window with inline diffs and a file viewer", "Interactive terminal UI. Other apps connect over the Agent Client Protocol (ACP)", "https://docs.x.ai/build/overview"],
+      ["Review of agent work", "Inline diffs and approvals", "Plan Mode drafts a plan for your approval before the agent edits anything", "https://docs.x.ai/build/features/plan-mode"],
+      ["Terminal", "Runs on the muse CLI from Meta", "Runs as grok in your project folder, and as grok -p for scripts", "https://docs.x.ai/build/overview"],
+    ],
+    what: [
+      "This page compares Grok Build, the coding agent that xAI documents at docs.x.ai. Grok Build runs in an interactive terminal, headlessly in scripts, or through the Agent Client Protocol in other apps. This page does not compare the xAI API models.",
+      "Muse Code is Meta's coding CLI. Helicon is a free, MIT licensed desktop and web client for it. It is community built and not affiliated with Meta. Helicon uses your own muse login and your own Muse Code subscription, and it is not a separate agent.",
+    ],
+    differences: [
+      [
+        "Editor or session window",
+        "Grok Build is a terminal interface. It also runs headlessly and over ACP in other apps. Helicon is a window for Muse Code sessions. It shows the files an agent touched in a viewer beside the conversation.",
+      ],
+      [
+        "Models",
+        "Grok Build accepts any custom model you list in ~/.grok/config.toml. Helicon works with Muse Code through the muse CLI and does not set up a model of its own.",
+      ],
+      [
+        "Cost",
+        "Helicon costs nothing. You pay Meta for Muse Code, through your own plan or pay-as-you-go billing on Meta's Model API. The Grok Build overview page does not state a price.",
+      ],
+      [
+        "Openness",
+        "Helicon is MIT licensed and its source is public. The Grok Build pages checked do not state a license.",
+      ],
+    ],
+    pickOther: [
+      "You want a coding agent from xAI, signed in through a browser or an XAI_API_KEY.",
+      "You want to point the agent at a custom model in ~/.grok/config.toml.",
+      "You want headless runs in scripts that stream JSON output.",
+      "You want Plan Mode before edits, plus subagents and worktrees, in one terminal tool.",
+    ],
+    pickHelicon: [
+      "You already pay for Muse Code and want its sessions in a window.",
+      "You want approvals and inline diffs shown in each thread.",
+      "You want a free, MIT licensed client with no account.",
+      "You want one UI that also runs in a browser against a remote daemon.",
+    ],
+    together:
+      "You can open both on the same project folder. Use Grok Build in a terminal for one task and Helicon for Muse Code threads, with their history and approvals.",
+    faqs: [
+      {
+        q: "Which Grok product does this page compare?",
+        a: "Grok Build, the coding agent documented at docs.x.ai. This page does not compare the xAI API models.",
+      },
+      {
+        q: "Is Grok Build free?",
+        a: "The Grok Build overview page does not state a price. Check xAI's own pricing for current rates.",
+      },
+      {
+        q: "Does Helicon replace the muse CLI?",
+        a: "No. Helicon requires the muse CLI, signed in with your own muse login. It drives the CLI and does not replace it.",
+      },
+      {
+        q: "Is Helicon official?",
+        a: "No. It is an unofficial community project, MIT licensed, and not made, sponsored or endorsed by Meta.",
+      },
+    ],
+  },
+  {
     slug: "other-muse-code-guis",
     icon: "squares",
     label: "Other Muse GUIs",
