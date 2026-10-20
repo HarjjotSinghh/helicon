@@ -17,11 +17,14 @@ import { useVisitorOs } from "@/lib/use-visitor-os";
 const loadPalette = () => import("./search-palette");
 
 /** Stands in when the palette's code will not load: the full search page still works. */
-function SearchPageInstead({ open }: { open: boolean }) {
+function SearchPageInstead({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
   useEffect(() => {
-    if (open) router.push("/search");
-  }, [open, router]);
+    if (!open) return;
+    // Close first: the header outlives the navigation, and an open search keeps taking every key.
+    onOpenChange(false);
+    router.push("/search");
+  }, [open, onOpenChange, router]);
   return null;
 }
 
