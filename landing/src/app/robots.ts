@@ -56,17 +56,35 @@ const AI_AGENTS = [
   "AI2Bot",
 ];
 
+/**
+ * Link preview fetchers. They read og:image, which points at /api/og, so they must be allowed to
+ * fetch it or shared links lose their card image.
+ */
+const PREVIEW_AGENTS = [
+  "Twitterbot",
+  "LinkedInBot",
+  "Slackbot",
+  "Slackbot-LinkExpanding",
+  "Discordbot",
+  "TelegramBot",
+  "WhatsApp",
+  "facebookexternalhit",
+];
+
+// A crawler obeys only the most specific group that names it and ignores the wildcard, so every
+// group has to repeat these.
+const ALLOW = ["/", "/api/v1/", "/api/openapi.yaml", "/openapi.json"];
+const NOISE = ["/api/update/", "/download/"];
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       // /api/v1 and the OpenAPI document are meant to be found: they are the machine-readable
-      // half of this site. Only the image renderer and the updater endpoint are noise.
-      {
-        userAgent: "*",
-        allow: ["/", "/api/v1/", "/api/openapi.yaml", "/openapi.json"],
-        disallow: ["/api/og", "/api/update/", "/download/"],
-      },
-      { userAgent: AI_AGENTS, allow: "/" },
+      // half of this site. Only the image renderer, the updater endpoint and the installer
+      // redirects are noise.
+      { userAgent: "*", allow: ALLOW, disallow: ["/api/og", ...NOISE] },
+      { userAgent: AI_AGENTS, allow: ALLOW, disallow: ["/api/og", ...NOISE] },
+      { userAgent: PREVIEW_AGENTS, allow: [...ALLOW, "/api/og"], disallow: NOISE },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL.replace(/^https?:\/\//, ""),
