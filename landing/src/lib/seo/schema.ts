@@ -178,6 +178,27 @@ function faqNode(id: string, faqs: { q: string; a: string }[]): Json {
   };
 }
 
+/** Pages that explain the app: features, use cases and guides. Author and publisher point at the shared nodes. */
+export function techArticleNode(page: SeoPage): Json {
+  const url = `${SITE_URL}/${page.slug}`;
+  return {
+    "@type": "TechArticle",
+    "@id": `${url}#article`,
+    headline: page.h1,
+    description: page.answer,
+    url,
+    mainEntityOfPage: { "@id": `${url}#page` },
+    dateModified: page.updated,
+    datePublished: page.updated,
+    author: { "@id": IDS.author },
+    publisher: { "@id": IDS.publisher },
+    isPartOf: { "@id": `${url}#page` },
+    about: { "@id": IDS.app },
+    proficiencyLevel: "Beginner",
+    inLanguage: "en",
+  };
+}
+
 /**
  * The page type that fits each page, so the graph says what the page actually is. HowToPage is
  * claimed only when the page carries steps: a HowToPage with no HowTo node in it is a lie the
@@ -254,22 +275,8 @@ export function pageGraph(page: SeoPage, version: string | null, trail: { name: 
     });
   }
 
-  if (page.section === "features" || page.section === "use-cases") {
-    nodes.push({
-      "@type": "TechArticle",
-      "@id": `${url}#article`,
-      headline: page.h1,
-      description: page.answer,
-      url,
-      dateModified: page.updated,
-      datePublished: page.updated,
-      author: { "@id": IDS.author },
-      publisher: { "@id": IDS.publisher },
-      isPartOf: { "@id": `${url}#page` },
-      about: { "@id": IDS.app },
-      proficiencyLevel: "Beginner",
-      inLanguage: "en",
-    });
+  if (page.section === "features" || page.section === "use-cases" || page.section === "guides") {
+    nodes.push(techArticleNode(page));
   }
 
   if (page.howTo) {

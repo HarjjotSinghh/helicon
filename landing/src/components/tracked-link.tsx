@@ -8,6 +8,7 @@ export function TrackedLink({
   eventLabel,
   onClick,
   href,
+  rel,
   children,
   ...props
 }: ComponentProps<"a"> & { placement: string; eventLabel?: string }) {
@@ -17,6 +18,8 @@ export function TrackedLink({
     <a
       {...props}
       href={href}
+      // Installer routes redirect to GitHub release assets, so crawlers should not follow them.
+      rel={href?.startsWith("/download/") ? "nofollow" : rel}
       data-ph-placement={placement}
       onClick={(event) => {
         if (href) trackHref(href, { placement, label });

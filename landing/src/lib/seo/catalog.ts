@@ -142,16 +142,21 @@ export const HUB_SLUGS = SECTIONS.map((section) => section.slug);
 /** Slugs of everything the site can serve as a page, hubs and the FAQ page included. */
 export const ALL_SLUGS = [...HUB_SLUGS, "faq", ...ALL_PAGES.map((page) => page.slug)];
 
+/** Sections whose related row always fills up with sibling pages, so no page sits at the end of a list nobody links to. */
+const SIBLING_FILL: SectionId[] = ["compare", "use-cases", "glossary"];
+
 /**
  * Related pages for a page, falling back to its own section when the content did not name any.
- * Never returns the page itself, and never more than six.
+ * Never returns the page itself, and never more than six. Siblings are taken in the order that
+ * starts after this page and wraps round, so every page in a section is linked from several others.
  */
 export function relatedPages(page: SeoPage): SeoPage[] {
   const named = (page.related ?? []).map((slug) => BY_SLUG.get(slug)).filter((p): p is SeoPage => Boolean(p));
-  if (named.length >= 3) return named.slice(0, 6);
-  const siblings = pagesInSection(page.section).filter(
-    (candidate) => candidate.slug !== page.slug && !named.some((n) => n.slug === candidate.slug),
-  );
+  if (named.length >= 3 && !SIBLING_FILL.includes(page.section)) return named.slice(0, 6);
+  const section = pagesInSection(page.section);
+  const at = section.findIndex((candidate) => candidate.slug === page.slug);
+  const ring = [...section.slice(at + 1), ...section.slice(0, at)];
+  const siblings = ring.filter((candidate) => !named.some((n) => n.slug === candidate.slug));
   return [...named, ...siblings].slice(0, 6);
 }
 

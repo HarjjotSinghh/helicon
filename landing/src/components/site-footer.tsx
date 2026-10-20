@@ -98,6 +98,8 @@ export const FOOTER_GROUPS: FooterGroup[] = [
       { href: "/about", label: "About", icon: BookOpen, external: false },
       { href: "/contact", label: "Contact", icon: EnvelopeSimple, external: false },
       { href: "/legal", label: "Legal", icon: BookOpen, external: false },
+      { href: "/developers", label: "Developers", icon: BookOpen, external: false },
+      { href: "/privacy", label: "Privacy", icon: BookOpen, external: false },
     ],
   },
 ];
