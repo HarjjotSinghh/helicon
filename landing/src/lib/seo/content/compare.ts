@@ -1220,7 +1220,7 @@ const ENTRIES: Entry[] = [
     description:
       "Muse Code vs Pi, the open source terminal coding agent from Earendil. Helicon is a free Muse Code client, so this page says what differs and which one fits you.",
     answer:
-      "Helicon is a free, MIT licensed client for Meta's Muse Code CLI, not an agent of its own. So the choice is Muse Code against Pi, a minimal open source terminal agent from Earendil. Choose Pi for one customizable agent across many model providers. Choose Muse Code if you already pay for it and want its sessions in a window.",
+      "Helicon is a free, MIT licensed client for Meta's Muse Code CLI. It has no agent of its own, so the real choice is Muse Code or Pi, a minimal open source terminal agent from Earendil. Choose Pi for one customizable agent across many model providers. Choose Muse Code if you already pay for it and want its sessions in a window.",
     keywords: [
       "muse code vs pi",
       "pi vs muse code",
