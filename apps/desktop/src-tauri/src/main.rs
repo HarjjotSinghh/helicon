@@ -629,7 +629,7 @@ fn main() {
 mod tests {
     use super::{
         bundled_node_in, find_resource, fresh_port, parse_listening_url, plain_path, stable_port, start_with_retry, BootError, StartFailure,
-        PORT_FILE, SPLASH_PAGE,
+        PORT_FILE, SIDECAR_NODE, SPLASH_PAGE,
     };
     #[cfg(unix)]
     use super::{latest_nvm_node, prepend_to_path, select_probe_path, well_known_nodes_in};
