@@ -82,13 +82,23 @@ async function startPosthog(key: string) {
 }
 
 const FIRST_INPUT = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
+let interacted = false;
+let onFirstInput: (() => void) | null = null;
 
-function recordOnFirstInput(start: () => void) {
+/** Armed before PostHog loads, so input made while the page is still loading still counts. */
+function watchFirstInput() {
   const begin = () => {
     for (const type of FIRST_INPUT) window.removeEventListener(type, begin, true);
-    start();
+    interacted = true;
+    onFirstInput?.();
+    onFirstInput = null;
   };
   for (const type of FIRST_INPUT) window.addEventListener(type, begin, { capture: true, passive: true });
+}
+
+function recordOnFirstInput(start: () => void) {
+  if (interacted) start();
+  else onFirstInput = start;
 }
 
 /** After the load event, once the main thread is free, so it never competes with the first paint. */
@@ -132,6 +142,7 @@ if (key && !isLocalHost(window.location.hostname) && !internal) {
       $lib: "web-beacon",
     }),
   });
+  watchFirstInput();
   afterLoad(() => void startPosthog(key).catch(posthogOff));
 } else {
   posthogOff();
