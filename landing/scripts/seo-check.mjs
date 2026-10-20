@@ -67,7 +67,8 @@ for (const url of urls) {
   const h1Count = [...html.matchAll(/<h1[\s>]/g)].length;
   if (h1Count !== 1) note(pathname, `${h1Count} h1 elements`);
 
-  if (/\bnoindex\b/i.test(html)) note(pathname, "contains noindex");
+  // Only the robots meta counts: page copy (the changelog, say) can mention noindex in prose.
+  if (/<meta name="robots" content="[^"]*\bnoindex\b/i.test(html)) note(pathname, "contains noindex");
   if (!/<meta property="og:image"/.test(html)) note(pathname, "no og:image");
 
   const blocks = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)];
@@ -84,6 +85,9 @@ for (const url of urls) {
   if (pathname !== "/") {
     // /try is the static demo app (apps/web build:try), not a content page, so it has no Markdown twin.
     if (pathname === "/try") continue;
+    // Translated pages (/ko, /ja, /pt-br and below) have no Markdown twin either; src/proxy.ts
+    // advertises none for them. Keep this list in step with LOCALES in src/lib/i18n.ts.
+    if (/^\/(ko|ja|pt-br)(\/|$)/.test(pathname)) continue;
     const mirror = await get(`${base}${pathname}.md`);
     const type = mirror.headers.get("content-type") ?? "";
     if (!mirror.ok) note(`${pathname}.md`, `status ${mirror.status}`);
