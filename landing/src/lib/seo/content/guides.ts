@@ -1127,6 +1127,110 @@ export const GUIDE_PAGES: SeoPage[] = [
     related: ["guides/muse-cli-not-found", "guides/muse-code-over-ssh", "install/wsl2", "muse-code-gui"],
   },
   {
+    slug: "guides/muse-code-yolo-mode",
+    icon: "lightning",
+    section: "guides",
+    label: "YOLO mode",
+    title: "How to turn on Muse Code YOLO mode in Helicon",
+    h1: "Turn on YOLO mode (muse --yolo) in Helicon",
+    description:
+      "Helicon's YOLO switch runs muse --yolo: no approvals, no sandbox for new threads. Read the four approval modes and when YOLO fits.",
+    answer:
+      "YOLO mode is Helicon's switch for the muse --yolo posture. Nothing asks for approval in any thread, and new threads run without sandbox confinement. Turn it on in the Permissions menu or in Settings. Turning it off restores the approval modes you had before.",
+    keywords: [
+      "muse code yolo",
+      "muse --yolo",
+      "muse code skip approvals",
+      "muse code no approval prompts",
+      "muse code full access",
+    ],
+    updated: "2026-10-20",
+    blocks: [
+      { kind: "h2", text: "What YOLO mode changes" },
+      {
+        kind: "p",
+        text: "YOLO mode sets the posture of muse --yolo. Nothing asks for approval in any thread. New threads run without sandbox confinement. Workspaces are trusted.",
+      },
+      {
+        kind: "p",
+        text: "Approvals turn off for every open thread at once. The sandbox change applies to new threads only. Threads that are already open keep the sandbox posture they started with.",
+      },
+      {
+        kind: "p",
+        text: "Flipping the switch restarts the running Muse hosts, which interrupts their turns.",
+      },
+      { kind: "h2", text: "Turn it on" },
+      {
+        kind: "ol",
+        items: [
+          "Open the Permissions menu in the composer and switch on YOLO mode. You can also open Settings, go to the YOLO mode section and flip its toggle.",
+          "Read the dialog titled Turn on YOLO mode? and choose Turn on YOLO.",
+        ],
+      },
+      { kind: "h2", text: "The four approval modes" },
+      {
+        kind: "p",
+        text: "When YOLO mode is off, the Permissions menu picks one of four approval modes. The table gives each menu label, its value name, and what it does.",
+      },
+      {
+        kind: "table",
+        head: ["Menu label", "Value name", "What it does"],
+        rows: [
+          ["Ask first", "onRequest", "Muse asks before anything that needs approval."],
+          ["Ask for unlisted", "promptUnmatched", "Commands your rules allow just run; anything else asks."],
+          ["Deny unlisted", "denyUnmatched", "Commands your rules allow just run; anything else is refused."],
+          ["Full access", "allowAll", "Every tool runs without asking. Only for sandboxes."],
+        ],
+      },
+      { kind: "h2", text: "When YOLO fits" },
+      {
+        kind: "p",
+        text: "YOLO mode suits a disposable environment, such as a throwaway git worktree or a container you can delete. The full access dialog gives the same advice: use it only in a disposable environment.",
+      },
+      { kind: "h2", text: "When it does not fit" },
+      {
+        kind: "ul",
+        items: [
+          "Your main checkout, or any folder with work you have not committed.",
+          "A machine that can reach production credentials, SSH keys or other secrets.",
+          "Any thread you will not watch, since no approval prompt will stop a bad command.",
+        ],
+      },
+      { kind: "h2", text: "Turn it off" },
+      {
+        kind: "p",
+        text: "Switch YOLO mode off in the Permissions menu or in Settings. Helicon restores the approval modes you had before.",
+      },
+      {
+        kind: "note",
+        text: "While YOLO mode is on, the four approval modes are disabled, and YOLO owns every thread's mode. The Disable sandboxing switch in Settings is disabled too, until you switch YOLO off.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Is YOLO mode the same as muse --yolo?",
+        a: "It sets the same posture. The Settings text says it works like muse --yolo, and hosts start with --disable-sandbox and --trust-workspace.",
+      },
+      {
+        q: "Does YOLO mode turn itself off?",
+        a: "No. It stays on until you switch it off, and the confirmation says so.",
+      },
+      {
+        q: "Do open threads change right away?",
+        a: "Approvals turn off for every open thread at once. The sandbox change applies only to new threads.",
+      },
+    ],
+    howTo: {
+      name: "Turn on YOLO mode in Helicon",
+      steps: [
+        { name: "Open the Permissions menu", text: "In the composer, open the Permissions menu." },
+        { name: "Confirm", text: "Read the dialog titled Turn on YOLO mode? and choose Turn on YOLO." },
+        { name: "Turn it off when done", text: "Switch YOLO mode off to restore your previous approval modes." },
+      ],
+    },
+    related: ["guides/review-agent-changes", "guides/run-parallel-agents", "guides/resume-a-muse-session"],
+  },
+  {
     slug: "guides/macos-first-launch",
     icon: "apple",
     section: "guides",
