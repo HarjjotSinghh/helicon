@@ -61,7 +61,13 @@ async function startPosthog(key: string) {
     capture_pageleave: true,
     capture_dead_clicks: true,
     capture_heatmaps: true,
-    disable_session_recording: false,
+    // The site has no surveys, chat or tours, so skip the scripts that would load them.
+    disable_surveys: true,
+    disable_conversations: true,
+    disable_product_tours: true,
+    // Recording starts on the first scroll, tap or key press (see recordOnFirstInput), so a visit
+    // that never interacts does not pay for the recorder script.
+    disable_session_recording: true,
     session_recording: {
       maskAllInputs: true,
     },
@@ -69,10 +75,20 @@ async function startPosthog(key: string) {
     bootstrap: !persisted && anon ? { distinctID: anon } : undefined,
     loaded: (client) => {
       client.register(siteProperties());
-      client.startSessionRecording();
+      recordOnFirstInput(() => client.startSessionRecording());
     },
   });
   posthogReady(posthog);
+}
+
+const FIRST_INPUT = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
+
+function recordOnFirstInput(start: () => void) {
+  const begin = () => {
+    for (const type of FIRST_INPUT) window.removeEventListener(type, begin, true);
+    start();
+  };
+  for (const type of FIRST_INPUT) window.addEventListener(type, begin, { capture: true, passive: true });
 }
 
 /** After the load event, once the main thread is free, so it never competes with the first paint. */
