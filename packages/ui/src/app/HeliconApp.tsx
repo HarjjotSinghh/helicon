@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useRef, useState, type ReactElement } from "react";
+import { LazyMotion } from "motion/react";
 import type { HeliconClient } from "../client.js";
 import { AddProjectDialog } from "../components/sidebar/AddProjectDialog.js";
 import { BootError, BootScreen, NewThread, Onboarding, Welcome } from "../components/home/Home.js";
@@ -28,6 +29,9 @@ declare global {
     "helicon-menu": CustomEvent<MenuCommand>;
   }
 }
+
+// Motion's animation features are a separate chunk, so the main bundle stays smaller.
+const loadMotionFeatures = () => import("../motionFeatures.js").then((mod) => mod.default);
 
 export interface HeliconAppProps {
   client: HeliconClient;
@@ -71,31 +75,33 @@ export function HeliconApp(props: HeliconAppProps) {
   const hostTheme = useHostTheme(props.hostTheme);
   const panel = props.panel ?? null;
   return (
-    <ControllerProvider controller={controller}>
-      <PanelContext.Provider value={panel}>
-        <FrameProvider frame={props.frame} overlay={props.titlebarOverlay}>
-          <TooltipProvider>
-            <ThemeSync hostTheme={hostTheme} />
-            <ZoomSync />
-            <GlobalShortcuts panel={panel !== null} />
-            {panel ? <PanelShell /> : <Shell />}
-            {panel ? null : <CommandPalette />}
-            {panel ? null : <AddProjectDialog />}
-            <Toasts
-              leading={
-                <Suspense fallback={null}>
-                  <WhatsNew />
-                </Suspense>
-              }
-            />
-            <WindowControls />
-            <LiveAnnouncer />
-            <RouteAnnouncer />
-            <FocusKeeper />
-          </TooltipProvider>
-        </FrameProvider>
-      </PanelContext.Provider>
-    </ControllerProvider>
+    <LazyMotion features={loadMotionFeatures} strict>
+      <ControllerProvider controller={controller}>
+        <PanelContext.Provider value={panel}>
+          <FrameProvider frame={props.frame} overlay={props.titlebarOverlay}>
+            <TooltipProvider>
+              <ThemeSync hostTheme={hostTheme} />
+              <ZoomSync />
+              <GlobalShortcuts panel={panel !== null} />
+              {panel ? <PanelShell /> : <Shell />}
+              {panel ? null : <CommandPalette />}
+              {panel ? null : <AddProjectDialog />}
+              <Toasts
+                leading={
+                  <Suspense fallback={null}>
+                    <WhatsNew />
+                  </Suspense>
+                }
+              />
+              <WindowControls />
+              <LiveAnnouncer />
+              <RouteAnnouncer />
+              <FocusKeeper />
+            </TooltipProvider>
+          </FrameProvider>
+        </PanelContext.Provider>
+      </ControllerProvider>
+    </LazyMotion>
   );
 }
 

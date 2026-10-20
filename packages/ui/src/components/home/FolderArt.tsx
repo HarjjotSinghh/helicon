@@ -1,7 +1,7 @@
 // via Rare UI FolderComponent (rareui.com), MIT (c) 2026 Swami Malode.
 // Adapted: themed through Helicon tokens for light and dark, fixed small scale, reduced motion
 // holds the resting pose, and the click hands off to the caller instead of toggling locally.
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import { useState } from "react";
 
 const WIDTH = 321;
@@ -63,7 +63,7 @@ export function FolderArt(props: { onActivate?: () => void; label: string }) {
         />
         <span className="absolute inset-0 flex items-center justify-center">
           {CARDS.map((card, index) => (
-            <motion.span
+            <m.span
               key={index}
               className="absolute"
               initial={false}
@@ -71,10 +71,10 @@ export function FolderArt(props: { onActivate?: () => void; label: string }) {
               transition={{ ...SPRING, delay: pose === "open" ? card.delay[0] : pose === "hover" ? card.delay[1] : 0 }}
             >
               <Page />
-            </motion.span>
+            </m.span>
           ))}
         </span>
-        <motion.span
+        <m.span
           className="absolute left-1/2 top-1/2 mt-4 -translate-x-1/2 -translate-y-1/2"
           style={{ transformOrigin: "bottom center", transformStyle: "preserve-3d", width: 321, height: 241 }}
           initial={false}
@@ -88,7 +88,7 @@ export function FolderArt(props: { onActivate?: () => void; label: string }) {
               stroke="var(--folder-edge)"
             />
           </svg>
-        </motion.span>
+        </m.span>
       </span>
     </button>
   );

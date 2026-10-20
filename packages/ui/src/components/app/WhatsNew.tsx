@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { useApp, useController } from "../../app/context.js";
 import { CHANGELOG, CHANGELOG_URL, highlights, newEntries, runningVersion } from "../../model/changelog.js";
 import { ArrowSquareOutIcon, ScrollIcon, XIcon } from "../ui/icons.js";
@@ -50,7 +50,7 @@ export function WhatsNew() {
   return (
     <AnimatePresence initial={!reduce}>
       {open ? (
-        <motion.li
+        <m.li
           key="whats-new"
           initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
           animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
@@ -97,7 +97,7 @@ export function WhatsNew() {
               <XIcon size={14} />
             </button>
           </section>
-        </motion.li>
+        </m.li>
       ) : null}
     </AnimatePresence>
   );
