@@ -179,6 +179,11 @@ function faqNode(id: string, faqs: { q: string; a: string }[]): Json {
 }
 
 /** Pages that explain the app: features, use cases and guides. Author and publisher point at the shared nodes. */
+/** The page's own OG card. Article rich results want an image, and this one already names the page. */
+function pageImage(page: SeoPage): string {
+  return ogImageUrl(page.h1, page.description, page.ogEyebrow ?? SITE_NAME);
+}
+
 export function techArticleNode(page: SeoPage): Json {
   const url = `${SITE_URL}/${page.slug}`;
   return {
@@ -194,6 +199,7 @@ export function techArticleNode(page: SeoPage): Json {
     publisher: { "@id": IDS.publisher },
     isPartOf: { "@id": `${url}#page` },
     about: { "@id": IDS.app },
+    image: pageImage(page),
     proficiencyLevel: "Beginner",
     inLanguage: "en",
   };
@@ -233,7 +239,7 @@ export function pageGraph(page: SeoPage, version: string | null, trail: { name: 
       breadcrumb: { "@id": `${url}#breadcrumb` },
       // The pricing page is about the offer, so say so rather than leave the price buried in the app node.
       ...(page.slug === "pricing" ? { mainEntity: { "@id": IDS.offer } } : {}),
-      primaryImageOfPage: ogImageUrl(page.h1, page.description, page.ogEyebrow ?? SITE_NAME),
+      primaryImageOfPage: pageImage(page),
       keywords: page.keywords.join(", "),
       // The answer paragraph is the passage worth reading aloud, and the passage worth quoting.
       speakable: { "@type": "SpeakableSpecification", cssSelector: ["[data-answer]"] },
@@ -265,6 +271,7 @@ export function pageGraph(page: SeoPage, version: string | null, trail: { name: 
       description: page.answer,
       articleSection: "Comparison",
       url,
+      image: pageImage(page),
       dateModified: page.updated,
       datePublished: page.updated,
       author: { "@id": IDS.author },
