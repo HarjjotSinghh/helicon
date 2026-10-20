@@ -1044,6 +1044,87 @@ const ENTRIES: Entry[] = [
     ],
   },
   {
+    slug: "antigravity",
+    icon: "appWindow",
+    label: "Antigravity",
+    name: "the Google Antigravity IDE",
+    title: "Muse Code vs Antigravity: What Differs in 2026",
+    h1: "Muse Code vs Antigravity",
+    description:
+      "Muse Code vs the Google Antigravity IDE on price, platforms, editor and review. Helicon is a free Muse Code client, so this page says which fits your work.",
+    answer:
+      "Helicon does not run its own agent. It is a free, MIT licensed client for Meta's Muse Code CLI, so the real choice is Muse Code, in Helicon or a terminal, against Google's Antigravity IDE. Choose Antigravity if you want an editor with an agent built in. Choose Muse Code if you already pay for it and want its sessions in a window.",
+    keywords: [
+      "muse code vs antigravity",
+      "antigravity coding agent",
+      "google antigravity ide",
+      "muse code gui vs antigravity",
+    ],
+    rows: [
+      ["Who ships it", "Community, unofficial, not affiliated with Meta", "Google", "https://antigravity.google/"],
+      ["License", "MIT", "Not stated on the pages checked", ""],
+      ["Price", "Free. Needs your own Muse Code subscription", "Available at no charge for developers", "https://antigravity.google/"],
+      ["Platforms", "Windows, macOS, Linux and the web", "macOS, Windows, Linux and Googlebook", "https://antigravity.google/download"],
+      ["Editor", "Session window with inline diffs and a file viewer", "Full IDE with a code editor and tab autocompletion", "https://antigravity.google/product/antigravity-ide"],
+      ["Review of agent work", "Inline diffs and approvals", "Artifacts, so you manage higher level tasks rather than single tool calls", "https://antigravity.google/product/antigravity-ide"],
+      ["Terminal", "Runs on the muse CLI from Meta", "Separate Antigravity CLI, installed by script", "https://antigravity.google/download"],
+    ],
+    what: [
+      "This page compares the Antigravity IDE. Google describes Antigravity as its agentic development platform, and the IDE is a fully featured AI-powered editor with tab autocompletion, commands and agents. Google also ships an Antigravity App, a separate Antigravity CLI and an SDK. This page does not compare those.",
+      "Muse Code is Meta's coding CLI. Helicon is a free, MIT licensed desktop and web client for it. It is community built and not affiliated with Meta. Helicon uses your own muse login and your own Muse Code subscription, and it is not a separate agent.",
+    ],
+    differences: [
+      [
+        "Editor or session window",
+        "Antigravity is an IDE with a code editor. Helicon is a window for Muse Code sessions. It shows the files an agent touched in a viewer beside the conversation.",
+      ],
+      [
+        "Where the agent works",
+        "In Antigravity, the agent works across the editor, terminal and browser. Helicon drives the Muse Code CLI in your project.",
+      ],
+      [
+        "Cost",
+        "Helicon costs nothing. Your Muse Code subscription is the only bill. Google says Antigravity is available at no charge for developers.",
+      ],
+      [
+        "Openness",
+        "Helicon is MIT licensed and its source is public. The Antigravity pages checked do not state a license.",
+      ],
+    ],
+    pickOther: [
+      "You want an editor and an agent in one Google app.",
+      "You want tab autocompletion while you type.",
+      "You do not have a Muse Code subscription.",
+      "You want the agent to work in a browser as well as the editor and terminal.",
+    ],
+    pickHelicon: [
+      "You already pay for Muse Code and want its sessions in a window.",
+      "You want approvals and inline diffs shown in each thread.",
+      "You want a free, MIT licensed client with no account.",
+      "You want one UI that also runs in a browser against a remote daemon.",
+    ],
+    together:
+      "You can open both on the same project folder. Use the Antigravity editor for hand edits and Helicon for Muse Code threads, with their history and approvals.",
+    faqs: [
+      {
+        q: "Which Antigravity product does this page compare?",
+        a: "The Antigravity IDE from Google. Google also ships an Antigravity App, a separate Antigravity CLI and an SDK. This page does not cover those.",
+      },
+      {
+        q: "Is Antigravity free?",
+        a: "Google says Antigravity is available at no charge for developers. Check Google's own pricing for current limits.",
+      },
+      {
+        q: "Does Helicon replace the muse CLI?",
+        a: "No. Helicon requires the muse CLI, signed in with your own muse login. It drives the CLI and does not replace it.",
+      },
+      {
+        q: "Is Helicon official?",
+        a: "No. It is an unofficial community project, MIT licensed, and not made, sponsored or endorsed by Meta.",
+      },
+    ],
+  },
+  {
     slug: "other-muse-code-guis",
     icon: "squares",
     label: "Other Muse GUIs",
