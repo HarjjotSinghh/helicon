@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Vendored product UI, linted in packages/ui.
     "src/product/**",
     "legacy/**",
+    // The /try demo, a prebuilt copy of apps/web. Its source is linted there.
+    "public/try/**",
   ]),
   {
     // The tests walk JSON documents, an OpenAPI description and a schema.org graph, where the
