@@ -174,7 +174,12 @@ jobs:
           work="$(mktemp -d)"
           trap 'rm -rf "$work"' EXIT
           cd "$work"
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "Helicon_*"
-          sha256sum Helicon_* > SHA256SUMS
+          # The installers only: mirrors redistribute those, and a missing one should fail the job, not drop out of the list.
+          installers=('Helicon_*_x64-setup.exe' 'Helicon_*_universal.dmg' 'Helicon_*_amd64.AppImage')
+          for pattern in "${installers[@]}"; do
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$pattern"
+            compgen -G "$pattern" > /dev/null || { echo "Missing release asset: $pattern" >&2; exit 1; }
+          done
+          sha256sum Helicon_*_x64-setup.exe Helicon_*_universal.dmg Helicon_*_amd64.AppImage > SHA256SUMS
           cat SHA256SUMS
           gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" SHA256SUMS --clobber
