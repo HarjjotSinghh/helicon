@@ -405,7 +405,7 @@ export const GUIDE_PAGES: SeoPage[] = [
         kind: "ul",
         items: [
           "The muse CLI, installed and signed in once with `muse login`. The extension uses that login and never asks for an API key.",
-          "A Meta sign-in for Muse Code, then one of its 4 subscription plans or pay-per-token billing with a Model API key.",
+          "A Meta sign-in or a Model API key for Muse Code, on one of its 4 subscription plans or pay-per-token billing.",
           "VS Code 1.101 or later. The extension runs on the editor's own Node runtime and needs Node 22 or newer.",
         ],
       },
@@ -511,7 +511,7 @@ export const GUIDE_PAGES: SeoPage[] = [
       },
       {
         q: "What do I need from Meta?",
-        a: "A Meta sign-in for Muse Code. Then pick one of its 4 subscription plans, or pay per token with a Model API key. The extension itself is free.",
+        a: "Muse Code needs a Meta credential: a browser sign-in or a Model API key. Billing is one of its 4 subscription plans, or pay per token with the API key. The extension itself is free.",
       },
       {
         q: "Do I need an API key?",
@@ -578,7 +578,7 @@ export const GUIDE_PAGES: SeoPage[] = [
         kind: "ul",
         items: [
           "The muse CLI, installed and signed in once with `muse login`. The extension uses that login and never asks for an API key.",
-          "A Meta sign-in for Muse Code, then one of its 4 subscription plans or pay-per-token billing with a Model API key.",
+          "A Meta sign-in or a Model API key for Muse Code, on one of its 4 subscription plans or pay-per-token billing.",
           "A current release of Cursor, Windsurf or Antigravity. The extension runs on the editor's own Node runtime and needs Node 22 or newer.",
         ],
       },
@@ -671,7 +671,7 @@ export const GUIDE_PAGES: SeoPage[] = [
       },
       {
         q: "What do I need from Meta?",
-        a: "A Meta sign-in for Muse Code. Then pick one of its 4 subscription plans, or pay per token with a Model API key. The extension itself is free.",
+        a: "Muse Code needs a Meta credential: a browser sign-in or a Model API key. Billing is one of its 4 subscription plans, or pay per token with the API key. The extension itself is free.",
       },
       {
         q: "Is Helicon official?",

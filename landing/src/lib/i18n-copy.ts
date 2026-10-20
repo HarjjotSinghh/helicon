@@ -166,7 +166,7 @@ const ko: HomeCopy = {
       ],
       [
         "Meta 쪽에서는 무엇이 필요한가요?",
-        "Helicon이 구동하는 코딩 에이전트 Muse Code는 Meta 로그인이 필요합니다. 그다음 4가지 구독 요금제 중 하나를 고르거나, Model API 키로 토큰당 결제하면 됩니다. Helicon 자체는 무료이고 비용을 더하지 않습니다.",
+        "Helicon이 구동하는 코딩 에이전트 Muse Code는 Meta 자격 증명이 필요합니다. 브라우저로 로그인하거나 Model API 키를 쓰면 됩니다. 결제는 4가지 구독 요금제 중 하나이거나, API 키로 토큰당 결제합니다. Helicon 자체는 무료이고 비용을 더하지 않습니다.",
       ],
       [
         "Helicon이 외부로 데이터를 보내나요?",
@@ -298,7 +298,7 @@ const ja: HomeCopy = {
       ],
       [
         "Meta 側では何が必要ですか？",
-        "Helicon が動かすコーディングエージェント Muse Code には、Meta へのサインインが必要です。そのうえで 4 つのサブスクリプションプランから選ぶか、Model API キーでトークン単位の従量課金を使います。Helicon 自体は無料で、独自の費用はかかりません。",
+        "Helicon が動かすコーディングエージェント Muse Code には、Meta の認証情報が必要です。ブラウザでサインインするか、Model API キーを使います。支払いは 4 つのサブスクリプションプランのいずれか、または API キーでのトークン単位の従量課金です。Helicon 自体は無料で、独自の費用はかかりません。",
       ],
       [
         "Helicon は外部に通信しますか？",
@@ -430,7 +430,7 @@ const ptBr: HomeCopy = {
       ],
       [
         "O que preciso da Meta para usar?",
-        "O Muse Code, o agente de código que o Helicon controla, precisa de um login na Meta. Depois, escolha um dos 4 planos de assinatura ou pague por token com uma chave da Model API. O Helicon em si é gratuito e não adiciona custo nenhum.",
+        "O Muse Code, o agente de código que o Helicon controla, precisa de uma credencial da Meta: login pelo navegador ou uma chave da Model API. A cobrança é um dos 4 planos de assinatura ou pagamento por token com a chave da API. O Helicon em si é gratuito e não adiciona custo nenhum.",
       ],
       [
         "O Helicon envia dados para algum lugar?",
