@@ -1063,8 +1063,8 @@ const ENTRIES: Entry[] = [
     rows: [
       ["Who ships it", "Community, unofficial, not affiliated with Meta", "Google", "https://antigravity.google/"],
       ["License", "MIT", "Not stated on the pages checked", ""],
-      ["Price", "Free. Needs your own Muse Code subscription", "Available at no charge for developers", "https://antigravity.google/"],
-      ["Platforms", "Windows, macOS, Linux and the web", "macOS, Windows, Linux and Googlebook", "https://antigravity.google/download"],
+      ["Price", "Free. Needs your own Muse Code plan, or pay-as-you-go billing on Meta's Model API", "Available at no charge for developers", "https://antigravity.google/"],
+      ["Platforms", "Windows, macOS, Linux, the web and a VS Code extension", "macOS, Windows, Linux and Googlebook", "https://antigravity.google/download"],
       ["Editor", "Session window with inline diffs and a file viewer", "Full IDE with a code editor and tab autocompletion", "https://antigravity.google/product/antigravity-ide"],
       ["Review of agent work", "Inline diffs and approvals", "Artifacts, so you manage higher level tasks rather than single tool calls", "https://antigravity.google/product/antigravity-ide"],
       ["Terminal", "Runs on the muse CLI from Meta", "Separate Antigravity CLI, installed by script", "https://antigravity.google/download"],
