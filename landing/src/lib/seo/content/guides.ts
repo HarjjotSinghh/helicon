@@ -1021,6 +1021,102 @@ export const GUIDE_PAGES: SeoPage[] = [
     related: ["muse-code-gui", "install/windows", "install/wsl2", "install/macos"],
   },
   {
+    slug: "guides/muse-code-login",
+    icon: "terminal",
+    section: "guides",
+    label: "Muse Code login",
+    title: "How to sign in to Muse Code and fix login problems",
+    h1: "Sign in to Muse Code for Helicon",
+    description:
+      "Sign in to the muse CLI once, confirm the login from Helicon, fix the common login failures, and see how Helicon uses that login.",
+    answer:
+      "Run `muse login` in the shell where Muse Code is installed. Helicon has no account and stores no credentials, so it uses the login the CLI already holds. If Helicon still reports that Muse Code is missing, the CLI is signed out in the shell or install Helicon is using.",
+    keywords: [
+      "muse code login",
+      "muse login",
+      "how to sign in to muse code",
+      "muse code sign in",
+      "muse logout",
+      "muse login helicon",
+    ],
+    updated: "2026-10-20",
+    blocks: [
+      { kind: "h2", text: "Sign in once" },
+      { kind: "code", lang: "sh", code: "muse login" },
+      {
+        kind: "p",
+        text: "Run it in the shell where you installed Muse Code. On Windows that is PowerShell for a native install, or the WSL2 shell for a WSL2 install. Helicon uses your existing Muse Code subscription through this login. It needs no API key and adds no second bill.",
+      },
+      { kind: "h2", text: "What happens at sign-in" },
+      {
+        kind: "ul",
+        items: [
+          "On first run, `muse` asks you to authenticate. It offers browser sign-in or an API key.",
+          "Browser sign-in opens your web browser to approve the session, then returns you to the terminal.",
+          "Inside a running `muse` session, type `/login` to reopen the sign-in options.",
+        ],
+      },
+      { kind: "h2", text: "Check that Helicon sees the login" },
+      {
+        kind: "p",
+        text: "Open the setup screen in Helicon and click Check again. It re runs detection without a restart. If it still fails, follow the steps in [Fix: Helicon cannot find the muse CLI](/guides/muse-cli-not-found).",
+      },
+      { kind: "h2", text: "Fix a login problem" },
+      {
+        kind: "ul",
+        items: [
+          "Native and WSL2 are separate installs on Windows. Each one needs its own `muse login`.",
+          "Remote daemon or SSH project: sign in on the machine that runs the daemon. Your laptop's login does not apply there.",
+          "Signed in with the wrong login: run `muse logout`, then `muse login`. Logout clears the stored browser session and any stored key.",
+          "Logout does not unset an exported `META_API_KEY`. Remove that variable from your shell profile or secret store too.",
+        ],
+      },
+    ],
+    howTo: {
+      name: "Sign in to Muse Code for Helicon",
+      steps: [
+        {
+          name: "Open the shell where Muse Code is installed",
+          text: "On Windows, use PowerShell for a native install or the WSL2 shell for a WSL2 install. Each install needs its own login.",
+        },
+        {
+          name: "Sign in",
+          text: "Browser sign-in opens your browser to approve the session, then returns you to the terminal.",
+          code: "muse login",
+        },
+        {
+          name: "Confirm in Helicon",
+          text: "Open the setup screen and click Check again. Restart only if you changed PATH on Windows.",
+        },
+        {
+          name: "Sign out and back in if it still fails",
+          text: "Logout clears the stored browser session and any stored key. It does not unset META_API_KEY, so remove that from your shell too.",
+          code: "muse logout\nmuse login",
+        },
+        {
+          name: "For a remote daemon, sign in on that machine",
+          text: "Helicon uses the login on the machine that runs the daemon, so run muse login there once.",
+          code: "muse login",
+        },
+      ],
+    },
+    faqs: [
+      {
+        q: "Does Helicon need its own account or API key?",
+        a: "No to both. Helicon has no account and stores no credentials. It uses the login from `muse login` and your existing Muse Code subscription, with no second bill.",
+      },
+      {
+        q: "Why does Helicon say Muse Code is missing when it is installed?",
+        a: "An installed but signed-out CLI fails the same way as a missing one. Run `muse login` in the shell Helicon uses. The full fix is in [Fix: Helicon cannot find the muse CLI](/guides/muse-cli-not-found).",
+      },
+      {
+        q: "Which login does a remote project use?",
+        a: "The one on the machine running the daemon. Local account profiles do not apply to SSH projects. See [Muse Code over SSH](/guides/muse-code-over-ssh).",
+      },
+    ],
+    related: ["guides/muse-cli-not-found", "guides/muse-code-over-ssh", "install/wsl2", "muse-code-gui"],
+  },
+  {
     slug: "guides/macos-first-launch",
     icon: "apple",
     section: "guides",
