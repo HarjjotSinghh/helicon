@@ -194,9 +194,9 @@ export function LocaleHome({
               <DemoVideo
                 src="/demo/launch.mp4"
                 poster={{
-                  light: "/demo/launch-poster-light.jpg",
-                  dark: "/demo/launch-poster-dark.jpg",
-                  small: { light: "/demo/launch-poster-light-960.jpg", dark: "/demo/launch-poster-dark-960.jpg" },
+                  light: "/demo/launch-poster-light.webp",
+                  dark: "/demo/launch-poster-dark.webp",
+                  small: { light: "/demo/launch-poster-light-960.webp", dark: "/demo/launch-poster-dark-960.webp" },
                 }}
                 priority
                 label={copy.videoLabel}
