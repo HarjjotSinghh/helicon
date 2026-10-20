@@ -5,6 +5,10 @@ on:
     branches: [prod]
   pull_request:
 
+# Nothing here pushes or publishes, and npm ci, the tests and the builds run dependency code.
+permissions:
+  contents: read
+
 jobs:
   node:
     strategy:
@@ -14,6 +18,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -46,6 +52,8 @@ jobs:
         working-directory: landing
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -67,6 +75,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
