@@ -38,6 +38,8 @@ type Entry = {
   pickHelicon: string[];
   together: string;
   faqs: { q: string; a: string }[];
+  /** Set on entries added or rechecked after COMPARE_CHECKED: their own check and publish date. */
+  checked?: string;
 };
 
 const ENTRIES: Entry[] = [
@@ -1045,6 +1047,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "antigravity",
+    checked: "2026-10-20",
     icon: "appWindow",
     label: "Antigravity",
     name: "the Google Antigravity IDE",
@@ -1126,6 +1129,7 @@ const ENTRIES: Entry[] = [
   },
   {
     slug: "grok-build",
+    checked: "2026-10-20",
     icon: "terminalWindow",
     label: "Grok Build",
     name: "the xAI Grok Build coding agent",
@@ -1147,7 +1151,7 @@ const ENTRIES: Entry[] = [
       ["Sign-in and billing", "Free. Uses your own muse login: a Muse Code plan, or pay-as-you-go billing on Meta's Model API", "Browser sign-in on first launch, or an XAI_API_KEY", "https://docs.x.ai/build/overview"],
       ["Platforms", "Windows, macOS, Linux, the web and a VS Code extension", "macOS, Linux and WSL, and Windows through PowerShell", "https://docs.x.ai/build/overview"],
       ["Editor", "Session window with inline diffs and a file viewer", "Interactive terminal UI. Other apps connect over the Agent Client Protocol (ACP)", "https://docs.x.ai/build/overview"],
-      ["Review of agent work", "Inline diffs and approvals", "Plan Mode drafts a plan for your approval before the agent edits anything", "https://docs.x.ai/build/features/plan-mode"],
+      ["Review of agent work", "Inline diffs and approvals", "Plan Mode drafts a plan for your approval before the agent uses its edit tools. Shell commands are not gated", "https://docs.x.ai/build/features/plan-mode"],
       ["Terminal", "Runs on the muse CLI from Meta", "Runs as grok in your project folder, and as grok -p for scripts", "https://docs.x.ai/build/overview"],
     ],
     what: [
@@ -1284,9 +1288,8 @@ const ENTRIES: Entry[] = [
   },
 ];
 
-const checked = formatDate(COMPARE_CHECKED);
-
 function toPage(entry: Entry): SeoPage {
+  const checked = formatDate(entry.checked ?? COMPARE_CHECKED);
   return {
     slug: `compare/${entry.slug}`,
     section: "compare",
@@ -1297,7 +1300,7 @@ function toPage(entry: Entry): SeoPage {
     description: entry.description,
     answer: entry.answer,
     keywords: entry.keywords,
-    updated: UPDATED,
+    updated: entry.checked ?? UPDATED,
     ogEyebrow: "Comparison",
     blocks: [
       { kind: "h2", text: "At a glance" },
