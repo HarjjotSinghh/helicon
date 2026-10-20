@@ -1228,13 +1228,13 @@ const ENTRIES: Entry[] = [
       "pi coding agent vs muse code",
     ],
     rows: [
-      ["Who ships it", "Community, unofficial, not affiliated with Meta", "Earendil Inc., per its own site", "https://pi.dev"],
+      ["Who ships it", "Community, unofficial, not affiliated with Meta", "Earendil Inc. (site). Mario Zechner (repo licence and npm author)", "https://pi.dev"],
       ["License", "MIT", "MIT, per its GitHub repository", "https://github.com/earendil-works/pi"],
-      ["Sign-in and billing", "Free. Uses your own muse login: a Muse Code plan, or pay-as-you-go billing on Meta's Model API", "Run /login inside Pi to connect a subscription or an API key. The site lists 15+ providers", "https://github.com/earendil-works/pi"],
+      ["Sign-in and billing", "Free. Uses your own muse login: a Muse Code plan, or pay-as-you-go billing on Meta's Model API", "Run /login inside Pi to connect a subscription or an API key", "https://github.com/earendil-works/pi"],
       ["Platforms", "Windows, macOS, Linux, the web and a VS Code extension", "Installers for macOS, Linux and Windows. Needs Node.js 22.19 or newer, which the installers can set up", "https://github.com/earendil-works/pi"],
       ["Interface", "Session window with inline diffs and a file viewer", "Interactive terminal UI. Also print and JSON modes, RPC and an SDK", "https://pi.dev"],
       ["Sub-agents and plan mode", "Controls for Muse Code subagents and workflows", "Skipped by default. You add them with extensions or packages", "https://github.com/earendil-works/pi"],
-      ["Price of the tool", "Free, no paid tier", "Not stated on the pages checked", ""],
+      ["Price of the tool", "Free, no paid tier", "Free and MIT licensed. No paid tier is listed on pi.dev or its GitHub repository (checked 20 Oct 2026)", ""],
     ],
     what: [
       "This page compares Pi, the coding agent from Earendil at pi.dev. Pi describes itself as a minimal agent harness. You customize it with extensions, skills, prompt templates and themes. It runs in a terminal, in scripts, over RPC, or inside your own app through its SDK.",
@@ -1255,7 +1255,7 @@ const ENTRIES: Entry[] = [
       ],
       [
         "Cost",
-        "Helicon costs nothing. You pay Meta for Muse Code, through your own plan or pay-as-you-go billing on Meta's Model API. The Pi pages checked say it is MIT licensed and do not state a price, so what you pay depends on the provider you connect.",
+        "Helicon costs nothing. You pay Meta for Muse Code, through your own plan or pay-as-you-go billing on Meta's Model API. Pi is free and MIT licensed, and no paid tier is listed on pi.dev or its repository. What you pay depends on the provider you connect.",
       ],
     ],
     pickOther: [
@@ -1279,7 +1279,7 @@ const ENTRIES: Entry[] = [
       },
       {
         q: "Is Pi free?",
-        a: "The Pi pages checked say it is MIT licensed and do not state a price. You pay whichever model provider you connect. Check pi.dev for current terms.",
+        a: "Yes. Pi is MIT licensed, and neither pi.dev nor its GitHub repository lists a paid tier. The model provider you connect may charge you.",
       },
       {
         q: "Can Helicon run Pi?",

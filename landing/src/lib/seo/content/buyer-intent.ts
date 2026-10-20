@@ -75,12 +75,12 @@ export const BUYER_INTENT_PAGES: SeoPage[] = [
       { kind: "h2", text: "Does Muse Code have a free tier?" },
       {
         kind: "p",
-        text: "The page checked lists four paid plans and no free tier. It does not mention a free trial either. The free Muse app is a different product and does not include Muse Code.",
+        text: "The page checked lists four paid plans and no free tier. It does not mention a free trial either.",
       },
       { kind: "h2", text: "Plan or pay-as-you-go billing?" },
       {
         kind: "p",
-        text: "Helicon's install guides say Muse Code needs a Muse Code plan or pay-as-you-go billing on Meta's Model API. The Meta page checked shows the plans and the per-token rates, but it does not walk through the billing steps. Read Meta's docs for the exact setup before you pick one.",
+        text: "Helicon's install guides say Muse Code needs a Muse Code plan or pay-as-you-go billing on Meta's Model API. The Meta page checked shows the plans and the per-token rates, but it does not walk through the billing steps. A subscription covers only the key the CLI sets up at sign-in. Any other API key, including one in META_API_KEY, bills per token.",
       },
       { kind: "h2", text: "What does Helicon cost on top?" },
       {
@@ -99,7 +99,7 @@ export const BUYER_INTENT_PAGES: SeoPage[] = [
       },
       {
         q: "Does Muse Code have a free tier?",
-        a: "The Muse Code page checked on 20 October 2026 lists none, and it does not mention a free trial. The free Muse app does not include Muse Code.",
+        a: "The Muse Code page checked on 20 October 2026 lists none, and it does not mention a free trial.",
       },
       {
         q: "Is Helicon free?",
