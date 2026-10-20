@@ -58,17 +58,25 @@ export default function SearchPalette({
   open,
   onOpenChange,
   trigger,
-  initialQuery = "",
+  onReady,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The header button. It is not a Dialog.Trigger, so Radix needs telling where focus goes back to. */
   trigger: RefObject<HTMLButtonElement | null>;
-  /** Typed while this chunk was still loading. Only read on mount, which is the first open. */
-  initialQuery?: string;
+  /** Called as the input takes focus; returns what was typed while the palette was loading. */
+  onReady: () => string;
 }) {
-  const [query, setQuery] = useState(initialQuery);
+  const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  // Text typed while loading has just become the query: put the caret after it once it renders.
+  const caretToEnd = useRef(false);
+
+  useEffect(() => {
+    if (!caretToEnd.current) return;
+    caretToEnd.current = false;
+    input.current?.setSelectionRange(query.length, query.length);
+  }, [query]);
   const [index, setIndex] = useState<SearchDoc[]>([]);
   const router = useRouter();
 
@@ -109,11 +117,15 @@ export default function SearchPalette({
         <Dialog.Content
           aria-describedby={undefined}
           onOpenAutoFocus={(event) => {
-            // Radix would select the input's text. Text typed before the palette loaded is already
-            // in there, so put the caret after it and let the next key add to it.
+            // Radix would select the input's text. Text typed before the palette loaded becomes the
+            // query, with the caret after it so the next key adds to it.
             event.preventDefault();
             input.current?.focus();
-            input.current?.setSelectionRange(query.length, query.length);
+            const typed = onReady();
+            if (typed) {
+              caretToEnd.current = true;
+              setQuery(typed);
+            }
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
