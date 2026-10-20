@@ -165,8 +165,8 @@ const ko: HomeCopy = {
         "이제 Muse Code가 Windows에서 네이티브로 돌아가고, Helicon은 그것을 직접 실행합니다. Windows 경로를 그대로 쓰고 셸 명령은 PowerShell로 실행하며 WSL은 필요 없습니다. WSL2 안의 Muse Code도 계속 동작하고, 네이티브 Muse Code가 없으면 Helicon이 그쪽을 씁니다.",
       ],
       [
-        "무료 Muse 앱으로도 쓸 수 있나요?",
-        "아니요. Helicon이 구동하는 코딩 에이전트 Muse Code는 Muse Code 요금제나 Meta Model API의 종량제 결제가 필요합니다. 무료 Muse 앱은 다른 제품이라 Muse Code가 포함되지 않습니다. Helicon 자체는 무료이고 비용을 더하지 않습니다.",
+        "Meta 쪽에서는 무엇이 필요한가요?",
+        "Helicon이 구동하는 코딩 에이전트 Muse Code는 Meta 로그인이 필요합니다. 그다음 4가지 구독 요금제 중 하나를 고르거나, Model API 키로 토큰당 결제하면 됩니다. Helicon 자체는 무료이고 비용을 더하지 않습니다.",
       ],
       [
         "Helicon이 외부로 데이터를 보내나요?",
@@ -297,8 +297,8 @@ const ja: HomeCopy = {
         "Muse Code は Windows でネイティブに動くようになり、Helicon はそれを直接実行します。Windows のパスをそのまま使い、シェルコマンドは PowerShell で実行し、WSL は不要です。WSL2 上の Muse Code も引き続き使え、ネイティブの Muse Code がない場合は Helicon がそちらを使います。",
       ],
       [
-        "無料の Muse アプリでも使えますか？",
-        "いいえ。Helicon が動かすコーディングエージェント Muse Code には、Muse Code プランか Meta Model API の従量課金が必要です。無料の Muse アプリは別の製品で、Muse Code は含まれません。Helicon 自体は無料で、独自の費用はかかりません。",
+        "Meta 側では何が必要ですか？",
+        "Helicon が動かすコーディングエージェント Muse Code には、Meta へのサインインが必要です。そのうえで 4 つのサブスクリプションプランから選ぶか、Model API キーでトークン単位の従量課金を使います。Helicon 自体は無料で、独自の費用はかかりません。",
       ],
       [
         "Helicon は外部に通信しますか？",
@@ -429,8 +429,8 @@ const ptBr: HomeCopy = {
         "O Muse Code agora roda nativamente no Windows, e o Helicon o executa direto: seus caminhos do Windows, PowerShell para comandos de shell, sem WSL. O Muse Code dentro do WSL2 continua funcionando, e o Helicon usa essa opção quando o Muse Code nativo não está instalado.",
       ],
       [
-        "Funciona com o app gratuito do Muse?",
-        "Não. O Muse Code, o agente de código que o Helicon controla, exige um plano do Muse Code ou cobrança por uso na Model API da Meta. O app gratuito do Muse é outro produto e não inclui o Muse Code. O Helicon em si é gratuito e não adiciona custo nenhum.",
+        "O que preciso da Meta para usar?",
+        "O Muse Code, o agente de código que o Helicon controla, precisa de um login na Meta. Depois, escolha um dos 4 planos de assinatura ou pague por token com uma chave da Model API. O Helicon em si é gratuito e não adiciona custo nenhum.",
       ],
       [
         "O Helicon envia dados para algum lugar?",

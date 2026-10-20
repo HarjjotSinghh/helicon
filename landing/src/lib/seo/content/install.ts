@@ -465,7 +465,7 @@ export const INSTALL_PAGES: SeoPage[] = [
       },
       {
         kind: "p",
-        text: "You need the muse CLI ([download Muse Code](/muse-code-download)) installed and signed in once with `muse login`, on a Muse Code plan or pay-as-you-go billing (the free Muse app doesn't include Muse Code). The extension uses that login; it never asks for an API key.",
+        text: "You need the muse CLI ([download Muse Code](/muse-code-download)) installed and signed in once with `muse login`, on one of Muse Code's 4 subscription plans or pay-per-token billing. The extension uses that login; it never asks for an API key.",
       },
       { kind: "h2", text: "What the panel gives you" },
       {
@@ -521,8 +521,8 @@ export const INSTALL_PAGES: SeoPage[] = [
     },
     faqs: [
       {
-        q: "Does it work with the free Muse app?",
-        a: "No. Muse Code needs a Muse Code plan or pay-as-you-go billing on Meta's Model API; the free Muse app doesn't include it. The extension itself is free.",
+        q: "What do I need from Meta?",
+        a: "A Meta sign-in for Muse Code. Then pick one of its 4 subscription plans, or pay per token with a Model API key. The extension itself is free.",
       },
       {
         q: "Does it work in Cursor?",
