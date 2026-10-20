@@ -1185,13 +1185,14 @@ export const GUIDE_PAGES: SeoPage[] = [
       { kind: "h2", text: "When YOLO fits" },
       {
         kind: "p",
-        text: "YOLO mode suits a disposable environment, such as a throwaway git worktree or a container you can delete. The full access dialog gives the same advice: use it only in a disposable environment.",
+        text: "YOLO mode suits a disposable environment, such as a container or VM you can delete. The full access dialog gives the same advice: use it only in a disposable environment.",
       },
       { kind: "h2", text: "When it does not fit" },
       {
         kind: "ul",
         items: [
           "Your main checkout, or any folder with work you have not committed.",
+          "A repo where you can push to a shared remote or deploy, since a bad command can run git push or a release script without asking.",
           "A machine that can reach production credentials, SSH keys or other secrets.",
           "Any thread you will not watch, since no approval prompt will stop a bad command.",
         ],
