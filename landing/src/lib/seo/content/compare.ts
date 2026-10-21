@@ -1233,7 +1233,7 @@ const ENTRIES: Entry[] = [
       ["How it talks to Muse Code", "`muse serve` through the official SDK", "`muse serve` over the Muse Session Protocol", "https://paseo.sh/docs/muse-code"],
       ["Approval modes", "Muse Code's own modes, mapped one to one", "Default, Ask, Strict or Full access", "https://paseo.sh/docs/muse-code"],
       ["Where it runs", "Windows, macOS, Linux, the web and a VS Code extension", "Desktop, web, and native iOS and Android apps", "https://paseo.sh/download"],
-      ["Phones and remote machines", "No phone app yet", "Encrypted relay, local network, or your own tunnel", "https://paseo.sh/docs/security"],
+      ["Phones and remote machines", "No phone app yet. The web app can connect to a Helicon daemon on another machine with a token", "Encrypted relay, local network, or your own tunnel", "https://paseo.sh/docs/security"],
       ["License and price", "MIT, free", "Apache 2.0, free", "https://paseo.sh"],
     ],
     what: [
@@ -1249,7 +1249,7 @@ const ENTRIES: Entry[] = [
       ],
       [
         "Phones and remote machines",
-        "Paseo has native iOS and Android apps and connects to your machine through an encrypted relay, your local network or a tunnel like Tailscale. Helicon has no phone app yet.",
+        "Paseo has native iOS and Android apps and connects to your machine through an encrypted relay, your local network or a tunnel like Tailscale. Helicon has no phone app yet. Its web app can connect to a Helicon daemon on another machine with a token.",
       ],
       [
         "Muse Code limits in Paseo",
