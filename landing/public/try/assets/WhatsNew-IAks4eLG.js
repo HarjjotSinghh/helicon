@@ -1,4 +1,4 @@
-import{u as M,a as p,r as g,b as C,j as a,A as T,m as A,o as I,e as W}from"./index-Bb8D936s.js";import{r as N}from"./Scroll.es-DZAxcWku.js";const f=[{version:"0.22.3",body:`### New
+import{ar as M,as as p,r as g,at as C,j as a,au as T,av as A,aw as I,ax as W}from"./index-DeQM5tP8.js";import{r as N}from"./Scroll.es-CIb8PVjA.js";const f=[{version:"0.22.3",body:`### New
 
 - **A "Sign in to Muse" card on native Windows** ([#184](https://github.com/HarjjotSinghh/helicon/pull/184)). Helicon now reads Muse's sign-in file on Windows, the same as on macOS and Linux. When nobody is signed in, the card shows there too. WSL behaves as before.
 

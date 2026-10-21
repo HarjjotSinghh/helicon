@@ -1,7 +1,7 @@
 // via beUI AnimatedToastStack (beui.dev), MIT (c) 2026 Saurabh Chauhan.
 // Adapted: driven by the Helicon store, project tokens, no backdrop blur, chronological stack.
 import { CheckIcon, InfoIcon, WarningCircleIcon, XIcon } from "./icons.js";
-import { AnimatePresence, motion, useReducedMotion, type Transition } from "motion/react";
+import { AnimatePresence, m, useReducedMotion, type Transition } from "motion/react";
 import type { ReactNode } from "react";
 import { useApp, useController } from "../../app/context.js";
 import type { Toast } from "../../model/store.js";
@@ -30,7 +30,7 @@ export function Toasts(props: { leading?: ReactNode }) {
       {props.leading}
       <AnimatePresence initial={false} mode="popLayout">
         {toasts.map((toast) => (
-          <motion.li
+          <m.li
             key={toast.id}
             layout
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: 22, scale: 0.96, filter: "blur(10px)" }}
@@ -83,7 +83,7 @@ export function Toasts(props: { leading?: ReactNode }) {
                 <XIcon size={14} />
               </button>
             </div>
-          </motion.li>
+          </m.li>
         ))}
       </AnimatePresence>
     </ol>

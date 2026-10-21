@@ -5,7 +5,7 @@
  *   Collapse, PixelLoader, RollingDigits  via Beautiful UI (beautifului.dev), MIT (c) 2026 Shane Levine
  *   SwapIcon                              via beUI ActionSwapIcon (beui.dev), MIT (c) 2026 Saurabh Chauhan
  */
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "./primitives.js";
 
@@ -148,7 +148,7 @@ export function SwapIcon(props: { value: string; children: ReactNode; className?
   return (
     <span className={cn("relative inline-grid shrink-0 place-items-center", props.className)}>
       <AnimatePresence mode="popLayout" initial={false}>
-        <motion.span
+        <m.span
           key={props.value}
           aria-hidden="true"
           initial={reduce ? false : { opacity: 0, scale: 0.4, filter: "blur(6px)" }}
@@ -158,7 +158,7 @@ export function SwapIcon(props: { value: string; children: ReactNode; className?
           className="col-start-1 row-start-1 inline-flex items-center justify-center"
         >
           {props.children}
-        </motion.span>
+        </m.span>
       </AnimatePresence>
     </span>
   );
