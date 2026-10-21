@@ -30,7 +30,7 @@ function requirements(version: string | null) {
   return [
     "Nothing to install for Node.js: the desktop app bundles its own.",
     "The muse CLI installed and logged in.",
-    "A Muse Code plan or pay-as-you-go billing on Meta's Model API. The free Muse app doesn't include Muse Code.",
+    "A Meta sign-in or a Model API key for Muse Code, on one of its 4 subscription plans or pay-per-token billing.",
     "Windows: install Muse Code for Windows from PowerShell, no WSL needed. Muse Code in WSL2 works too.",
     "macOS builds are not notarized yet. On first launch, use System Settings > Privacy & Security > Open Anyway (macOS 15 or later).",
     version ? `Linux: run from source at v${version}.` : "Linux: run from source; there is no packaged build yet.",

@@ -25,7 +25,7 @@ Want to see it first? [Try the full app in your browser](https://helicon.sh/try?
 
 ## Get started
 
-1. Install the `muse` CLI and run `muse login` once. You need a Muse Code plan or pay-as-you-go billing on Meta's Model API; the free Muse app doesn't include Muse Code. ([Help if the CLI isn't found](https://helicon.sh/guides/muse-cli-not-found))
+1. Install the `muse` CLI and run `muse login` once. Muse Code needs a Meta sign-in or a Model API key, on one of its 4 subscription plans or pay-per-token billing. ([Help if the CLI isn't found](https://helicon.sh/guides/muse-cli-not-found))
 2. Click the Helicon icon in the activity bar, or press `Cmd+Alt+H` / `Ctrl+Alt+H`. The panel opens on the folder you have open.
 3. Type what you want changed. New threads open as tabs; the clock icon shows every earlier thread in the folder.
 4. Want every project at once? **Helicon: Open Full Helicon in Editor** opens the full app, sidebar and all, in an editor tab.

@@ -314,6 +314,14 @@
   --reveal-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/*
+ * A page that streams in slowly is short at first paint, then grows a scrollbar; without a
+ * reserved gutter the whole centred frame jumps sideways when it appears.
+ */
+html {
+  scrollbar-gutter: stable;
+}
+
 html.motion-ready [data-reveal]:not([data-inview]) {
   /* Intentionally empty: content stays visible. MotionObserver can still fade if re-enabled. */
 }

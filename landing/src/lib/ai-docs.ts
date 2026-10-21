@@ -75,6 +75,8 @@ export function llmsTxt(version: string | null) {
 
 > ${DESCRIPTION}
 
+Not to be confused with Helicon Focus, the photo focus-stacking software.
+
 ${TAGLINE}
 
 ${factsFor(version).join("\n")}
@@ -125,6 +127,8 @@ export function llmsFullTxt(version: string | null) {
   return `# ${SITE_NAME}: Muse Code desktop app for Windows, macOS and Linux
 
 > ${DESCRIPTION}
+
+Not to be confused with Helicon Focus, the photo focus-stacking software.
 
 ${TAGLINE}
 

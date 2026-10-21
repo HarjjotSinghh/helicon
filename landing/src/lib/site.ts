@@ -88,6 +88,11 @@ export const ISSUES_URL = `${REPO_URL}/issues`;
 /** The editor extension: one listing per registry. Cursor, Windsurf and Antigravity install from Open VSX. */
 export const VSCODE_MARKETPLACE_URL = "https://marketplace.visualstudio.com/items?itemName=harjjotsinghh.helicon";
 export const OPEN_VSX_URL = "https://open-vsx.org/extension/harjjotsinghh/helicon";
+export const PRODUCT_HUNT_URL = "https://www.producthunt.com/products/helicon";
+
+/** Says which Helicon this is. Answer engines confuse the name with Helicon Focus. */
+export const DISAMBIGUATION =
+  "Helicon is a free, open-source desktop app and VS Code extension for Meta's Muse Code coding agent. It is not Helicon Focus, the photo focus-stacking software.";
 
 /**
  * How to reach the people behind Helicon, and where they are. Published in the Organization
@@ -188,10 +193,11 @@ export const FAQS: [string, string][] = [
   ["How does it work on Windows?", "Muse Code runs natively on Windows now, and Helicon runs it directly: your own Windows paths, PowerShell for shell commands, no WSL. Muse Code inside WSL2 still works, and Helicon uses it when native Muse Code is not installed."],
   ["What does the cost view actually show?", "What each thread would have cost at Meta's published per-token rates. It is not a bill, just the meter reading, so you can see what your subscription did."],
   ["Can I drive it without a mouse?", "Yes. Command palette, slash commands, and a model and reasoning-effort picker cover everything, with full keyboard operation throughout."],
-  ["Does it work with the free Muse app?", "No. Muse Code, the coding agent Helicon drives, needs a Muse Code plan or pay-as-you-go billing on Meta's Model API. The free Muse app is a different product and does not include it. Helicon itself is free and adds no cost of its own."],
+  ["What do I need from Meta to use it?", "Muse Code, the coding agent Helicon drives, needs a Meta credential: a browser sign-in or a Model API key. Billing is one of its 4 subscription plans, or pay per token with the API key. Helicon itself is free and adds no cost of its own."],
   ["What do I need installed?", "Just the muse CLI, logged in with your own muse login. The desktop app ships its own Node.js. Running from source or hosting the web app needs Node 22+ yourself."],
   ["Does Helicon phone home?", "Only to check for updates. The desktop app asks helicon.sh whether a newer version exists, and that request tells us an install is alive: the platform, the version, and a weekly hash of the IP it came from. Nothing about your code, prompts, threads or files ever leaves your machine, and there is no account."],
   ["Is it really free?", "Yes. MIT licensed, no paid tier, source on GitHub. It uses your existing Muse Code subscription, so there is no second bill."],
+  ["Is Helicon related to Helicon Focus?", "No. Helicon is a free, open-source desktop app for Meta's Muse Code coding agent. Helicon Focus is unrelated photo focus-stacking software from Helicon Soft."],
 ];
 
 /** Meta tags every page carries. Pages that set their own `other` spread this first, since Next replaces the key. */

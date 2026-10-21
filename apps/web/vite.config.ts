@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { tryHtml } from "./src/demo/tryPage";
+import { phosphorWeights } from "./src/vite/phosphorWeights";
 
 // The web app compiles the shared UI straight from source, so edits hot-reload without a package build.
 const uiEntry = fileURLToPath(new URL("../../packages/ui/src/index.ts", import.meta.url));
@@ -19,7 +20,7 @@ const tryPage = {
 };
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), tryPage],
+  plugins: [react(), tailwindcss(), tryPage, phosphorWeights()],
   resolve: {
     alias: { "@helicon/ui": uiEntry },
     dedupe: ["react", "react-dom"],

@@ -156,3 +156,30 @@ jobs:
             fs.writeFileSync("latest.json", JSON.stringify(latest, null, 2));
           '
           gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "${appimage[0]}" "${appimage[0]}.sig" latest.json --clobber
+
+  # One SHA256SUMS file per release, so copies of the installers on mirror sites can be checked against it.
+  # Runs last: the Linux job replaces the AppImage after tauri-action uploads it.
+  checksums:
+    permissions:
+      contents: write
+    needs: desktop-linux
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Publish SHA256SUMS
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          cd "$work"
+          # The installers only: mirrors redistribute those, and a missing one should fail the job, not drop out of the list.
+          installers=('Helicon_*_x64-setup.exe' 'Helicon_*_universal.dmg' 'Helicon_*_amd64.AppImage')
+          for pattern in "${installers[@]}"; do
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$pattern"
+            compgen -G "$pattern" > /dev/null || { echo "Missing release asset: $pattern" >&2; exit 1; }
+          done
+          sha256sum Helicon_*_x64-setup.exe Helicon_*_universal.dmg Helicon_*_amd64.AppImage > SHA256SUMS
+          cat SHA256SUMS
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" SHA256SUMS --clobber

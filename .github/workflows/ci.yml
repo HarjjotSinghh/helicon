@@ -5,6 +5,10 @@ on:
     branches: [prod]
   pull_request:
 
+# Nothing here pushes or publishes, and npm ci, the tests and the builds run dependency code.
+permissions:
+  contents: read
+
 jobs:
   node:
     strategy:
@@ -14,6 +18,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -37,6 +43,28 @@ jobs:
           }
           if ($failed) { exit 1 }
 
+  # helicon.sh has its own lockfile and is not a workspace, so nothing above touches it. Without
+  # this a broken page only shows up as a failed production deploy.
+  landing:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: landing/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit -p .
+      - run: npm test
+      - run: npm run build
+
   # The desktop crate is only otherwise compiled while cutting a release, which is far too late to
   # find out that it does not build.
   rust:
@@ -47,6 +75,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22

@@ -130,6 +130,8 @@ export type SeoPage = {
   answerCta?: boolean;
   /** Utility page that should not compete for search results: noindex, follow, and left out of the sitemap. */
   noindex?: boolean;
+  /** The official document the page's subject is described in. Shown as a small link under the body. */
+  source?: { title: string; url: string };
 };
 
 export type Section = {

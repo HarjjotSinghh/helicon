@@ -18,6 +18,7 @@ type Def = {
   body: { h: string; p?: string; ul?: string[]; code?: string; table?: { head: string[]; rows: string[][] } }[];
   faqs: { q: string; a: string }[];
   related?: string[];
+  source?: { title: string; url: string };
 };
 
 const DEFS: Def[] = [
@@ -25,6 +26,10 @@ const DEFS: Def[] = [
     slug: "muse-code",
     icon: "sparkle",
     term: "Muse Code",
+    source: {
+      title: "Muse Code (Meta developer product page)",
+      url: "https://developer.meta.com/ai/products/muse-code",
+    },
     title: "What is Muse Code? Meta's terminal coding agent",
     description:
       "Muse Code is Meta's AI coding agent, used through the muse command line tool on macOS, Linux and Windows. A plain definition, what it does, and how clients connect to it.",
@@ -62,6 +67,10 @@ const DEFS: Def[] = [
     slug: "muse-cli",
     icon: "terminalWindow",
     term: "the muse CLI",
+    source: {
+      title: "Authentication and billing (Muse Code docs)",
+      url: "https://dev.meta.ai/docs/muse-code/auth",
+    },
     title: "What is the muse CLI?",
     description:
       "The muse command line tool is how you run Muse Code. What it installs, what muse login does, and why a GUI still needs it present.",
@@ -101,6 +110,10 @@ const DEFS: Def[] = [
     slug: "msp",
     icon: "plugsConnected",
     term: "the Muse Code Session Protocol",
+    source: {
+      title: "GitHub: meta-models/muse-code-sdk (SDK and protocol docs, MIT)",
+      url: "https://github.com/meta-models/muse-code-sdk",
+    },
     title: "What is MSP, the Muse Code Session Protocol?",
     description:
       "MSP is the JSON-RPC protocol that applications use to drive a Muse Code session over stdio, instead of parsing terminal output. What it carries and why it matters.",
@@ -138,6 +151,10 @@ const DEFS: Def[] = [
     slug: "muse-serve",
     icon: "drives",
     term: "muse serve",
+    source: {
+      title: "Muse Code (Meta Model API docs, session protocol section)",
+      url: "https://dev.meta.ai/docs/muse-code",
+    },
     title: "What is muse serve?",
     description:
       "muse serve starts a Muse Code protocol host that applications can drive over stdio. What it is for, and how a GUI uses one host per workspace.",
@@ -169,6 +186,10 @@ const DEFS: Def[] = [
     slug: "acp",
     icon: "plugs",
     term: "the Agent Client Protocol",
+    source: {
+      title: "Overview - Agent Client Protocol",
+      url: "https://agentclientprotocol.com/protocol/overview",
+    },
     title: "What is ACP, the Agent Client Protocol?",
     description:
       "ACP is a general protocol that lets editors talk to any conforming coding agent. How it differs from a Muse Code specific protocol, and what gets lost in the bridge.",
@@ -248,6 +269,10 @@ const DEFS: Def[] = [
     slug: "agent-approvals",
     icon: "shield",
     term: "agent approvals",
+    source: {
+      title: "Permissions and safety (Muse Code docs)",
+      url: "https://dev.meta.ai/docs/muse-code/permissions",
+    },
     title: "What are coding agent approvals?",
     description:
       "An approval is the moment an agent asks before acting. The three Muse Code modes, what each one does, and why bypassing them is the wrong optimisation.",
@@ -291,6 +316,10 @@ const DEFS: Def[] = [
     slug: "git-worktree",
     icon: "gitBranch",
     term: "a git worktree",
+    source: {
+      title: "Git - git-worktree Documentation",
+      url: "https://git-scm.com/docs/git-worktree",
+    },
     title: "What is a git worktree, and why agents need them",
     description:
       "A git worktree is a second working directory for the same repository. It is the cheapest way to stop two coding agents from editing the same files.",
@@ -327,6 +356,10 @@ const DEFS: Def[] = [
     slug: "subagent",
     icon: "tree",
     term: "a subagent",
+    source: {
+      title: "Extending and automating (Muse Code docs, subagents section)",
+      url: "https://dev.meta.ai/docs/muse-code/extending",
+    },
     title: "What is a subagent in a coding agent?",
     description:
       "A subagent is a separate agent a main agent spawns to do part of the work in parallel. Why it saves wall clock time and why it is unreadable in a terminal.",
@@ -366,6 +399,10 @@ const DEFS: Def[] = [
     slug: "reasoning-effort",
     icon: "gauge",
     term: "reasoning effort",
+    source: {
+      title: "Configuration and context (Muse Code docs, reasoning effort)",
+      url: "https://dev.meta.ai/docs/muse-code/configuration",
+    },
     title: "What is reasoning effort in a coding agent?",
     description:
       "Reasoning effort controls how much thinking a model does before answering. What it changes, what it costs, and when to turn it up.",
@@ -442,6 +479,10 @@ const DEFS: Def[] = [
     slug: "llms-txt",
     icon: "file",
     term: "llms.txt",
+    source: {
+      title: "The /llms.txt file, v2 (llmstxt.org)",
+      url: "https://llmstxt.org",
+    },
     title: "What is llms.txt?",
     description:
       "llms.txt is a plain text file at a site's root that gives language models a clean summary and an index of the pages worth reading. What goes in one.",
@@ -486,6 +527,10 @@ const DEFS: Def[] = [
     slug: "tauri",
     icon: "cube",
     term: "Tauri",
+    source: {
+      title: "Tauri 2.0 (Tauri docs)",
+      url: "https://v2.tauri.app/",
+    },
     title: "What is Tauri, and why build a desktop app on it?",
     description:
       "Tauri builds desktop apps from web UI using the operating system's own webview and a Rust core. Why that matters for a small, auto updating app.",
@@ -538,6 +583,7 @@ function toPage(def: Def): SeoPage {
     ]),
     faqs: def.faqs,
     related: def.related,
+    source: def.source,
   };
 }
 

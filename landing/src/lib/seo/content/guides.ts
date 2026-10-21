@@ -405,7 +405,7 @@ export const GUIDE_PAGES: SeoPage[] = [
         kind: "ul",
         items: [
           "The muse CLI, installed and signed in once with `muse login`. The extension uses that login and never asks for an API key.",
-          "A Muse Code plan, or pay-as-you-go billing on Meta's Model API. The free Muse app doesn't include Muse Code.",
+          "A Meta sign-in or a Model API key for Muse Code, on one of its 4 subscription plans or pay-per-token billing.",
           "VS Code 1.101 or later. The extension runs on the editor's own Node runtime and needs Node 22 or newer.",
         ],
       },
@@ -510,8 +510,8 @@ export const GUIDE_PAGES: SeoPage[] = [
         a: "No. Helicon is an unofficial community project, MIT licensed, and not affiliated with or endorsed by Meta. It drives the muse CLI you already have.",
       },
       {
-        q: "Does it work with the free Muse app?",
-        a: "No. Muse Code needs a Muse Code plan or pay-as-you-go billing on Meta's Model API, and the free Muse app doesn't include it. The extension itself is free.",
+        q: "What do I need from Meta?",
+        a: "Muse Code needs a Meta credential: a browser sign-in or a Model API key. Billing is one of its 4 subscription plans, or pay per token with the API key. The extension itself is free.",
       },
       {
         q: "Do I need an API key?",
@@ -578,7 +578,7 @@ export const GUIDE_PAGES: SeoPage[] = [
         kind: "ul",
         items: [
           "The muse CLI, installed and signed in once with `muse login`. The extension uses that login and never asks for an API key.",
-          "A Muse Code plan, or pay-as-you-go billing on Meta's Model API. The free Muse app doesn't include Muse Code.",
+          "A Meta sign-in or a Model API key for Muse Code, on one of its 4 subscription plans or pay-per-token billing.",
           "A current release of Cursor, Windsurf or Antigravity. The extension runs on the editor's own Node runtime and needs Node 22 or newer.",
         ],
       },
@@ -670,8 +670,8 @@ export const GUIDE_PAGES: SeoPage[] = [
         a: "No. It is a panel for Muse Code, running next to whatever else your editor has.",
       },
       {
-        q: "Does it work with the free Muse app?",
-        a: "No. Muse Code needs a Muse Code plan or pay-as-you-go billing on Meta's Model API, and the free Muse app doesn't include it. The extension itself is free.",
+        q: "What do I need from Meta?",
+        a: "Muse Code needs a Meta credential: a browser sign-in or a Model API key. Billing is one of its 4 subscription plans, or pay per token with the API key. The extension itself is free.",
       },
       {
         q: "Is Helicon official?",
@@ -1127,6 +1127,111 @@ export const GUIDE_PAGES: SeoPage[] = [
     related: ["guides/muse-cli-not-found", "guides/muse-code-over-ssh", "install/wsl2", "muse-code-gui"],
   },
   {
+    slug: "guides/muse-code-yolo-mode",
+    icon: "lightning",
+    section: "guides",
+    label: "YOLO mode",
+    title: "How to turn on Muse Code YOLO mode in Helicon",
+    h1: "Turn on YOLO mode (muse --yolo) in Helicon",
+    description:
+      "Helicon's YOLO switch runs muse --yolo: no approvals, no sandbox for new threads. Read the four approval modes and when YOLO fits.",
+    answer:
+      "YOLO mode is Helicon's switch for the muse --yolo posture. Nothing asks for approval in any thread, and new threads run without sandbox confinement. Turn it on in the Permissions menu or in Settings. Turning it off restores the approval modes you had before.",
+    keywords: [
+      "muse code yolo",
+      "muse --yolo",
+      "muse code skip approvals",
+      "muse code no approval prompts",
+      "muse code full access",
+    ],
+    updated: "2026-10-20",
+    blocks: [
+      { kind: "h2", text: "What YOLO mode changes" },
+      {
+        kind: "p",
+        text: "YOLO mode sets the posture of muse --yolo. Nothing asks for approval in any thread. New threads run without sandbox confinement. Workspaces are trusted.",
+      },
+      {
+        kind: "p",
+        text: "Approvals turn off for every open thread at once. The sandbox change applies to new threads only. Threads that are already open keep the sandbox posture they started with.",
+      },
+      {
+        kind: "p",
+        text: "Flipping the switch restarts the running Muse hosts, which interrupts their turns.",
+      },
+      { kind: "h2", text: "Turn it on" },
+      {
+        kind: "ol",
+        items: [
+          "Open the Permissions menu in the composer and switch on YOLO mode. You can also open Settings, go to the YOLO mode section and flip its toggle.",
+          "Read the dialog titled Turn on YOLO mode? and choose Turn on YOLO.",
+        ],
+      },
+      { kind: "h2", text: "The four approval modes" },
+      {
+        kind: "p",
+        text: "When YOLO mode is off, the Permissions menu picks one of four approval modes. The table gives each menu label, its value name, and what it does.",
+      },
+      {
+        kind: "table",
+        head: ["Menu label", "Value name", "What it does"],
+        rows: [
+          ["Ask first", "onRequest", "Muse asks before anything that needs approval."],
+          ["Ask for unlisted", "promptUnmatched", "Commands your rules allow just run; anything else asks."],
+          ["Deny unlisted", "denyUnmatched", "Commands your rules allow just run; anything else is refused."],
+          ["Full access", "allowAll", "Every tool runs without asking. Only for sandboxes."],
+        ],
+      },
+      { kind: "h2", text: "When YOLO fits" },
+      {
+        kind: "p",
+        text: "YOLO mode suits a disposable environment, such as a container or VM you can delete. The full access dialog gives the same advice: use it only in a disposable environment.",
+      },
+      { kind: "h2", text: "When it does not fit" },
+      {
+        kind: "ul",
+        items: [
+          "Your main checkout, or any folder with work you have not committed.",
+          "A repo where you can push to a shared remote or deploy, since a bad command can run git push or a release script without asking.",
+          "A machine that can reach production credentials, SSH keys or other secrets.",
+          "Any thread you will not watch, since no approval prompt will stop a bad command.",
+        ],
+      },
+      { kind: "h2", text: "Turn it off" },
+      {
+        kind: "p",
+        text: "Switch YOLO mode off in the Permissions menu or in Settings. Helicon restores the approval modes you had before.",
+      },
+      {
+        kind: "note",
+        text: "While YOLO mode is on, the four approval modes are disabled, and YOLO owns every thread's mode. The Disable sandboxing switch in Settings is disabled too, until you switch YOLO off.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Is YOLO mode the same as muse --yolo?",
+        a: "It sets the same posture. The Settings text says it works like muse --yolo, and hosts start with --disable-sandbox and --trust-workspace.",
+      },
+      {
+        q: "Does YOLO mode turn itself off?",
+        a: "No. It stays on until you switch it off, and the confirmation says so.",
+      },
+      {
+        q: "Do open threads change right away?",
+        a: "Approvals turn off for every open thread at once. The sandbox change applies only to new threads.",
+      },
+    ],
+    howTo: {
+      name: "Turn on YOLO mode in Helicon",
+      steps: [
+        { name: "Open the Permissions menu", text: "In the composer, open the Permissions menu." },
+        { name: "Confirm", text: "Read the dialog titled Turn on YOLO mode? and choose Turn on YOLO." },
+        { name: "Turn it off when done", text: "Switch YOLO mode off to restore your previous approval modes." },
+      ],
+    },
+    related: ["guides/review-agent-changes", "guides/run-parallel-agents", "guides/resume-a-muse-session"],
+  },
+  {
     slug: "guides/macos-first-launch",
     icon: "apple",
     section: "guides",
@@ -1260,5 +1365,60 @@ export const GUIDE_PAGES: SeoPage[] = [
       },
     ],
     related: ["muse-code-gui", "compare/muse-code-terminal", "features/session-history", "guides/resume-a-muse-session"],
+  },
+  {
+    slug: "guides/muse-code-approvals",
+    icon: "shield",
+    section: "guides",
+    label: "Muse Code approval prompts",
+    title: "Why I kept Muse Code's approval prompts in Helicon",
+    h1: "Why I kept Muse Code's approval prompts in Helicon",
+    description:
+      "Helicon marks Muse Code threads that wait on an approval and shows the real command before it runs. Here is why I built it that way.",
+    answer:
+      "Helicon marks Muse Code threads that wait on an approval and shows the real command before it runs. Here is why I built it that way.",
+    keywords: [
+      "muse code approvals",
+      "muse code approval prompts",
+      "coding agent approval gui",
+      "muse code allow deny command",
+      "why helicon approvals",
+    ],
+    updated: "2026-10-20",
+    blocks: [
+      { kind: "p", text: "I built Helicon, a free and open source desktop app for Muse Code, Meta's terminal coding agent. It is unofficial and not affiliated with Meta. I built it to run Muse Code on Windows without WSL, to see every thread in one place, and to keep my own `muse login`." },
+      { kind: "p", text: "Approvals were the part I thought about most." },
+      { kind: "p", text: "Muse Code asks before it runs a command or changes a file that its rules do not already allow. In a terminal, that question shows up inside the session you are looking at. Run two or three sessions and the one that is waiting can scroll out of sight while you work in another. The thread just sits there. Nothing tells you it is stuck." },
+      { kind: "p", text: "Helicon treats a waiting approval as a state the thread is in. A thread that needs you gets marked in the sidebar, so you can see what is waiting without opening each session. Running threads are marked too, so each row in the list reads at a glance." },
+      { kind: "p", text: "I thought about desktop alerts for every prompt. They would get noisy fast when several threads are waiting at once, so the signal stays in the sidebar, where you look when you choose to." },
+      { kind: "p", text: "When you open the thread, the approval shows the exact command or the edit before it runs. You allow it or you deny it. I wanted the prompt to show the real thing and not a summary, because a summary is where a bad command can hide." },
+      { kind: "p", text: "Each edit also appears as a diff at the turn that produced it. The approval and the change it allowed sit in the same thread, so you do not have to go looking for either." },
+      { kind: "p", text: "The rules come from Muse Code, and Helicon passes them through unchanged. The permissions menu has the same modes the CLI has:" },
+      {
+        kind: "ul",
+        items: [
+          "Ask first (`onRequest`): Muse asks before anything that needs approval.",
+          "Ask for unlisted (`promptUnmatched`): commands your rules allow just run, and anything else asks.",
+          "Deny unlisted (`denyUnmatched`): commands your rules allow just run, and anything else is refused.",
+          "Full access (`allowAll`): everything runs without asking.",
+        ],
+      },
+      { kind: "p", text: "There is also a YOLO switch for the full `muse --yolo` setup: no approvals, no sandbox, trusted workspace. A contributor built it, and it sits behind a confirmation in the permissions menu and in Settings. Turning it off puts back the modes you had before. I get why people want it. After a few approvals in a row, clicking allow starts to feel like a chore. I still keep a little friction on the commands that matter, so I leave it off." },
+      { kind: "p", text: "A GUI does not solve the hard part, either. The sidebar marker helps you find the thread. It does not decide for you. If you approve a bad command at speed, the app shows it to you clearly and then lets you approve it anyway." },
+      { kind: "p", text: "If you run one session at a time, the marker adds little. It starts to matter when several threads are going at once and you are switching between them. That is the setup I built for." },
+      { kind: "p", text: "Here is how I work with it:" },
+      {
+        kind: "ol",
+        items: [
+          "Give each task its own git worktree, so two agents never edit the same files. The parallel agents guide has the commands.",
+          "Start the threads, then watch the sidebar instead of the terminals.",
+          "When a thread is marked, open it. Read the command or the diff, then allow or deny.",
+          "After a run, read the diffs turn by turn. A change that surprises you sits next to the turn that made it.",
+        ],
+      },
+      { kind: "p", text: "There are limits. Allow once covers that one call, and allow for this session covers that thread only, so neither carries over to a terminal session on the same project. Always allow saves a rule in Muse Code itself. Helicon follows what the CLI reports, so if Muse Code changes its approval modes, what Helicon shows changes with them." },
+      { kind: "p", text: "Helicon is MIT licensed. The source is on GitHub, so you can check how the prompt is drawn for yourself. If you want the setup steps first, the [parallel agents guide](/guides/run-parallel-agents) and the [review guide](/guides/review-agent-changes) are the next two reads." },
+    ],
+    related: ["guides/run-parallel-agents", "guides/review-agent-changes", "features/approvals"],
   },
 ];

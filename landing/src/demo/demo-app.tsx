@@ -130,12 +130,15 @@ function Shell() {
   );
 }
 
-/** Just the product sidebar, stretched to the card, for compact feature previews. */
+/**
+ * Just the product sidebar, stretched to the card, for compact feature previews. There is no main
+ * pane to give the space to, so the Hide sidebar button is hidden.
+ */
 function SidebarOnly() {
   const env = useApp((s) => s.env);
   if (!env) return <div className="h-full w-full bg-sidebar" />;
   return (
-    <div className="h-full w-full bg-sidebar [&>aside]:!w-full [&>aside]:border-r-0">
+    <div className="h-full w-full bg-sidebar [&>aside]:!w-full [&>aside]:border-r-0 [&_button[aria-label='Hide_sidebar']]:hidden">
       <Sidebar />
     </div>
   );

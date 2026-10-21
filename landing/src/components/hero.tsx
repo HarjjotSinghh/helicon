@@ -74,7 +74,8 @@ export function Hero({
         <div
           className="mt-8 grid gap-7 lg:mt-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:gap-12"
         >
-          <div>
+          {/* Capped so the lead wraps the same whether or not the CTA column has streamed in yet. */}
+          <div className="lg:max-w-[34rem]">
             <p data-hero-lead className="text-[clamp(1.0625rem,0.8rem+0.7vw,1.25rem)] leading-snug font-semibold text-balance text-fg">
               {copy.lead}
             </p>
@@ -110,9 +111,9 @@ export function Hero({
         <DemoVideo
           src="/demo/launch.mp4"
           poster={{
-            light: "/demo/launch-poster-light.jpg",
-            dark: "/demo/launch-poster-dark.jpg",
-            small: { light: "/demo/launch-poster-light-960.jpg", dark: "/demo/launch-poster-dark-960.jpg" },
+            light: "/demo/launch-poster-light.webp",
+            dark: "/demo/launch-poster-dark.webp",
+            small: { light: "/demo/launch-poster-light-960.webp", dark: "/demo/launch-poster-dark-960.webp" },
           }}
           priority
           label="Helicon in 30 seconds: approvals you can read, diffs where the edit happened, and what each thread would have cost"

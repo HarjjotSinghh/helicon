@@ -22,6 +22,7 @@ describe("TechArticle on guides", () => {
       const graph = pageGraph(guide, null, trail) as Json;
       const nodes = graph["@graph"] as Json[];
       const article = nodes.find((node) => node["@type"] === "TechArticle") as Json;
+      const page = nodes.find((node) => node["@id"] === `https://helicon.sh/${guide.slug}#page`) as Json;
 
       expect(article).toBeTruthy();
       expect(article.headline).toBe(guide.h1);
@@ -32,10 +33,29 @@ describe("TechArticle on guides", () => {
       expect(article.dateModified).toBe(guide.updated);
       expect(article.author).toEqual({ "@id": "https://helicon.sh/#author" });
       expect(article.publisher).toEqual({ "@id": "https://helicon.sh/#publisher" });
+      expect(article.image).toBe(page.primaryImageOfPage);
 
       const ids = nodes.map((node) => node["@id"]);
       expect(ids).toContain("https://helicon.sh/#author");
       expect(ids).toContain("https://helicon.sh/#publisher");
+    });
+  }
+});
+
+describe("Article on compare pages", () => {
+  for (const page of pagesInSection("compare")) {
+    it(`${page.slug} carries an Article with the page's OG image`, () => {
+      const trail = [
+        { name: "Compare", slug: "compare" },
+        { name: page.label, slug: page.slug },
+      ];
+      const nodes = (pageGraph(page, null, trail) as Json)["@graph"] as Json[];
+      const article = nodes.find((node) => node["@type"] === "Article") as Json;
+      const webPage = nodes.find((node) => node["@id"] === `https://helicon.sh/${page.slug}#page`) as Json;
+
+      expect(article).toBeTruthy();
+      expect(article.image).toMatch(/^https:\/\/helicon\.sh\/api\/og\?/);
+      expect(article.image).toBe(webPage.primaryImageOfPage);
     });
   }
 });

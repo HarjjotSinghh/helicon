@@ -126,7 +126,7 @@ export function Architecture({ extra }: { extra: string | null }) {
               detail="SQLite state, one host per workspace"
             />
             <Connector />
-            <Node data-reveal="scale" mono icon={<TerminalWindow weight="duotone" />} title="muse serve" detail="Muse Session Protocol via @muse-code/sdk" />
+            <Node data-reveal="scale" mono icon={<TerminalWindow weight="duotone" />} title="muse serve" detail="Muse Code Session Protocol via @muse-code/sdk" />
           </ol>
           <figcaption data-reveal data-delay="650" className="mt-5 flex items-center gap-2 border-t border-line pt-4 text-[13.5px] text-subtle">
             <ArrowsLeftRight aria-hidden="true" className="size-4" />

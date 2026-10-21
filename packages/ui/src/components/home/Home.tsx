@@ -318,7 +318,7 @@ export function Onboarding(props: { compact?: boolean }) {
     ok: null,
     title: "Signed in to Muse",
     detail:
-      "Run this once in a terminal. You need a Muse Code plan or pay-as-you-go billing; the free Muse app doesn't include Muse Code. Helicon uses your own login and never sees your credentials.",
+      "Run this once in a terminal. Muse Code needs a Meta sign-in or a Model API key, and a subscription plan or pay-per-token billing. Helicon uses your own login and never sees your credentials.",
     command: "muse login",
   });
   return (

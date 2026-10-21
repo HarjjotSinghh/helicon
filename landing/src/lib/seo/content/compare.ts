@@ -1292,6 +1292,94 @@ const ENTRIES: Entry[] = [
     ],
   },
   {
+    slug: "paseo",
+    checked: "2026-10-21",
+    icon: "squares",
+    label: "Paseo",
+    name: "Paseo",
+    title: "Paseo vs Helicon for Muse Code (2026)",
+    h1: "Helicon vs Paseo vs the plain Muse Code CLI",
+    description:
+      "Paseo runs many coding agents, Muse Code included, from desktop, web and mobile. Helicon is built only for Muse Code. What differs, and when the plain CLI is enough.",
+    answer:
+      "Paseo is a free, Apache 2.0 app that runs many coding agents at once, including Muse Code, on desktop, web, iOS and Android. Helicon is a free, MIT licensed client built only for Muse Code. Pick Paseo if you use several agents or want them on your phone. Pick Helicon if Muse Code is your main agent. Pick the plain muse CLI if a terminal is all you need.",
+    keywords: [
+      "paseo muse code",
+      "paseo vs helicon",
+      "helicon vs paseo",
+      "paseo coding agents",
+      "paseo alternative muse code",
+    ],
+    rows: [
+      ["Agents", "Muse Code only", "Many: Claude, Codex, OpenCode, Pi, OMP, Antigravity and Muse Code, plus more over ACP", "https://paseo.sh/agents"],
+      ["How it talks to Muse Code", "`muse serve` through the official SDK", "`muse serve` over the Muse Session Protocol", "https://paseo.sh/docs/muse-code"],
+      ["Approval modes", "Muse Code's own modes, mapped one to one", "Default, Ask, Strict or Full access", "https://paseo.sh/docs/muse-code"],
+      ["Where it runs", "Windows, macOS, Linux, the web and a VS Code extension", "Desktop, web, and native iOS and Android apps", "https://paseo.sh/download"],
+      ["Phones and remote machines", "No phone app yet. The web app can connect to a Helicon daemon on another machine with a token", "Encrypted relay, local network, or your own tunnel", "https://paseo.sh/docs/security"],
+      ["License and price", "MIT, free", "Apache 2.0, free", "https://paseo.sh"],
+    ],
+    what: [
+      "I build Helicon, so read the Helicon parts as the maker's view. Every Paseo fact on this page links to paseo.sh, where it was checked on 21 October 2026.",
+      "Paseo calls itself a control plane for coding agents. A daemon runs the agents on your machine, and you drive them from the desktop app, the web app, the CLI or native phone apps. It is free and Apache 2.0 licensed, maintained full time by one developer, and you bring your own agent logins.",
+      "Helicon is an unofficial, MIT licensed client built only for Muse Code. It ships as a desktop app, a web app and an editor extension. It is community built and not affiliated with Meta or with Paseo.",
+      "The plain muse CLI is the third option. It is what both apps drive under the hood, and on its own it needs nothing else installed. See [Muse Code in the terminal](/compare/muse-code-terminal) for when that is enough.",
+    ],
+    differences: [
+      [
+        "One agent or many",
+        "Paseo runs Claude, Codex, OpenCode, Muse Code and others side by side, each in its own session. Helicon only runs Muse Code, and builds its screens around Muse Code's own features.",
+      ],
+      [
+        "Phones and remote machines",
+        "Paseo has native iOS and Android apps and connects to your machine through an encrypted relay, your local network or a tunnel like Tailscale. Helicon has no phone app yet. Its web app can connect to a Helicon daemon on another machine with a token.",
+      ],
+      [
+        "Muse Code limits in Paseo",
+        "Paseo starts Muse Code with its sandbox off and workspace trust on, unless you change the defaults. Its Muse Code page, checked against Muse 1.4.1, also lists limits: Paseo's MCP tools are unavailable to Muse Code until Muse fixes a bug upstream, usage windows appear only when Muse reports them, and native subagents may need an experimental flag.",
+      ],
+      [
+        "Worktrees and voice",
+        "Paseo can run each agent in its own git worktree so your main folder stays untouched, and it has voice input that runs on your device by default.",
+      ],
+      [
+        "The plain CLI",
+        "The muse command in a terminal is what both apps are built on, and it needs nothing else. What it lacks is a window: no diffs beside the chat, and no list of sessions to click through.",
+      ],
+    ],
+    pickOther: [
+      "You use several coding agents and want them in one app.",
+      "You want to check on or steer agents from your phone.",
+      "You want each agent in its own git worktree, or voice input.",
+      "You want an Apache 2.0 project with a CLI, an MCP server and an SDK for automation.",
+    ],
+    pickHelicon: [
+      "Muse Code is your main agent and you want its own approval modes, not a shared set.",
+      "You want Muse Code inside VS Code, Cursor, Windsurf or VSCodium.",
+      "You start sessions in the terminal and want to pick them up in a window.",
+      "You want an MIT licensed client with no account.",
+    ],
+    together:
+      "Yes. Both start the same muse CLI with your own `muse login`, and neither charges anything. A common split is Paseo for agents you check from your phone and Helicon for long Muse Code sessions at a desk. The plain CLI still works alongside both.",
+    faqs: [
+      {
+        q: "Does Paseo support Muse Code?",
+        a: "Yes. Paseo's docs list Muse Code as a provider. It needs the muse CLI, version 1.3.0 or newer, on the machine running the Paseo daemon, signed in with `muse login` or a META_API_KEY.",
+      },
+      {
+        q: "Is Paseo free?",
+        a: "Yes. On 21 October 2026 paseo.sh said Paseo is free and open source under Apache 2.0. You pay your agent providers yourself.",
+      },
+      {
+        q: "Is Helicon made by the Paseo team?",
+        a: "No. Helicon is a separate, community built project. It is unofficial and not affiliated with Meta or with Paseo.",
+      },
+      {
+        q: "Do I need either app to use Muse Code?",
+        a: "No. The muse CLI works on its own in a terminal. Paseo and Helicon add a window, sessions you can click through and, in Paseo's case, phone apps.",
+      },
+    ],
+  },
+  {
     slug: "other-muse-code-guis",
     icon: "squares",
     label: "Other Muse GUIs",

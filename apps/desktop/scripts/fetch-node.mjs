@@ -1,5 +1,6 @@
 // Downloads the Node.js runtime Helicon ships as a Tauri sidecar, so users do not install Node themselves.
-// Tauri wants one file per target triple in src-tauri/binaries (node-<triple>[.exe]); a universal macOS
+// Tauri wants one file per target triple in src-tauri/binaries (node-<triple>[.exe], helicon-node-<triple> on
+// Linux, where packages install to /usr/bin next to the distro's own node); a universal macOS
 // build also wants node-universal-apple-darwin, which lipo makes from the two halves.
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -74,7 +75,9 @@ async function nodeFor(triple) {
 }
 
 async function place(source, triple) {
-  const out = join(binariesDir, `node-${triple}${triple.includes("windows") ? ".exe" : ""}`);
+  // Linux packages install to /usr/bin, where plain `node` belongs to the distro's nodejs package.
+  const base = triple.includes("linux") ? "helicon-node" : "node";
+  const out = join(binariesDir, `${base}-${triple}${triple.includes("windows") ? ".exe" : ""}`);
   await copyFile(source, out);
   await chmod(out, 0o755);
   console.log(`sidecar ready: ${out}`);

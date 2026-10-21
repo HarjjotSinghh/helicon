@@ -1,4 +1,4 @@
-import { AUTHOR, CONTACT, DESCRIPTION, ISSUES_URL, LINKEDIN_URL, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL, X_URL } from "../site";
+import { AUTHOR, CONTACT, DESCRIPTION, DISAMBIGUATION, ISSUES_URL, LINKEDIN_URL, OPEN_VSX_URL, PRODUCT_HUNT_URL, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL, VSCODE_MARKETPLACE_URL, X_URL } from "../site";
 import { sectionUpdated } from "./freshness";
 import { ogImageUrl } from "./metadata";
 import type { Section, SeoPage } from "./types";
@@ -147,7 +147,9 @@ export function coreNodes(version: string | null): Json[] {
       author: { "@id": IDS.author },
       publisher: { "@id": IDS.publisher },
       maintainer: { "@id": IDS.author },
-      sameAs: [REPO_URL],
+      // Gemini resolves the bare name to Helicon Focus, the photo stacking app. These say which Helicon this is.
+      disambiguatingDescription: DISAMBIGUATION,
+      sameAs: [REPO_URL, PRODUCT_HUNT_URL, VSCODE_MARKETPLACE_URL, OPEN_VSX_URL, "https://alternativeto.net/software/helicon/about/"],
       isBasedOn: "https://developer.meta.com/ai/products/muse-code",
     },
   ];
@@ -179,6 +181,11 @@ function faqNode(id: string, faqs: { q: string; a: string }[]): Json {
 }
 
 /** Pages that explain the app: features, use cases and guides. Author and publisher point at the shared nodes. */
+/** The page's own OG card. Article rich results want an image, and this one already names the page. */
+function pageImage(page: SeoPage): string {
+  return ogImageUrl(page.h1, page.description, page.ogEyebrow ?? SITE_NAME);
+}
+
 export function techArticleNode(page: SeoPage): Json {
   const url = `${SITE_URL}/${page.slug}`;
   return {
@@ -194,6 +201,7 @@ export function techArticleNode(page: SeoPage): Json {
     publisher: { "@id": IDS.publisher },
     isPartOf: { "@id": `${url}#page` },
     about: { "@id": IDS.app },
+    image: pageImage(page),
     proficiencyLevel: "Beginner",
     inLanguage: "en",
   };
@@ -233,7 +241,7 @@ export function pageGraph(page: SeoPage, version: string | null, trail: { name: 
       breadcrumb: { "@id": `${url}#breadcrumb` },
       // The pricing page is about the offer, so say so rather than leave the price buried in the app node.
       ...(page.slug === "pricing" ? { mainEntity: { "@id": IDS.offer } } : {}),
-      primaryImageOfPage: ogImageUrl(page.h1, page.description, page.ogEyebrow ?? SITE_NAME),
+      primaryImageOfPage: pageImage(page),
       keywords: page.keywords.join(", "),
       // The answer paragraph is the passage worth reading aloud, and the passage worth quoting.
       speakable: { "@type": "SpeakableSpecification", cssSelector: ["[data-answer]"] },
@@ -265,6 +273,7 @@ export function pageGraph(page: SeoPage, version: string | null, trail: { name: 
       description: page.answer,
       articleSection: "Comparison",
       url,
+      image: pageImage(page),
       dateModified: page.updated,
       datePublished: page.updated,
       author: { "@id": IDS.author },

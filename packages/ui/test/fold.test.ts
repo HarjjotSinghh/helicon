@@ -436,3 +436,31 @@ describe("subagent children", () => {
     assert.ok(Date.now() - started < 2_000, `20k subagent children took ${Date.now() - started}ms`);
   });
 });
+
+describe("item kinds and notifications added in Muse Code 1.4.11", () => {
+  const turnText = (turns: ReturnType<typeof buildTurns>) =>
+    turns.map((t) => ({ prompt: t.prompt?.text ?? null, final: t.final?.text ?? null, running: t.running }));
+
+  it("ignore the new damagedRange and scheduledFire items without throwing or changing earlier turns", () => {
+    const before = liveEvents.reduce(applyEvent, emptyFold());
+    const turnsBefore = buildTurns(before);
+    const lastTurnId = turnsBefore[turnsBefore.length - 1]?.turnId ?? null;
+    const item = (itemId: string, kind: string): ViewEvent => ({
+      at: 10,
+      method: "item/completed",
+      params: { sessionId: "s1", item: { itemId, kind, status: "completed", revision: 1, turnId: lastTurnId, fallbackText: "x" } },
+    });
+
+    const after = applyEvents(before, [item("d1", "damagedRange"), item("f1", "scheduledFire")]);
+    assert.deepEqual(turnText(buildTurns(after)), turnText(turnsBefore));
+  });
+
+  it("return the same fold object for the new monitor and session notifications", () => {
+    const before = liveEvents.reduce(applyEvent, emptyFold());
+    const methods = ["monitor/inboxItemAdmitted", "monitor/inboxItemDrained", "monitor/inboxItemVoided", "session/leaveCompleted"];
+    for (const method of methods) {
+      const after = applyEvent(before, { method, params: { sessionId: "s1", itemId: "d1" }, at: 11 });
+      assert.equal(after, before, `${method} returns the same fold`);
+    }
+  });
+});

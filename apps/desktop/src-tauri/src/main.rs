@@ -176,9 +176,19 @@ fn bundled_node() -> Option<PathBuf> {
 }
 
 fn bundled_node_in(dir: &Path) -> Option<PathBuf> {
-    let name = if cfg!(windows) { "node.exe" } else { "node" };
-    Some(dir.join(name)).filter(|path| path.is_file()).map(|path| plain_path(&path))
+    Some(dir.join(SIDECAR_NODE)).filter(|path| path.is_file()).map(|path| plain_path(&path))
 }
+
+/// The sidecar's file name next to the executable. A .deb or .rpm installs the app to /usr/bin, where a
+/// sidecar called `node` would collide with the distro's nodejs package and shadow the user's own Node.js,
+/// so Linux builds name it `helicon-node` (see tauri.linux.conf.json and scripts/fetch-node.mjs).
+const SIDECAR_NODE: &str = if cfg!(windows) {
+    "node.exe"
+} else if cfg!(target_os = "linux") {
+    "helicon-node"
+} else {
+    "node"
+};
 
 /// The bundled Node.js first, so users need nothing installed. Without it (a source build, or a damaged
 /// install), Node.js the way a terminal sees it. GUI apps on macOS start with a minimal PATH that misses
@@ -619,7 +629,7 @@ fn main() {
 mod tests {
     use super::{
         bundled_node_in, find_resource, fresh_port, parse_listening_url, plain_path, stable_port, start_with_retry, BootError, StartFailure,
-        PORT_FILE, SPLASH_PAGE,
+        PORT_FILE, SIDECAR_NODE, SPLASH_PAGE,
     };
     #[cfg(unix)]
     use super::{latest_nvm_node, prepend_to_path, select_probe_path, well_known_nodes_in};
@@ -677,9 +687,13 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("helicon-sidecar-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         assert_eq!(bundled_node_in(&dir), None);
-        let name = if cfg!(windows) { "node.exe" } else { "node" };
-        std::fs::write(dir.join(name), "").unwrap();
-        assert_eq!(bundled_node_in(&dir), Some(dir.join(name)));
+        if cfg!(target_os = "linux") {
+            // A system Node.js sharing /usr/bin with a packaged install is not the bundled one.
+            std::fs::write(dir.join("node"), "").unwrap();
+            assert_eq!(bundled_node_in(&dir), None);
+        }
+        std::fs::write(dir.join(SIDECAR_NODE), "").unwrap();
+        assert_eq!(bundled_node_in(&dir), Some(dir.join(SIDECAR_NODE)));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

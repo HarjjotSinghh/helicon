@@ -108,7 +108,8 @@ export interface ThreadFold {
   closed: boolean;
 }
 
-export const HIDDEN_KINDS: ReadonlySet<string> = new Set(["reminderChild"]);
+// Muse 1.4.11 kinds are hidden until the UI has a design for them. Shown as generic rows, a trailing one would move a turn's final reply into the work log.
+export const HIDDEN_KINDS: ReadonlySet<string> = new Set(["reminderChild", "damagedRange", "scheduledFire"]);
 
 export function emptyFold(): ThreadFold {
   return {
@@ -694,12 +695,24 @@ function applyOne(draft: Draft, event: ViewEvent): void {
 }
 
 /** Apply a batch of view events. Returns the input fold untouched when the batch is empty. */
+/** Every method `applyOne` handles. Anything else, such as a notification a newer Muse added, leaves the fold as it was. */
+const FOLDED_METHODS: ReadonlySet<string> = new Set([
+  "item/started", "item/updated", "item/completed", "item/delta",
+  "turn/started", "turn/completed", "turn/retryScheduled", "turn/retracted", "turn/unqueued",
+  "approval/reviewing", "approval/requested", "approval/updated", "approval/resolved",
+  "userInput/requested", "userInput/settled",
+  "session/todoListChanged", "session/branchChanged", "session/contextUsage", "session/tokenUsage",
+  "session/modelChanged", "session/approvalModeChanged", "session/goalChanged", "session/started", "session/closed",
+]);
+
 export function applyEvents(fold: ThreadFold, events: readonly ViewEvent[]): ThreadFold {
-  if (events.length === 0) {
+  // Copying the fold for an event it ignores would hand React a new object and rerender the transcript for nothing.
+  const folded = events.filter((event) => FOLDED_METHODS.has(event.method));
+  if (folded.length === 0) {
     return fold;
   }
-  const draft = new Draft(fold, touchedBy(events));
-  for (const event of events) {
+  const draft = new Draft(fold, touchedBy(folded));
+  for (const event of folded) {
     applyOne(draft, event);
   }
   return draft.fold;

@@ -59,6 +59,7 @@ export const INSTALL_PAGES: SeoPage[] = [
           "Not code signed yet, so SmartScreen may show 'Windows protected your PC': click More info, then Run anyway. Updates are signature checked by the app itself.",
           "Auto update built in: the app checks helicon.sh for a newer version and updates itself.",
           "The file is named Helicon_<version>_x64-setup.exe on the release page.",
+          "The release page lists a SHA-256 for every file. If you got the installer from another site, run `Get-FileHash .\\Helicon_<version>_x64-setup.exe` in PowerShell and check that the hash matches.",
         ],
       },
       {
@@ -109,6 +110,10 @@ export const INSTALL_PAGES: SeoPage[] = [
       {
         q: "Is the Windows installer signed?",
         a: "Not yet. The installer is not Authenticode signed, so SmartScreen may show 'Windows protected your PC': click More info, then Run anyway. Updates are signed with Helicon's updater key and checked by the app before they install. Releases are published on GitHub.",
+      },
+      {
+        q: "How do I check an installer I downloaded from another site?",
+        a: "GitHub shows a SHA-256 for every file on the release page. Run Get-FileHash on the installer in PowerShell and compare the two. If they differ, delete the file and download it from the GitHub release instead.",
       },
       {
         q: "Does Helicon work on Windows on ARM?",
@@ -465,7 +470,7 @@ export const INSTALL_PAGES: SeoPage[] = [
       },
       {
         kind: "p",
-        text: "You need the muse CLI ([download Muse Code](/muse-code-download)) installed and signed in once with `muse login`, on a Muse Code plan or pay-as-you-go billing (the free Muse app doesn't include Muse Code). The extension uses that login; it never asks for an API key.",
+        text: "You need the muse CLI ([download Muse Code](/muse-code-download)) installed and signed in once with `muse login`, on one of Muse Code's 4 subscription plans or pay-per-token billing. The extension uses that login; it never asks for an API key.",
       },
       { kind: "h2", text: "What the panel gives you" },
       {
@@ -521,8 +526,8 @@ export const INSTALL_PAGES: SeoPage[] = [
     },
     faqs: [
       {
-        q: "Does it work with the free Muse app?",
-        a: "No. Muse Code needs a Muse Code plan or pay-as-you-go billing on Meta's Model API; the free Muse app doesn't include it. The extension itself is free.",
+        q: "What do I need from Meta?",
+        a: "Muse Code needs a Meta credential: a browser sign-in or a Model API key. Billing is one of its 4 subscription plans, or pay per token with the API key. The extension itself is free.",
       },
       {
         q: "Does it work in Cursor?",

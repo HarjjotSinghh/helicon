@@ -1,7 +1,8 @@
 import { ArchiveIcon, ArrowsInIcon, ChartBarIcon, ClockCounterClockwiseIcon, DotsThreeIcon, GearSixIcon, MagnifyingGlassIcon, PencilSimpleIcon, PlusIcon, XIcon } from "../ui/icons.js";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useApp, useController, useNow } from "../../app/context.js";
 import { useImeGuard } from "../../app/ime.js";
+import { SettingsPage, UsagePage } from "../../app/lazy.js";
 import { postToHost } from "../../app/host.js";
 import { inFolder, usePanel } from "../../app/panel.js";
 import { basename, relativeTime } from "../../model/format.js";
@@ -9,9 +10,7 @@ import { STATUS_LABEL, threadStatus, type ThreadStatus } from "../../model/statu
 import type { SessionSummary } from "../../types.js";
 import { Composer, ComposerFooter } from "../composer/Composer.js";
 import { BootError, BootScreen, HostErrorCard, Onboarding } from "../home/Home.js";
-import { SettingsPage } from "../settings/SettingsPage.js";
 import { ThreadView } from "../thread/ThreadView.js";
-import { UsagePage } from "../usage/UsagePage.js";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Modal, Sheet, Tip } from "../ui/overlays.js";
 import { Button, IconButton, Logo, cn } from "../ui/primitives.js";
 import { StatusGlyph } from "../ui/StatusGlyph.js";
@@ -46,9 +45,17 @@ export function PanelShell() {
   } else if (route.kind === "thread") {
     body = <ThreadView key={route.sessionId} sessionId={route.sessionId} bare />;
   } else if (route.kind === "usage") {
-    body = <UsagePage />;
+    body = (
+      <Suspense fallback={null}>
+        <UsagePage />
+      </Suspense>
+    );
   } else if (route.kind === "settings") {
-    body = <SettingsPage />;
+    body = (
+      <Suspense fallback={null}>
+        <SettingsPage />
+      </Suspense>
+    );
   } else if (!cwd) {
     body = <NoFolder />;
   } else {

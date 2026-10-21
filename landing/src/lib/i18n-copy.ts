@@ -16,6 +16,8 @@ export type HomeCopy = {
     sections: string;
     language: string;
     theme: { group: string; system: string; light: string; dark: string };
+    /** The badge on live app demos: `name` always shows, `tryIt` from the sm breakpoint up. */
+    liveDemo: { name: string; tryIt: string };
     player: {
       region: string;
       start: string;
@@ -73,6 +75,7 @@ const ko: HomeCopy = {
     sections: "페이지 섹션",
     language: "언어",
     theme: { group: "색상 테마", system: "시스템 테마", light: "라이트 테마", dark: "다크 테마" },
+    liveDemo: { name: "라이브 데모", tryIt: ", 직접 써 보세요" },
     player: {
       region: "동영상 플레이어. 스페이스 키로 재생하거나 일시정지합니다",
       start: "소개 영상 재생",
@@ -141,7 +144,7 @@ const ko: HomeCopy = {
     nodes: [
       { title: "Helicon UI", detail: "Tauri 데스크톱 앱 또는 웹 앱" },
       { title: "로컬 데몬", detail: "SQLite 상태, 워크스페이스마다 호스트 하나" },
-      { title: "muse serve", detail: "@muse-code/sdk를 통한 Muse Session Protocol" },
+      { title: "muse serve", detail: "@muse-code/sdk를 통한 Muse Code Session Protocol" },
     ],
   },
   install: {
@@ -165,8 +168,8 @@ const ko: HomeCopy = {
         "이제 Muse Code가 Windows에서 네이티브로 돌아가고, Helicon은 그것을 직접 실행합니다. Windows 경로를 그대로 쓰고 셸 명령은 PowerShell로 실행하며 WSL은 필요 없습니다. WSL2 안의 Muse Code도 계속 동작하고, 네이티브 Muse Code가 없으면 Helicon이 그쪽을 씁니다.",
       ],
       [
-        "무료 Muse 앱으로도 쓸 수 있나요?",
-        "아니요. Helicon이 구동하는 코딩 에이전트 Muse Code는 Muse Code 요금제나 Meta Model API의 종량제 결제가 필요합니다. 무료 Muse 앱은 다른 제품이라 Muse Code가 포함되지 않습니다. Helicon 자체는 무료이고 비용을 더하지 않습니다.",
+        "Meta 쪽에서는 무엇이 필요한가요?",
+        "Helicon이 구동하는 코딩 에이전트 Muse Code는 Meta 자격 증명이 필요합니다. 브라우저로 로그인하거나 Model API 키를 쓰면 됩니다. 결제는 4가지 구독 요금제 중 하나이거나, API 키로 토큰당 결제합니다. Helicon 자체는 무료이고 비용을 더하지 않습니다.",
       ],
       [
         "Helicon이 외부로 데이터를 보내나요?",
@@ -205,6 +208,7 @@ const ja: HomeCopy = {
     sections: "ページのセクション",
     language: "言語",
     theme: { group: "カラーテーマ", system: "システムのテーマ", light: "ライトテーマ", dark: "ダークテーマ" },
+    liveDemo: { name: "ライブデモ", tryIt: "、実際に操作できます" },
     player: {
       region: "動画プレーヤー。スペースキーで再生と一時停止を切り替えます",
       start: "紹介動画を再生",
@@ -273,7 +277,7 @@ const ja: HomeCopy = {
     nodes: [
       { title: "Helicon UI", detail: "Tauri のデスクトップアプリか Web アプリ" },
       { title: "ローカルのデーモン", detail: "SQLite で状態を保持、ワークスペースごとにホストひとつ" },
-      { title: "muse serve", detail: "@muse-code/sdk 経由の Muse Session Protocol" },
+      { title: "muse serve", detail: "@muse-code/sdk 経由の Muse Code Session Protocol" },
     ],
   },
   install: {
@@ -297,8 +301,8 @@ const ja: HomeCopy = {
         "Muse Code は Windows でネイティブに動くようになり、Helicon はそれを直接実行します。Windows のパスをそのまま使い、シェルコマンドは PowerShell で実行し、WSL は不要です。WSL2 上の Muse Code も引き続き使え、ネイティブの Muse Code がない場合は Helicon がそちらを使います。",
       ],
       [
-        "無料の Muse アプリでも使えますか？",
-        "いいえ。Helicon が動かすコーディングエージェント Muse Code には、Muse Code プランか Meta Model API の従量課金が必要です。無料の Muse アプリは別の製品で、Muse Code は含まれません。Helicon 自体は無料で、独自の費用はかかりません。",
+        "Meta 側では何が必要ですか？",
+        "Helicon が動かすコーディングエージェント Muse Code には、Meta の認証情報が必要です。ブラウザでサインインするか、Model API キーを使います。支払いは 4 つのサブスクリプションプランのいずれか、または API キーでのトークン単位の従量課金です。Helicon 自体は無料で、独自の費用はかかりません。",
       ],
       [
         "Helicon は外部に通信しますか？",
@@ -337,6 +341,7 @@ const ptBr: HomeCopy = {
     sections: "Seções da página",
     language: "Idioma",
     theme: { group: "Tema de cores", system: "Tema do sistema", light: "Tema claro", dark: "Tema escuro" },
+    liveDemo: { name: "Demo ao vivo", tryIt: ", experimente" },
     player: {
       region: "Player de vídeo. Aperte Espaço para reproduzir ou pausar",
       start: "Assistir ao vídeo",
@@ -392,7 +397,7 @@ const ptBr: HomeCopy = {
     items: [
       { title: "Projetos agrupados", body: "Threads agrupadas por pasta, worktrees incluídas. Retome qualquer uma com um clique." },
       { title: "Diffs inline", body: "Cada edição aparece na thread como diff, bem onde aconteceu. Nada de caçar no histórico do terminal." },
-      { title: "Aprovação é aprovação", body: "Cada pedido de aprovação aparece no momento em que chega. Nenhum é agrupado nem pulado." },
+      { title: "Aprovações sem atalhos", body: "Cada pedido de aprovação aparece no momento em que chega. Nenhum é agrupado nem pulado." },
       { title: "Custo à vista", body: "Quanto cada thread custaria nas tarifas da API, para você ver o que o seu plano está fazendo." },
       { title: "Teclado primeiro", body: "Paleta de comandos, comandos com barra e seletor de modelo. Chegue a qualquer thread pelo teclado." },
       { title: "Uma interface, dois formatos", body: "A mesma interface React roda como app desktop Tauri e como app web ligado a um daemon remoto." },
@@ -405,12 +410,12 @@ const ptBr: HomeCopy = {
     nodes: [
       { title: "Helicon UI", detail: "App desktop Tauri ou app web" },
       { title: "Daemon local", detail: "Estado em SQLite, um host por workspace" },
-      { title: "muse serve", detail: "Muse Session Protocol via @muse-code/sdk" },
+      { title: "muse serve", detail: "Muse Code Session Protocol via @muse-code/sdk" },
     ],
   },
   install: {
     title: "Instalar",
-    intro: "Você precisa da CLI muse instalada e com login na sua conta. O app desktop já vem com o próprio Node.js.",
+    intro: "Você precisa da CLI muse instalada e com login feito na sua conta. O app desktop já vem com o próprio Node.js.",
     allOptions: "Todas as opções de instalação (em inglês)",
     vscode: "Extensão do VS Code (em inglês)",
   },
@@ -429,8 +434,8 @@ const ptBr: HomeCopy = {
         "O Muse Code agora roda nativamente no Windows, e o Helicon o executa direto: seus caminhos do Windows, PowerShell para comandos de shell, sem WSL. O Muse Code dentro do WSL2 continua funcionando, e o Helicon usa essa opção quando o Muse Code nativo não está instalado.",
       ],
       [
-        "Funciona com o app gratuito do Muse?",
-        "Não. O Muse Code, o agente de código que o Helicon controla, exige um plano do Muse Code ou cobrança por uso na Model API da Meta. O app gratuito do Muse é outro produto e não inclui o Muse Code. O Helicon em si é gratuito e não adiciona custo nenhum.",
+        "O que preciso da Meta para usar?",
+        "O Muse Code, o agente de código que o Helicon controla, precisa de uma credencial da Meta: login pelo navegador ou uma chave da Model API. A cobrança é um dos 4 planos de assinatura ou pagamento por token com a chave da API. O Helicon em si é gratuito e não adiciona custo nenhum.",
       ],
       [
         "O Helicon envia dados para algum lugar?",
