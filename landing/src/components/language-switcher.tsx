@@ -62,7 +62,7 @@ export function LanguageSwitcher({
         className={buttonClass("ghost", "sm", "gap-1.5 px-2.5 font-normal")}
       >
         <Translate aria-hidden="true" className="text-subtle" />
-        <span className="text-[13.5px] max-sm:hidden">{LOCALE_INFO[current].name}</span>
+        <span className="text-[13.5px] max-sm:hidden lg:max-xl:hidden">{LOCALE_INFO[current].name}</span>
         <CaretDown aria-hidden="true" className={cn("!size-3 text-subtle transition-transform", open && "rotate-180")} />
       </button>
       {open ? (

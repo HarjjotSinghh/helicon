@@ -22,7 +22,6 @@ const links = [
   { href: "#features", label: "Features", icon: SquaresFour },
   { href: "#how", label: "How it works", icon: Lightning },
   { href: "#install", label: "Install", icon: TerminalWindow },
-  { href: "#faq", label: "FAQ", icon: Question },
   // The only nav entry that leaves the page. An agent reading the home page has to be able to
   // find the documentation without guessing a path, and /docs redirects here.
   { href: "/guides", label: "Docs", icon: BookOpen },
@@ -67,12 +66,13 @@ export function SiteHeader({
           <span className="hidden font-headline text-[18px] font-semibold min-[420px]:inline">Helicon</span>
         </a>
 
-        <nav aria-label="Primary" className="ml-6 hidden items-center gap-1 lg:flex max-xl:ml-2 max-xl:gap-0">
+        <nav aria-label="Primary" className="ml-2 hidden items-center lg:flex">
+          {/* Kept tight on purpose: the page frame stops at 1200px, and the row used to run ~90px past it. */}
           {nav.map(({ href, label, icon: Icon }) => (
             <a
               key={href}
               href={href}
-              className="flex h-9 items-center gap-2 rounded-lg px-3 text-[14px] font-medium whitespace-nowrap text-muted transition-colors hover:bg-sunken hover:text-fg max-xl:px-2.5"
+              className="flex h-9 items-center gap-1.5 rounded-lg px-2 text-[14px] font-medium whitespace-nowrap text-muted transition-colors hover:bg-sunken hover:text-fg"
             >
               <Icon aria-hidden="true" className="size-4 text-subtle max-xl:hidden" />
               {label}
