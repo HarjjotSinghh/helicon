@@ -23,6 +23,10 @@ export const BUYER_INTENT_R2_PAGES: SeoPage[] = [
     keywords: ["muse code review", "muse code subscription review"],
     updated: UPDATED,
     blocks: [
+      {
+        kind: "p",
+        text: "I built Helicon, so read the Helicon parts as the maker's view.",
+      },
       { kind: "h2", text: "What Muse Code costs" },
       {
         kind: "p",
@@ -60,7 +64,7 @@ export const BUYER_INTENT_R2_PAGES: SeoPage[] = [
         kind: "ul",
         items: [
           "Sessions from every project in one sidebar, including sessions you started in the terminal.",
-          "Inline diffs and an approval queue you can see and act on.",
+          "Inline diffs and approval prompts that show the real command, with waiting threads marked in the sidebar.",
           "A cost view that shows what each thread would have cost at Meta's published per token rates. It is a meter reading, not a bill.",
           "No account, no paid tier and no second bill. It uses your existing Muse Code login.",
         ],
@@ -68,7 +72,7 @@ export const BUYER_INTENT_R2_PAGES: SeoPage[] = [
       { kind: "h2", text: "What this review does not cover" },
       {
         kind: "p",
-        text: "It does not rate how good the model is. We have not benchmarked Muse Code, and this page quotes no benchmark numbers.",
+        text: "It does not rate how good the model is. I have not benchmarked Muse Code, and this page quotes no benchmark numbers.",
       },
       { kind: "h2", text: "Before you buy" },
       {
