@@ -1,4 +1,4 @@
-import { AUTHOR, CONTACT, DESCRIPTION, ISSUES_URL, LINKEDIN_URL, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL, X_URL } from "../site";
+import { AUTHOR, CONTACT, DESCRIPTION, DISAMBIGUATION, ISSUES_URL, LINKEDIN_URL, OPEN_VSX_URL, PRODUCT_HUNT_URL, RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL, VSCODE_MARKETPLACE_URL, X_URL } from "../site";
 import { sectionUpdated } from "./freshness";
 import { ogImageUrl } from "./metadata";
 import type { Section, SeoPage } from "./types";
@@ -147,7 +147,9 @@ export function coreNodes(version: string | null): Json[] {
       author: { "@id": IDS.author },
       publisher: { "@id": IDS.publisher },
       maintainer: { "@id": IDS.author },
-      sameAs: [REPO_URL],
+      // Gemini resolves the bare name to Helicon Focus, the photo stacking app. These say which Helicon this is.
+      disambiguatingDescription: DISAMBIGUATION,
+      sameAs: [REPO_URL, PRODUCT_HUNT_URL, VSCODE_MARKETPLACE_URL, OPEN_VSX_URL, "https://alternativeto.net/software/helicon/about/"],
       isBasedOn: "https://developer.meta.com/ai/products/muse-code",
     },
   ];

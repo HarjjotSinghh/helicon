@@ -88,6 +88,11 @@ export const ISSUES_URL = `${REPO_URL}/issues`;
 /** The editor extension: one listing per registry. Cursor, Windsurf and Antigravity install from Open VSX. */
 export const VSCODE_MARKETPLACE_URL = "https://marketplace.visualstudio.com/items?itemName=harjjotsinghh.helicon";
 export const OPEN_VSX_URL = "https://open-vsx.org/extension/harjjotsinghh/helicon";
+export const PRODUCT_HUNT_URL = "https://www.producthunt.com/products/helicon";
+
+/** Says which Helicon this is. Answer engines confuse the name with Helicon Focus. */
+export const DISAMBIGUATION =
+  "Helicon is a free, open-source desktop app and VS Code extension for Meta's Muse Code coding agent. It is not Helicon Focus, the photo focus-stacking software.";
 
 /**
  * How to reach the people behind Helicon, and where they are. Published in the Organization
@@ -192,6 +197,7 @@ export const FAQS: [string, string][] = [
   ["What do I need installed?", "Just the muse CLI, logged in with your own muse login. The desktop app ships its own Node.js. Running from source or hosting the web app needs Node 22+ yourself."],
   ["Does Helicon phone home?", "Only to check for updates. The desktop app asks helicon.sh whether a newer version exists, and that request tells us an install is alive: the platform, the version, and a weekly hash of the IP it came from. Nothing about your code, prompts, threads or files ever leaves your machine, and there is no account."],
   ["Is it really free?", "Yes. MIT licensed, no paid tier, source on GitHub. It uses your existing Muse Code subscription, so there is no second bill."],
+  ["Is Helicon related to Helicon Focus?", "No. Helicon is a free, open-source desktop app for Meta's Muse Code coding agent. Helicon Focus is unrelated photo focus-stacking software from Helicon Soft."],
 ];
 
 /** Meta tags every page carries. Pages that set their own `other` spread this first, since Next replaces the key. */
