@@ -455,12 +455,12 @@ describe("item kinds and notifications added in Muse Code 1.4.11", () => {
     assert.deepEqual(turnText(buildTurns(after)), turnText(turnsBefore));
   });
 
-  it("leave the fold alone for the new monitor and session notifications", () => {
+  it("return the same fold object for the new monitor and session notifications", () => {
     const before = liveEvents.reduce(applyEvent, emptyFold());
     const methods = ["monitor/inboxItemAdmitted", "monitor/inboxItemDrained", "monitor/inboxItemVoided", "session/leaveCompleted"];
     for (const method of methods) {
       const after = applyEvent(before, { method, params: { sessionId: "s1", itemId: "d1" }, at: 11 });
-      assert.deepEqual(after, before, `${method} changes nothing in the fold`);
+      assert.equal(after, before, `${method} returns the same fold`);
     }
   });
 });
