@@ -108,7 +108,8 @@ export interface ThreadFold {
   closed: boolean;
 }
 
-export const HIDDEN_KINDS: ReadonlySet<string> = new Set(["reminderChild"]);
+// Muse 1.4.11 kinds are hidden until the UI has a design for them. Shown as generic rows, a trailing one would move a turn's final reply into the work log.
+export const HIDDEN_KINDS: ReadonlySet<string> = new Set(["reminderChild", "damagedRange", "scheduledFire"]);
 
 export function emptyFold(): ThreadFold {
   return {
