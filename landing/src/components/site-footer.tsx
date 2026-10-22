@@ -212,6 +212,66 @@ const FEATURED_BADGES = [
   },
 ];
 
+/**
+ * The maintainer's other products, one line each. Plain followed links that keep the referrer, so
+ * each site can see the visit came from here. No prices or offers: Helicon itself stays free.
+ */
+const MAKER_PRODUCTS = [
+  {
+    name: "FixedLaunch",
+    href: "https://fixedlaunch.com",
+    blurb: "A video of the bug and a written fix plan for a broken AI-built app.",
+  },
+  {
+    name: "Swoopcut",
+    href: "https://swoopcut.com",
+    blurb: "Send a URL, get a launch-ready demo clip of your web app.",
+  },
+  {
+    name: "Brio UI",
+    href: "https://brioui.com",
+    blurb: "Interaction-first React components, one file each, for the parts every site needs.",
+  },
+  {
+    name: "Launchday",
+    href: "https://getlaunchday.com",
+    blurb: "Framer templates for SaaS, AI and dev-tool launches.",
+  },
+];
+
+function MakerProducts() {
+  return (
+    <nav aria-label="More from the maker" className="px-5 pb-12 sm:px-8 lg:px-12" data-reveal>
+      <h2 className="text-[13px] font-semibold text-fg">More from the maker</h2>
+      <ul className="mt-3 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+        {MAKER_PRODUCTS.map((p) => (
+          <li key={p.name}>
+            <TrackedLink
+              href={p.href}
+              placement="footer-maker"
+              eventLabel={p.name}
+              target="_blank"
+              rel="noopener"
+              className="group/maker block py-1"
+            >
+              <span className="inline-flex items-center gap-1 text-[14px] font-medium text-fg">
+                {p.name}
+                <ArrowUpRight
+                  aria-hidden="true"
+                  className="size-3 text-subtle transition-transform duration-200 ease-out [@media(hover:hover)]:group-hover/maker:translate-x-0.5 [@media(hover:hover)]:group-hover/maker:-translate-y-0.5"
+                />
+              </span>
+              <span className="mt-0.5 block max-w-[34ch] text-[14px] leading-relaxed text-subtle transition-colors [@media(hover:hover)]:group-hover/maker:text-muted">
+                {p.blurb}
+              </span>
+            </TrackedLink>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
 const BADGE_LINK =
   "flex shrink-0 items-center justify-center rounded-[6px] opacity-80 transition-opacity duration-200 ease-out [@media(hover:hover)]:hover:opacity-100";
 /** One height for every badge, width from its own aspect ratio. */
@@ -357,6 +417,8 @@ export function SiteFooter({ nav = FOOTER_GROUPS }: { nav?: FooterGroup[] }) {
           ))}
         </div>
       </div>
+
+      <MakerProducts />
 
       {/*
         Oversized wordmark: sized to the frame width with container units, cut through the middle
