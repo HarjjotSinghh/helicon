@@ -3,8 +3,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "re
 import { useApp, useController } from "../../app/context.js";
 import { useImeGuard } from "../../app/ime.js";
 import type { LocalEcho } from "../../model/fold.js";
-import { describeApproval } from "../../model/format.js";
-import type { ApprovalChoice, ApprovalRequest, TodoItem, UserInputAnswer, UserInputQuestion, UserInputRequest } from "../../types.js";
+import { describeApproval, describeCuaStep, quoteAppText } from "../../model/format.js";
+import type { ApprovalChoice, ApprovalRequest, CuaCardFacts, TodoItem, UserInputAnswer, UserInputQuestion, UserInputRequest } from "../../types.js";
 import { Tip } from "../ui/overlays.js";
 import { Button, IconButton, Shortcut, Spinner, cn } from "../ui/primitives.js";
 import { RollingDigits } from "../ui/sourced.js";
@@ -112,6 +112,7 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
           </p>
         </div>
       </div>
+      {request.cuaCardFacts ? <CuaFacts facts={request.cuaCardFacts} /> : null}
       {description.detail ? (
         <pre className="mx-4 mt-3 max-h-44 overflow-auto rounded-lg bg-sunken px-3 py-2.5 font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap text-fg shadow-[0_0_0_1px_var(--border)] [overflow-wrap:anywhere]">
           {description.detail}
@@ -202,6 +203,53 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
         </div>
       )}
     </section>
+  );
+}
+
+/** What a Computer Use call will do, as Muse's host describes it. Page and window text come from the app, so they are quoted. */
+function CuaFacts(props: { facts: CuaCardFacts }) {
+  const { page, steps = [], windowTitle } = props.facts;
+  if (!page && !windowTitle && steps.length === 0) {
+    return null;
+  }
+  // A host with non-Latin letters can imitate another site, so its plain-letter form is shown next to it.
+  const lookalike = page && page.hostAscii !== page.host;
+  return (
+    <div className="mx-4 mt-3 flex max-h-64 flex-col gap-2 overflow-auto rounded-lg bg-sunken px-3 py-2.5 text-xs shadow-[0_0_0_1px_var(--border)]">
+      {page || windowTitle ? (
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+          {page ? (
+            <>
+              <dt className="text-subtle">Page</dt>
+              <dd className="min-w-0 font-mono [overflow-wrap:anywhere] text-fg">
+                {page.host}
+                {lookalike ? <span className="text-warn-text"> ({page.hostAscii})</span> : null}
+              </dd>
+            </>
+          ) : null}
+          {windowTitle ? (
+            <>
+              <dt className="text-subtle">Window</dt>
+              <dd className="min-w-0 truncate text-fg">{quoteAppText(windowTitle)}</dd>
+            </>
+          ) : null}
+        </dl>
+      ) : null}
+      {lookalike ? <p className="text-pretty text-warn-text">This address has non-Latin letters. Check it's the site you expect.</p> : null}
+      {steps.length > 0 ? (
+        <ol className="flex flex-col gap-1.5">
+          {steps.map((step, index) => (
+            <li key={index} className="flex gap-2">
+              <span className="w-4 shrink-0 text-right text-subtle tabular-nums">{index + 1}.</span>
+              <span className="min-w-0">
+                <span className="[overflow-wrap:anywhere] text-fg">{describeCuaStep(step)}</span>
+                {step.effect ? <span className="block text-pretty text-muted">{step.effect}</span> : null}
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </div>
   );
 }
 

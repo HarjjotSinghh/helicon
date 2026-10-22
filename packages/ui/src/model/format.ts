@@ -1,4 +1,4 @@
-import type { ApprovalRequest, MspItem } from "../types.js";
+import type { ApprovalRequest, CuaStep, MspItem } from "../types.js";
 import { GOAL_TOOLS } from "./goal.js";
 
 /** Compact relative time for sidebars: now, 4m, 3h, 2d, 3w, then a short date. */
@@ -783,6 +783,27 @@ export function describeApproval(request: ApprovalRequest): ApprovalDescription 
         mono: true,
       };
   }
+}
+
+/** Text an app controls (a window title, a button label) is quoted and capped, so it can't pass for Helicon's own words. */
+export function quoteAppText(text: string, max = 80): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return `"${flat.length > max ? `${flat.slice(0, max - 1)}…` : flat}"`;
+}
+
+/** One Computer Use step as a line: `Click button "Save"`, `Press Ctrl+S`, `Click at 120, 480`. */
+export function describeCuaStep(step: CuaStep): string {
+  const action = step.action.charAt(0).toUpperCase() + step.action.slice(1);
+  if (step.label) {
+    return `${action} ${step.roleWord ? `${step.roleWord} ` : ""}${quoteAppText(step.label)}`;
+  }
+  if (step.chord) {
+    return `${action} ${step.chord}`;
+  }
+  if (step.point) {
+    return `${action} at ${step.point.x}, ${step.point.y}`;
+  }
+  return action;
 }
 
 /** Strip the provider tier suffix for display; the tier gets its own badge. */

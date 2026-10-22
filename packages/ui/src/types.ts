@@ -207,6 +207,34 @@ export interface ApprovalRequest {
   rawArgs?: string;
   protectedWrite?: boolean;
   judgeEscalated?: boolean;
+  /** Muse 1.4.12+: what a Computer Use call is about to do, from the host rather than the model. */
+  cuaCardFacts?: CuaCardFacts;
+}
+
+/** A Computer Use approval's facts. Empty lists and missing rows are left out. */
+export interface CuaCardFacts {
+  /** For a browser, the host of the page in the target window. */
+  page?: { host: string; hostAscii: string };
+  /** Only the steps that change something, in call order. */
+  steps?: CuaStep[];
+  /** The target window's title. The app sets it, so it is shown quoted and never trusted. */
+  windowTitle?: string;
+}
+
+export interface CuaStep {
+  /** The host's verb phrase, such as `click` or `type into`. */
+  action: string;
+  /** The key chord, for a key step. */
+  chord?: string;
+  /** The host's sentence for what the step may do. */
+  effect: string;
+  kind: string;
+  /** The control's label. The app sets it, so it is shown quoted. */
+  label?: string;
+  /** Model coordinates from 0 to 1000, only for a step aimed at a point. */
+  point?: { x: number; y: number };
+  /** `button`, `link`, `menu item` or `key`. */
+  roleWord?: string;
 }
 
 export interface UserInputOption {
