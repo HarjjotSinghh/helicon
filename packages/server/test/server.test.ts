@@ -879,15 +879,30 @@ describe("HeliconServer", () => {
       if (params["cursor"] === undefined || params["cursor"] === null) {
         return { sessions: [{ sessionId: "a", kind: "root", workspaceRoot: "/work/proj", turnCount: 1, updatedAt: "2026-10-20T00:00:00.000Z" }], nextCursor: "p1" };
       }
-      // A host stuck on one page: the same cursor back, with nothing on it.
-      return { sessions: [], nextCursor: "p1" };
+      // A host stuck on one page: the same cursor back every time.
+      return { sessions: [{ sessionId: "b", kind: "root", workspaceRoot: "/work/proj", turnCount: 1, updatedAt: "2026-10-20T00:00:00.000Z" }], nextCursor: "p1" };
     }) as never);
     const { base } = await start(connection);
 
     const found = await send(base, "/api/discover", {});
     assert.equal(found.status, 200);
-    assert.deepEqual(found.json.sessions.map((s: { sessionId: string }) => s.sessionId), ["a"]);
-    assert.ok(calls <= 3, `session/list was called ${calls} times`);
+    assert.deepEqual(found.json.sessions.map((s: { sessionId: string }) => s.sessionId).sort(), ["a", "b"]);
+    assert.equal(calls, 2, `session/list was called ${calls} times`);
+  });
+
+  it("stops discovering on an empty page that still names a next cursor", async () => {
+    const connection = new FakeConnection();
+    let calls = 0;
+    connection.replies.set("session/list", ((params: Record<string, unknown>) => {
+      calls += 1;
+      return { sessions: [], nextCursor: `p${calls}` };
+    }) as never);
+    const { base } = await start(connection);
+
+    const found = await send(base, "/api/discover", {});
+    assert.equal(found.status, 200);
+    assert.deepEqual(found.json.sessions, []);
+    assert.equal(calls, 1, `session/list was called ${calls} times`);
   });
 
   it("carries a turn's reasoning effort as the session default, once per change", async () => {

@@ -2945,7 +2945,7 @@ export class HeliconServer {
       });
       scanned += page.sessions.length;
       // Subagent rows are dropped below, so they must not use up the budget meant for real threads (#50).
-      remote.push(...page.sessions.filter((item) => !isSubagentRow(item)));
+      remote.push(...page.sessions.filter((item) => !isSubagentRow(item)).slice(0, DISCOVER_LIMIT - remote.length));
       // An empty page, or a cursor already followed, would never move the scan forward.
       cursor = page.sessions.length > 0 && page.nextCursor && !seen.has(page.nextCursor) ? page.nextCursor : null;
     } while (cursor && remote.length < DISCOVER_LIMIT && scanned < DISCOVER_SCAN_LIMIT);
