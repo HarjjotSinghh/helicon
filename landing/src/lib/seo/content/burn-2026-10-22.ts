@@ -24,7 +24,7 @@ export const BURN_2026_10_22_PAGES: SeoPage[] = [
     title: "Muse Code usage limit reached: what to do next",
     h1: "You hit the Muse Code usage limit. What now?",
     description:
-      "What happens when Muse Code hits your plan's usage limit, how the 5 hour window works, when upgrading helps, and how to keep a long agent run from stalling halfway.",
+      "What happens when Muse Code hits your plan's usage limit, how the 5 hour window works, when upgrading helps, and how to keep a long run from stalling halfway.",
     answer:
       "When Muse Code hits your plan's usage limit, Meta's docs give two options: upgrade to the next plan, or wait until the limit refreshes. On the $200 Maximum Usage plan you can only wait. Typing /upgrade in a session opens Accounts Center, and an upgrade takes effect at once with a prorated charge.",
     keywords: [
@@ -129,7 +129,7 @@ export const BURN_2026_10_22_PAGES: SeoPage[] = [
     title: "Muse Code session manager: name, resume and fork",
     h1: "How to manage many Muse Code sessions",
     description:
-      "Name, resume, fork and rewind Muse Code sessions from the CLI, then see every session across every project in one sidebar, including the ones you started in a terminal.",
+      "Name, resume, fork and rewind Muse Code sessions in the CLI, then see every session from every project in one sidebar, with terminal sessions included.",
     answer:
       "In the muse CLI, /name labels a session, /resume reopens one, /resume --last reopens the newest, and /fork branches a copy. Resume only sees the current workspace. To see sessions from every project in one list, Helicon's sidebar groups them by working directory, terminal sessions included, with one click resume.",
     keywords: [
@@ -222,7 +222,7 @@ export const BURN_2026_10_22_PAGES: SeoPage[] = [
     title: "How to review AI agent diffs before you merge",
     h1: "How to review AI agent diffs before you merge",
     description:
-      "A step by step routine for reviewing code a coding agent wrote: isolate the run, read approvals, check git diff in a fixed order, run tests yourself, then commit in pieces.",
+      "A routine for reviewing code a coding agent wrote: isolate the run, read approvals, check git diff in a fixed order, run tests yourself, commit in pieces.",
     answer:
       "Give the agent its own branch or worktree, then review in a fixed order: git diff --stat for scope, then config, dependencies and tests, then the logic. Compare what the agent said it did with the diff, check what its commands touched outside git, run the tests yourself, and stage with git add -p so each piece gets a look.",
     keywords: [
@@ -438,7 +438,7 @@ export const BURN_2026_10_22_PAGES: SeoPage[] = [
     title: "Best GUI for Claude Code or Muse Code: a checklist",
     h1: "How to choose a GUI for Claude Code or Muse Code",
     description:
-      "Twelve checks for picking a desktop GUI for a terminal coding agent: billing, open source, credentials, approvals, diffs, sessions, Windows, remote use and exit cost.",
+      "Twelve checks for picking a GUI for a terminal coding agent: billing, open source, credentials, approvals, diffs, sessions, Windows, remote use, exit cost.",
     answer:
       "Pick the GUI that drives your agent's official CLI on the subscription you already pay for, shows approvals and diffs exactly as they happened, finds sessions you started in the terminal, keeps state on your machine, and runs on your OS. For Claude Code, Anthropic ships its own desktop app. For Muse Code, Meta ships none, so the options are community clients.",
     keywords: [

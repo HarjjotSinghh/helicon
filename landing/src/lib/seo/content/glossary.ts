@@ -572,7 +572,7 @@ const DEFS: Def[] = [
     },
     title: "What is Muse Spark? The model behind Muse Code",
     description:
-      "Muse Spark is Meta's model for agentic and coding work, and the model Muse Code is built for. Versions 1.1 to 1.3, the Open weights, Contributor mode and prices.",
+      "Muse Spark is Meta's model for agentic and coding work, and the model Muse Code is built for. Versions 1.1 to 1.3, Open weights, Contributor mode and prices.",
     answer:
       "Muse Spark is Meta's model family for agentic and coding work, and the model Muse Code is built for. Meta's docs list versions 1.3, 1.2 and 1.1, a 1,048,576 token context window, and Muse Spark Open, an open-weight release. Muse Code's own docs name muse-spark-1.2 as its default model.",
     keywords: ["muse spark", "what is muse spark", "muse spark 1.3", "muse spark open", "muse spark api", "muse spark contributor"],
