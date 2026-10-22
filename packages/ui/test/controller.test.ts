@@ -1086,6 +1086,38 @@ describe("HeliconController", () => {
     stop();
   });
 
+  it("shows a prompt once when history misses it and the live stream brings it during the reload (#55)", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    let ack!: (value: { turnId: string | null; disposition: string | null }) => void;
+    client.sendResult = () => new Promise((resolve) => (ack = resolve));
+    const sending = controller.send("Add a README section");
+    await settle();
+
+    // History is read before Muse records the prompt; the prompt itself streams in while the load is out.
+    let resolveLoad!: (value: TranscriptLoad) => void;
+    client.transcript = () => new Promise((resolve) => (resolveLoad = resolve));
+    const reloading = controller.loadThread("s1");
+    await settle();
+    ack({ turnId: "t9", disposition: "started" });
+    await sending;
+    client.handler?.({ type: "msp", sessionId: "s1", method: "turn/started", params: { sessionId: "s1", turnId: "t9" }, at: 2 });
+    client.handler?.({
+      type: "msp",
+      sessionId: "s1",
+      method: "item/completed",
+      params: { sessionId: "s1", item: { itemId: "u9", kind: "userMessage", status: "completed", revision: 1, turnId: "t9", text: "Add a README section" } },
+      at: 3,
+    });
+    resolveLoad(load({ msp: { status: "running", activeTurnId: "t9", modelId: null, approvalMode: null, workspaceRoot: null, turnCount: 4 } }));
+    await reloading;
+    await settle();
+    const fold = controller.store.get().threads["s1"]!.fold;
+    assert.equal(fold.items.get("u9")?.text, "Add a README section");
+    assert.equal(fold.echoes.length, 0, "the streamed prompt replaces its local copy");
+    stop();
+  });
+
   it("queues follow-ups while a turn runs and steers on request", async () => {
     const client = new FakeClient();
     client.transcript = async () => load({ msp: { status: "running", activeTurnId: "t1", modelId: null, approvalMode: null, workspaceRoot: null, turnCount: 3 } });
