@@ -669,6 +669,33 @@ export const ShellRow = memo(function ShellRow(props: { item: MspItem; sessionId
   );
 });
 
+const BACKGROUND_DONE: Record<string, string> = {
+  completed: "Background command finished",
+  failed: "Background command failed",
+  cancelled: "Background command stopped",
+  timedOut: "Background command timed out",
+  rejected: "Background command declined",
+};
+
+/** A command the agent sent to the background has ended (Muse 1.4.12+). It often lands after the turn's reply. */
+export function BackgroundDoneRow(props: { item: MspItem }) {
+  const done = props.item.backgroundTerminalCompletion;
+  if (!done) {
+    return <GenericRow item={props.item} />;
+  }
+  const failed = TERMINAL_FAILURES.has(done.terminalStatus) && done.terminalStatus !== "cancelled";
+  return (
+    <Row
+      icon={<TerminalWindowIcon size={14} />}
+      label={BACKGROUND_DONE[done.terminalStatus] ?? "Background command ended"}
+      chip={done.command || undefined}
+      mono
+      tone={failed ? "danger" : "default"}
+      body={done.output ? <OutputBlock text={done.output} truncated={done.outputTruncated} /> : undefined}
+    />
+  );
+}
+
 function AskToRun(props: { sessionId: string; command: string }) {
   const controller = useController();
   const [sending, setSending] = useState(false);

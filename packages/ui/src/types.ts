@@ -143,7 +143,21 @@ export interface MspItem {
   childSessionId?: string;
   /** `toolCall` and `userShell`: where the full output is kept when the view truncated it. */
   outputRef?: OutputRef;
+  /** `backgroundTerminalCompletion` (Muse 1.4.12+): a command the agent sent to the background has finished. */
+  backgroundTerminalCompletion?: BackgroundTerminalCompletion;
   [key: string]: unknown;
+}
+
+/** What a `backgroundTerminalCompletion` item says about the backgrounded command. Muse always sends every field. */
+export interface BackgroundTerminalCompletion {
+  command: string;
+  /** Empty when the command printed nothing. */
+  output: string;
+  outputTruncated: boolean;
+  /** `completed`, `failed`, `cancelled`, `timedOut` or `rejected`. */
+  terminalStatus: string;
+  /** The call id of the tool call that started it. */
+  toolCallId: string;
 }
 
 /** A tool's stored output. Read it through `item/readOutput` by `id`; the uri is only for display. */

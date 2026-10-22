@@ -455,18 +455,59 @@ describe("item kinds and notifications added in Muse Code 1.4.11", () => {
     assert.deepEqual(turnText(buildTurns(after)), turnText(turnsBefore));
   });
 
-  it("ignore the 1.4.12 backgroundTerminalCompletion and overdueNotice items too", () => {
+  it("ignore the 1.4.12 overdueNotice item too", () => {
     const before = liveEvents.reduce(applyEvent, emptyFold());
     const turnsBefore = buildTurns(before);
     const lastTurnId = turnsBefore[turnsBefore.length - 1]?.turnId ?? null;
-    const item = (itemId: string, kind: string): ViewEvent => ({
-      at: 10,
-      method: "item/completed",
-      params: { sessionId: "s1", item: { itemId, kind, status: "completed", revision: 1, turnId: lastTurnId, fallbackText: "x" } },
-    });
-
-    const after = applyEvents(before, [item("b1", "backgroundTerminalCompletion"), item("o1", "overdueNotice")]);
+    const after = applyEvents(before, [
+      {
+        at: 10,
+        method: "item/completed",
+        params: { sessionId: "s1", item: { itemId: "o1", kind: "overdueNotice", status: "completed", revision: 1, turnId: lastTurnId, fallbackText: "x" } },
+      },
+    ]);
     assert.deepEqual(turnText(buildTurns(after)), turnText(turnsBefore));
+  });
+});
+
+describe("background command completions (Muse Code 1.4.12)", () => {
+  const completion = (itemId: string, turnId: string | null): ViewEvent => ({
+    at: 10,
+    method: "item/completed",
+    params: {
+      sessionId: "s1",
+      item: {
+        itemId,
+        kind: "backgroundTerminalCompletion",
+        status: "completed",
+        revision: 1,
+        turnId,
+        backgroundTerminalCompletion: { command: "npm test", output: "ok", outputTruncated: false, terminalStatus: "completed", toolCallId: "c1" },
+      },
+    },
+  });
+
+  it("keep the reply final when a completion lands after it, and show the completion below the reply", () => {
+    const before = liveEvents.reduce(applyEvent, emptyFold());
+    const turnsBefore = buildTurns(before);
+    const last = turnsBefore[turnsBefore.length - 1]!;
+    assert.ok(last.final, "the fixture's last turn has a final reply");
+
+    const turns = buildTurns(applyEvents(before, [completion("b1", last.turnId)]));
+    const turn = turns[turns.length - 1]!;
+    assert.equal(turn.final?.itemId, last.final.itemId);
+    assert.deepEqual(turn.entries.map((e) => e.itemId), last.entries.map((e) => e.itemId));
+    assert.deepEqual(turn.after.map((e) => e.itemId), ["b1"]);
+  });
+
+  it("show a completion outside any turn on its own", () => {
+    const before = liveEvents.reduce(applyEvent, emptyFold());
+    const turns = buildTurns(applyEvents(before, [completion("b2", null)]));
+    const own = turns[turns.length - 1]!;
+    assert.equal(own.turnId, null);
+    assert.deepEqual(own.entries.map((e) => e.kind), ["backgroundTerminalCompletion"]);
+    assert.equal(own.final, null);
+    assert.deepEqual(own.after, []);
   });
 
   it("return the same fold object for the new monitor and session notifications", () => {
