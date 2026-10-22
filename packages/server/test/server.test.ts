@@ -847,6 +847,30 @@ describe("HeliconServer", () => {
     assert.equal((await find()).settled, false);
   });
 
+  it("still finds CLI threads when subagent sessions fill the newest pages (#50)", async () => {
+    const connection = new FakeConnection();
+    // Newest first, like session/list: 450 subagent rows, then the threads started from the muse CLI.
+    const rows: Record<string, unknown>[] = [];
+    for (let i = 0; i < 450; i += 1) {
+      rows.push({ sessionId: `sub-${i}`, kind: "subagent", workspaceRoot: "/work/proj", updatedAt: "2026-10-20T00:00:00.000Z" });
+    }
+    for (let i = 0; i < 3; i += 1) {
+      rows.push({ sessionId: `cli-${i}`, kind: "root", workspaceRoot: "/work/proj", turnCount: 2, updatedAt: "2026-10-19T00:00:00.000Z" });
+    }
+    connection.replies.set("session/list", ((params: Record<string, unknown>) => {
+      const from = typeof params["cursor"] === "string" ? Number(params["cursor"]) : 0;
+      const size = Math.min(Number(params["limit"] ?? 50), 200);
+      const next = from + size;
+      return { sessions: rows.slice(from, next), nextCursor: next < rows.length ? String(next) : null };
+    }) as never);
+    const { base } = await start(connection);
+
+    const found = await send(base, "/api/discover", {});
+    assert.equal(found.status, 200);
+    const ids = found.json.sessions.map((s: { sessionId: string }) => s.sessionId).sort();
+    assert.deepEqual(ids, ["cli-0", "cli-1", "cli-2"]);
+  });
+
   it("carries a turn's reasoning effort as the session default, once per change", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });
