@@ -2,6 +2,14 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.23.0
+
+- Linux .deb and .rpm packages next to the AppImage (#227).
+- Muse Code SDK 1.4.11 (#229). A smaller first load (#216).
+- A later stage of a piped command asks for approval again (#192).
+- New Thread opens the new thread when the panel is still starting (#198).
+- Accessibility fixes for the resize handle, card headings, the model picker's name and button contrast (#193, #207).
+
 ## 0.22.3
 
 - A "Sign in to Muse" card now shows on native Windows too, and a META_API_KEY counts as signed in (#184).

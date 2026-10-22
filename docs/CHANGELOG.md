@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.23.0
+
+### New
+
+- **Linux .deb and .rpm packages** ([#227](https://github.com/HarjjotSinghh/helicon/pull/227)). Ubuntu 22.04 and later ship without libfuse2, so the AppImage did not start there until you installed it. The .deb and .rpm install with your package manager and pull in what they need. The bundled Node.js is now called `helicon-node` on Linux, so it no longer clashes with your own `node`.
+- **A SHA-256 for every installer** ([#221](https://github.com/HarjjotSinghh/helicon/pull/221)). Each release now lists the checksums in a `SHA256SUMS` file, and the install guide shows how to check the Windows installer in PowerShell.
+
+### Changed
+
+- **Muse Code SDK 1.4.11** ([#229](https://github.com/HarjjotSinghh/helicon/pull/229)), up from 1.4.10. Helicon hides the new item kinds that version adds, and ignores notifications it does not know yet, so a turn's final reply stays where it was.
+- **A smaller first load** ([#216](https://github.com/HarjjotSinghh/helicon/pull/216)). Unused icon weights are gone, and Settings, Usage and What's New load when you open them.
+- **Sign-in wording** ([#228](https://github.com/HarjjotSinghh/helicon/pull/228)). Muse Code needs a Meta sign-in or a Model API key. The app, the site and the VS Code listing no longer say the free Muse app covers it.
+
+### Fixed
+
+- **Piped command approvals ask again** ([#192](https://github.com/HarjjotSinghh/helicon/pull/192)). When a piped command reaches a later stage, Helicon now asks you again instead of treating the first answer as covering it.
+- **Accessibility** ([#193](https://github.com/HarjjotSinghh/helicon/pull/193) and [#207](https://github.com/HarjjotSinghh/helicon/pull/207)). The sidebar resize handle reports its width to screen readers. Approval and question cards use the right heading level. The model picker's spoken name contains the text you see, including the Contributor badge. The dark-theme accent now has enough contrast under white button text.
+- **New Thread during a cold start in VS Code** ([#198](https://github.com/HarjjotSinghh/helicon/pull/198)). If you ran New Thread while the panel was still starting, the request was dropped. The panel now opens on the new thread once it loads.
+- **Window listeners and demo file sizes** ([#196](https://github.com/HarjjotSinghh/helicon/pull/196)). A failed window listener is now logged instead of going unhandled, and a file you edit in the web demo shows its new size.
+
 ## 0.22.3
 
 ### New
