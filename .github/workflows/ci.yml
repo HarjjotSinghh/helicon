@@ -43,6 +43,28 @@ jobs:
           }
           if ($failed) { exit 1 }
 
+  # Launches a real VS Code with the built extension and runs apps/vscode/test/integration/suite.cjs
+  # inside it. Needs a display, so it runs under xvfb. The VS Code download is cached under .vscode-test.
+  vscode-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
+      - run: npm run build --workspace @helicon/web
+      - uses: actions/cache@v4
+        with:
+          path: apps/vscode/.vscode-test
+          key: vscode-test-linux-${{ hashFiles('package-lock.json') }}
+      - run: sudo apt-get update && sudo apt-get install -y xvfb
+      - run: xvfb-run -a npm run test:integration --workspace helicon
+
   # helicon.sh has its own lockfile and is not a workspace, so nothing above touches it. Without
   # this a broken page only shows up as a failed production deploy.
   landing:
