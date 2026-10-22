@@ -215,6 +215,8 @@ jobs:
     permissions:
       contents: write
     needs: [desktop-linux, desktop-macos-dmgs]
+    # The per-arch DMGs are extras: if that job fails, still publish sums for the rest.
+    if: ${{ !cancelled() && needs.desktop-linux.result == 'success' }}
     runs-on: ubuntu-22.04
     steps:
       - name: Publish SHA256SUMS
@@ -227,11 +229,16 @@ jobs:
           trap 'rm -rf "$work"' EXIT
           cd "$work"
           # The installers only: mirrors redistribute those, and a missing one should fail the job, not drop out of the list.
-          installers=('Helicon_*_x64-setup.exe' 'Helicon_*_universal.dmg' 'Helicon_*_aarch64.dmg' 'Helicon_*_x64.dmg' 'Helicon_*_amd64.AppImage')
+          installers=('Helicon_*_x64-setup.exe' 'Helicon_*_universal.dmg' 'Helicon_*_amd64.AppImage')
           for pattern in "${installers[@]}"; do
             gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$pattern"
             compgen -G "$pattern" > /dev/null || { echo "Missing release asset: $pattern" >&2; exit 1; }
           done
+          # Per-arch DMGs are optional; list them only when present.
+          for pattern in 'Helicon_*_aarch64.dmg' 'Helicon_*_x64.dmg'; do
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$pattern" || echo "Skipping $pattern (not on this release)"
+          done
+          shopt -s nullglob
           sha256sum Helicon_*_x64-setup.exe Helicon_*_universal.dmg Helicon_*_aarch64.dmg Helicon_*_x64.dmg Helicon_*_amd64.AppImage > SHA256SUMS
           cat SHA256SUMS
           gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" SHA256SUMS --clobber
