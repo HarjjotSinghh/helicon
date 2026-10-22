@@ -455,6 +455,20 @@ describe("item kinds and notifications added in Muse Code 1.4.11", () => {
     assert.deepEqual(turnText(buildTurns(after)), turnText(turnsBefore));
   });
 
+  it("ignore the 1.4.12 backgroundTerminalCompletion and overdueNotice items too", () => {
+    const before = liveEvents.reduce(applyEvent, emptyFold());
+    const turnsBefore = buildTurns(before);
+    const lastTurnId = turnsBefore[turnsBefore.length - 1]?.turnId ?? null;
+    const item = (itemId: string, kind: string): ViewEvent => ({
+      at: 10,
+      method: "item/completed",
+      params: { sessionId: "s1", item: { itemId, kind, status: "completed", revision: 1, turnId: lastTurnId, fallbackText: "x" } },
+    });
+
+    const after = applyEvents(before, [item("b1", "backgroundTerminalCompletion"), item("o1", "overdueNotice")]);
+    assert.deepEqual(turnText(buildTurns(after)), turnText(turnsBefore));
+  });
+
   it("return the same fold object for the new monitor and session notifications", () => {
     const before = liveEvents.reduce(applyEvent, emptyFold());
     const methods = ["monitor/inboxItemAdmitted", "monitor/inboxItemDrained", "monitor/inboxItemVoided", "session/leaveCompleted"];
