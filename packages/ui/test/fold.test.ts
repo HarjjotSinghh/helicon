@@ -91,7 +91,7 @@ describe("thread fold against a real muse transcript", () => {
     const fold = foldAll(liveEvents.slice(0, requested + 1));
     const [pending] = Object.values(fold.userInputs);
     assert.equal(pending?.questions[0]?.question, "Which color do you prefer?");
-    const toolItem = Object.values(fold.items).find((i) => i.tool === "request_user_input");
+    const toolItem = fold.items.values().find((i) => i.tool === "request_user_input");
     assert.equal(gateFor(fold, toolItem?.itemId ?? "")?.kind, "input");
   });
 
@@ -110,7 +110,7 @@ describe("thread fold against a real muse transcript", () => {
     assert.equal(new Set(ids).size, ids.length);
     const live = foldAll(liveEvents);
     assert.equal(fold.order.length, live.order.length);
-    const reply = Object.values(fold.items).find((i) => i.kind === "agentMessage" && i.text === "pong");
+    const reply = fold.items.values().find((i) => i.kind === "agentMessage" && i.text === "pong");
     assert.equal(reply?.revision, 2, "the higher live revision wins over the paged one");
   });
 
@@ -124,9 +124,9 @@ describe("thread fold against a real muse transcript", () => {
       method: "item/completed",
       params: { sessionId: "s", item: { itemId: "m1", kind: "agentMessage", status: "completed", revision: 2, turnId: "t1", text: "" } },
     });
-    assert.equal(fold.items["m1"]?.text, "Hello world");
+    assert.equal(fold.items.get("m1")?.text, "Hello world");
     fold = applyEvent(fold, { method: "item/delta", params: { sessionId: "s", itemId: "m1", delta: " again" } });
-    assert.equal(fold.items["m1"]?.text, "Hello world");
+    assert.equal(fold.items.get("m1")?.text, "Hello world");
   });
 
   it("streams reasoning summaries and tool output by field path", () => {
@@ -140,9 +140,9 @@ describe("thread fold against a real muse transcript", () => {
       { method: "item/delta", params: { itemId: "r1", field: "summary.1", delta: "Then build" } },
       { method: "item/delta", params: { itemId: "x9", field: "output", delta: "npm ok" } },
     ]);
-    assert.deepEqual(fold.items["r1"]?.summary, ["Checking tests", "Then build"]);
-    assert.equal(fold.items["x9"]?.kind, "toolCall");
-    assert.equal(fold.items["x9"]?.visibleOutput, "npm ok");
+    assert.deepEqual(fold.items.get("r1")?.summary, ["Checking tests", "Then build"]);
+    assert.equal(fold.items.get("x9")?.kind, "toolCall");
+    assert.equal(fold.items.get("x9")?.visibleOutput, "npm ok");
   });
 
   it("tracks approvals from request to resolution", () => {
@@ -420,7 +420,7 @@ describe("subagent children", () => {
 
   it("are left out of the fold, since nothing ever renders them", () => {
     const fold = foldAll([child(1), child(2), child(3)]);
-    assert.deepEqual(Object.keys(fold.items), []);
+    assert.equal(fold.items.size, 0);
     assert.deepEqual(fold.order, []);
   });
 
@@ -434,6 +434,39 @@ describe("subagent children", () => {
     }
     assert.deepEqual(fold.order, []);
     assert.ok(Date.now() - started < 2_000, `20k subagent children took ${Date.now() - started}ms`);
+  });
+});
+
+describe("a long thread", () => {
+  it("keeps applying live events as its items pile up", () => {
+    // Every batch used to copy the whole map of items, and copying thousands of keys is slow enough that a thread
+    // with a few thousand tool calls, such as a long plan, took seconds per batch and stopped updating (#32).
+    const count = 6_000;
+    let fold = emptyFold();
+    const started = Date.now();
+    for (let i = 0; i < count; i += 1) {
+      fold = applyEvent(fold, {
+        at: 1,
+        method: "item/completed",
+        params: {
+          sessionId: "s1",
+          item: { itemId: `t${i}`, kind: "toolCall", tool: "bash", status: "completed", revision: 1, turnId: "t1", visibleOutput: "x".repeat(200) },
+        },
+      });
+    }
+    const elapsed = Date.now() - started;
+    assert.equal(fold.order.length, count);
+    assert.equal(fold.items.get(`t${count - 1}`)?.tool, "bash");
+    assert.ok(elapsed < 2_000, `${count} tool calls took ${elapsed}ms to apply one at a time`);
+  });
+
+  it("leaves the previous fold as it was when an item changes", () => {
+    const message = (delta: string): ViewEvent => ({ at: 1, method: "item/delta", params: { sessionId: "s1", itemId: "m1", turnId: "t1", field: "text", delta } });
+    const before = applyEvent(emptyFold(), message("Hello"));
+    const after = applyEvent(before, message(" world"));
+    assert.equal(before.items.get("m1")?.text, "Hello");
+    assert.equal(after.items.get("m1")?.text, "Hello world");
+    assert.equal(after.items.size, 1);
   });
 });
 

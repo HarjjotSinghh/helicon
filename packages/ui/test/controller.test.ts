@@ -1024,7 +1024,7 @@ describe("HeliconController", () => {
     assert.equal(loads, 1, "overlapping loads share one transcript read");
     const fold = controller.store.get().threads["s1"]?.fold;
     assert.equal(fold?.activeTurnId, "live-1", "events buffered before the overlap still land");
-    assert.ok(fold?.items["i1"], "events buffered during the overlap still land");
+    assert.ok(fold?.items.get("i1"), "events buffered during the overlap still land");
     stop();
   });
 
