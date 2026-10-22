@@ -486,6 +486,20 @@ describe("lastPrompt", () => {
     assert.equal(lastPrompt(fold), "Now add tests");
   });
 
+  it("returns a message steered into the last turn over the prompt that started it", () => {
+    const before = liveEvents.reduce(applyEvent, emptyFold());
+    const turns = buildTurns(before);
+    const last = turns[turns.length - 1]!;
+    const fold = applyEvents(before, [
+      {
+        at: 10,
+        method: "item/completed",
+        params: { sessionId: "s1", item: { itemId: "steer1", kind: "userMessage", status: "completed", revision: 1, turnId: last.turnId, steered: true, text: "Use pnpm instead" } },
+      },
+    ]);
+    assert.equal(lastPrompt(fold), "Use pnpm instead");
+  });
+
   it("returns null for a thread with no prompts", () => {
     assert.equal(lastPrompt(emptyFold()), null);
   });

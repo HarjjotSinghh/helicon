@@ -923,12 +923,19 @@ export function lastPrompt(fold: ThreadFold): string | null {
       return text;
     }
   }
+  const said = (item: MspItem | null | undefined) => item?.displayText ?? item?.text ?? "";
   const turns = buildTurns(fold);
   for (let i = turns.length - 1; i >= 0; i -= 1) {
-    const prompt = turns[i]!.prompt;
-    const text = prompt?.displayText ?? prompt?.text ?? "";
-    if (text.trim()) {
-      return text;
+    const turn = turns[i]!;
+    // A message steered into a running turn came after the prompt that started it.
+    for (let j = turn.entries.length - 1; j >= 0; j -= 1) {
+      const entry = turn.entries[j]!;
+      if (entry.kind === "userMessage" && said(entry).trim()) {
+        return said(entry);
+      }
+    }
+    if (said(turn.prompt).trim()) {
+      return said(turn.prompt);
     }
   }
   return null;
