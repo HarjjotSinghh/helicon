@@ -179,10 +179,10 @@ export const PILLAR_PAGES: SeoPage[] = [
     related: [
       "muse-code-desktop-app",
       "compare/other-muse-code-guis",
+      "guides/choose-a-coding-agent-gui",
       "compare/t3-code",
       "compare/vs-code-extension",
       "install/windows",
-      "glossary/muse-code",
     ],
   },
   {
