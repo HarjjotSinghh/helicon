@@ -2933,7 +2933,11 @@ export class HeliconServer {
     const remote: unknown[] = [];
     let scanned = 0;
     let cursor: string | null = null;
+    const seen = new Set<string>();
     do {
+      if (cursor !== null) {
+        seen.add(cursor);
+      }
       const page = await host.manager.listSessionsPage({
         workspaceRoot: cwd ? this.hostPathFor(cwd) : undefined,
         limit: DISCOVER_PAGE_SIZE,
@@ -2942,7 +2946,8 @@ export class HeliconServer {
       scanned += page.sessions.length;
       // Subagent rows are dropped below, so they must not use up the budget meant for real threads (#50).
       remote.push(...page.sessions.filter((item) => !isSubagentRow(item)));
-      cursor = page.nextCursor;
+      // An empty page, or a cursor already followed, would never move the scan forward.
+      cursor = page.sessions.length > 0 && page.nextCursor && !seen.has(page.nextCursor) ? page.nextCursor : null;
     } while (cursor && remote.length < DISCOVER_LIMIT && scanned < DISCOVER_SCAN_LIMIT);
 
     const views: Record<string, unknown>[] = [];
