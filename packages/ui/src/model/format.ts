@@ -785,9 +785,17 @@ export function describeApproval(request: ApprovalRequest): ApprovalDescription 
   }
 }
 
-/** Text an app controls (a window title, a button label) is quoted and capped, so it can't pass for Helicon's own words. */
+/** Drops control and format characters (bidi overrides, zero-width joiners), which can reorder or hide what the user reads. */
+export function plainAppText(text: string): string {
+  return text.replace(/[\p{Cc}\p{Cf}]+/gu, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Text an app controls (a window title, a button label) is quoted and capped, so it can't pass for Helicon's own words.
+ * Its own double quotes become single ones, so a label can't close the quote early and add words of its own.
+ */
 export function quoteAppText(text: string, max = 80): string {
-  const flat = text.replace(/\s+/g, " ").trim();
+  const flat = plainAppText(text).replace(/["\u201C\u201D]/g, "'");
   return `"${flat.length > max ? `${flat.slice(0, max - 1)}…` : flat}"`;
 }
 

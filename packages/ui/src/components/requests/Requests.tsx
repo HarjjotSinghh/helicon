@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "re
 import { useApp, useController } from "../../app/context.js";
 import { useImeGuard } from "../../app/ime.js";
 import type { LocalEcho } from "../../model/fold.js";
-import { describeApproval, describeCuaStep, quoteAppText } from "../../model/format.js";
+import { describeApproval, describeCuaStep, plainAppText, quoteAppText } from "../../model/format.js";
 import type { ApprovalChoice, ApprovalRequest, CuaCardFacts, TodoItem, UserInputAnswer, UserInputQuestion, UserInputRequest } from "../../types.js";
 import { Tip } from "../ui/overlays.js";
 import { Button, IconButton, Shortcut, Spinner, cn } from "../ui/primitives.js";
@@ -222,15 +222,17 @@ function CuaFacts(props: { facts: CuaCardFacts }) {
             <>
               <dt className="text-subtle">Page</dt>
               <dd className="min-w-0 font-mono [overflow-wrap:anywhere] text-fg">
-                {page.host}
-                {lookalike ? <span className="text-warn-text"> ({page.hostAscii})</span> : null}
+                <bdi>{plainAppText(page.host)}</bdi>
+                {lookalike ? <span className="text-warn-text"> ({plainAppText(page.hostAscii)})</span> : null}
               </dd>
             </>
           ) : null}
           {windowTitle ? (
             <>
               <dt className="text-subtle">Window</dt>
-              <dd className="min-w-0 truncate text-fg">{quoteAppText(windowTitle)}</dd>
+              <dd className="min-w-0 truncate text-fg">
+                <bdi>{quoteAppText(windowTitle)}</bdi>
+              </dd>
             </>
           ) : null}
         </dl>
@@ -242,7 +244,7 @@ function CuaFacts(props: { facts: CuaCardFacts }) {
             <li key={index} className="flex gap-2">
               <span className="w-4 shrink-0 text-right text-subtle tabular-nums">{index + 1}.</span>
               <span className="min-w-0">
-                <span className="[overflow-wrap:anywhere] text-fg">{describeCuaStep(step)}</span>
+                <bdi className="[overflow-wrap:anywhere] text-fg">{describeCuaStep(step)}</bdi>
                 {step.effect ? <span className="block text-pretty text-muted">{step.effect}</span> : null}
               </span>
             </li>

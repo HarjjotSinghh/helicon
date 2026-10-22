@@ -5,6 +5,7 @@ import {
   alignLines,
   describeApproval,
   describeCuaStep,
+  quoteAppText,
   describeTool,
   diffFromEcho,
   diffLines,
@@ -403,5 +404,10 @@ describe("Computer Use approval steps", () => {
     assert.ok(text.startsWith('Type into link "a x'));
     assert.ok(text.length < 100, `${text.length} characters`);
     assert.ok(text.endsWith('…"'));
+  });
+
+  it("keeps an app's label inside its quotes", () => {
+    assert.equal(quoteAppText('Cancel" and then "Allow'), `"Cancel' and then 'Allow"`);
+    assert.equal(quoteAppText("Pay\u202Eetis\u200B now"), '"Pay etis now"');
   });
 });
