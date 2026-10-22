@@ -242,7 +242,7 @@ function CuaFacts(props: { facts: CuaCardFacts }) {
         <ol className="flex flex-col gap-1.5">
           {steps.map((step, index) => (
             <li key={index} className="flex gap-2">
-              <span className="w-4 shrink-0 text-right text-subtle tabular-nums">{index + 1}.</span>
+              <span className="min-w-4 shrink-0 text-right text-subtle tabular-nums">{Number.isFinite(step.step) ? step.step : index + 1}.</span>
               <span className="min-w-0">
                 <bdi className="[overflow-wrap:anywhere] text-fg">{describeCuaStep(step)}</bdi>
                 {step.effect ? <span className="block text-pretty text-muted">{step.effect}</span> : null}

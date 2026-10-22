@@ -235,6 +235,8 @@ export interface CuaStep {
   point?: { x: number; y: number };
   /** `button`, `link`, `menu item` or `key`. */
   roleWord?: string;
+  /** The step's place in the whole batch, from 1. Steps that change nothing are left out, so the numbers can skip. */
+  step: number;
 }
 
 export interface UserInputOption {

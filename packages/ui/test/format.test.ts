@@ -387,20 +387,20 @@ describe("extractRevertSteps", () => {
 
 describe("Computer Use approval steps", () => {
   it("names a labelled control with its role, quoting the app's label", () => {
-    assert.equal(describeCuaStep({ action: "click", roleWord: "button", label: "Delete repository", effect: "", kind: "verb:click" }), 'Click button "Delete repository"');
+    assert.equal(describeCuaStep({ action: "click", roleWord: "button", label: "Delete repository", step: 1, effect: "", kind: "verb:click" }), 'Click button "Delete repository"');
   });
 
   it("names the chord of a key step", () => {
-    assert.equal(describeCuaStep({ action: "press", chord: "Ctrl+Enter", roleWord: "key", effect: "", kind: "verb:key" }), "Press Ctrl+Enter");
+    assert.equal(describeCuaStep({ action: "press", chord: "Ctrl+Enter", roleWord: "key", step: 1, effect: "", kind: "verb:key" }), "Press Ctrl+Enter");
   });
 
   it("gives coordinates only for a step with no label or chord", () => {
-    assert.equal(describeCuaStep({ action: "click", point: { x: 120, y: 480 }, effect: "", kind: "unlabeled" }), "Click at 120, 480");
-    assert.equal(describeCuaStep({ action: "click", label: "OK", point: { x: 1, y: 2 }, effect: "", kind: "verb:click" }), 'Click "OK"');
+    assert.equal(describeCuaStep({ action: "click", point: { x: 120, y: 480 }, step: 1, effect: "", kind: "unlabeled" }), "Click at 120, 480");
+    assert.equal(describeCuaStep({ action: "click", label: "OK", point: { x: 1, y: 2 }, step: 1, effect: "", kind: "verb:click" }), 'Click "OK"');
   });
 
   it("flattens and caps a long label so an app can't fill the card", () => {
-    const text = describeCuaStep({ action: "type into", roleWord: "link", label: `a\n${"x".repeat(200)}`, effect: "", kind: "verb:type" });
+    const text = describeCuaStep({ action: "type into", roleWord: "link", label: `a\n${"x".repeat(200)}`, step: 1, effect: "", kind: "verb:type" });
     assert.ok(text.startsWith('Type into link "a x'));
     assert.ok(text.length < 100, `${text.length} characters`);
     assert.ok(text.endsWith('…"'));
