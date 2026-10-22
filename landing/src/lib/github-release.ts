@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { pickMacAsset, type MacArch } from "./mac-arch";
 import { RELEASES_URL, REPO_URL } from "./site";
 
 export type InstallerKind = "windows" | "macos";
@@ -25,9 +26,8 @@ type GithubRelease = {
 
 const repoPath = REPO_URL.replace("https://github.com/", "");
 
-function matchAsset(kind: InstallerKind, name: string) {
-  if (kind === "windows") return /setup\.exe$/i.test(name) && !/\.sig$/i.test(name);
-  return /\.dmg$/i.test(name) && !/\.sig$/i.test(name);
+function matchWindows(name: string) {
+  return /setup\.exe$/i.test(name) && !/\.sig$/i.test(name);
 }
 
 async function githubHeaders(): Promise<Record<string, string>> {
@@ -88,10 +88,15 @@ export function formatStars(count: number): string {
   return count >= 1000 ? `${(count / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(count);
 }
 
-export async function latestInstaller(kind: InstallerKind): Promise<ReleaseAsset | null> {
+/**
+ * The installer to send a visitor to. On macOS `arch` picks that chip's DMG when the release has one;
+ * with no chip, or no per-chip build yet, it is the universal DMG.
+ */
+export async function latestInstaller(kind: InstallerKind, arch: MacArch | null = null): Promise<ReleaseAsset | null> {
   const release = await latestRelease();
   if (!release) return null;
-  const asset = release.assets.find((item) => matchAsset(kind, item.name));
+  const asset =
+    kind === "windows" ? release.assets.find((item) => matchWindows(item.name)) : pickMacAsset(release.assets, arch);
   if (!asset) return null;
   return {
     version: release.version,

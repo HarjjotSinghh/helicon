@@ -82,6 +82,58 @@ jobs:
           # One universal binary for Apple Silicon and Intel; the macOS bundles come from tauri.macos.conf.json.
           args: --target universal-apple-darwin
 
+  # Smaller single-architecture DMGs next to the universal one, for people who only need their own chip.
+  # Download-only: the in-app updater keeps using the universal .app.tar.gz that desktop-macos publishes
+  # and latest.json lists, so this job builds no updater artifacts, needs no signing key and never
+  # touches latest.json. The universal DMG stays the default for anything that cannot tell the chip.
+  desktop-macos-dmgs:
+    permissions:
+      contents: write
+    # The release (and its universal DMG) exists once desktop-macos is done, so the upload has a target.
+    needs: desktop-macos
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            suffix: aarch64
+          - target: x86_64-apple-darwin
+            suffix: x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # The runner is arm64, so aarch64 is the default; the Intel build cross-compiles like the universal one does.
+          targets: ${{ matrix.target }}
+      - run: npm ci
+      - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
+      - name: Build and upload ${{ matrix.suffix }} DMG
+        env:
+          # Bundles only this architecture's Node.js sidecar (apps/desktop/scripts/fetch-node.mjs).
+          HELICON_NODE_TARGET: ${{ matrix.target }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Only the dmg bundle, and no updater artifacts (those need the signing key and belong to the universal build).
+          npm run tauri --workspace helicon-desktop -- build --target "${{ matrix.target }}" --bundles dmg \
+            --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          dmgs=(apps/desktop/src-tauri/target/"${{ matrix.target }}"/release/bundle/dmg/Helicon_*_"${{ matrix.suffix }}".dmg)
+          [ "${#dmgs[@]}" -eq 1 ] && [ -f "${dmgs[0]}" ] || { echo "Expected exactly one Helicon_*_${{ matrix.suffix }}.dmg, got: ${dmgs[*]}" >&2; exit 1; }
+          ls -l "${dmgs[0]}"
+          # GitHub sometimes refuses a large asset upload ("Error saving asset"), so retry a few times.
+          for attempt in 1 2 3; do
+            gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "${dmgs[0]}" --clobber && exit 0
+            echo "Upload attempt $attempt failed" >&2
+            sleep 10
+          done
+          exit 1
+
   desktop-linux:
     permissions:
       contents: write
@@ -158,11 +210,11 @@ jobs:
           gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "${appimage[0]}" "${appimage[0]}.sig" latest.json --clobber
 
   # One SHA256SUMS file per release, so copies of the installers on mirror sites can be checked against it.
-  # Runs last: the Linux job replaces the AppImage after tauri-action uploads it.
+  # Runs last: the Linux job replaces the AppImage after tauri-action uploads it, and the per-arch DMGs upload on their own.
   checksums:
     permissions:
       contents: write
-    needs: desktop-linux
+    needs: [desktop-linux, desktop-macos-dmgs]
     runs-on: ubuntu-22.04
     steps:
       - name: Publish SHA256SUMS
@@ -175,11 +227,11 @@ jobs:
           trap 'rm -rf "$work"' EXIT
           cd "$work"
           # The installers only: mirrors redistribute those, and a missing one should fail the job, not drop out of the list.
-          installers=('Helicon_*_x64-setup.exe' 'Helicon_*_universal.dmg' 'Helicon_*_amd64.AppImage')
+          installers=('Helicon_*_x64-setup.exe' 'Helicon_*_universal.dmg' 'Helicon_*_aarch64.dmg' 'Helicon_*_x64.dmg' 'Helicon_*_amd64.AppImage')
           for pattern in "${installers[@]}"; do
             gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$pattern"
             compgen -G "$pattern" > /dev/null || { echo "Missing release asset: $pattern" >&2; exit 1; }
           done
-          sha256sum Helicon_*_x64-setup.exe Helicon_*_universal.dmg Helicon_*_amd64.AppImage > SHA256SUMS
+          sha256sum Helicon_*_x64-setup.exe Helicon_*_universal.dmg Helicon_*_aarch64.dmg Helicon_*_x64.dmg Helicon_*_amd64.AppImage > SHA256SUMS
           cat SHA256SUMS
           gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" SHA256SUMS --clobber
