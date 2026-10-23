@@ -521,6 +521,30 @@ export class SessionManager {
     return skills;
   }
 
+  /**
+   * Copies skills from Claude Code's or Codex's own skills folder into Muse. A `dryRun` previews what would happen
+   * and writes nothing; Muse finds the folder itself, so no path crosses the wire.
+   */
+  async importSkills(sessionId: string, source: SkillImportSource, options: { dryRun?: boolean } = {}): Promise<SkillImportReport> {
+    const result = asRecord(await this.connection.command("skill/import", { sessionId, source, dryRun: options.dryRun === true }));
+    const ids = (value: unknown): string[] => (Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : []);
+    const rows = (value: unknown): Record<string, unknown>[] =>
+      Array.isArray(value) ? value.map(asRecord).filter((row): row is Record<string, unknown> => row !== null) : [];
+    return {
+      source,
+      dryRun: result?.["dryRun"] === true,
+      installed: ids(result?.["installed"]),
+      skipped: ids(result?.["skipped"]),
+      quarantined: rows(result?.["quarantined"])
+        .filter((row) => typeof row["id"] === "string")
+        .map((row) => ({ id: row["id"] as string, reasons: ids(row["reasons"]) })),
+      failed: rows(result?.["failed"]).map((row) => ({
+        id: typeof row["id"] === "string" ? row["id"] : null,
+        reason: typeof row["reason"] === "string" ? row["reason"] : "",
+      })),
+    };
+  }
+
   async cancelWorkflow(sessionId: string, workflowRunId: string): Promise<unknown> {
     return this.connection.command("workflow/cancel", { sessionId, workflowRunId });
   }
@@ -606,6 +630,21 @@ export type WorkflowChildAction = "skip" | "retry";
 
 export function isWorkflowChildAction(value: unknown): value is WorkflowChildAction {
   return value === "skip" || value === "retry";
+}
+
+/** Another agent whose skills Muse can import. */
+export type SkillImportSource = "claude" | "codex";
+
+/** What `skill/import` did, or would do when it was a preview. */
+export interface SkillImportReport {
+  source: SkillImportSource;
+  dryRun: boolean;
+  installed: string[];
+  /** Already imported, or a duplicate within the run. */
+  skipped: string[];
+  /** Kept aside and not loaded, with Muse's reasons. */
+  quarantined: { id: string; reasons: string[] }[];
+  failed: { id: string | null; reason: string }[];
 }
 
 export interface SessionSkill {

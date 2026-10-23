@@ -698,6 +698,12 @@ export class DemoClient implements HeliconClient {
       error: null,
     };
   }
+  /** Claude Code has one skill to bring over; Codex has none. Nothing is written anywhere. */
+  async importSkills(_sessionId: string, source: "claude" | "codex", options: { dryRun?: boolean } = {}) {
+    const found = source === "claude" ? ["changelog"] : [];
+    const dryRun = options.dryRun === true;
+    return { source, dryRun, installed: found, skipped: [], quarantined: [], failed: [] };
+  }
   async skillBody(_cwd: string, skillId: string) {
     return `Instructions for ${skillId}.`;
   }
