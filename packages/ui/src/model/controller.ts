@@ -2417,6 +2417,7 @@ export class HeliconController {
 
   /** Asks Muse what `/import-skills` would copy in, without writing anything, and holds the answer for a yes. */
   async previewSkillImport(sessionId: string, sources: SkillImportSource[]): Promise<boolean> {
+    if (this.state.skillImport?.running) return false;
     const settled = await Promise.allSettled(sources.map((source) => this.client.importSkills(sessionId, source, { dryRun: true })));
     const previews = settled.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
     const refused = settled.find((result): result is PromiseRejectedResult => result.status === "rejected");
@@ -2429,7 +2430,7 @@ export class HeliconController {
       this.toast("info", "No new skills to import", `Muse has every skill it found in ${names} already.`);
       return true;
     }
-    this.update((s) => ({ ...s, skillImport: { sessionId, previews, running: false } }));
+    this.update((s) => (s.skillImport?.running ? s : { ...s, skillImport: { sessionId, previews, running: false } }));
     return true;
   }
 

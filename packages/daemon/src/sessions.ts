@@ -526,19 +526,21 @@ export class SessionManager {
    * and writes nothing; Muse finds the folder itself, so no path crosses the wire.
    */
   async importSkills(sessionId: string, source: SkillImportSource, options: { dryRun?: boolean } = {}): Promise<SkillImportReport> {
-    const result = asRecord(await this.connection.command("skill/import", { sessionId, source, dryRun: options.dryRun === true }));
+    const dryRun = options.dryRun === true;
+    const result = asRecord(await this.connection.command("skill/import", { sessionId, source, dryRun }));
+    if (!result) throw new Error("Muse sent back an empty skill import result.");
     const ids = (value: unknown): string[] => (Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : []);
     const rows = (value: unknown): Record<string, unknown>[] =>
       Array.isArray(value) ? value.map(asRecord).filter((row): row is Record<string, unknown> => row !== null) : [];
     return {
       source,
-      dryRun: result?.["dryRun"] === true,
-      installed: ids(result?.["installed"]),
-      skipped: ids(result?.["skipped"]),
-      quarantined: rows(result?.["quarantined"])
+      dryRun,
+      installed: ids(result["installed"]),
+      skipped: ids(result["skipped"]),
+      quarantined: rows(result["quarantined"])
         .filter((row) => typeof row["id"] === "string")
         .map((row) => ({ id: row["id"] as string, reasons: ids(row["reasons"]) })),
-      failed: rows(result?.["failed"]).map((row) => ({
+      failed: rows(result["failed"]).map((row) => ({
         id: typeof row["id"] === "string" ? row["id"] : null,
         reason: typeof row["reason"] === "string" ? row["reason"] : "",
       })),
