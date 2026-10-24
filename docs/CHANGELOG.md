@@ -4,12 +4,14 @@
 
 ### New
 
+- **Computer Use approvals show what will happen** ([#246](https://github.com/HarjjotSinghh/helicon/pull/246)). Before you approve, the card shows the page's host, the window title and each step, such as Click button "Save" or Press Enter. A host that looks like another one gets a warning.
+- **Background commands that finish after a reply** ([#245](https://github.com/HarjjotSinghh/helicon/pull/245)). When a command the agent left running ends, the thread shows a row saying how it ended. Click it to see the output. The turn's reply stays where it was.
 - **Linux .deb and .rpm packages** ([#227](https://github.com/HarjjotSinghh/helicon/pull/227)). Ubuntu 22.04 and later ship without libfuse2, so the AppImage did not start there until you installed it. The .deb and .rpm install with your package manager and pull in what they need. The bundled Node.js is now called `helicon-node` on Linux, so it no longer clashes with your own `node`.
 - **A SHA-256 for every installer** ([#221](https://github.com/HarjjotSinghh/helicon/pull/221)). Each release now lists the checksums in a `SHA256SUMS` file, and the install guide shows how to check the Windows installer in PowerShell.
 
 ### Changed
 
-- **Muse Code SDK 1.4.11** ([#229](https://github.com/HarjjotSinghh/helicon/pull/229)), up from 1.4.10. Helicon hides the new item kinds that version adds, and ignores notifications it does not know yet, so a turn's final reply stays where it was.
+- **Muse Code SDK 1.4.12** ([#229](https://github.com/HarjjotSinghh/helicon/pull/229) and [#244](https://github.com/HarjjotSinghh/helicon/pull/244)), up from 1.4.10. Helicon hides the new item kinds those versions add, and ignores notifications it does not know yet, so a turn's final reply stays where it was.
 - **A smaller first load** ([#216](https://github.com/HarjjotSinghh/helicon/pull/216)). Unused icon weights are gone, and Settings, Usage and What's New load when you open them.
 - **Sign-in wording** ([#228](https://github.com/HarjjotSinghh/helicon/pull/228)). Muse Code needs a Meta sign-in or a Model API key. The app, the site and the VS Code listing no longer say the free Muse app covers it.
 
