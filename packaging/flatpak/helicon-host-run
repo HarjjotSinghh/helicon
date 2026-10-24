@@ -1,0 +1,31 @@
+#!/bin/bash
+# Runs the command this file is named after on the host, from inside Helicon's Flatpak sandbox.
+#
+# Helicon drives the `muse` CLI and reads the same git and ssh setup a terminal uses, and none of that can live in
+# the sandbox: `muse` and its sign-in belong to the person's own account. The manifest installs this script as
+# /app/bin/muse, /app/bin/git, /app/bin/ssh and /app/bin/code, so the plain command names Helicon already spawns reach
+# the host binaries through `flatpak-spawn --host`.
+set -eu
+
+name=${0##*/}
+args=(--host --watch-bus)
+
+# Keep the working folder when the host has it too. Anything else (the sandbox's own /app, for one) does not exist
+# there, and flatpak-spawn would refuse to start.
+case $PWD in
+  "$HOME" | "$HOME"/* | /tmp | /tmp/* | /mnt/* | /media/* | /run/media/*) args+=("--directory=$PWD") ;;
+esac
+
+# Settings Helicon puts in the child's environment for muse and git. The rest of the sandbox environment is not
+# forwarded: its paths and bus addresses are the sandbox's, not the host's.
+for key in $(compgen -e); do
+  case $key in
+    MUSE_* | GIT_*) args+=("--env=$key=${!key}") ;;
+  esac
+done
+
+# The host session's PATH is often short (no ~/.local/bin, no Homebrew), which is where muse usually lives.
+# The single quotes are on purpose: $HOME and $PATH are the host's, and the host shell expands them.
+# shellcheck disable=SC2016
+exec flatpak-spawn "${args[@]}" /bin/sh -c \
+  'PATH="$HOME/.local/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:$PATH"; exec "$@"' sh "$name" "$@"
