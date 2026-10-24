@@ -90,6 +90,24 @@ describe("status, facts and releases", () => {
     expect(byPlatform.linux.asset.url).toBe("https://example.test/app.AppImage");
   });
 
+  it("keeps the universal DMG as the macOS asset when per-chip DMGs are listed first", async () => {
+    const withChips: RouterDeps = {
+      ...deps,
+      latestRelease: async () => ({
+        ...RELEASE,
+        assets: [
+          { name: "Helicon_0.14.2_aarch64.dmg", size: 5, browser_download_url: "https://example.test/arm.dmg" },
+          { name: "Helicon_0.14.2_x64.dmg", size: 5, browser_download_url: "https://example.test/intel.dmg" },
+          ...RELEASE.assets,
+        ],
+      }),
+    };
+    const result = await handleApi({ method: "GET", segments: ["release"], searchParams: new URLSearchParams() }, withChips);
+    const body = result.body as Json;
+    const mac = body.downloads.find((d: Json) => d.platform === "macos");
+    expect(mac.asset.url).toBe("https://example.test/app.dmg");
+  });
+
   it("returns a 503 with a hint rather than a stale guess when GitHub is down", async () => {
     const result = await handleApi({ method: "GET", segments: ["release"], searchParams: new URLSearchParams() }, offline);
     expect(result.status).toBe(503);
