@@ -275,6 +275,11 @@ export function DemoVideo({
 
   const progress = duration > 0 ? current / duration : 0;
 
+  const reportStall = (event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const node = event.currentTarget;
+    if (!node.paused) reportFailure("demo_stall", event.type, { kind: event.type, at: Math.round(node.currentTime) });
+  };
+
   return (
     <div
       ref={rootRef}
@@ -321,14 +326,8 @@ export function DemoVideo({
           const value = event.currentTarget.duration;
           if (Number.isFinite(value) && value > 0) setDuration(value);
         }}
-        onWaiting={(event) => {
-          const node = event.currentTarget;
-          if (!node.paused) reportFailure("demo_stall", "waiting", { kind: "waiting", at: Math.round(node.currentTime) });
-        }}
-        onStalled={(event) => {
-          const node = event.currentTarget;
-          if (!node.paused) reportFailure("demo_stall", "stalled", { kind: "stalled", at: Math.round(node.currentTime) });
-        }}
+        onWaiting={reportStall}
+        onStalled={reportStall}
         onError={(event) => {
           const node = event.currentTarget;
           reportFailure("demo_error", "media", { code: node.error?.code ?? null, at: Math.round(node.currentTime) });
@@ -340,7 +339,7 @@ export function DemoVideo({
         }}
       >
         {/* A file that fails to load or decode raises error on the source element, not on the video. */}
-        <source src={src} type="video/mp4" onError={() => reportFailure("demo_error", "source", { code: "source", at: 0 })} />
+        <source src={src} type="video/mp4" onError={() => reportFailure("demo_error", "source", { code: "source" })} />
       </video>
 
       {!started ? (
