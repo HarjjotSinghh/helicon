@@ -4,7 +4,7 @@ import { HeliconError, type EventHandler, type HeliconClient } from "../src/clie
 import { HeliconController, staleThreadReason, type Platform } from "../src/model/controller.js";
 import { buildTurns } from "../src/model/fold.js";
 import { ZOOM_MAX, ZOOM_MIN } from "../src/model/store.js";
-import type { SessionSummary, SkillEntry, TranscriptLoad, UserInputRequest } from "../src/types.js";
+import type { SessionSummary, SkillEntry, SkillImportReport, SkillImportSource, TranscriptLoad, UserInputRequest } from "../src/types.js";
 import { historyEvents } from "./fixtures/probe.js";
 
 const SESSION: SessionSummary = {
@@ -254,6 +254,18 @@ class FakeClient implements HeliconClient {
   }
   async skillBody(_cwd: string, skillId: string) {
     return `Instructions for ${skillId}.`;
+  }
+  imports: Array<{ sessionId: string; source: SkillImportSource; dryRun: boolean }> = [];
+  importReports: Partial<Record<SkillImportSource, Partial<Omit<SkillImportReport, "source" | "dryRun">>>> = {};
+  importFails: Partial<Record<SkillImportSource, string>> = {};
+  async importSkills(sessionId: string, source: SkillImportSource, options: { dryRun?: boolean } = {}): Promise<SkillImportReport> {
+    const dryRun = options.dryRun === true;
+    this.imports.push({ sessionId, source, dryRun });
+    const fail = this.importFails[source];
+    if (fail) {
+      throw new Error(fail);
+    }
+    return { installed: [], skipped: [], quarantined: [], failed: [], ...this.importReports[source], source, dryRun };
   }
   async openFolder() {}
   skillSessions: (string | undefined)[] = [];
@@ -1999,6 +2011,60 @@ describe("HeliconController", () => {
     assert.equal(await controller.send("/side what does this regex do?"), true);
     assert.equal(client.sent.at(-1)?.sessionId, "s3");
     assert.equal(client.sent.at(-1)?.text, "what does this regex do?");
+    stop();
+  });
+
+  it("previews /import-skills from both agents and imports only after a yes", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.importReports.claude = { installed: ["changelog", "review-pr"], skipped: ["deploy"] };
+    client.importReports.codex = { quarantined: [{ id: "shell-all", reasons: ["runs scripts"] }] };
+    assert.equal(await controller.send("/import-skills"), true);
+    assert.deepEqual(client.imports, [
+      { sessionId: "s1", source: "claude", dryRun: true },
+      { sessionId: "s1", source: "codex", dryRun: true },
+    ]);
+    const pending = controller.store.get().skillImport;
+    assert.equal(pending?.sessionId, "s1");
+    assert.deepEqual(pending?.previews.map((preview) => preview.source), ["claude", "codex"]);
+    await controller.confirmSkillImport();
+    // Codex had nothing to install, only a quarantined skill, so only Claude Code is imported for real.
+    assert.deepEqual(client.imports.slice(2), [{ sessionId: "s1", source: "claude", dryRun: false }]);
+    assert.equal(controller.store.get().skillImport, null);
+    assert.equal(controller.store.get().toasts.at(-1)?.title, "Imported 2 skills");
+    stop();
+  });
+
+  it("says so when /import-skills finds nothing new, without opening the preview", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.importReports.codex = { skipped: ["deploy"] };
+    assert.equal(await controller.send("/import-skills codex"), true);
+    assert.deepEqual(client.imports, [{ sessionId: "s1", source: "codex", dryRun: true }]);
+    assert.equal(controller.store.get().skillImport, null);
+    assert.equal(controller.store.get().toasts.at(-1)?.title, "No new skills to import");
+    stop();
+  });
+
+  it("keeps the preview from the agent that answered when the other one fails", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    client.importReports.claude = { installed: ["changelog"] };
+    client.importFails.codex = "codex folder unreadable";
+    assert.equal(await controller.send("/import-skills"), true);
+    assert.deepEqual(controller.store.get().skillImport?.previews.map((preview) => preview.source), ["claude"]);
+    controller.closeSkillImport();
+    assert.equal(controller.store.get().skillImport, null);
+    assert.equal(client.imports.filter((call) => !call.dryRun).length, 0, "closing the preview imports nothing");
+    stop();
+  });
+
+  it("names the sources /import-skills takes when given another word", async () => {
+    const client = new FakeClient();
+    const { controller, stop } = await started(client);
+    assert.equal(await controller.send("/import-skills cursor"), false);
+    assert.equal(client.imports.length, 0);
+    assert.match(controller.store.get().toasts.at(-1)?.detail ?? "", /\/import-skills claude/);
     stop();
   });
 

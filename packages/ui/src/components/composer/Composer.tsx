@@ -29,6 +29,7 @@ import { Menu, MenuContent, MenuItem, MenuLabel, MenuOption, MenuRadioGroup, Men
 import { Button, IconButton, MOD, Spinner, cn } from "../ui/primitives.js";
 import { PixelFlow } from "../ui/PixelFlow.js";
 import { ContextMeter } from "./ContextPanel.js";
+import { SkillImportDialog } from "./SkillImportDialog.js";
 import { SlashMenu, slashOptionId, type SlashMenuState } from "./SlashMenu.js";
 import { SwapIcon } from "../ui/sourced.js";
 import { FOCUS_HOME } from "../../app/a11y.js";
@@ -455,6 +456,7 @@ export function Composer(props: ComposerProps) {
         <ModelPicker sessionId={props.sessionId} side={props.variant === "home" ? "bottom" : "top"} />
         <EffortPicker side={props.variant === "home" ? "bottom" : "top"} />
         <AccessPicker sessionId={props.sessionId} side={props.variant === "home" ? "bottom" : "top"} />
+        <SkillImportDialog sessionId={props.sessionId} />
         <AccountPicker sessionId={props.sessionId} cwd={props.cwd} variant={props.variant} />
         <span className="min-w-2 flex-1" />
         {props.sessionId ? <SpeedReadout sessionId={props.sessionId} /> : null}

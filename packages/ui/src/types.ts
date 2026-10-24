@@ -318,6 +318,21 @@ export interface SkillEntry {
 }
 
 /** The skills for one workspace; `error` says why the list is empty when loading failed. */
+/** Another agent whose own skills Muse can copy in. */
+export type SkillImportSource = "claude" | "codex";
+
+/** What a skill import did, or would do when it was a preview. */
+export interface SkillImportReport {
+  source: SkillImportSource;
+  dryRun: boolean;
+  installed: string[];
+  /** Already imported, or a duplicate within the run. */
+  skipped: string[];
+  /** Kept aside and not loaded, with Muse's reasons. */
+  quarantined: { id: string; reasons: string[] }[];
+  failed: { id: string | null; reason: string }[];
+}
+
 export interface SkillCatalog {
   skills: SkillEntry[];
   error: string | null;
