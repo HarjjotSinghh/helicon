@@ -12,6 +12,7 @@ import {
   gateFor,
   requirementIndex,
   updateEcho,
+  lastPrompt,
 } from "../src/model/fold.js";
 import type { ViewEvent } from "../src/types.js";
 import { historyEvents, liveEvents } from "./fixtures/probe.js";
@@ -476,5 +477,44 @@ describe("item kinds and notifications added in Muse Code 1.4.11", () => {
       const after = applyEvent(before, { method, params: { sessionId: "s1", itemId: "d1" }, at: 11 });
       assert.equal(after, before, `${method} returns the same fold`);
     }
+  });
+});
+
+describe("lastPrompt", () => {
+  it("returns the newest prompt in the thread", () => {
+    const fold = liveEvents.reduce(applyEvent, emptyFold());
+    const turns = buildTurns(fold);
+    const newest = [...turns].reverse().find((t) => t.prompt)?.prompt;
+    assert.ok(newest, "the fixture has a prompt");
+    assert.equal(lastPrompt(fold), newest.displayText ?? newest.text);
+  });
+
+  it("prefers a prompt that is still sending", () => {
+    const fold = addEcho(liveEvents.reduce(applyEvent, emptyFold()), {
+      localId: "e1",
+      text: "Now add tests",
+      turnId: null,
+      disposition: "sending",
+      createdAt: 1,
+    });
+    assert.equal(lastPrompt(fold), "Now add tests");
+  });
+
+  it("returns a message steered into the last turn over the prompt that started it", () => {
+    const before = liveEvents.reduce(applyEvent, emptyFold());
+    const turns = buildTurns(before);
+    const last = turns[turns.length - 1]!;
+    const fold = applyEvents(before, [
+      {
+        at: 10,
+        method: "item/completed",
+        params: { sessionId: "s1", item: { itemId: "steer1", kind: "userMessage", status: "completed", revision: 1, turnId: last.turnId, steered: true, text: "Use pnpm instead" } },
+      },
+    ]);
+    assert.equal(lastPrompt(fold), "Use pnpm instead");
+  });
+
+  it("returns null for a thread with no prompts", () => {
+    assert.equal(lastPrompt(emptyFold()), null);
   });
 });
