@@ -410,6 +410,26 @@ function frameHtml(origin: string, src: string, surface: "sideBar" | "editor", b
   const watch = new MutationObserver(sendStyle);
   watch.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] });
   watch.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  // The editor's clipboard API only reads text. This page may read the browser clipboard, which the
+  // framed page may not, so images are read here and handed to the frame. Null when there are none.
+  async function clipboardImages() {
+    try {
+      const files = [];
+      for (const item of await navigator.clipboard.read()) {
+        const type = item.types.find((t) => t.startsWith("image/"));
+        if (type) {
+          const blob = await item.getType(type);
+          files.push(new File([blob], "pasted-image-" + (files.length + 1) + "." + (type.split("/")[1] || "png").replace("+xml", ""), { type }));
+        }
+      }
+      return files.length ? files : null;
+    } catch {
+      return null;
+    }
+  }
+  function forward(data) {
+    vscode.postMessage({ type: "command", command: data.command, args: data.args });
+  }
   window.addEventListener("message", (event) => {
     const data = event.data;
     if (!data || typeof data !== "object") return;
@@ -417,7 +437,16 @@ function frameHtml(origin: string, src: string, surface: "sideBar" | "editor", b
       // Only the Helicon page itself may run commands, not whatever the frame was navigated to.
       if (event.origin !== origin) return;
       if (data.type === "helicon-host-ready") sendStyle();
-      if (data.type === "helicon-command" && typeof data.command === "string") vscode.postMessage({ type: "command", command: data.command, args: data.args });
+      if (data.type !== "helicon-command" || typeof data.command !== "string") return;
+      if (data.command === "paste" && data.args && typeof data.args.id === "number") {
+        const id = data.args.id;
+        void clipboardImages().then((files) => {
+          if (files && frame.contentWindow) frame.contentWindow.postMessage({ type: "helicon-paste", id, text: "", files }, origin);
+          else forward(data);
+        });
+        return;
+      }
+      forward(data);
       return;
     }
     if (data.type === "helicon-theme") sendStyle();

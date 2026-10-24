@@ -207,19 +207,20 @@ function editableTarget(): Editable | null {
 }
 
 let pasteSeq = 0;
-const pastes = new Map<number, (text: string) => void>();
+type HostClipboard = { text: string; files: File[] };
+const pastes = new Map<number, (clip: HostClipboard) => void>();
 
-/** Asks the editor for its clipboard text; resolves with "" if it doesn't answer. */
-function readHostClipboard(): Promise<string> {
+/** Asks the editor for its clipboard: images when it holds any, else text. Empty if it doesn't answer. */
+function readHostClipboard(): Promise<HostClipboard> {
   const id = ++pasteSeq;
   return new Promise((resolve) => {
     const timer = window.setTimeout(() => {
       pastes.delete(id);
-      resolve("");
+      resolve({ text: "", files: [] });
     }, 2000);
-    pastes.set(id, (text) => {
+    pastes.set(id, (clip) => {
       window.clearTimeout(timer);
-      resolve(text);
+      resolve(clip);
     });
     postToHost({ type: "helicon-command", command: "paste", args: { id } });
   });
@@ -234,6 +235,15 @@ function insertText(el: Editable, text: string): void {
     el.setRangeText(text, start, end, "end");
     el.dispatchEvent(new Event("input", { bubbles: true }));
   }
+}
+
+/** Pastes files into a field the way the browser would, so the composer's paste handler attaches them. */
+function pasteFiles(el: Editable, files: File[]): void {
+  const transfer = new DataTransfer();
+  for (const file of files) {
+    transfer.items.add(file);
+  }
+  el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true, cancelable: true }));
 }
 
 /**
@@ -263,8 +273,10 @@ export function installEditorClipboard(isMac: boolean): () => void {
       }
     } else if (key === "v" && field) {
       event.preventDefault();
-      void readHostClipboard().then((text) => {
-        if (text) {
+      void readHostClipboard().then(({ text, files }) => {
+        if (files.length) {
+          pasteFiles(field, files);
+        } else if (text) {
           insertText(field, text);
         }
       });
@@ -274,9 +286,10 @@ export function installEditorClipboard(isMac: boolean): () => void {
     }
   };
   const onMessage = (event: MessageEvent) => {
-    const data = event.data as { type?: unknown; id?: unknown; text?: unknown } | null;
+    const data = event.data as { type?: unknown; id?: unknown; text?: unknown; files?: unknown } | null;
     if (isHostEvent(event) && data?.type === "helicon-paste" && typeof data.id === "number") {
-      pastes.get(data.id)?.(typeof data.text === "string" ? data.text : "");
+      const files = Array.isArray(data.files) ? data.files.filter((file): file is File => file instanceof File) : [];
+      pastes.get(data.id)?.({ text: typeof data.text === "string" ? data.text : "", files });
       pastes.delete(data.id);
     }
   };
