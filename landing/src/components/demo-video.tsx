@@ -17,6 +17,15 @@ export function seekValueText(current: number, duration: number) {
   return `${formatTime(current)} of ${formatTime(duration)}`;
 }
 
+/**
+ * The error name to report when play() rejects, or null when the rejection is expected: pausing or
+ * scrolling away before play() settles rejects it with AbortError.
+ */
+export function playFailure(error: unknown) {
+  if (error instanceof DOMException) return error.name === "AbortError" ? null : error.name;
+  return error instanceof Error ? error.name : "unknown";
+}
+
 /** Play triangle with its centroid on the viewBox center, so it sits optically in a circle. */
 function PlayGlyph({ className }: { className?: string }) {
   return (
@@ -85,6 +94,10 @@ export function DemoVideo({
   // Watch-through milestones already reported on this page view, and whether autoplay was counted.
   const reported = useRef(new Set<number>());
   const autoplayCounted = useRef(false);
+  // Who started the current playback, so watch-through can be split between autoplay and a click.
+  const source = useRef<"autoplay" | "user" | null>(null);
+  // Failure events already reported on this page view, so a retry loop reports each kind once.
+  const failures = useRef(new Set<string>());
   const [playing, setPlaying] = useState(false);
   const [started, setStarted] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -104,6 +117,16 @@ export function DemoVideo({
   }, []);
 
   useEffect(() => () => window.clearTimeout(hideTimer.current), []);
+
+  const reportFailure = useCallback(
+    (event: string, kind: string, properties: Record<string, unknown>) => {
+      const key = `${event}:${kind}`;
+      if (failures.current.has(key)) return;
+      failures.current.add(key);
+      trackEvent(event, { ...properties, source: source.current, video: src });
+    },
+    [src],
+  );
 
   // A cached video can reach loadedmetadata before React attaches its handler, which would leave
   // duration at 0 and the seek bar dead. Read whatever the element already knows on mount.
@@ -130,21 +153,32 @@ export function DemoVideo({
         if (entry.isIntersecting && entry.intersectionRatio >= 0.45) {
           if (timer) return;
           timer = window.setTimeout(() => {
-            if (userTouched.current || !videoRef.current) return;
-            videoRef.current.muted = true;
+            const video = videoRef.current;
+            if (userTouched.current || !video) return;
+            video.muted = true;
             setMuted(true);
-            if (!autoplayCounted.current) {
-              autoplayCounted.current = true;
-              trackEvent("demo_play", { source: "autoplay", video: src });
-            }
-            // Scrolling away pauses the video before play() settles, which rejects it with AbortError; that is expected.
-            videoRef.current.play().catch(() => undefined);
+            source.current = "autoplay";
+            // Count the autoplay only once the video plays: a browser can refuse it, and a scroll away can abort it.
+            video.play().then(
+              () => {
+                if (autoplayCounted.current || userTouched.current) return;
+                autoplayCounted.current = true;
+                trackEvent("demo_play", { source: "autoplay", video: src });
+              },
+              (error: unknown) => {
+                const name = playFailure(error);
+                if (name) reportFailure("demo_play_failed", "autoplay", { error: name });
+              },
+            );
           }, 2500);
         } else {
           window.clearTimeout(timer);
           timer = 0;
           const video = videoRef.current;
-          if (video && !video.paused) video.pause();
+          if (video && !video.paused) {
+            video.pause();
+            trackEvent("demo_pause", { reason: "offscreen", at: Math.round(video.currentTime), source: source.current, video: src });
+          }
         }
       },
       { threshold: [0.45] },
@@ -154,7 +188,7 @@ export function DemoVideo({
       io.disconnect();
       window.clearTimeout(timer);
     };
-  }, [src]);
+  }, [reportFailure, src]);
 
   const togglePlay = useCallback(() => {
     const node = videoRef.current;
@@ -162,21 +196,29 @@ export function DemoVideo({
     userTouched.current = true;
     if (node.ended) node.currentTime = 0;
     if (node.paused) {
+      source.current = "user";
       trackEvent("demo_play", { source: "user", video: src });
       node.muted = false;
       setMuted(false);
+      const onFailure = (error: unknown) => {
+        const name = playFailure(error);
+        if (name) reportFailure("demo_play_failed", "user", { error: name });
+      };
       node.play().catch((error: unknown) => {
         // A browser that refuses sound without its own gesture rule still plays the video muted.
         if (error instanceof DOMException && error.name === "NotAllowedError") {
           node.muted = true;
           setMuted(true);
-          node.play().catch(() => undefined);
+          node.play().catch(onFailure);
+          return;
         }
+        onFailure(error);
       });
     } else {
       node.pause();
+      trackEvent("demo_pause", { reason: "user", at: Math.round(node.currentTime), source: source.current, video: src });
     }
-  }, [src]);
+  }, [reportFailure, src]);
 
   const toggleMute = useCallback(() => {
     const node = videoRef.current;
@@ -270,7 +312,7 @@ export function DemoVideo({
           for (const mark of [25, 50, 75, 95]) {
             if (percent >= mark && !reported.current.has(mark)) {
               reported.current.add(mark);
-              trackEvent("demo_progress", { percent: mark, muted: node.muted, video: src });
+              trackEvent("demo_progress", { percent: mark, muted: node.muted, source: source.current, video: src });
             }
           }
         }}
@@ -279,12 +321,26 @@ export function DemoVideo({
           const value = event.currentTarget.duration;
           if (Number.isFinite(value) && value > 0) setDuration(value);
         }}
-        onEnded={() => {
+        onWaiting={(event) => {
+          const node = event.currentTarget;
+          if (!node.paused) reportFailure("demo_stall", "waiting", { kind: "waiting", at: Math.round(node.currentTime) });
+        }}
+        onStalled={(event) => {
+          const node = event.currentTarget;
+          if (!node.paused) reportFailure("demo_stall", "stalled", { kind: "stalled", at: Math.round(node.currentTime) });
+        }}
+        onError={(event) => {
+          const node = event.currentTarget;
+          reportFailure("demo_error", "media", { code: node.error?.code ?? null, at: Math.round(node.currentTime) });
+        }}
+        onEnded={(event) => {
           setPlaying(false);
           setControls(true);
+          trackEvent("demo_complete", { muted: event.currentTarget.muted, source: source.current, video: src });
         }}
       >
-        <source src={src} type="video/mp4" />
+        {/* A file that fails to load or decode raises error on the source element, not on the video. */}
+        <source src={src} type="video/mp4" onError={() => reportFailure("demo_error", "source", { code: "source", at: 0 })} />
       </video>
 
       {!started ? (
