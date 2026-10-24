@@ -109,13 +109,10 @@ export interface ThreadFold {
 }
 
 // Kinds added in Muse 1.4.11 and 1.4.12 are hidden until the UI has a design for them. Shown as generic rows, a trailing one would move a turn's final reply into the work log.
-export const HIDDEN_KINDS: ReadonlySet<string> = new Set([
-  "reminderChild",
-  "damagedRange",
-  "scheduledFire",
-  "backgroundTerminalCompletion",
-  "overdueNotice",
-]);
+export const HIDDEN_KINDS: ReadonlySet<string> = new Set(["reminderChild", "damagedRange", "scheduledFire", "overdueNotice"]);
+
+/** Kinds that report on earlier work and can land after a turn's reply. They don't stop that reply being the turn's final one. */
+export const NOTICE_KINDS: ReadonlySet<string> = new Set(["backgroundTerminalCompletion"]);
 
 export function emptyFold(): ThreadFold {
   return {
@@ -842,6 +839,8 @@ export interface TurnView {
   entries: MspItem[];
   /** The closing agent message of a finished turn, shown outside the work log. */
   final: MspItem | null;
+  /** Notices that landed after the final reply, shown below it. Empty unless `final` is set. */
+  after: MspItem[];
   info: TurnInfo | null;
   running: boolean;
 }
@@ -896,6 +895,7 @@ export function buildTurns(fold: ThreadFold, inherited: ReadonlySet<string> = ne
         prompt: null,
         entries: [],
         final: null,
+        after: [],
         info: item.turnId ? (fold.turns[item.turnId] ?? null) : null,
         running: item.turnId ? fold.activeTurnId === item.turnId : false,
       };
@@ -912,10 +912,15 @@ export function buildTurns(fold: ThreadFold, inherited: ReadonlySet<string> = ne
     if (view.running) {
       continue;
     }
-    const last = view.entries[view.entries.length - 1];
+    let end = view.entries.length;
+    while (end > 0 && NOTICE_KINDS.has(view.entries[end - 1]!.kind)) {
+      end -= 1;
+    }
+    const last = view.entries[end - 1];
     if (last && last.kind === "agentMessage" && (last.text ?? "").trim().length > 0) {
       view.final = last;
-      view.entries = view.entries.slice(0, -1);
+      view.after = view.entries.slice(end);
+      view.entries = view.entries.slice(0, end - 1);
     }
   }
   return views.filter((view) => !isMirroredPrefix(view.info));

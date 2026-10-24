@@ -31,6 +31,7 @@ import { Button, IconButton, Shimmer, Spinner, cn } from "../ui/primitives.js";
 import { PixelLoader } from "../ui/sourced.js";
 import {
   AgentText,
+  BackgroundDoneRow,
   CompactionRow,
   DiffChips,
   GenericRow,
@@ -286,6 +287,13 @@ const TurnBlock = memo(
         </div>,
       );
     }
+    for (const item of turn.after) {
+      rows.push(
+        <div key={item.itemId} className="py-[3px]">
+          <Entry item={item} answers={null} sessionId={props.sessionId} />
+        </div>,
+      );
+    }
     return (
       <article className="flex flex-col gap-3" aria-label="Turn">
         {props.wake ? (
@@ -338,6 +346,7 @@ const TurnBlock = memo(
     a.turn.info === b.turn.info &&
     a.turn.running === b.turn.running &&
     sameEntries(a.turn.entries, b.turn.entries) &&
+    sameEntries(a.turn.after, b.turn.after) &&
     a.gates === b.gates &&
     a.answers === b.answers &&
     a.isLast === b.isLast &&
@@ -390,6 +399,8 @@ function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] |
       return <CompactionRow item={item} />;
     case "sideChat":
       return <SideChatRow item={item} />;
+    case "backgroundTerminalCompletion":
+      return <BackgroundDoneRow item={item} />;
     case "userMessage":
       return <SteerBubble item={item} />;
     default:
