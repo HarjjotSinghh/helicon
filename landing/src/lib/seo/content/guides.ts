@@ -169,7 +169,7 @@ export const GUIDE_PAGES: SeoPage[] = [
         a: "Sessions are keyed by working directory, so add the new path as a project. The old entry stays until you remove it.",
       },
     ],
-    related: ["features/session-history", "features/command-palette", "compare/muse-code-terminal"],
+    related: ["features/session-history", "guides/muse-code-session-manager", "features/command-palette", "compare/muse-code-terminal"],
   },
   {
     slug: "guides/remote-daemon-setup",
@@ -795,7 +795,7 @@ export const GUIDE_PAGES: SeoPage[] = [
         a: "Approval decisions stay in the thread history at the point they were made.",
       },
     ],
-    related: ["features/inline-diffs", "features/approvals", "features/file-viewer"],
+    related: ["features/inline-diffs", "guides/review-ai-agent-diffs", "features/approvals", "features/file-viewer"],
   },
   {
     slug: "guides/run-parallel-agents",
