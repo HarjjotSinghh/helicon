@@ -5,7 +5,8 @@ scoop bucket add helicon https://github.com/HarjjotSinghh/scoop-bucket
 scoop install helicon/helicon
 ```
 
-The bucket repository does not exist yet. `helicon.json` here is the manifest it will serve.
+The bucket lives at [HarjjotSinghh/scoop-bucket](https://github.com/HarjjotSinghh/scoop-bucket). `helicon.json` here is the
+source for its `bucket/helicon.json`.
 
 ## Why our own bucket
 
@@ -24,11 +25,11 @@ and/or 50 forks" on a GitHub project. Helicon is below that today, so it starts 
 - The in-app updater still points at the NSIS installer, which installs a separate copy under
   `%LOCALAPPDATA%\Helicon`. The manifest's `notes` tell Scoop users to update with `scoop update helicon` instead.
 
-## One-time setup
+## Bucket layout
 
-1. Create `HarjjotSinghh/scoop-bucket` from [ScoopInstaller/BucketTemplate](https://github.com/ScoopInstaller/BucketTemplate)
-   ("Use this template").
-2. Copy `helicon.json` into its `bucket/` folder and push.
+1. `HarjjotSinghh/scoop-bucket` follows [ScoopInstaller/BucketTemplate](https://github.com/ScoopInstaller/BucketTemplate).
+2. Manifests live in its `bucket/` folder. Scoop reads only that folder once it exists, so any tool that publishes to
+   the bucket must write there.
 3. The template's Excavator workflow runs `checkver` on a schedule and commits each new version with its hash, so the
    bucket follows releases without any change to this repository.
 
