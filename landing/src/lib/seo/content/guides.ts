@@ -1421,4 +1421,101 @@ export const GUIDE_PAGES: SeoPage[] = [
     ],
     related: ["guides/run-parallel-agents", "guides/review-agent-changes", "features/approvals"],
   },
+  {
+    slug: "guides/attach-images-to-muse-code",
+    icon: "file",
+    section: "guides",
+    label: "Attach screenshots to Muse Code",
+    title: "How to attach screenshots and files to a Muse Code prompt",
+    h1: "Attach screenshots and files to a Muse Code prompt",
+    description:
+      "Paste, drop or pick up to 10 files per Muse Code prompt in Helicon. Images go straight to the model; other files land in your project for the agent to read.",
+    answer:
+      "In Helicon, paste a screenshot into the composer, drag files onto it, or click the paperclip. You can send up to 10 files with one message, each up to 12 MB. Muse sees images directly. Any other file is written into .helicon/attachments in your project and mentioned in the prompt, so the agent reads it from there.",
+    keywords: [
+      "muse code attach image",
+      "muse code screenshot",
+      "paste image into muse code",
+      "muse code attach file",
+      "send screenshot to coding agent",
+    ],
+    updated: "2026-10-28",
+    blocks: [
+      { kind: "h2", text: "Three ways to attach" },
+      {
+        kind: "ul",
+        items: [
+          "Paste: copy a screenshot and press Cmd+V or Ctrl+V in the composer. Pasted text stays text; only files on the clipboard become attachments.",
+          "Drop: drag one or more files from Finder, Explorer or your file manager onto the composer.",
+          "Pick: click the paperclip and choose files.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "Each attachment shows as a thumbnail or file chip above the text box. Remove any of them before you send, and click an image thumbnail to see it full size.",
+      },
+      { kind: "h2", text: "What happens to each file" },
+      {
+        kind: "table",
+        head: ["File", "Where it goes"],
+        rows: [
+          ["Images (PNG, JPEG and other image types)", "Sent to Muse with your message, so the model looks at the picture itself"],
+          ["Anything else (logs, PDFs, CSVs, code)", "Written to .helicon/attachments/ in the project, and @-mentioned in the prompt so the agent opens it"],
+        ],
+      },
+      {
+        kind: "p",
+        text: "If a file with the same name is already in that folder, Helicon adds -2, -3 and so on rather than overwriting it.",
+      },
+      { kind: "h2", text: "Limits" },
+      {
+        kind: "ul",
+        items: [
+          "Up to 10 files per message.",
+          "Up to 12 MB per file. A larger file is refused with a message naming it.",
+          "Empty files are refused.",
+          "SSH projects take images only. Other files can't be written to the server from Helicon yet.",
+        ],
+      },
+      { kind: "h2", text: "Keep attachments out of git" },
+      {
+        kind: "p",
+        text: "Non-image attachments are real files inside your project, so git will see them. If you don't want to commit them, ignore the folder:",
+      },
+      { kind: "code", lang: "bash", code: "echo '.helicon/' >> .gitignore" },
+      { kind: "h2", text: "In the VS Code extension" },
+      {
+        kind: "p",
+        text: "The paperclip works in the VS Code panel. Pasting an image from the clipboard does not work there yet, because VS Code only hands text from the clipboard to extensions. A fix is in progress in issue #249. Until it ships, use the paperclip, or Open in Browser and paste there.",
+      },
+      {
+        kind: "note",
+        text: "Helicon sends attachments to your own Muse Code session through the local server. Nothing is uploaded anywhere else.",
+      },
+    ],
+    howTo: {
+      name: "Attach a screenshot to a Muse Code prompt in Helicon",
+      steps: [
+        { name: "Take or copy a screenshot", text: "Any image on the clipboard works, or save it as a file." },
+        { name: "Paste it into the composer", text: "Press Cmd+V or Ctrl+V with the cursor in the message box. You can also drag the file in or use the paperclip." },
+        { name: "Check the thumbnail", text: "It appears above the text box. Click it to see it full size, or remove it." },
+        { name: "Write the prompt and send", text: "Say what you want done with the image, for example \"match this layout\" or \"what is wrong in this error dialog\"." },
+      ],
+    },
+    faqs: [
+      {
+        q: "Can Muse Code read PDFs or log files I attach?",
+        a: "Yes, through the workspace. Helicon writes them to .helicon/attachments/ in your project and mentions the path in the prompt, so the agent opens them with its normal file tools.",
+      },
+      {
+        q: "Why doesn't pasting a screenshot work in VS Code?",
+        a: "VS Code's clipboard API only returns text to extensions, so the image never reaches the panel. Use the paperclip until the fix tracked in issue #249 is released.",
+      },
+      {
+        q: "How big can an attachment be?",
+        a: "12 MB per file, and up to 10 files in one message.",
+      },
+    ],
+    related: ["guides/muse-code-in-vscode", "guides/muse-code-over-ssh", "guides/review-agent-changes"],
+  },
 ];
