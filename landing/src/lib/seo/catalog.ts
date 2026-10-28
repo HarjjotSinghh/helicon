@@ -11,6 +11,7 @@ import { USE_CASE_PAGES } from "./content/use-cases";
 import { PILLAR_PAGES } from "./content/pillars";
 import { LEGAL_PAGES } from "./content/legal";
 import { COMPANY_PAGES } from "./content/company";
+import { BURN_2026_10_22_PAGES } from "./content/burn-2026-10-22";
 
 /**
  * Every generated page on the site, in one place. The sitemap, the internal link grids, the
@@ -117,6 +118,7 @@ export const ALL_PAGES: SeoPage[] = [
   ...GUIDE_PAGES,
   ...BUYER_INTENT_PAGES,
   ...BUYER_INTENT_R2_PAGES,
+  ...BURN_2026_10_22_PAGES,
   ...USE_CASE_PAGES,
   ...GLOSSARY_PAGES,
 ];
