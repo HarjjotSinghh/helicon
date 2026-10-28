@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>sh.helicon.Helicon</id>
+
+  <name>Helicon</name>
+  <summary>Desktop app for the Muse Code CLI</summary>
+  <developer id="sh.helicon">
+    <name>Harjot Singh Rana</name>
+  </developer>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      Helicon is a desktop app for Meta's Muse Code CLI. It runs the muse command you already have and shows its
+      work as threads you can scroll, search and come back to, with tool approvals, file diffs and the cost of each
+      thread laid out next to the conversation.
+    </p>
+    <p>
+      Helicon needs the muse command installed and signed in on this computer. In the Flatpak it reaches that
+      command through the host, so it asks for permission to run host commands and to read your home folder.
+      Helicon is an independent project and is not affiliated with Meta.
+    </p>
+    <ul>
+      <li>Work in several folders and threads at once, and pick a thread up where you left it</li>
+      <li>Read each tool call before it runs, and approve or decline it</li>
+      <li>See the files a thread changed as diffs, in the place the edit happened</li>
+      <li>Check what each thread cost</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">sh.helicon.Helicon.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <image type="source" width="1440" height="900">https://helicon.sh/assets/thread-light.png</image>
+      <caption>A thread with the tool calls and file changes beside the conversation</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source" width="1440" height="900">https://helicon.sh/assets/home-light.png</image>
+      <caption>The home screen with your folders and recent threads</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source" width="1440" height="900">https://helicon.sh/assets/usage-light.png</image>
+      <caption>Usage and cost for your threads</caption>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://helicon.sh</url>
+  <url type="bugtracker">https://github.com/HarjjotSinghh/helicon/issues</url>
+  <url type="vcs-browser">https://github.com/HarjjotSinghh/helicon</url>
+
+  <content_rating type="oars-1.1" />
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+
+  <releases>
+    <release version="0.22.2" date="2026-10-16" />
+  </releases>
+</component>
