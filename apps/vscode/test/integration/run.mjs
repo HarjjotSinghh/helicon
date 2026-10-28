@@ -6,6 +6,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Set when this runs inside an Electron app's terminal (VS Code, Cursor). It makes the VS Code binary
+// start as plain Node, which then fails on the workspace argument. Launch it as a real app instead.
+delete process.env.ELECTRON_RUN_AS_NODE;
+
 const here = dirname(fileURLToPath(import.meta.url));
 const workspace = mkdtempSync(join(tmpdir(), "helicon-ext-"));
 writeFileSync(join(workspace, "README.md"), "# fixture\n");
