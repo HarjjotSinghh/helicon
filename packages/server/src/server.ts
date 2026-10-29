@@ -73,7 +73,7 @@ import {
 } from "./viewTail.js";
 import { AoniaError, createAonia, parseLoginOutput, type Aonia, type Profile } from "@harjjotsinghh/aonia";
 
-export const HELICON_VERSION = "0.23.0";
+export const HELICON_VERSION = "0.23.1";
 
 export interface HostExit {
   code: number | null;
