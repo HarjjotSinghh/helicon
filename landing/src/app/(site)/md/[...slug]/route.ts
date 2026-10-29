@@ -94,7 +94,7 @@ async function changelogMarkdown() {
     "",
     "# Changelog",
     "",
-    "Every Helicon release is published on GitHub with a Windows installer, a universal macOS DMG and a Linux AppImage. Newest first, with what was added, fixed, changed and removed in each one.",
+    "Every Helicon release is published on GitHub with a Windows installer, a macOS DMG (Apple Silicon and Intel builds since 0.23.1, plus a universal one) and a Linux AppImage. Newest first, with what was added, fixed, changed and removed in each one.",
     "",
     body,
     "",

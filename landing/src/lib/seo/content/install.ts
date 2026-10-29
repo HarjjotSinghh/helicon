@@ -2,7 +2,7 @@ import type { SeoPage } from "../types";
 
 /** Platform install pages. These carry HowTo schema and are the highest intent pages on the site. */
 
-const UPDATED = "2026-09-19";
+const UPDATED = "2026-10-29";
 
 export const INSTALL_PAGES: SeoPage[] = [
   {
@@ -134,9 +134,9 @@ export const INSTALL_PAGES: SeoPage[] = [
     title: "Muse Code Mac DMG: Helicon for Apple Silicon and Intel",
     h1: "Install Helicon on macOS",
     description:
-      "A universal DMG of Helicon, a free desktop app for the Muse Code CLI on Mac. One build for Apple Silicon and Intel, auto update, and a one-time Open Anyway step.",
+      "Helicon on Mac: a free desktop app for the Muse Code CLI, with a DMG for Apple Silicon, one for Intel and a universal one. Auto update and a one-time Open Anyway step.",
     answer:
-      "Install the muse CLI and sign in with muse login, open the universal Helicon DMG from the latest GitHub release, and drag the app into Applications. One build covers Apple Silicon and Intel and updates itself. The builds are not Apple notarized yet, so the first launch needs System Settings > Privacy & Security > Open Anyway on macOS 15 or later.",
+      "Install the muse CLI and sign in with muse login, open the Helicon DMG for your chip from the latest GitHub release, and drag the app into Applications. The download button picks Apple Silicon or Intel when your browser reports the chip; otherwise it gives you the universal DMG, which runs on both. The app updates itself. The builds are not Apple notarized yet, so the first launch needs System Settings > Privacy & Security > Open Anyway on macOS 15 or later.",
     keywords: [
       "muse code mac",
       "muse code macos app",
@@ -155,7 +155,7 @@ export const INSTALL_PAGES: SeoPage[] = [
       {
         kind: "ul",
         items: [
-          "macOS on Apple Silicon or Intel. One universal DMG covers both.",
+          "macOS on Apple Silicon or Intel. Each has its own DMG, and the universal DMG runs on both.",
           "The muse CLI (`curl -fsSL https://dev.meta.ai/install.sh | bash`), signed in with your own `muse login`. That needs a Muse Code plan or pay-as-you-go billing.",
           "Nothing else. Node.js is bundled inside the app.",
         ],
@@ -217,7 +217,7 @@ export const INSTALL_PAGES: SeoPage[] = [
       },
       {
         q: "Is there a separate Apple Silicon build?",
-        a: "No, one universal DMG covers Apple Silicon and Intel.",
+        a: "Yes, since 0.23.1. Each release has an Apple Silicon DMG (about 43 MB) and an Intel DMG (about 45 MB), next to the 86 MB universal DMG that runs on both.",
       },
       {
         q: "Is this the Muse app for Mac?",

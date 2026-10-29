@@ -1401,7 +1401,7 @@ const ENTRIES: Entry[] = [
       ["Packaged Windows installer", "Yes, with auto update", "Rare", ""],
       ["Native Windows Muse Code", "Yes, PowerShell shell commands", "Varies", ""],
       ["WSL2 path translation", "Both ways", "Varies", ""],
-      ["macOS universal DMG", "Yes, updater signed, not notarized yet", "Varies", ""],
+      ["macOS DMG per chip", "Yes, updater signed, not notarized yet", "Varies", ""],
       ["Resumes terminal sessions", "Yes", "Varies", ""],
       ["Approval modes mapped one to one", "Yes", "Varies", ""],
       ["Cost at API rates", "Per thread, day and model", "Rare", ""],
@@ -1414,7 +1414,7 @@ const ENTRIES: Entry[] = [
     differences: [
       [
         "Check the packaging",
-        "A clone and build README is a real cost on Windows. Helicon ships an installer with auto update, and a universal macOS DMG. The Windows installer is not code signed yet, so SmartScreen may warn once: More info, then Run anyway. The macOS builds are not Apple notarized yet, so first launch needs Open Anyway in System Settings > Privacy & Security. That is a known gap and it is stated rather than hidden.",
+        "A clone and build README is a real cost on Windows. Helicon ships an installer with auto update, and a macOS DMG for each chip. The Windows installer is not code signed yet, so SmartScreen may warn once: More info, then Run anyway. The macOS builds are not Apple notarized yet, so first launch needs Open Anyway in System Settings > Privacy & Security. That is a known gap and it is stated rather than hidden.",
       ],
       [
         "Check how it talks to Muse Code",
