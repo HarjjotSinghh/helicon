@@ -264,7 +264,18 @@ const MAX_HISTORY_PAGES = 4;
 const HISTORY_PAGE_SIZE = 1000;
 /** Events per page when following a quiet session; one that fell far behind takes several pages. */
 const TAIL_PAGE_SIZE = 200;
-const DISCOVER_LIMIT = 200;
+/** Newest threads kept per discovery, newest first; `session/list` pages are at most 200 rows. */
+const DISCOVER_LIMIT = 500;
+const DISCOVER_PAGE_SIZE = 200;
+/** Rows read in all, subagent rows included, so a host with a huge history cannot stall a refresh. */
+const DISCOVER_SCAN_LIMIT = 3000;
+
+/** A subagent's own session belongs to the thread that spawned it, not to the list. */
+function isSubagentRow(item: unknown): boolean {
+  const record = asRecord(item);
+  const session = (record && asRecord(record["session"])) ?? record;
+  return session?.["kind"] === "subagent";
+}
 /** Echo-titled threads one discovery may hand to the titler. Each is a model call on the user's plan, so it is a
  * handful of recent threads rather than a whole history. */
 const TITLE_BACKFILL_LIMIT = 30;
@@ -2920,16 +2931,24 @@ export class HeliconServer {
   private async discover(cwd?: string): Promise<Record<string, unknown>[]> {
     const host = await this.hostFor(cwd ?? "");
     const remote: unknown[] = [];
+    let scanned = 0;
     let cursor: string | null = null;
+    const seen = new Set<string>();
     do {
+      if (cursor !== null) {
+        seen.add(cursor);
+      }
       const page = await host.manager.listSessionsPage({
         workspaceRoot: cwd ? this.hostPathFor(cwd) : undefined,
-        limit: 100,
+        limit: DISCOVER_PAGE_SIZE,
         cursor,
       });
-      remote.push(...page.sessions);
-      cursor = page.nextCursor;
-    } while (cursor && remote.length < DISCOVER_LIMIT);
+      scanned += page.sessions.length;
+      // Subagent rows are dropped below, so they must not use up the budget meant for real threads (#50).
+      remote.push(...page.sessions.filter((item) => !isSubagentRow(item)).slice(0, DISCOVER_LIMIT - remote.length));
+      // An empty page, or a cursor already followed, would never move the scan forward.
+      cursor = page.sessions.length > 0 && page.nextCursor && !seen.has(page.nextCursor) ? page.nextCursor : null;
+    } while (cursor && remote.length < DISCOVER_LIMIT && scanned < DISCOVER_SCAN_LIMIT);
 
     const views: Record<string, unknown>[] = [];
     let backfill = 0;
