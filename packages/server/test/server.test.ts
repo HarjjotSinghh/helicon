@@ -930,6 +930,40 @@ describe("HeliconServer", () => {
     assert.equal(stale.json.kind, "stale_attempt");
   });
 
+  it("previews and imports Claude Code and Codex skills through skill/import", async () => {
+    const connection = new FakeConnection();
+    connection.replies.set("session/start", { session: { sessionId: "s1" } });
+    connection.replies.set("skill/import", {
+      commandId: "c",
+      status: "accepted",
+      source: "claude",
+      dryRun: true,
+      counts: { installed: 1, skipped: 1, quarantined: 1, failed: 1 },
+      installed: ["changelog", 7],
+      skipped: ["deploy"],
+      quarantined: [{ id: "shell-all", reasons: ["runs scripts"] }, { reasons: ["no id"] }],
+      failed: [{ id: null, reason: "no SKILL.md" }],
+    });
+    const { base } = await start(connection);
+    await send(base, "/api/sessions", { cwd: "/work/proj" });
+
+    const preview = await send(base, "/api/sessions/s1/skills", { source: "claude", dryRun: true });
+    assert.equal(preview.status, 200);
+    assert.deepEqual(connection.calls.at(-1), { method: "skill/import", params: { sessionId: "s1", source: "claude", dryRun: true } });
+    assert.deepEqual(preview.json, {
+      source: "claude",
+      dryRun: true,
+      installed: ["changelog"],
+      skipped: ["deploy"],
+      quarantined: [{ id: "shell-all", reasons: ["runs scripts"] }],
+      failed: [{ id: null, reason: "no SKILL.md" }],
+    });
+
+    await send(base, "/api/sessions/s1/skills", { source: "codex" });
+    assert.deepEqual(connection.calls.at(-1), { method: "skill/import", params: { sessionId: "s1", source: "codex", dryRun: false } });
+    assert.equal((await send(base, "/api/sessions/s1/skills", { source: "cursor" })).status, 400);
+  });
+
   it("reads a tool's stored output one page at a time", async () => {
     const connection = new FakeConnection();
     connection.replies.set("session/start", { session: { sessionId: "s1" } });

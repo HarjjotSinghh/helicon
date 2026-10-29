@@ -4,6 +4,7 @@ import {
   findModel,
   matchSlash,
   parseEffort,
+  parseImportSources,
   parseMode,
   parseSlash,
   resolveSlash,
@@ -48,11 +49,19 @@ describe("slash commands", () => {
     assert.ok(!home.includes("compact") && !home.includes("fork"), "thread-only commands are hidden without a thread");
   });
 
+  it("reads which agents /import-skills should look in", () => {
+    assert.deepEqual(parseImportSources(""), ["claude", "codex"]);
+    assert.deepEqual(parseImportSources(" Claude "), ["claude"]);
+    assert.deepEqual(parseImportSources("claude-code"), ["claude"]);
+    assert.deepEqual(parseImportSources("codex"), ["codex"]);
+    assert.equal(parseImportSources("cursor"), null);
+  });
+
   it("ranks exact and prefix matches first, built-ins before skills", () => {
     const commands = slashCommands(SKILLS, { inThread: true });
     assert.deepEqual(
       matchSlash(commands, "p").map((c) => c.name),
-      ["permissions", "compact", "plan"],
+      ["permissions", "compact", "import-skills", "plan"],
     );
     assert.equal(matchSlash(commands, "clear")[0]?.name, "new", "aliases match");
     assert.equal(matchSlash(commands, "thr")[0]?.name, "threejs");

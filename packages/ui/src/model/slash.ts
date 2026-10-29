@@ -1,7 +1,7 @@
-import type { ApprovalMode, ModelOption, ReasoningEffort, SkillEntry } from "../types.js";
+import type { ApprovalMode, ModelOption, ReasoningEffort, SkillEntry, SkillImportSource } from "../types.js";
 
 /** What a built-in command does; skills are the other kind of command. */
-export type SlashAction = "compact" | "model" | "effort" | "permissions" | "fork" | "side" | "new" | "resume" | "init" | "skill" | "goal";
+export type SlashAction = "compact" | "model" | "effort" | "permissions" | "fork" | "side" | "new" | "resume" | "init" | "skill" | "goal" | "importSkills";
 
 export interface SlashCommand {
   /** Typed after the slash. */
@@ -54,9 +54,27 @@ export const BUILTIN_COMMANDS: readonly SlashCommand[] = [
     runsBare: false,
   }),
   builtin("skill", "skill", "Run a skill by name", { hint: "<skill> [request]", runsBare: false }),
+  builtin("import-skills", "importSkills", "Copy your Claude Code or Codex skills into Muse", { hint: "[claude|codex]", needsThread: true }),
 ];
 
 /** Sent for `/init`; the terminal UI's own prompt is not published, so this asks for the same outcome. */
+/** Where `/import-skills` looks: one agent when named, both when not. Null for a word that names neither. */
+export function parseImportSources(word: string): SkillImportSource[] | null {
+  const name = word.trim().toLowerCase();
+  if (!name) {
+    return ["claude", "codex"];
+  }
+  if (name === "claude" || name === "claude-code" || name === "claudecode") {
+    return ["claude"];
+  }
+  return name === "codex" ? ["codex"] : null;
+}
+
+/** How the import names each agent to the user. */
+export function importSourceName(source: SkillImportSource): string {
+  return source === "claude" ? "Claude Code" : "Codex";
+}
+
 export const INIT_PROMPT =
   "Explore this workspace and create or improve its AGENTS.md: what the project is, how to build, run and test it, how the code is organized, and the conventions a coding agent should follow here.";
 
