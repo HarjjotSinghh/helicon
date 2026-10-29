@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.23.1
+
+### New
+
+- **Paste images in VS Code** ([#251](https://github.com/HarjjotSinghh/helicon/pull/251), fixes [#249](https://github.com/HarjjotSinghh/helicon/issues/249)). Cmd+V or Ctrl+V with a screenshot on the clipboard now attaches it to the composer in the VS Code extension, the same as in the browser.
+- **A DMG for each Mac chip** ([#238](https://github.com/HarjjotSinghh/helicon/pull/238)). Each release now has an Apple Silicon DMG and an Intel DMG next to the universal one. The download page picks the one that fits your Mac.
+- **Computer Use approvals name the data they send** ([#254](https://github.com/HarjjotSinghh/helicon/pull/254)). When a step would send a token or a secret, the card shows a warning row for it, such as "Sends a GitHub token ghp_…3f9a".
+
+### Changed
+
+- **Muse Code SDK 1.4.14** ([#254](https://github.com/HarjjotSinghh/helicon/pull/254), closes [#253](https://github.com/HarjjotSinghh/helicon/issues/253) and [#255](https://github.com/HarjjotSinghh/helicon/issues/255)), up from 1.4.12. A session Muse has pruned opens with an "Earlier messages" row listing what it kept. When the safety reviewer sends an approval to you, the card says why.
+
 ## 0.23.0
 
 ### New

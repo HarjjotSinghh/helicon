@@ -2,6 +2,11 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.23.1
+
+- Paste screenshots into the composer with Cmd+V or Ctrl+V (#251).
+- Muse Code SDK 1.4.14. Pruned sessions show an "Earlier messages" row, and Computer Use approvals warn about tokens or secrets a step would send (#254).
+
 ## 0.23.0
 
 - Linux .deb and .rpm packages next to the AppImage (#227).
