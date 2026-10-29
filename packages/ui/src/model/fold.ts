@@ -926,6 +926,32 @@ export function buildTurns(fold: ThreadFold, inherited: ReadonlySet<string> = ne
   return views.filter((view) => !isMirroredPrefix(view.info));
 }
 
+/** The thread's most recent prompt as the user wrote it, for Up in an empty composer. A prompt still sending counts. */
+export function lastPrompt(fold: ThreadFold): string | null {
+  for (let i = fold.echoes.length - 1; i >= 0; i -= 1) {
+    const text = fold.echoes[i]!.text;
+    if (text.trim()) {
+      return text;
+    }
+  }
+  const said = (item: MspItem | null | undefined) => item?.displayText ?? item?.text ?? "";
+  const turns = buildTurns(fold);
+  for (let i = turns.length - 1; i >= 0; i -= 1) {
+    const turn = turns[i]!;
+    // A message steered into a running turn came after the prompt that started it.
+    for (let j = turn.entries.length - 1; j >= 0; j -= 1) {
+      const entry = turn.entries[j]!;
+      if (entry.kind === "userMessage" && said(entry).trim()) {
+        return said(entry);
+      }
+    }
+    if (said(turn.prompt).trim()) {
+      return said(turn.prompt);
+    }
+  }
+  return null;
+}
+
 /**
  * Muse 1.4.4 seeds a new side chat with copies of its thread's turns, each one failed with this
  * reason, though a side chat is meant to open empty (Muse #49416). They are not the side chat's own
