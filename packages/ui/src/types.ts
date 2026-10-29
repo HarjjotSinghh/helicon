@@ -132,6 +132,8 @@ export interface MspItem {
   reason?: string;
   trigger?: string;
   tokensBefore?: number;
+  /** Muse 1.4.14+, `earlierHistory`: the last messages from the part of the log Muse pruned, standing in for those items. */
+  earlierHistory?: { messages: { role: string; text: string }[] };
   tokensAfter?: number;
   /** `subagent`: the durable child id the `subagent/*` controls address. Muse 1.3.0 does not fill it in yet. */
   subagentId?: string;
@@ -221,18 +223,31 @@ export interface ApprovalRequest {
   rawArgs?: string;
   protectedWrite?: boolean;
   judgeEscalated?: boolean;
+  /** Muse 1.4.14+: the safety check's reason for flagging the call, one short line. */
+  reviewerReason?: string;
   /** Muse 1.4.12+: what a Computer Use call is about to do, from the host rather than the model. */
   cuaCardFacts?: CuaCardFacts;
 }
 
 /** A Computer Use approval's facts. Empty lists and missing rows are left out. */
 export interface CuaCardFacts {
+  /** Muse 1.4.13+: data the call would send, such as a secret. A card with any offers only one-time choices. */
+  data?: CuaDataFact[];
   /** For a browser, the host of the page in the target window. */
   page?: { host: string; hostAscii: string };
   /** Only the steps that change something, in call order. */
   steps?: CuaStep[];
   /** The target window's title. The app sets it, so it is shown quoted and never trusted. */
   windowTitle?: string;
+}
+
+/** One piece of data a Computer Use call would send. `kind` is open: `secret`, `other`, or one Helicon doesn't know yet. */
+export interface CuaDataFact {
+  kind: string;
+  /** For a secret, the parts the host lets the card show. Never the value itself. */
+  mask?: { chars?: number; last4?: string; prefix?: string };
+  /** For a secret, the scanner's tag, such as `github_token`. Open. */
+  secretKind?: string;
 }
 
 export interface CuaStep {

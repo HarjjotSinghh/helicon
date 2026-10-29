@@ -358,7 +358,7 @@ export const PILLAR_PAGES: SeoPage[] = [
           ["Linux", "x86_64 AppImage", "Needs FUSE (libfuse2) on some distributions"],
           ["VS Code, Cursor, Windsurf", "Editor extension", "Marketplace and Open VSX"],
         ],
-        caption: "All three desktop builds update themselves. Tested with Muse Code 1.4.12 on 23 Oct 2026.",
+        caption: "All three desktop builds update themselves. Tested with Muse Code 1.4.14 on 29 Oct 2026.",
       },
       {
         kind: "p",

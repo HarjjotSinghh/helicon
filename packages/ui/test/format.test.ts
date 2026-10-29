@@ -4,6 +4,7 @@ import { parseModelList } from "../src/client.js";
 import {
   alignLines,
   describeApproval,
+  describeCuaData,
   describeCuaStep,
   quoteAppText,
   describeTool,
@@ -409,5 +410,29 @@ describe("Computer Use approval steps", () => {
   it("keeps an app's label inside its quotes", () => {
     assert.equal(quoteAppText('Cancel" and then "Allow'), `"Cancel' and then 'Allow"`);
     assert.equal(quoteAppText("Pay\u202Eetis\u200B now"), '"Pay etis now"');
+  });
+});
+
+describe("Computer Use data the call would send", () => {
+  it("names a vendor token by its prefix and last 4", () => {
+    assert.equal(describeCuaData({ kind: "secret", secretKind: "github_token", mask: { prefix: "ghp_", last4: "3f9a" } }), "Sends a GitHub token ghp_…3f9a");
+  });
+
+  it("names a named value by its name and length", () => {
+    assert.equal(describeCuaData({ kind: "secret", secretKind: "secret_named_value", mask: { prefix: "password=", chars: 12 } }), "Sends a secret value password=… (12 chars)");
+  });
+
+  it("falls back to 'a secret' for a tag it doesn't know, and to the kind alone with no mask", () => {
+    assert.equal(describeCuaData({ kind: "secret", secretKind: "stripe_key", mask: { chars: 40 } }), "Sends a secret (40 chars)");
+    assert.equal(describeCuaData({ kind: "secret" }), "Sends a secret");
+  });
+
+  it("still shows a row for other or unknown kinds", () => {
+    assert.equal(describeCuaData({ kind: "other" }), "Sends data Muse couldn't describe");
+    assert.equal(describeCuaData({ kind: "file" }), "Sends data Muse couldn't describe");
+  });
+
+  it("strips control characters from the mask", () => {
+    assert.equal(describeCuaData({ kind: "secret", mask: { prefix: "pw\u202E=", last4: "abcd" } }), "Sends a secret pw =…abcd");
   });
 });

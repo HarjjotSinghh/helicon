@@ -33,6 +33,7 @@ import {
   AgentText,
   BackgroundDoneRow,
   CompactionRow,
+  EarlierHistoryRow,
   DiffChips,
   GenericRow,
   ReasoningRow,
@@ -397,6 +398,8 @@ function Entry(props: { item: MspItem; gate?: Gate; answers: UserInputAnswer[] |
       return <WorkflowCard item={item} sessionId={props.sessionId} />;
     case "compaction":
       return <CompactionRow item={item} />;
+    case "earlierHistory":
+      return <EarlierHistoryRow item={item} />;
     case "sideChat":
       return <SideChatRow item={item} />;
     case "backgroundTerminalCompletion":

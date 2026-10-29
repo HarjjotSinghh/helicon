@@ -16,6 +16,7 @@ import {
   lastLine,
   mergeDiffLines,
   parseArgs,
+  plural,
   withoutDiffEcho,
   type DiffLine,
   type DiffView,
@@ -851,6 +852,30 @@ export function CompactionRow(props: { item: MspItem }) {
       </span>
       <span className="h-px flex-1 bg-line" />
     </div>
+  );
+}
+
+/** Muse 1.4.14+: what's left of the part of the log Muse pruned, the last few prompts and replies, in place of those items. */
+export function EarlierHistoryRow(props: { item: MspItem }) {
+  const messages = (props.item.earlierHistory?.messages ?? []).filter((m) => m.role === "user" || m.role === "assistant");
+  return (
+    <Row
+      icon={<ChatCircleDotsIcon size={14} />}
+      label="Earlier messages"
+      detail={messages.length > 0 ? plural(messages.length, "message", "messages") : "Muse pruned the start of this session"}
+      body={
+        messages.length > 0 ? (
+          <ol className="flex flex-col gap-1.5 text-xs">
+            {messages.map((m, index) => (
+              <li key={index} className="min-w-0">
+                <span className="text-subtle">{m.role === "user" ? "You" : "Muse"}: </span>
+                <span className="whitespace-pre-wrap [overflow-wrap:anywhere] text-fg">{m.text}</span>
+              </li>
+            ))}
+          </ol>
+        ) : undefined
+      }
+    />
   );
 }
 

@@ -1,4 +1,4 @@
-import type { ApprovalRequest, CuaStep, MspItem } from "../types.js";
+import type { ApprovalRequest, CuaDataFact, CuaStep, MspItem } from "../types.js";
 import { GOAL_TOOLS } from "./goal.js";
 
 /** Compact relative time for sidebars: now, 4m, 3h, 2d, 3w, then a short date. */
@@ -812,6 +812,26 @@ export function describeCuaStep(step: CuaStep): string {
     return `${action} at ${step.point.x}, ${step.point.y}`;
   }
   return action;
+}
+
+const SECRET_KINDS: Record<string, string> = {
+  github_token: "a GitHub token",
+  secret_named_value: "a secret value",
+};
+
+/**
+ * One piece of data a Computer Use call would send: `Sends a GitHub token ghp_…3f9a`, `Sends a secret value password=… (12 chars)`.
+ * Unknown kinds still get a row, so new data never goes unmentioned.
+ */
+export function describeCuaData(fact: CuaDataFact): string {
+  if (fact.kind !== "secret") {
+    return "Sends data Muse couldn't describe";
+  }
+  const what = (fact.secretKind && SECRET_KINDS[fact.secretKind]) || "a secret";
+  const { chars, last4, prefix } = fact.mask ?? {};
+  const shown = prefix || last4 ? `${plainAppText(prefix ?? "").slice(0, 40)}…${plainAppText(last4 ?? "").slice(0, 4)}` : "";
+  const length = Number.isFinite(chars) && chars! > 0 ? `(${chars} chars)` : "";
+  return ["Sends", what, shown, length].filter(Boolean).join(" ");
 }
 
 /** Strip the provider tier suffix for display; the tier gets its own badge. */
