@@ -132,6 +132,8 @@ export interface MspItem {
   reason?: string;
   trigger?: string;
   tokensBefore?: number;
+  /** Muse 1.4.14+, `earlierHistory`: the last messages from the part of the log Muse pruned, standing in for those items. */
+  earlierHistory?: { messages: { role: string; text: string }[] };
   tokensAfter?: number;
   /** `subagent`: the durable child id the `subagent/*` controls address. Muse 1.3.0 does not fill it in yet. */
   subagentId?: string;
@@ -221,6 +223,8 @@ export interface ApprovalRequest {
   rawArgs?: string;
   protectedWrite?: boolean;
   judgeEscalated?: boolean;
+  /** Muse 1.4.14+: the safety check's reason for flagging the call, one short line. */
+  reviewerReason?: string;
   /** Muse 1.4.12+: what a Computer Use call is about to do, from the host rather than the model. */
   cuaCardFacts?: CuaCardFacts;
 }

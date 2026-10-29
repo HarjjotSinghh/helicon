@@ -106,7 +106,7 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
           <h2 className="text-sm font-semibold text-fg">Muse wants to {lowerFirst(description.title)}</h2>
           <p className="mt-0.5 text-xs text-muted">
             {request.protectedWrite ? "This touches a protected path. " : ""}
-            {request.judgeEscalated ? "A safety check flagged it for you to review. " : ""}
+            {request.judgeEscalated ? `A safety check flagged it for you to review${request.reviewerReason ? `: ${plainAppText(request.reviewerReason).replace(/[.!?]+$/, "")}` : ""}. ` : ""}
             {stageCount > 1 ? `Part of a ${stageCount}-step command. ` : ""}
             Nothing runs until you decide.
           </p>
