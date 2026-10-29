@@ -159,7 +159,7 @@ export function osesFor(version: string | null): OsInfo[] {
     {
       id: "macos",
       label: "macOS",
-      summary: "One universal DMG for Apple Silicon and Intel, with auto-update.",
+      summary: "A DMG for Apple Silicon, one for Intel and a universal one, with auto-update.",
       steps: [
         { text: "Install the muse CLI in Terminal.", command: "curl -fsSL https://dev.meta.ai/install.sh | bash" },
         { text: "Sign in once. Needs a Muse Code plan.", command: "muse login" },

@@ -1439,7 +1439,7 @@ export const GUIDE_PAGES: SeoPage[] = [
       "muse code attach file",
       "send screenshot to coding agent",
     ],
-    updated: "2026-10-28",
+    updated: "2026-10-29",
     blocks: [
       { kind: "h2", text: "Three ways to attach" },
       {
@@ -1486,7 +1486,7 @@ export const GUIDE_PAGES: SeoPage[] = [
       { kind: "h2", text: "In the VS Code extension" },
       {
         kind: "p",
-        text: "The paperclip works in the VS Code panel. Pasting an image from the clipboard does not work there yet, because VS Code only hands text from the clipboard to extensions. A fix is in progress in issue #249. Until it ships, use the paperclip, or Open in Browser and paste there.",
+        text: "Paste, drop and the paperclip all work in the VS Code panel from Helicon 0.23.1. Before 0.23.1, pasting an image did nothing there, because VS Code only hands text from the clipboard to extensions (issue #249). If paste still does nothing, update the extension, or use the paperclip.",
       },
       {
         kind: "note",
@@ -1508,8 +1508,8 @@ export const GUIDE_PAGES: SeoPage[] = [
         a: "Yes, through the workspace. Helicon writes them to .helicon/attachments/ in your project and mentions the path in the prompt, so the agent opens them with its normal file tools.",
       },
       {
-        q: "Why doesn't pasting a screenshot work in VS Code?",
-        a: "VS Code's clipboard API only returns text to extensions, so the image never reaches the panel. Use the paperclip until the fix tracked in issue #249 is released.",
+        q: "Can I paste a screenshot in the VS Code extension?",
+        a: "Yes, from Helicon 0.23.1. Press Cmd+V or Ctrl+V in the panel's composer. Older versions could not, because VS Code's clipboard API only returns text to extensions. Update the extension if paste does nothing.",
       },
       {
         q: "How big can an attachment be?",

@@ -76,7 +76,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
     title: "Muse Code for macOS power users",
     h1: "Muse Code for macOS power users",
     description:
-      "Several repositories, several threads, and a history that outlives the terminal. A universal DMG, a session sidebar, inline diffs and a cost view.",
+      "Several repositories, several threads, and a history that outlives the terminal. A DMG for each Mac chip, a session sidebar, inline diffs and a cost view.",
     answer:
       "If you run Muse Code across several repositories on a Mac, the constraint is not the agent, it is keeping track of it. Helicon gives every thread a home: projects grouped by directory, sessions with full history and resume, inline diffs, an approval queue and cost at API rates, in a universal DMG.",
     keywords: [
@@ -108,7 +108,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
       {
         kind: "ul",
         items: [
-          "One universal DMG covers Apple Silicon and Intel.",
+          "Each release has an Apple Silicon DMG (about 43 MB), an Intel DMG (about 45 MB) and a universal one that runs on both. The download button picks the one for your Mac.",
           "First launch needs System Settings > Privacy & Security > Open Anyway (macOS 15 or later), because the builds are not Apple notarized yet.",
           "The theme follows the system, in both light and dark.",
           "Auto update keeps the app current.",
@@ -116,7 +116,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
       },
     ],
     faqs: [
-      { q: "Is there an Apple Silicon build?", a: "One universal DMG covers Apple Silicon and Intel." },
+      { q: "Is there an Apple Silicon build?", a: "Yes. Since 0.23.1 each release has an Apple Silicon DMG and an Intel DMG, about half the size of the universal one that runs on both." },
       { q: "Why the Gatekeeper warning?", a: "The builds are updater signed but not Apple notarized yet. On macOS 15 or later, use System Settings > Privacy & Security > Open Anyway the first time. On macOS 14 or earlier, right click and Open." },
       { q: "Does it replace my editor?", a: "No. It has a file viewer for reading what the agent touched. Writing code stays where you like it." },
     ],
