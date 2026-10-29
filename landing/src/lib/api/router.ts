@@ -3,6 +3,7 @@ import { faqGroups } from "../seo/faq";
 import { pageToMarkdown } from "../seo/markdown";
 import type { SeoPage } from "../seo/types";
 import { factsBody } from "../facts";
+import { pickMacAsset } from "../mac-arch";
 import { RELEASES_URL, REPO_URL, SITE_NAME, SITE_URL } from "../site";
 import {
   API_BASE_PATH,
@@ -159,9 +160,11 @@ function sectionSummary(slug: string) {
 
 function assetFor(platform: Platform, release: RouterRelease) {
   if (!release) return null;
-  const asset = release.assets.find(
-    (item) => PLATFORM_MATCH[platform].test(item.name) && !/\.sig$/i.test(item.name),
-  );
+  // With per-chip DMGs on a release, "the macOS asset" stays the universal one, which runs on every Mac.
+  const asset =
+    platform === "macos"
+      ? pickMacAsset(release.assets, null)
+      : release.assets.find((item) => PLATFORM_MATCH[platform].test(item.name) && !/\.sig$/i.test(item.name));
   if (!asset) return null;
   return { name: asset.name, size_bytes: asset.size, url: asset.browser_download_url };
 }

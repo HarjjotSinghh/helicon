@@ -22,6 +22,7 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { languageAlternates } from "@/lib/i18n";
 import { HOME_HINTS } from "@/lib/i18n-copy";
 import { latestRelease, repoStars } from "@/lib/github-release";
+import { hasMacArchAssets } from "@/lib/mac-arch";
 import { getVisitorOs } from "@/lib/visitor";
 
 const shots: TourShot[] = [
@@ -104,7 +105,7 @@ export default async function Page() {
           <Rule />
           <Compare body={copy.compareBody} />
           <Rule />
-          <Install version={version} />
+          <Install version={version} macChipDmgs={hasMacArchAssets(release?.assets)} />
           <Rule />
           <Faq audience={copy.audience} intro={copy.faqIntro} />
           <Rule />

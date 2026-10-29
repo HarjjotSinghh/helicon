@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { identityFromCookies, isBotRequest, track, visitorOsFromRequest } from "@/lib/analytics";
 import { latestInstaller, type InstallerKind } from "@/lib/github-release";
 import { attributionFromSearchParams, firstTouchProperties } from "@/lib/download-attribution";
+import { MAC_ARCH_PARAM, macAssetKind, parseMacArchParam } from "@/lib/mac-arch";
 import { RELEASES_URL } from "@/lib/site";
 
 export const runtime = "nodejs";
@@ -21,7 +22,9 @@ export async function GET(request: Request, context: { params: Promise<{ os: str
     return NextResponse.redirect(new URL("/#install", url.origin), 302);
   }
 
-  const asset = await latestInstaller(kind);
+  // ?arch=arm64|x64 asks for one chip's DMG. No parameter, or a release without that build, is the universal DMG.
+  const arch = kind === "macos" ? parseMacArchParam(url.searchParams.get(MAC_ARCH_PARAM)) : null;
+  const asset = await latestInstaller(kind, arch);
   const cookies = identityFromCookies(request.headers.get("cookie"));
   const referer = request.headers.get("referer");
   // PostHog's own cookie is the strongest identity. When it did not reach this route, use the one
@@ -45,6 +48,7 @@ export async function GET(request: Request, context: { params: Promise<{ os: str
         visitor_os: visitorOsFromRequest(request),
         src,
         asset: asset?.name ?? null,
+        ...(kind === "macos" ? { mac_arch_requested: arch, mac_build: asset ? macAssetKind(asset.name) : null } : {}),
         version: asset?.version ?? null,
         referrer: referer ?? null,
         identity_source: identitySource,

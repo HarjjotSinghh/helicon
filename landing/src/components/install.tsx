@@ -15,6 +15,8 @@ import Link from "next/link";
 import { AppleLogo, LinuxLogo, WindowsLogo } from "./os-logos";
 import { OPEN_VSX_URL, VSCODE_MARKETPLACE_URL, osesFor, type OsId } from "@/lib/site";
 import { installerPath } from "@/lib/downloads";
+import { MAC_ARCHES, MAC_ARCH_LABEL } from "@/lib/mac-arch";
+import { useMacArch } from "@/lib/use-mac-arch";
 import { parseVisitorOs } from "@/lib/os";
 import { trackEvent } from "@/lib/client-analytics";
 import { CellGrid, Rule, SectionHeading, bandX, buttonClass, cn } from "./ui";
@@ -93,7 +95,36 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-export function Install({ version }: { version: string | null }) {
+/**
+ * Under the macOS download button: the chip's own DMG, about half the size of the universal one.
+ * A browser that can tell its chip (Chromium) has the button upgraded on click and sees which chip was
+ * found; Safari and Firefox cannot tell, so they get the universal button plus both links to choose from.
+ */
+function MacChipLinks() {
+  const detected = useMacArch();
+  return (
+    <p className="mt-3 max-w-[58ch] text-[14px] leading-relaxed text-muted">
+      {detected ? `Detected ${MAC_ARCH_LABEL[detected]}, so the button above downloads that smaller build. ` : "The button above is the universal DMG and runs on every Mac. "}
+      Or pick your chip:{" "}
+      {MAC_ARCHES.map((arch, i) => (
+        <span key={arch}>
+          {i > 0 ? " · " : null}
+          <TrackedLink
+            href={installerPath("macos", "install-chip", arch)}
+            placement="install-chip"
+            eventLabel={`Download for macOS (${MAC_ARCH_LABEL[arch]})`}
+            className="text-accent-text hover:underline"
+          >
+            {MAC_ARCH_LABEL[arch]}
+          </TrackedLink>
+        </span>
+      ))}
+      .
+    </p>
+  );
+}
+
+export function Install({ version, macChipDmgs = false }: { version: string | null; macChipDmgs?: boolean }) {
   const oses = osesFor(version);
   const detected = useSyncExternalStore(noop, detectOs, () => "windows" as OsId);
   const [chosen, setOsId] = useState<OsId | null>(null);
@@ -224,6 +255,7 @@ export function Install({ version }: { version: string | null }) {
               Download for {os.label}
             </TrackedLink>
           ) : null}
+          {os.id === "macos" && macChipDmgs ? <MacChipLinks /> : null}
         </div>
 
         <aside

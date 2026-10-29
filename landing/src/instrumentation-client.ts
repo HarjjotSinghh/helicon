@@ -5,6 +5,7 @@ import {
   withAttribution,
   type FirstTouch,
 } from "./lib/download-attribution";
+import { detectMacArch, withMacArch, type MacArch } from "./lib/mac-arch";
 import { ANON_COOKIE, INTERNAL_COOKIE, parseVisitorOs } from "./lib/os";
 import { posthogNow, posthogOff, posthogReady, posthogStarting } from "./lib/posthog-client";
 
@@ -165,6 +166,15 @@ function firstTouch(): FirstTouch | null {
 const touch = firstTouch();
 
 /**
+ * The Mac's chip, when the browser will say (Chromium's Client Hints). Resolved once, early; a click
+ * before it lands, and every browser that cannot tell, gets the universal DMG from the route.
+ */
+let macArch: MacArch | null = null;
+void detectMacArch(navigator as Parameters<typeof detectMacArch>[0]).then((arch) => {
+  macArch = arch;
+});
+
+/**
  * Write the visitor's identity and first touch into an installer link the moment it is clicked, so
  * the server-side download event joins this visit even when no cookie reaches the route (see
  * lib/download-attribution.ts). Capture phase, so it runs before any other handler reads the href.
@@ -175,11 +185,15 @@ function attributeDownload(event: MouseEvent) {
   const href = link?.getAttribute("href");
   if (!link || !href || !isDownloadHref(href, window.location.origin)) return;
   const posthog = posthogNow();
-  const attributed = withAttribution(href, window.location.origin, {
-    distinctId: posthog ? posthog.get_distinct_id() : readCookie(ANON_COOKIE),
-    sessionId: posthog ? posthog.get_session_id() : null,
-    firstTouch: touch,
-  });
+  const attributed = withMacArch(
+    withAttribution(href, window.location.origin, {
+      distinctId: posthog ? posthog.get_distinct_id() : readCookie(ANON_COOKIE),
+      sessionId: posthog ? posthog.get_session_id() : null,
+      firstTouch: touch,
+    }),
+    window.location.origin,
+    macArch,
+  );
   link.setAttribute("href", attributed);
   setTimeout(() => {
     // Leave it alone if React has given the link a new href in the meantime.
