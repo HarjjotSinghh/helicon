@@ -136,7 +136,7 @@ export const INSTALL_PAGES: SeoPage[] = [
     description:
       "Helicon on Mac: a free desktop app for the Muse Code CLI, with a DMG for Apple Silicon, one for Intel and a universal one. Auto update and a one-time Open Anyway step.",
     answer:
-      "Install the muse CLI and sign in with muse login, open the Helicon DMG for your chip from the latest GitHub release, and drag the app into Applications. The download button picks Apple Silicon or Intel for you, and a universal DMG runs on both. The app updates itself. The builds are not Apple notarized yet, so the first launch needs System Settings > Privacy & Security > Open Anyway on macOS 15 or later.",
+      "Install the muse CLI and sign in with muse login, open the Helicon DMG for your chip from the latest GitHub release, and drag the app into Applications. The download button picks Apple Silicon or Intel when your browser reports the chip; otherwise it gives you the universal DMG, which runs on both. The app updates itself. The builds are not Apple notarized yet, so the first launch needs System Settings > Privacy & Security > Open Anyway on macOS 15 or later.",
     keywords: [
       "muse code mac",
       "muse code macos app",

@@ -139,7 +139,7 @@ export const PILLAR_PAGES: SeoPage[] = [
         head: ["Platform", "Helicon", "Notes"],
         rows: [
           ["Windows", "Installer, auto update", "Native Muse Code, or WSL2 with path translation; installer not code signed yet, so SmartScreen warns once"],
-          ["macOS", "Apple Silicon, Intel or universal DMG, auto update", "Download picks your chip; Open Anyway in Privacy & Security on first launch"],
+          ["macOS", "Apple Silicon, Intel or universal DMG, auto update", "Download picks your chip when the browser reports it; Open Anyway in Privacy & Security on first launch"],
           ["Linux", "x86_64 AppImage, auto update", "Needs FUSE on some distributions; no ARM build yet"],
           ["Browser", "Web app against a daemon", "Same React UI, daemon on a machine you control"],
         ],
@@ -195,7 +195,7 @@ export const PILLAR_PAGES: SeoPage[] = [
     description:
       "Helicon is a free, open-source desktop app for the Muse Code CLI: Windows installer, macOS DMG, Linux AppImage. Sessions, diffs, approvals and cost in one window.",
     answer:
-      "Helicon is a free, MIT licensed desktop app for Meta's Muse Code CLI, with a Windows installer, macOS DMGs for Apple Silicon and Intel and a Linux AppImage. It gives every Muse Code session a home: projects grouped by directory, resume with full history, inline diffs, an approval queue, and cost at published API rates. It runs on your existing subscription.",
+      "Helicon is a free, MIT licensed desktop app for Meta's Muse Code CLI, with a Windows installer, Apple Silicon, Intel and universal macOS DMGs and a Linux AppImage. It gives every Muse Code session a home: projects grouped by directory, resume with full history, inline diffs, an approval queue, and cost at published API rates. It runs on your existing subscription.",
     keywords: [
       "muse code desktop app",
       "muse code app",
@@ -274,7 +274,7 @@ export const PILLAR_PAGES: SeoPage[] = [
     faqs: [
       {
         q: "Is there a desktop app for Muse Code?",
-        a: "Yes. Helicon is a free, open-source desktop app for the Muse Code CLI, with a Windows installer, macOS DMGs for Apple Silicon and Intel and a Linux AppImage, plus a web build against a daemon you run.",
+        a: "Yes. Helicon is a free, open-source desktop app for the Muse Code CLI, with a Windows installer, Apple Silicon, Intel and universal macOS DMGs and a Linux AppImage, plus a web build against a daemon you run.",
       },
       {
         q: "Is the Muse Code desktop app free?",

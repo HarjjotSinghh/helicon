@@ -78,7 +78,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
     description:
       "Several repositories, several threads, and a history that outlives the terminal. A DMG for each Mac chip, a session sidebar, inline diffs and a cost view.",
     answer:
-      "If you run Muse Code across several repositories on a Mac, the constraint is not the agent, it is keeping track of it. Helicon gives every thread a home: projects grouped by directory, sessions with full history and resume, inline diffs, an approval queue and cost at API rates, in a universal DMG.",
+      "If you run Muse Code across several repositories on a Mac, the constraint is not the agent, it is keeping track of it. Helicon gives every thread a home: projects grouped by directory, sessions with full history and resume, inline diffs, an approval queue and cost at API rates, in Apple Silicon, Intel or universal DMGs.",
     keywords: [
       "muse code mac power user",
       "muse code multiple repos mac",
@@ -108,7 +108,7 @@ export const USE_CASE_PAGES: SeoPage[] = [
       {
         kind: "ul",
         items: [
-          "Each release has an Apple Silicon DMG (about 43 MB), an Intel DMG (about 45 MB) and a universal one that runs on both. The download button picks the one for your Mac.",
+          "Each release has an Apple Silicon DMG (about 43 MB), an Intel DMG (about 45 MB) and a universal one that runs on both. The download button picks yours when your browser reports the chip, and gives you the universal DMG when it does not.",
           "First launch needs System Settings > Privacy & Security > Open Anyway (macOS 15 or later), because the builds are not Apple notarized yet.",
           "The theme follows the system, in both light and dark.",
           "Auto update keeps the app current.",

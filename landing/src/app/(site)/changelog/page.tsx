@@ -15,7 +15,7 @@ const H1 = "Changelog";
 const DESCRIPTION =
   "Every Helicon release, with what changed, taken straight from GitHub. Windows installer, macOS DMG and daemon changes for the Muse Code desktop app.";
 const ANSWER =
-  "Every Helicon release is published on GitHub with a Windows installer, macOS DMGs for Apple Silicon and Intel and a Linux AppImage, and the app updates itself. This page lists them newest first, with what was added, fixed, changed and removed in each one, so you can read the change before it lands.";
+  "Every Helicon release is published on GitHub with a Windows installer, a macOS DMG (Apple Silicon and Intel builds since 0.23.1, plus a universal one) and a Linux AppImage, and the app updates itself. This page lists them newest first, with what was added, fixed, changed and removed in each one, so you can read the change before it lands.";
 
 const image = { url: ogImagePath(H1, DESCRIPTION, "Releases"), width: 1200, height: 630, alt: DESCRIPTION };
 
