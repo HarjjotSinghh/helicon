@@ -495,7 +495,7 @@ function openLink(url: unknown): void {
     return;
   }
   if (parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "mailto:") {
-    void vscode.env.openExternal(vscode.Uri.parse(parsed.href));
+    vscode.env.openExternal(vscode.Uri.parse(parsed.href)).then(undefined, () => undefined);
   }
 }
 
