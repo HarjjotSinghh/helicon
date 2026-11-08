@@ -8,9 +8,16 @@ import type { AppUpdater } from "@helicon/ui";
 const CHECK_TIMEOUT_MS = 30_000;
 const DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
 
-/** The desktop shell's updater, through Tauri's updater plugin; undefined in a browser. */
+declare global {
+  interface Window {
+    /** Set by the desktop shell before the page loads when it runs as a Flatpak, which Flathub updates. */
+    __HELICON_FLATPAK__?: boolean;
+  }
+}
+
+/** The desktop shell's updater, through Tauri's updater plugin; undefined in a browser and in a Flatpak. */
 export function desktopUpdater(): AppUpdater | undefined {
-  if (!("__TAURI_INTERNALS__" in window)) {
+  if (!("__TAURI_INTERNALS__" in window) || window.__HELICON_FLATPAK__) {
     return undefined;
   }
   let pending: Update | null = null;
