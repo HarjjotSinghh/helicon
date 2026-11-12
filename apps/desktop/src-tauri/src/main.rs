@@ -3,6 +3,8 @@
 #![windows_subsystem = "windows"]
 
 #[cfg(windows)]
+mod caption;
+#[cfg(windows)]
 mod redraw;
 
 use std::ffi::{OsStr, OsString};
@@ -16,8 +18,10 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 use tauri::Emitter;
+#[cfg(windows)]
+use tauri::Listener;
 
 struct ServerChild(Arc<Mutex<Option<Child>>>);
 
@@ -580,6 +584,26 @@ fn close_even_if_page_is_stuck(window: &tauri::Window) {
     });
 }
 
+/// Lays native hit areas over the minimize, maximize and close buttons the UI draws, so hovering
+/// maximize opens Windows 11's Snap Layouts and the buttons still work while the page is busy.
+/// The page says where its buttons are; hover and press go back to it so it can draw them.
+#[cfg(windows)]
+fn install_caption_buttons(app: &tauri::App, window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    let notify = window.clone();
+    caption::install(window.hwnd()?, move |state| {
+        let _ = notify.emit(caption::STATE_EVENT, state);
+    });
+    let main = window.clone();
+    app.listen_any(caption::LAYOUT_EVENT, move |event| {
+        let Ok(layout) = serde_json::from_str::<caption::Layout>(event.payload()) else {
+            return;
+        };
+        // Child windows belong to the thread that runs the parent's message loop.
+        let _ = main.run_on_main_thread(move || caption::set_layout(layout));
+    });
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -641,6 +665,8 @@ fn main() {
             // WebView2 can stop drawing when a monitor comes online or the resolution or scale changes.
             #[cfg(windows)]
             redraw::keep_drawing(&window, CUSTOM_FRAME);
+            #[cfg(windows)]
+            install_caption_buttons(app, &window)?;
             std::thread::spawn(move || {
                 let target = match booted_rx.recv().unwrap_or(Err(BootError::ServerFailed)) {
                     Ok(url) => url,
@@ -649,6 +675,8 @@ fn main() {
                         if CUSTOM_FRAME {
                             #[cfg(windows)]
                             redraw::use_native_frame();
+                            #[cfg(windows)]
+                            let _ = window.run_on_main_thread(caption::clear);
                             let _ = window.set_decorations(true);
                         }
                         error.page().to_string()
@@ -665,6 +693,11 @@ fn main() {
                 #[cfg(windows)]
                 if let tauri::WindowEvent::CloseRequested { .. } = event {
                     close_even_if_page_is_stuck(window);
+                }
+                // The caption hit areas are anchored to the right edge, which moves with every resize.
+                #[cfg(windows)]
+                if let tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. } = event {
+                    caption::reposition();
                 }
                 if let tauri::WindowEvent::Destroyed = event {
                     if let Some(state) = window.app_handle().try_state::<ServerChild>() {
