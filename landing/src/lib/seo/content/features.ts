@@ -81,7 +81,7 @@ const PAGES: SeoPage[] = [
         a: "Yes. History is on disk, so a restart does not lose anything.",
       },
     ],
-    related: ["features/projects-and-worktrees", "features/command-palette", "compare/muse-code-terminal"],
+    related: ["features/projects-and-worktrees", "features/command-palette", "guides/muse-code-session-manager", "compare/muse-code-terminal"],
   },
   {
     slug: "features/inline-diffs",
@@ -138,7 +138,7 @@ const PAGES: SeoPage[] = [
         a: "Yes. Tool calls and their output are rendered in the thread alongside the diffs.",
       },
     ],
-    related: ["features/session-history", "features/file-viewer", "features/approvals"],
+    related: ["features/session-history", "features/file-viewer", "features/approvals", "guides/review-ai-agent-diffs"],
   },
   {
     slug: "features/approvals",
@@ -320,7 +320,7 @@ const PAGES: SeoPage[] = [
         a: "In the sidebar during normal work, and in detail on the usage page alongside cost at API rates.",
       },
     ],
-    related: ["features/cost-and-usage", "features/session-history"],
+    related: ["features/cost-and-usage", "features/session-history", "guides/muse-code-usage-limit"],
   },
   {
     slug: "features/projects-and-worktrees",

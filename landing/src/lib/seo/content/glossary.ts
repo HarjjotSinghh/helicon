@@ -19,6 +19,8 @@ type Def = {
   faqs: { q: string; a: string }[];
   related?: string[];
   source?: { title: string; url: string };
+  /** ISO date this term was last checked. Falls back to the section date. */
+  updated?: string;
 };
 
 const DEFS: Def[] = [
@@ -61,7 +63,7 @@ const DEFS: Def[] = [
       { q: "Does Muse Code run on Windows?", a: "Yes, natively, and it also runs inside WSL2." },
       { q: "Is Muse Code the same as the Muse assistant app?", a: "No. Muse Code is the coding agent used through the muse CLI. The Muse assistant app for Mac is a different product." },
     ],
-    related: ["glossary/muse-cli", "glossary/msp", "muse-code-gui"],
+    related: ["glossary/muse-cli", "glossary/msp", "glossary/muse-spark", "muse-code-gui"],
   },
   {
     slug: "muse-cli",
@@ -559,6 +561,54 @@ const DEFS: Def[] = [
     ],
     related: ["muse-code-desktop-app", "features/remote-daemon", "install/windows"],
   },
+  {
+    slug: "muse-spark",
+    icon: "sparkle",
+    term: "Muse Spark",
+    updated: "2026-10-22",
+    source: {
+      title: "Models overview (Meta developer docs)",
+      url: "https://dev.meta.ai/docs/models",
+    },
+    title: "What is Muse Spark? The model behind Muse Code",
+    description:
+      "Muse Spark is Meta's model for agentic and coding work, and the model Muse Code is built for. Versions 1.1 to 1.3, Open weights, Contributor mode and prices.",
+    answer:
+      "Muse Spark is Meta's model family for agentic and coding work, and the model Muse Code is built for. Meta's docs list versions 1.3, 1.2 and 1.1, a 1,048,576 token context window, and Muse Spark Open, an open-weight release. Muse Code's own docs name muse-spark-1.2 as its default model.",
+    keywords: ["muse spark", "what is muse spark", "muse spark 1.3", "muse spark open", "muse spark api", "muse spark contributor"],
+    body: [
+      {
+        h: "The versions",
+        table: {
+          head: ["Version", "Model ID", "What Meta's docs say"],
+          rows: [
+            ["Muse Spark 1.3", "muse-spark-1.3", "The latest version, tuned for agentic work and better at code than 1.2. Recommended for new work."],
+            ["Muse Spark 1.2", "muse-spark-1.2", "The previous version. The default model in Muse Code's docs."],
+            ["Muse Spark 1.1", "muse-spark-1.1", "The original version. Model API only, not in Muse Code."],
+            ["Muse Spark Open", "None on Model API", "Open weights: an 816B parameter mixture of experts model with 42B active parameters."],
+          ],
+        },
+      },
+      {
+        h: "Contributor mode",
+        p: "On pay as you go billing you pick a variant by model ID. In Standard mode Meta says your content is not used to train its models. In Contributor mode, for example `muse-spark-1.3-contributor`, your content may be used to train future models in exchange for a lower price. Versions 1.2 and 1.3 have Contributor IDs.",
+      },
+      {
+        h: "What it costs",
+        p: "Through Muse Code, most people pay with a subscription. Meta lists four plans, from $5 to $200 a month, on its Muse Code page. Per token prices apply to API keys: Meta lists Muse Spark 1.3 at $1.25 per million input tokens and $4.25 per million output tokens in Standard mode, checked on 22 October 2026.",
+      },
+      {
+        h: "Where Helicon fits",
+        p: "Helicon does not run a model. It is a free, MIT licensed desktop app that drives the muse CLI, so whichever Muse Spark version your Muse Code session uses is the one doing the work. Its usage page shows what each thread would have cost at published per token rates, which is a meter reading and not a bill.",
+      },
+    ],
+    faqs: [
+      { q: "Is Muse Spark the same as Muse Code?", a: "No. Muse Spark is the model. Muse Code is Meta's coding agent CLI, the muse command, which is built for Muse Spark." },
+      { q: "Can I download Muse Spark?", a: "Muse Spark Open is the open-weight release. Meta's docs say you can download the weights, serve them yourself or use a hosted provider. The other versions run on Meta's Model API." },
+      { q: "Which Muse Spark version does Muse Code use?", a: "Muse Code's docs name muse-spark-1.2 as the default. Muse Spark 1.1 is not available in Muse Code." },
+    ],
+    related: ["glossary/muse-code", "glossary/reasoning-effort", "guides/muse-code-pricing", "guides/see-muse-code-cost"],
+  },
 ];
 
 function toPage(def: Def): SeoPage {
@@ -572,7 +622,7 @@ function toPage(def: Def): SeoPage {
     description: def.description,
     answer: def.answer,
     keywords: def.keywords,
-    updated: UPDATED,
+    updated: def.updated ?? UPDATED,
     ogEyebrow: "Definition",
     blocks: def.body.flatMap((part) => [
       { kind: "h2", text: part.h } as const,

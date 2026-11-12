@@ -114,6 +114,6 @@ export const BUYER_INTENT_PAGES: SeoPage[] = [
         a: "No. It shows what each thread would have cost at Meta's published per-token rates. Meta bills you under your plan or your API usage, not Helicon.",
       },
     ],
-    related: ["pricing", "features/plan-limits", "features/cost-and-usage", "guides/see-muse-code-cost", "muse-code-download"],
+    related: ["pricing", "features/plan-limits", "guides/muse-code-usage-limit", "features/cost-and-usage", "glossary/muse-spark", "guides/see-muse-code-cost"],
   },
 ];

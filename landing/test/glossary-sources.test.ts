@@ -10,9 +10,9 @@ import { GLOSSARY_PAGES } from "@/lib/seo/content/glossary";
 const NO_SOURCE = ["glossary/ade", "glossary/tui"];
 
 describe("glossary sources", () => {
-  it("covers all 13 terms, 11 with a source", () => {
-    expect(GLOSSARY_PAGES).toHaveLength(13);
-    expect(GLOSSARY_PAGES.filter((page) => page.source)).toHaveLength(11);
+  it("covers all 14 terms, 12 with a source", () => {
+    expect(GLOSSARY_PAGES).toHaveLength(14);
+    expect(GLOSSARY_PAGES.filter((page) => page.source)).toHaveLength(12);
   });
 
   for (const page of GLOSSARY_PAGES) {
