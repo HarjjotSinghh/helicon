@@ -470,6 +470,29 @@ describe("item kinds and notifications added in Muse Code 1.4.11", () => {
   });
 });
 
+describe("items added in Muse Code 1.4.20", () => {
+  const trailing = (itemId: string, kind: string, turnId: string): ViewEvent => ({
+    at: 10,
+    method: "item/completed",
+    params: {
+      sessionId: "s1",
+      item: { itemId, kind, status: "completed", revision: 1, turnId, fallbackText: "x", text: "x" },
+    },
+  });
+
+  it("hide the subagent and background echoes, and keep the reply final past notices", () => {
+    const before = liveEvents.reduce(applyEvent, emptyFold());
+    const last = buildTurns(before).at(-1)!;
+    assert.ok(last.final);
+    const kinds = ["subagentInput", "subagentResult", "bodyCompletion", "peerMessage", "systemNotice"];
+    const after = applyEvents(before, kinds.map((kind, index) => trailing(`n${index}`, kind, last.turnId as string)));
+    const turn = buildTurns(after).at(-1)!;
+    assert.equal(turn.final?.itemId, last.final.itemId);
+    assert.ok(!turn.entries.some((e) => ["subagentInput", "subagentResult", "bodyCompletion"].includes(e.kind)));
+    assert.deepEqual(turn.after.map((e) => e.kind), ["peerMessage", "systemNotice"]);
+  });
+});
+
 describe("background command completions (Muse Code 1.4.12)", () => {
   const completion = (itemId: string, turnId: string | null): ViewEvent => ({
     at: 10,
