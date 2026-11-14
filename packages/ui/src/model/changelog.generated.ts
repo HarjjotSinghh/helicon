@@ -9,6 +9,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    "version": "0.23.2",
+    "body": "### Fixed\n\n- **Web links in VS Code replies open again** ([#261](https://github.com/HarjjotSinghh/helicon/pull/261), fixes [#260](https://github.com/HarjjotSinghh/helicon/issues/260)). Clicking a link in a reply inside the VS Code extension now opens it in your browser.\n- **Muse in WSL runs in the right distro** ([#263](https://github.com/HarjjotSinghh/helicon/pull/263)). Helicon found Muse in WSL's default distro but launched it in one named Ubuntu, so a path found in one distro ran in the other and failed. Muse now runs where it was found, and `HELICON_WSL_DISTRO` pins a distro such as `Ubuntu-24.04`."
+  },
+  {
     "version": "0.23.1",
     "body": "### New\n\n- **Paste images in VS Code** ([#251](https://github.com/HarjjotSinghh/helicon/pull/251), fixes [#249](https://github.com/HarjjotSinghh/helicon/issues/249)). Cmd+V or Ctrl+V with a screenshot on the clipboard now attaches it to the composer in the VS Code extension, the same as in the browser.\n- **A DMG for each Mac chip** ([#238](https://github.com/HarjjotSinghh/helicon/pull/238)). Each release now has an Apple Silicon DMG and an Intel DMG next to the universal one. The download page picks the one that fits your Mac.\n- **Computer Use approvals name the data they send** ([#254](https://github.com/HarjjotSinghh/helicon/pull/254)). When a step would send a token or a secret, the card shows a warning row for it, such as \"Sends a GitHub token ghp_…3f9a\".\n\n### Changed\n\n- **Muse Code SDK 1.4.14** ([#254](https://github.com/HarjjotSinghh/helicon/pull/254), closes [#253](https://github.com/HarjjotSinghh/helicon/issues/253) and [#255](https://github.com/HarjjotSinghh/helicon/issues/255)), up from 1.4.12. A session Muse has pruned opens with an \"Earlier messages\" row listing what it kept. When the safety reviewer sends an approval to you, the card says why."
   },
