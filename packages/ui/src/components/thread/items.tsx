@@ -724,7 +724,7 @@ export function SystemNoticeRow(props: { item: MspItem }) {
       label="Notice from Muse"
       detail={text.split("\n")[0]}
       tone={severity === "error" ? "danger" : severity === "warning" ? "warn" : "default"}
-      body={text.includes("\n") ? <Markdown text={text} className="text-sm" /> : undefined}
+      body={text ? <Markdown text={text} className="text-sm" /> : undefined}
     />
   );
 }
