@@ -834,7 +834,7 @@ export class HeliconServer {
       allowOrigins: options.allowOrigins ?? [],
       frameAncestors: options.frameAncestors ?? [],
       platform: options.platform ?? process.platform,
-      distro: options.distro,
+      distro: options.distro ?? (process.env["HELICON_WSL_DISTRO"]?.trim() || undefined),
       musePath: options.musePath,
       runtime: options.runtime ?? parseRuntimePreference(process.env["HELICON_MUSE_RUNTIME"]),
       findNativeMuse: options.findNativeMuse,
@@ -1902,6 +1902,21 @@ export class HeliconServer {
     return false;
   }
 
+  /**
+   * The WSL distro Muse runs in: the pinned one (`--distro` / `HELICON_WSL_DISTRO`), else the distro the
+   * probe found Muse in (WSL's default). Launching anywhere else would run a Muse path found in one distro
+   * inside another. Undefined off Windows, where it is unused.
+   */
+  private async wslDistro(): Promise<string | undefined> {
+    if (this.options.distro) {
+      return this.options.distro;
+    }
+    if (this.options.platform !== "win32") {
+      return undefined;
+    }
+    return (await this.environment(false)).defaultDistro ?? undefined;
+  }
+
   private async environment(refresh: boolean): Promise<EnvView> {
     if (!refresh && this.envCache && Date.now() - this.envCache.at < ENV_CACHE_MS) {
       return this.envCache.value;
@@ -1909,6 +1924,7 @@ export class HeliconServer {
     const hint = this.runtimeHint();
     const probe = await probeEnvironment(defaultExec, this.options.platform, {
       preference: hint === "native" || hint === "wsl" ? hint : this.options.runtime,
+      ...(this.options.distro ? { distro: this.options.distro } : {}),
       ...(this.options.findNativeMuse ? { findNative: this.options.findNativeMuse } : {}),
     });
     if (!hint) {
@@ -2361,7 +2377,7 @@ export class HeliconServer {
     if (root) {
       args.push("--workspace", root);
     }
-    const plan = planMuseCli({ platform: this.options.platform, distro: this.options.distro, musePath, args, runtime: await this.museRuntime() });
+    const plan = planMuseCli({ platform: this.options.platform, distro: await this.wslDistro(), musePath, args, runtime: await this.museRuntime() });
     const result = await this.options.exec(plan.command, plan.args);
     const parsed = parseSkillList(result.stdout);
     const listing: SkillListing = parsed
@@ -2403,7 +2419,7 @@ export class HeliconServer {
     const script = bundled ? 'exec cat -- "${XDG_DATA_HOME:-$HOME/.local/share}/muse/skills/bundled/$1"' : 'exec cat -- "$1"';
     const plan = planHostCommand({
       platform: this.options.platform,
-      distro: this.options.distro,
+      distro: await this.wslDistro(),
       program: "sh",
       args: ["-c", script, "sh", bundled ?? path],
     });
@@ -2722,7 +2738,7 @@ export class HeliconServer {
     }
     const plan = planHostCommand({
       platform: this.options.platform,
-      distro: this.options.distro,
+      distro: await this.wslDistro(),
       program: "sh",
       // $1 is the workspace, then the command; a login shell so the user's PATH is the one they expect.
       args: ["-c", 'cd "$1" || exit 1; shift; exec "${SHELL:-/bin/sh}" -lc "$1"', "sh", this.hostPathFor(cwd), command],
@@ -3102,7 +3118,7 @@ export class HeliconServer {
     const musePath = await this.cliMusePath();
     const plan = planMuseCli({
       platform: this.options.platform,
-      distro: this.options.distro,
+      distro: await this.wslDistro(),
       musePath,
       args: [
         "exec",
@@ -3437,7 +3453,7 @@ export class HeliconServer {
     // WSL profile env passthrough is P3 (needs WSLENV); accounts on WSL are a later change.
     const plan = planServe({
       platform: "win32",
-      distro: this.options.distro ?? "Ubuntu",
+      distro: await this.wslDistro(),
       musePath,
       cwd: this.spawnCwdFor(cwd),
       sandboxDisabled,
