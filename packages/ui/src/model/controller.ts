@@ -11,6 +11,7 @@ import type {
   ReasoningEffort,
   SessionSummary,
   SkillEntry,
+  SkillImportSource,
   SubagentAction,
   TaskAction,
   UserInputAnswer,
@@ -25,6 +26,8 @@ import { goalPrompt } from "./goal.js";
 import { isSshPath } from "./paths.js";
 import {
   INIT_PROMPT,
+  importSourceName,
+  parseImportSources,
   findModel,
   parseEffort,
   parseMode,
@@ -2412,6 +2415,58 @@ export class HeliconController {
     void this.loadSkills(cwd);
   }
 
+  /** Asks Muse what `/import-skills` would copy in, without writing anything, and holds the answer for a yes. */
+  async previewSkillImport(sessionId: string, sources: SkillImportSource[]): Promise<boolean> {
+    if (this.state.skillImport?.running) return false;
+    const settled = await Promise.allSettled(sources.map((source) => this.client.importSkills(sessionId, source, { dryRun: true })));
+    const previews = settled.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
+    const refused = settled.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (previews.length === 0) {
+      this.toast("error", "Could not look for skills to import", errorMessage(refused?.reason));
+      return false;
+    }
+    if (!previews.some((preview) => preview.installed.length + preview.quarantined.length + preview.failed.length > 0)) {
+      const names = previews.map((preview) => importSourceName(preview.source)).join(" or ");
+      this.toast("info", "No new skills to import", `Muse has every skill it found in ${names} already.`);
+      return true;
+    }
+    this.update((s) => (s.skillImport?.running ? s : { ...s, skillImport: { sessionId, previews, running: false } }));
+    return true;
+  }
+
+  /** The yes to the preview: imports from each source that had something to bring over. */
+  async confirmSkillImport(): Promise<void> {
+    const pending = this.state.skillImport;
+    if (!pending || pending.running) {
+      return;
+    }
+    const sources = pending.previews.filter((preview) => preview.installed.length > 0).map((preview) => preview.source);
+    if (sources.length === 0) {
+      this.closeSkillImport();
+      return;
+    }
+    this.update((s) => ({ ...s, skillImport: s.skillImport ? { ...s.skillImport, running: true } : null }));
+    const settled = await Promise.allSettled(sources.map((source) => this.client.importSkills(pending.sessionId, source)));
+    this.update((s) => ({ ...s, skillImport: null }));
+    const installed = settled.reduce((sum, result) => sum + (result.status === "fulfilled" ? result.value.installed.length : 0), 0);
+    if (installed > 0) {
+      this.toast("success", `Imported ${installed} ${installed === 1 ? "skill" : "skills"}`, "Type / in the composer to find them.");
+    }
+    settled.forEach((result, index) => {
+      if (result.status === "rejected") {
+        this.toast("error", `Could not import skills from ${importSourceName(sources[index] as SkillImportSource)}`, errorMessage(result.reason));
+      }
+    });
+    this.refreshSkillsFor(pending.sessionId);
+  }
+
+  closeSkillImport(): void {
+    if (this.state.skillImport?.running) {
+      return;
+    }
+    this.update((s) => (s.skillImport ? { ...s, skillImport: null } : s));
+  }
+
   /** The open thread, when it is in `cwd`: Muse's own skill list for it is the one to show. */
   private skillSession(cwd: string): string | undefined {
     const route = this.state.route;
@@ -2568,6 +2623,14 @@ export class HeliconController {
         return true;
       case "init":
         return this.deliver(INIT_PROMPT, { ...options, displayText: typed });
+      case "importSkills": {
+        const sources = parseImportSources(args);
+        if (!sources) {
+          this.toast("info", `Helicon can't import skills from ${args}`, "Use /import-skills claude or /import-skills codex, or leave it off for both.");
+          return false;
+        }
+        return this.previewSkillImport(sessionId as string, sources);
+      }
       case "goal": {
         if (!args) {
           this.toast("info", "Add the goal after /goal", "For example: /goal get the test suite passing");

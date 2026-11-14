@@ -1367,7 +1367,7 @@ export class HeliconServer {
       return true;
     }
 
-    const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(?:\/(resume|model|approval-mode|compact|shell|fork|side|effort|goal|subagent|tasks|workflow))?$/);
+    const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(?:\/(resume|model|approval-mode|compact|shell|fork|side|effort|goal|subagent|skills|tasks|workflow))?$/);
     if (sessionMatch) {
       const sessionId = decodeURIComponent(sessionMatch[1] as string);
       const action = sessionMatch[2];
@@ -1478,6 +1478,19 @@ export class HeliconServer {
           }
           await manager.subagent(sessionId, subagentAction, subagentId, { reason: str(body["reason"]) ?? undefined, body: text });
           this.json(res, 200, { ok: true });
+          return true;
+        }
+        if (action === "skills") {
+          const source = body["source"];
+          if (source !== "claude" && source !== "codex") {
+            throw new HttpError(400, "source must be claude or codex.");
+          }
+          const report = await manager.importSkills(sessionId, source, { dryRun: body["dryRun"] === true });
+          if (!report.dryRun) {
+            // Muse also says skill/changed, but the composer asks for the list as soon as this answers.
+            this.skillCache.delete(this.store.findSession(sessionId)?.cwd || "__default__");
+          }
+          this.json(res, 200, report);
           return true;
         }
         if (action === "tasks") {

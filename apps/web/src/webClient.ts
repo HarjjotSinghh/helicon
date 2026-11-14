@@ -31,6 +31,8 @@ import {
   type SessionSummary,
   type ShellRun,
   type SkillCatalog,
+  type SkillImportReport,
+  type SkillImportSource,
   type SubagentAction,
   type TaskAction,
   type TitleSettings,
@@ -417,6 +419,10 @@ export class WebHeliconClient implements HeliconClient {
 
   async subagent(sessionId: string, action: SubagentAction, subagentId: string, options?: { reason?: string; body?: string }): Promise<void> {
     await call("POST", `/api/sessions/${enc(sessionId)}/subagent`, { action, subagentId, reason: options?.reason, body: options?.body });
+  }
+
+  async importSkills(sessionId: string, source: SkillImportSource, options: { dryRun?: boolean } = {}): Promise<SkillImportReport> {
+    return call<SkillImportReport>("POST", `/api/sessions/${enc(sessionId)}/skills`, { source, dryRun: options.dryRun === true });
   }
 
   async task(sessionId: string, action: TaskAction, taskId?: string): Promise<void> {

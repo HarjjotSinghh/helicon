@@ -146,6 +146,8 @@ export interface HeliconClient {
   listSkills(cwd: string, sessionId?: string): Promise<SkillCatalog>;
   /** The full instructions of a skill, without its frontmatter. */
   skillBody(cwd: string, skillId: string): Promise<string>;
+  /** Copies Claude Code's or Codex's skills into Muse for this session's workspace; `dryRun` only previews. */
+  importSkills(sessionId: string, source: import("./types.js").SkillImportSource, options?: { dryRun?: boolean }): Promise<import("./types.js").SkillImportReport>;
   openFolder(cwd: string, target: "files" | "editor"): Promise<void>;
   /** The session's standing reasoning effort, which is what Muse applies to its turns. */
   setReasoningEffort(sessionId: string, effort: ReasoningEffort): Promise<void>;
