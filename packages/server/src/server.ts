@@ -834,7 +834,7 @@ export class HeliconServer {
       allowOrigins: options.allowOrigins ?? [],
       frameAncestors: options.frameAncestors ?? [],
       platform: options.platform ?? process.platform,
-      distro: options.distro ?? (process.env["HELICON_WSL_DISTRO"]?.trim() || undefined),
+      distro: (options.distro ?? process.env["HELICON_WSL_DISTRO"])?.trim() || undefined,
       musePath: options.musePath,
       runtime: options.runtime ?? parseRuntimePreference(process.env["HELICON_MUSE_RUNTIME"]),
       findNativeMuse: options.findNativeMuse,
