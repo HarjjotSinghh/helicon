@@ -6,6 +6,7 @@ The extension ships the same Helicon as the desktop app. Full notes for every ve
 
 - Web links in replies open in your browser again (#261).
 - Muse inside WSL runs in the distro it was found in, and HELICON_WSL_DISTRO pins one (#263).
+- Muse Code SDK 1.4.20. Messages from other sessions and Muse notices get their own rows (#264).
 
 ## 0.23.1
 
