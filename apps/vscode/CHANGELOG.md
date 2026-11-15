@@ -2,6 +2,12 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.23.3
+
+- Press Up in an empty composer to bring back your last prompt (#247).
+- Long threads no longer freeze, and a prompt no longer shows twice after a reload (#240).
+- Threads started in the muse CLI show up in the sidebar (#237).
+
 ## 0.23.2
 
 - Web links in replies open in your browser again (#261).
