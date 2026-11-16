@@ -1,4 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
+import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
@@ -49,6 +50,8 @@ export function desktopUpdater(): AppUpdater | undefined {
       if (!pending) {
         throw new Error("There is no downloaded update to install.");
       }
+      // The shell closes a window whose page stops answering a close; this tells it an install is running.
+      await emit("helicon://update-installing").catch(() => undefined);
       await pending.install({ restartAfterInstall: restart });
     },
     relaunch: () => relaunch(),

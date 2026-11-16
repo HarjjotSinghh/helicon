@@ -2,12 +2,17 @@
 // Nothing is lost, the server's output goes to server.log.
 #![windows_subsystem = "windows"]
 
+#[cfg(windows)]
+mod redraw;
+
 use std::ffi::{OsStr, OsString};
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+#[cfg(windows)]
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
@@ -538,6 +543,43 @@ fn is_external_link(url: &Url) -> bool {
     }
 }
 
+/// How long the page gets to finish its close handler before the window closes without it.
+#[cfg(windows)]
+const CLOSE_GRACE: Duration = Duration::from_secs(10);
+
+/// Close requests the main window has had, so a second one can close it at once.
+#[cfg(windows)]
+static CLOSE_REQUESTS: AtomicU32 = AtomicU32::new(0);
+
+/// The page says so (`UPDATE_INSTALLING`) just before it installs a downloaded update on close.
+#[cfg(windows)]
+const UPDATE_INSTALLING: &str = "helicon://update-installing";
+
+/// Set once an update install has started, so the close deadline leaves it to finish.
+#[cfg(windows)]
+static INSTALLING_UPDATE: AtomicBool = AtomicBool::new(false);
+
+/// The UI holds every close until its handler (install a downloaded update) has run, then closes the
+/// window itself. A page that has stopped running, which a WebView2 that lost its renderer or GPU
+/// after a display change can leave behind, never answers, so the window could not be closed even from
+/// the taskbar. A second close request closes the window at once, and any request closes it after
+/// `CLOSE_GRACE` if the page has not, unless the page has started installing an update by then: the
+/// install quits the app itself. Windows only, where the stuck page comes from.
+#[cfg(windows)]
+fn close_even_if_page_is_stuck(window: &tauri::Window) {
+    if CLOSE_REQUESTS.fetch_add(1, Ordering::SeqCst) > 0 {
+        let _ = window.destroy();
+        return;
+    }
+    let window = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(CLOSE_GRACE);
+        if !INSTALLING_UPDATE.load(Ordering::SeqCst) {
+            let _ = window.destroy();
+        }
+    });
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -548,6 +590,11 @@ fn main() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             install_zoom_menu(app)?;
+            #[cfg(windows)]
+            {
+                use tauri::Listener;
+                app.listen(UPDATE_INSTALLING, |_| INSTALLING_UPDATE.store(true, Ordering::SeqCst));
+            }
             // Start the server before the window is built. The first WebView2 start on Windows takes seconds,
             // and the server has no need to wait for it.
             let (booted_tx, booted_rx) = mpsc::channel();
@@ -591,12 +638,17 @@ fn main() {
                     .initialization_script(OVERLAY_SCRIPT);
             }
             let window = builder.build()?;
+            // WebView2 can stop drawing when a monitor comes online or the resolution or scale changes.
+            #[cfg(windows)]
+            redraw::keep_drawing(&window, CUSTOM_FRAME);
             std::thread::spawn(move || {
                 let target = match booted_rx.recv().unwrap_or(Err(BootError::ServerFailed)) {
                     Ok(url) => url,
                     Err(error) => {
                         // Error pages draw no window controls, so they get the native frame back.
                         if CUSTOM_FRAME {
+                            #[cfg(windows)]
+                            redraw::use_native_frame();
                             let _ = window.set_decorations(true);
                         }
                         error.page().to_string()
@@ -610,6 +662,10 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if window.label() == "main" {
+                #[cfg(windows)]
+                if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    close_even_if_page_is_stuck(window);
+                }
                 if let tauri::WindowEvent::Destroyed = event {
                     if let Some(state) = window.app_handle().try_state::<ServerChild>() {
                         if let Ok(mut guard) = state.0.lock() {
