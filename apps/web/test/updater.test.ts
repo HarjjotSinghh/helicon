@@ -197,6 +197,26 @@ describe("desktop updater", () => {
     assert.deepEqual(install?.args, { updateRid: 7, bytesRid: 9, restartAfterInstall: true });
   });
 
+  it("tells the shell an install is starting, before it starts", async () => {
+    const tauri = tauriWindow((cmd) => {
+      if (cmd === "plugin:updater|check") return update(7);
+      if (cmd === "plugin:updater|download") return 9;
+      return undefined;
+    });
+    restore = stubGlobal("window", tauri.window);
+    const updater = desktopUpdater();
+    assert.ok(updater);
+    await updater.check();
+    await updater.download(() => {});
+    await updater.install({ restart: false });
+    const cmds = tauri.calls.map((call) => call.cmd);
+    const announced = tauri.calls.findIndex(
+      (call) => call.cmd === "plugin:event|emit" && (call.args as { event?: string }).event === "helicon://update-installing",
+    );
+    assert.ok(announced >= 0, `no install event in ${cmds.join(", ")}`);
+    assert.ok(announced < cmds.indexOf("plugin:updater|install"));
+  });
+
   it("relaunches through the process plugin", async () => {
     const tauri = tauriWindow(() => undefined);
     restore = stubGlobal("window", tauri.window);

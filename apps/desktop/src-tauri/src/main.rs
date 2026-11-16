@@ -12,7 +12,7 @@ use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 #[cfg(windows)]
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
@@ -551,15 +551,20 @@ const CLOSE_GRACE: Duration = Duration::from_secs(10);
 #[cfg(windows)]
 static CLOSE_REQUESTS: AtomicU32 = AtomicU32::new(0);
 
+/// The page says so (`UPDATE_INSTALLING`) just before it installs a downloaded update on close.
+#[cfg(windows)]
+const UPDATE_INSTALLING: &str = "helicon://update-installing";
+
+/// Set once an update install has started, so the close deadline leaves it to finish.
+#[cfg(windows)]
+static INSTALLING_UPDATE: AtomicBool = AtomicBool::new(false);
+
 /// The UI holds every close until its handler (install a downloaded update) has run, then closes the
 /// window itself. A page that has stopped running, which a WebView2 that lost its renderer or GPU
 /// after a display change can leave behind, never answers, so the window could not be closed even from
 /// the taskbar. A second close request closes the window at once, and any request closes it after
-/// `CLOSE_GRACE` if the page has not.
-///
-/// Windows only, where the stuck page comes from. It cannot cut an update install short there: the
-/// downloaded installer is started and the app quits right away, well inside the grace period. On
-/// macOS and Linux the install replaces the app in place and can take longer, so it is left alone.
+/// `CLOSE_GRACE` if the page has not, unless the page has started installing an update by then: the
+/// install quits the app itself. Windows only, where the stuck page comes from.
 #[cfg(windows)]
 fn close_even_if_page_is_stuck(window: &tauri::Window) {
     if CLOSE_REQUESTS.fetch_add(1, Ordering::SeqCst) > 0 {
@@ -569,7 +574,9 @@ fn close_even_if_page_is_stuck(window: &tauri::Window) {
     let window = window.clone();
     std::thread::spawn(move || {
         std::thread::sleep(CLOSE_GRACE);
-        let _ = window.destroy();
+        if !INSTALLING_UPDATE.load(Ordering::SeqCst) {
+            let _ = window.destroy();
+        }
     });
 }
 
@@ -583,6 +590,11 @@ fn main() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             install_zoom_menu(app)?;
+            #[cfg(windows)]
+            {
+                use tauri::Listener;
+                app.listen(UPDATE_INSTALLING, |_| INSTALLING_UPDATE.store(true, Ordering::SeqCst));
+            }
             // Start the server before the window is built. The first WebView2 start on Windows takes seconds,
             // and the server has no need to wait for it.
             let (booted_tx, booted_rx) = mpsc::channel();
