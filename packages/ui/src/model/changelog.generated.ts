@@ -9,6 +9,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    "version": "0.23.4",
+    "body": "### Fixed\n\n- **Windows: the window keeps drawing after a monitor or resolution change** ([#270](https://github.com/HarjjotSinghh/helicon/pull/270), fixes [#267](https://github.com/HarjjotSinghh/helicon/issues/267)). When a monitor came online, or the resolution or display scale changed, the window could stop drawing and ignore close from the taskbar. Helicon now redraws after display changes, recovers when the WebView2 renderer restarts, and closes even when the page has stopped responding. Thanks [@Janzstone](https://github.com/Janzstone)."
+  },
+  {
     "version": "0.23.3",
     "body": "### New\n\n- **Up brings back your last prompt** ([#247](https://github.com/HarjjotSinghh/helicon/pull/247)). Press Up in an empty composer and the thread's most recent prompt fills in, ready to edit and send again, the same as in the `muse` CLI.\n\n### Fixed\n\n- **Long threads no longer freeze** ([#240](https://github.com/HarjjotSinghh/helicon/pull/240), fixes [#32](https://github.com/HarjjotSinghh/helicon/issues/32)). Helicon copied every item in a thread for each new batch of updates, so a thread with a large plan or many subagents could hang. It no longer copies the whole thread each time.\n- **A prompt no longer shows twice after a reload** ([#240](https://github.com/HarjjotSinghh/helicon/pull/240), fixes [#55](https://github.com/HarjjotSinghh/helicon/issues/55)). When a thread reloaded while a prompt was sending, the local copy stayed next to the real one.\n- **Threads started in the `muse` CLI show up in the sidebar** ([#237](https://github.com/HarjjotSinghh/helicon/pull/237), refs [#50](https://github.com/HarjjotSinghh/helicon/issues/50)). Subagent rows used up the discovery limit, so recent CLI threads never reached the sidebar. Only the threads Helicon keeps count toward the limit now."
   },

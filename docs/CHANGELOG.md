@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.4
+
+### Fixed
+
+- **Windows: the window keeps drawing after a monitor or resolution change** ([#270](https://github.com/HarjjotSinghh/helicon/pull/270), fixes [#267](https://github.com/HarjjotSinghh/helicon/issues/267)). When a monitor came online, or the resolution or display scale changed, the window could stop drawing and ignore close from the taskbar. Helicon now redraws after display changes, recovers when the WebView2 renderer restarts, and closes even when the page has stopped responding. Thanks [@Janzstone](https://github.com/Janzstone).
+
 ## 0.23.3
 
 ### New

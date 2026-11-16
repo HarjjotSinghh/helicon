@@ -2,6 +2,10 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.23.4
+
+- Windows desktop app fix only; no change to the extension (#270).
+
 ## 0.23.3
 
 - Press Up in an empty composer to bring back your last prompt (#247).
