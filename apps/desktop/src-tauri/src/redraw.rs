@@ -12,8 +12,8 @@
 //! that exits gets the same nudge; a render process that exits gets the page reloaded, since there is
 //! nothing left to draw it.
 
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use tauri::{Runtime, WebviewWindow};
@@ -23,19 +23,26 @@ use webview2_com::Microsoft::Web::WebView2::Win32::{
 };
 use webview2_com::ProcessFailedEventHandler;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
-use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromRect, MONITORINFO, MONITOR_DEFAULTTONULL};
+use windows::core::BOOL;
+use windows::Win32::Graphics::Gdi::{
+    EnumDisplayMonitors, GetMonitorInfoW, MonitorFromRect, HDC, HMONITOR, MONITORINFO, MONITOR_DEFAULTTONULL,
+};
 use windows::Win32::UI::Shell::{
     DefSubclassProc, RemoveWindowSubclass, SHAppBarMessage, SetWindowSubclass, ABE_BOTTOM, ABE_LEFT, ABE_RIGHT, ABE_TOP,
-    ABM_GETAUTOHIDEBAR, APPBARDATA,
+    ABM_GETAUTOHIDEBAREX, APPBARDATA,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetClientRect, GetForegroundWindow, IsIconic, IsWindowVisible, IsZoomed, SetWindowPos, NCCALCSIZE_PARAMS,
-    SWP_NOACTIVATE, SWP_NOZORDER, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_NCCALCSIZE, WM_NCDESTROY, WM_SETTINGCHANGE,
+    GetClientRect, GetForegroundWindow, IsIconic, IsWindowVisible, IsZoomed, PostMessageW, SetWindowPos,
+    NCCALCSIZE_PARAMS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_NCCALCSIZE, WM_NCDESTROY, WM_SETTINGCHANGE,
     WM_USER,
 };
 
 /// Distinct from wry's own subclass ids (WM_USER + 0x64..0x66).
 const SUBCLASS_ID: usize = (WM_USER + 0x1e1) as usize;
+
+/// Posted to the window when the cached auto-hide taskbars change, so a maximized window's frame is
+/// recalculated with them.
+const WM_AUTOHIDE_CHANGED: u32 = WM_USER + 0x1e2;
 
 /// A layout change arrives as a burst of messages while Windows moves things around, and the adapter
 /// can reset a moment after the last one, so the webview is nudged once the burst is over and once
@@ -46,31 +53,75 @@ const SETTLE_DELAYS: [Duration; 2] = [Duration::from_millis(300), Duration::from
 /// thread, once, right after the window is built. `frameless` is true when the window has no native
 /// title bar, so its maximized client area is computed here (see [`maximized_client_area`]).
 pub fn keep_drawing<R: Runtime>(window: &WebviewWindow<R>, frameless: bool) {
+    FRAMELESS.store(frameless, Ordering::SeqCst);
     watch_process_failures(window);
     watch_display_changes(window, frameless);
 }
 
-/// Which screen edges have an auto-hide taskbar, as a bit per `ABE_*` edge. Filled off the main thread.
-static AUTOHIDE_EDGES: AtomicU8 = AtomicU8::new(0);
+/// Whether the window currently draws its own frame. Read on every `WM_NCCALCSIZE`.
+static FRAMELESS: AtomicBool = AtomicBool::new(false);
 
-/// Asks the shell which edges have an auto-hide taskbar, on a background thread. `SHAppBarMessage`
-/// is a synchronous message to Explorer, and while monitors come and go Explorer is busy laying out
-/// its taskbars and messaging every window, so on the main thread it can stall the whole app.
-fn refresh_autohide_edges() {
-    std::thread::spawn(|| {
-        let mut edges = 0u8;
-        for edge in [ABE_LEFT, ABE_TOP, ABE_RIGHT, ABE_BOTTOM] {
-            let mut data = APPBARDATA {
-                cbSize: std::mem::size_of::<APPBARDATA>() as u32,
-                uEdge: edge,
-                ..Default::default()
-            };
-            if unsafe { SHAppBarMessage(ABM_GETAUTOHIDEBAR, &mut data) } != 0 {
-                edges |= 1 << edge;
+/// Call before giving the window its native frame back (`set_decorations(true)`), so its client area
+/// is left to tao from then on.
+pub fn use_native_frame() {
+    FRAMELESS.store(false, Ordering::SeqCst);
+}
+
+/// Each monitor's rectangle and which of its edges have an auto-hide taskbar, as a bit per `ABE_*`
+/// edge. Filled off the main thread.
+static AUTOHIDE_EDGES: RwLock<Vec<(RECT, u8)>> = RwLock::new(Vec::new());
+
+/// Asks the shell which edges of each monitor have an auto-hide taskbar, on a background thread.
+/// `SHAppBarMessage` is a synchronous message to Explorer, and while monitors come and go Explorer is
+/// busy laying out its taskbars and messaging every window, so on the main thread it can stall the
+/// whole app. If the answer changed, `window` is told to recalculate its frame.
+fn refresh_autohide_edges(window: HWND) {
+    let window = window.0 as isize;
+    std::thread::spawn(move || {
+        let mut monitors: Vec<RECT> = Vec::new();
+        unsafe {
+            let _ = EnumDisplayMonitors(None, None, Some(collect_monitor), LPARAM(&mut monitors as *mut _ as isize));
+        }
+        let edges: Vec<(RECT, u8)> = monitors
+            .into_iter()
+            .map(|monitor| {
+                let mut edges = 0u8;
+                for edge in [ABE_LEFT, ABE_TOP, ABE_RIGHT, ABE_BOTTOM] {
+                    let mut data = APPBARDATA {
+                        cbSize: std::mem::size_of::<APPBARDATA>() as u32,
+                        uEdge: edge,
+                        rc: monitor,
+                        ..Default::default()
+                    };
+                    if unsafe { SHAppBarMessage(ABM_GETAUTOHIDEBAREX, &mut data) } != 0 {
+                        edges |= 1 << edge;
+                    }
+                }
+                (monitor, edges)
+            })
+            .collect();
+        let mut cached = AUTOHIDE_EDGES.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if *cached != edges {
+            *cached = edges;
+            drop(cached);
+            unsafe {
+                let _ = PostMessageW(Some(HWND(window as _)), WM_AUTOHIDE_CHANGED, WPARAM(0), LPARAM(0));
             }
         }
-        AUTOHIDE_EDGES.store(edges, Ordering::SeqCst);
     });
+}
+
+unsafe extern "system" fn collect_monitor(_monitor: HMONITOR, _dc: HDC, rect: *mut RECT, data: LPARAM) -> BOOL {
+    if let (Some(rect), Some(monitors)) = (rect.as_ref(), (data.0 as *mut Vec<RECT>).as_mut()) {
+        monitors.push(*rect);
+    }
+    BOOL(1)
+}
+
+/// The cached auto-hide taskbar edges of the monitor whose rectangle is `monitor`.
+fn autohide_edges(monitor: &RECT) -> u8 {
+    let cached = AUTOHIDE_EDGES.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+    cached.iter().find(|(rect, _)| rect == monitor).map_or(0, |(_, edges)| *edges)
 }
 
 /// The client area of the maximized frameless window: the monitor's work area, so it does not cover
@@ -89,7 +140,7 @@ unsafe fn maximized_client_area(lparam: LPARAM) -> bool {
         return false;
     }
     let mut rect = info.rcWork;
-    let edges = AUTOHIDE_EDGES.load(Ordering::SeqCst);
+    let edges = autohide_edges(&info.rcMonitor);
     let has = |edge: u32| edges & (1 << edge) != 0;
     if has(ABE_BOTTOM) {
         rect.bottom -= 1;
@@ -195,16 +246,19 @@ fn settle_then_redraw<R: Runtime>(window: WebviewWindow<R>, latest: Option<(Arc<
 /// What the subclass hands back to its window procedure.
 struct DisplayWatch {
     changed: Box<dyn Fn()>,
-    frameless: bool,
+}
+
+fn frameless() -> bool {
+    FRAMELESS.load(Ordering::SeqCst)
 }
 
 fn watch_display_changes<R: Runtime>(window: &WebviewWindow<R>, frameless: bool) {
-    if frameless {
-        refresh_autohide_edges();
-    }
     let Ok(hwnd) = window.hwnd() else {
         return;
     };
+    if frameless {
+        refresh_autohide_edges(hwnd);
+    }
     let latest = Arc::new(AtomicU64::new(0));
     let owner = window.clone();
     let watch = Box::new(DisplayWatch {
@@ -212,7 +266,6 @@ fn watch_display_changes<R: Runtime>(window: &WebviewWindow<R>, frameless: bool)
             let ticket = latest.fetch_add(1, Ordering::SeqCst) + 1;
             settle_then_redraw(owner.clone(), Some((latest.clone(), ticket)));
         }),
-        frameless,
     });
     let data = Box::into_raw(watch) as usize;
     unsafe {
@@ -235,10 +288,18 @@ unsafe extern "system" fn display_proc(
     // window's client area is answered here and never reaches tao (see `maximized_client_area`).
     if msg == WM_NCCALCSIZE
         && wparam.0 != 0
-        && watch.is_some_and(|watch| watch.frameless)
+        && frameless()
         && IsZoomed(hwnd).as_bool()
         && maximized_client_area(lparam)
     {
+        return LRESULT(0);
+    }
+    // The cached auto-hide taskbars changed: have Windows ask for the client area again.
+    if msg == WM_AUTOHIDE_CHANGED {
+        if frameless() && IsZoomed(hwnd).as_bool() {
+            let flags = SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE;
+            let _ = SetWindowPos(hwnd, None, 0, 0, 0, 0, flags);
+        }
         return LRESULT(0);
     }
     // Let tao resize and re-scale the window first; the redraw is scheduled for after that anyway.
@@ -246,16 +307,16 @@ unsafe extern "system" fn display_proc(
     match msg {
         WM_DISPLAYCHANGE | WM_DPICHANGED => {
             if let Some(watch) = watch {
-                if watch.frameless {
-                    refresh_autohide_edges();
+                if frameless() {
+                    refresh_autohide_edges(hwnd);
                 }
                 (watch.changed)();
             }
         }
         // A taskbar switched to or from auto-hide.
         WM_SETTINGCHANGE => {
-            if watch.is_some_and(|watch| watch.frameless) {
-                refresh_autohide_edges();
+            if frameless() {
+                refresh_autohide_edges(hwnd);
             }
         }
         WM_NCDESTROY => {

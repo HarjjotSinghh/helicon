@@ -11,6 +11,7 @@ use std::io::{BufRead, BufReader};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+#[cfg(windows)]
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
@@ -543,9 +544,11 @@ fn is_external_link(url: &Url) -> bool {
 }
 
 /// How long the page gets to finish its close handler before the window closes without it.
+#[cfg(windows)]
 const CLOSE_GRACE: Duration = Duration::from_secs(10);
 
 /// Close requests the main window has had, so a second one can close it at once.
+#[cfg(windows)]
 static CLOSE_REQUESTS: AtomicU32 = AtomicU32::new(0);
 
 /// The UI holds every close until its handler (install a downloaded update) has run, then closes the
@@ -553,6 +556,11 @@ static CLOSE_REQUESTS: AtomicU32 = AtomicU32::new(0);
 /// after a display change can leave behind, never answers, so the window could not be closed even from
 /// the taskbar. A second close request closes the window at once, and any request closes it after
 /// `CLOSE_GRACE` if the page has not.
+///
+/// Windows only, where the stuck page comes from. It cannot cut an update install short there: the
+/// downloaded installer is started and the app quits right away, well inside the grace period. On
+/// macOS and Linux the install replaces the app in place and can take longer, so it is left alone.
+#[cfg(windows)]
 fn close_even_if_page_is_stuck(window: &tauri::Window) {
     if CLOSE_REQUESTS.fetch_add(1, Ordering::SeqCst) > 0 {
         let _ = window.destroy();
@@ -627,6 +635,8 @@ fn main() {
                     Err(error) => {
                         // Error pages draw no window controls, so they get the native frame back.
                         if CUSTOM_FRAME {
+                            #[cfg(windows)]
+                            redraw::use_native_frame();
                             let _ = window.set_decorations(true);
                         }
                         error.page().to_string()
@@ -640,6 +650,7 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if window.label() == "main" {
+                #[cfg(windows)]
                 if let tauri::WindowEvent::CloseRequested { .. } = event {
                     close_even_if_page_is_stuck(window);
                 }
