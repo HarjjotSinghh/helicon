@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Helicon
+GenericName=Muse Code client
+Comment=Desktop app for the Muse Code CLI
+Exec=helicon
+Icon=sh.helicon.Helicon
+Terminal=false
+Categories=Development;IDE;
+Keywords=muse;meta;ai;coding;agent;cli;
+StartupWMClass=helicon

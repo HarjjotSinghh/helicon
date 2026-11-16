@@ -40,6 +40,10 @@ const CUSTOM_FRAME: bool = cfg!(windows);
 /// Tells the UI, before it loads, to draw the window controls and drag regions.
 const FRAME_SCRIPT: &str = "window.__HELICON_FRAME__ = 'custom';";
 
+/// Tells the UI, before it loads, that this is a Flatpak install, which Flathub updates in place of the app.
+#[cfg(unix)]
+const FLATPAK_SCRIPT: &str = "window.__HELICON_FLATPAK__ = true;";
+
 /// Tells the UI, before it loads, that the macOS traffic lights float over the sidebar.
 #[cfg(target_os = "macos")]
 const OVERLAY_SCRIPT: &str = "window.__HELICON_TITLEBAR__ = 'overlay';";
@@ -300,6 +304,36 @@ fn latest_nvm_node(home: &Path) -> Option<PathBuf> {
     versions.pop().map(|(_, node)| node)
 }
 
+/// Whether Helicon is running inside a Flatpak sandbox, which sets FLATPAK_ID for every app it starts.
+#[cfg(unix)]
+fn in_flatpak() -> bool {
+    std::env::var_os("FLATPAK_ID").is_some_and(|id| !id.is_empty())
+}
+
+/// The XDG folders as the host sees them. Flatpak points XDG_CONFIG_HOME, XDG_DATA_HOME and XDG_STATE_HOME at
+/// the app's private folders, but the sessions and sign-in file Helicon reads belong to the host's `muse`, which
+/// keeps them under the real ones. Flatpak passes the host's values along as HOST_XDG_*_HOME; without one, the
+/// default under the home folder is right.
+#[cfg(unix)]
+fn host_xdg_env(get: impl Fn(&str) -> Option<String>) -> Vec<(&'static str, String)> {
+    let Some(home) = get("HOME").filter(|home| !home.is_empty()) else {
+        return Vec::new();
+    };
+    [
+        ("XDG_CONFIG_HOME", "HOST_XDG_CONFIG_HOME", ".config"),
+        ("XDG_DATA_HOME", "HOST_XDG_DATA_HOME", ".local/share"),
+        ("XDG_STATE_HOME", "HOST_XDG_STATE_HOME", ".local/state"),
+    ]
+    .into_iter()
+    .map(|(name, host_name, default)| {
+        let value = get(host_name)
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| format!("{home}/{default}"));
+        (name, value)
+    })
+    .collect()
+}
+
 /// A PATH for the server that sees what a terminal sees: the node that was found, plus the user
 /// bin folders, in front of whatever the app inherited. The server's own probes (`muse`, skills)
 /// and the user's `!` commands all run under it.
@@ -387,7 +421,13 @@ fn spawn_server(
 ) -> Result<(Child, String), StartFailure> {
     let mut cmd = command(node);
     #[cfg(unix)]
-    if let Some(path) = augmented_path(node) {
+    if in_flatpak() {
+        // The sandbox PATH puts /app/bin first, where the shims for the host's muse, git and ssh are. Adding the
+        // host's ~/.local/bin in front would run the host binary inside the sandbox instead.
+        for (name, value) in host_xdg_env(|name| std::env::var(name).ok()) {
+            cmd.env(name, value);
+        }
+    } else if let Some(path) = augmented_path(node) {
         cmd.env("PATH", path);
     }
     cmd.arg(server).arg("--port").arg(port.to_string());
@@ -580,6 +620,10 @@ fn main() {
             if CUSTOM_FRAME {
                 builder = builder.decorations(false).initialization_script(FRAME_SCRIPT);
             }
+            #[cfg(unix)]
+            if in_flatpak() {
+                builder = builder.initialization_script(FLATPAK_SCRIPT);
+            }
             // The traffic lights float over the sidebar's top-left corner; the UI leaves room
             // for them and marks its headers as drag regions, like T3 Code.
             #[cfg(target_os = "macos")]
@@ -632,7 +676,7 @@ mod tests {
         PORT_FILE, SIDECAR_NODE, SPLASH_PAGE,
     };
     #[cfg(unix)]
-    use super::{latest_nvm_node, prepend_to_path, select_probe_path, well_known_nodes_in};
+    use super::{host_xdg_env, latest_nvm_node, prepend_to_path, select_probe_path, well_known_nodes_in};
     use std::net::TcpListener;
     use std::path::{Path, PathBuf};
 
@@ -646,6 +690,34 @@ mod tests {
         assert!(!external("http://ipc.localhost/plugin"));
         assert!(!external("tauri://localhost/"));
         assert!(!external("data:text/html,hi"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn points_the_server_at_the_hosts_xdg_folders_inside_flatpak() {
+        let env = |pairs: &'static [(&'static str, &'static str)]| {
+            host_xdg_env(move |name| pairs.iter().find(|(key, _)| *key == name).map(|(_, value)| value.to_string()))
+        };
+        // No HOST_XDG_* values: the defaults under the home folder.
+        assert_eq!(
+            env(&[("HOME", "/home/ada")]),
+            vec![
+                ("XDG_CONFIG_HOME", "/home/ada/.config".to_string()),
+                ("XDG_DATA_HOME", "/home/ada/.local/share".to_string()),
+                ("XDG_STATE_HOME", "/home/ada/.local/state".to_string()),
+            ]
+        );
+        // A host that moved one of them wins, and an empty value counts as unset.
+        assert_eq!(
+            env(&[("HOME", "/home/ada"), ("HOST_XDG_DATA_HOME", "/data/ada"), ("HOST_XDG_CONFIG_HOME", "")]),
+            vec![
+                ("XDG_CONFIG_HOME", "/home/ada/.config".to_string()),
+                ("XDG_DATA_HOME", "/data/ada".to_string()),
+                ("XDG_STATE_HOME", "/home/ada/.local/state".to_string()),
+            ]
+        );
+        // Without a home folder there is nothing sound to point at.
+        assert!(env(&[]).is_empty());
     }
 
     #[test]
