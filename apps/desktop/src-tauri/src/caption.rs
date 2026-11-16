@@ -29,7 +29,9 @@ use windows::Win32::UI::Controls::{
     InitCommonControlsEx, ICC_WIN95_CLASSES, INITCOMMONCONTROLSEX, TOOLTIPS_CLASSW, TTF_IDISHWND, TTM_ADDTOOLW,
     TTM_POP, TTM_RELAYEVENT, TTS_ALWAYSTIP, TTS_NOPREFIX, TTTOOLINFOW,
 };
-use windows::Win32::UI::Input::KeyboardAndMouse::{TrackMouseEvent, TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    GetKeyState, TrackMouseEvent, TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT, VK_LBUTTON,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, GetClientRect, GetCursorPos, GetMessageTime, SendMessageW, CW_USEDEFAULT, MSG,
     WM_MOUSEMOVE, WS_POPUP, GetWindowLongPtrW, IsZoomed, LoadCursorW, PostMessageW,
@@ -295,19 +297,30 @@ fn update(change: impl FnOnce(&mut Caption)) {
     let notify = {
         let Ok(mut guard) = CAPTION.lock() else { return };
         let Some(caption) = guard.as_mut() else { return };
-        let before = (caption.hovered, caption.pressed);
+        let before = visible_state(caption.hovered, caption.pressed);
         change(caption);
-        if before == (caption.hovered, caption.pressed) {
+        let state = visible_state(caption.hovered, caption.pressed);
+        if before == state {
             return;
         }
-        let state = CaptionState {
-            hovered: caption.hovered.map(|id| BUTTONS[id]),
-            pressed: caption.pressed.map(|id| BUTTONS[id]),
-        };
         let notify = caption.notify.clone();
         move || notify(state)
     };
     notify();
+}
+
+/// What the page draws. Like a native caption button, a press survives the pointer leaving, but it
+/// only looks pressed while the pointer is back over the button that was pressed.
+fn visible_state(hovered: Option<usize>, pressed: Option<usize>) -> CaptionState {
+    CaptionState {
+        hovered: hovered.map(|id| BUTTONS[id]),
+        pressed: pressed.filter(|id| hovered == Some(*id)).map(|id| BUTTONS[id]),
+    }
+}
+
+/// Whether the primary mouse button is still held, as of the message being handled.
+fn primary_button_down() -> bool {
+    unsafe { GetKeyState(VK_LBUTTON.0 as i32) < 0 }
 }
 
 fn parent_of() -> Option<HWND> {
@@ -347,15 +360,21 @@ unsafe extern "system" fn button_proc(window: HWND, message: u32, wparam: WPARAM
             };
             let _ = TrackMouseEvent(&mut track);
             relay_to_tooltip(window);
-            update(|caption| caption.hovered = Some(id));
+            update(|caption| {
+                caption.hovered = Some(id);
+                // A press released outside every hit area never reaches one, so it ends here instead.
+                if caption.pressed.is_some() && !primary_button_down() {
+                    caption.pressed = None;
+                }
+            });
             LRESULT(0)
         }
         WM_NCMOUSELEAVE => {
             pop_tooltip();
             update(|caption| {
+                // The press is kept: releasing after coming back over the same button still clicks it.
                 if caption.hovered == Some(id) {
                     caption.hovered = None;
-                    caption.pressed = None;
                 }
             });
             LRESULT(0)
@@ -383,7 +402,20 @@ unsafe extern "system" fn button_proc(window: HWND, message: u32, wparam: WPARAM
 
 #[cfg(test)]
 mod tests {
-    use super::{button_bounds, ButtonRect};
+    use super::{button_bounds, visible_state, ButtonRect, CaptionState};
+
+    #[test]
+    fn shows_a_press_only_while_back_over_the_pressed_button() {
+        assert_eq!(
+            visible_state(Some(2), Some(2)),
+            CaptionState { hovered: Some("close"), pressed: Some("close") }
+        );
+        assert_eq!(visible_state(None, Some(2)), CaptionState { hovered: None, pressed: None });
+        assert_eq!(
+            visible_state(Some(0), Some(2)),
+            CaptionState { hovered: Some("minimize"), pressed: None }
+        );
+    }
 
     #[test]
     fn anchors_buttons_to_the_right_edge() {
