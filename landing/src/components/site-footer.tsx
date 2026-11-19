@@ -100,6 +100,7 @@ export const FOOTER_GROUPS: FooterGroup[] = [
       { href: "/legal", label: "Legal", icon: BookOpen, external: false },
       { href: "/developers", label: "Developers", icon: BookOpen, external: false },
       { href: "/privacy", label: "Privacy", icon: BookOpen, external: false },
+      { href: "/code-signing", label: "Code signing policy", icon: BookOpen, external: false },
     ],
   },
 ];

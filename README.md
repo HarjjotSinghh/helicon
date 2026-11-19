@@ -217,6 +217,22 @@ hash of the IP it came from, salted per week so two weeks of logs cannot be join
 how many installs are in use, since downloads and stars say nothing about that. If the site is unreachable the app falls
 back to asking GitHub, as it always did.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+The Windows installer is built by [the release workflow](.github/workflows/release.yml) on a GitHub-hosted runner and is
+signed only after a maintainer approves the signing request. Releases up to 0.23.5 shipped unsigned, and the macOS and
+Linux builds are not covered by this certificate. Helicon never signs third-party binaries such as the bundled Node.js.
+
+- Committers and reviewers: [Harjot Singh Rana](https://github.com/HarjjotSinghh). Every pull request from an outside contributor is reviewed before it is merged.
+- Approvers: [Harjot Singh Rana](https://github.com/HarjjotSinghh).
+- Everyone in these roles uses multi-factor authentication on GitHub and SignPath.
+
+Privacy: the only request the app makes for itself is the update check described above, and Pause updates in Settings
+stops it. Full policy: [helicon.sh/privacy](https://helicon.sh/privacy). The policy page is
+[helicon.sh/code-signing](https://helicon.sh/code-signing).
+
 ## Legal
 
 - Wrapper clients are the intended path (Meta ships an MIT SDK for building MSP clients). This repo builds on that, and on the open-source CLI client.

@@ -11,6 +11,8 @@ jobs:
   desktop-windows:
     permissions:
       contents: write
+      # SignPath reads the unsigned installer back from this run's artifacts.
+      actions: read
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,13 +35,87 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Helicon ${{ github.ref_name }}"
-          releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (Muse for Windows natively, or inside WSL2). macOS builds are not Apple-notarized yet. On macOS 15 or later, first launch needs System Settings > Privacy & Security > Open Anyway (or run: xattr -dr com.apple.quarantine /Applications/Helicon.app). On macOS 14 or earlier, right-click the app, then Open."
+          releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (Muse for Windows natively, or inside WSL2). macOS builds are not Apple-notarized yet. On macOS 15 or later, first launch needs System Settings > Privacy & Security > Open Anyway (or run: xattr -dr com.apple.quarantine /Applications/Helicon.app). On macOS 14 or earlier, right-click the app, then Open. Windows code signing policy: https://helicon.sh/code-signing"
           releaseDraft: false
           # A full release, so the updater's releases/latest/download/latest.json always points at it.
           prerelease: false
           # GitHub sometimes refuses a large asset upload ("Error saving asset"); retrying saves a manual job rerun.
           retryAttempts: 3
           args: --target x86_64-pc-windows-msvc
+      # Code signing through SignPath Foundation (policy: https://helicon.sh/code-signing). tauri-action has already
+      # published the unsigned installer; these steps sign it, re-sign it for the updater (the .sig covers the exact
+      # bytes, and Authenticode changes them) and replace both on the release, the same way the Linux job swaps its
+      # AppImage. Off until the SIGNPATH_SIGNING_POLICY repository variable is set, so a release never waits on a
+      # SignPath project that is not ready. release-signing waits for a maintainer to approve the request on SignPath.
+      - name: Stage unsigned installer
+        id: unsigned
+        if: ${{ vars.SIGNPATH_SIGNING_POLICY != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          installers=(apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Helicon_*_x64-setup.exe)
+          [ "${#installers[@]}" -eq 1 ] && [ -f "${installers[0]}" ] || { echo "Expected exactly one installer, got: ${installers[*]}" >&2; exit 1; }
+          mkdir -p signing/unsigned
+          cp "${installers[0]}" signing/unsigned/
+          echo "name=$(basename "${installers[0]}")" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Upload unsigned installer
+        id: upload-unsigned
+        if: ${{ vars.SIGNPATH_SIGNING_POLICY != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-unsigned
+          path: signing/unsigned/
+          if-no-files-found: error
+      # Pinned to a commit: this step holds the SignPath API token.
+      - name: Sign installer on SignPath
+        if: ${{ vars.SIGNPATH_SIGNING_POLICY != '' }}
+        uses: signpath/github-action-submit-signing-request@4a84eb4ad763290f059275786f2deed97c2c672b # v3.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: helicon
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          # Two hours for the manual approval release-signing needs.
+          wait-for-completion-timeout-in-seconds: 7200
+          output-artifact-directory: signing/signed
+          parameters: |
+            version: ${{ toJSON(steps.unsigned.outputs.version) }}
+      - name: Publish signed installer
+        if: ${{ vars.SIGNPATH_SIGNING_POLICY != '' }}
+        shell: bash
+        env:
+          INSTALLER: ${{ steps.unsigned.outputs.name }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd signing/signed
+          [ -f "$INSTALLER" ] || { echo "SignPath returned no $INSTALLER: $(ls)" >&2; exit 1; }
+          # A test-signing certificate is not trusted by Windows, so only check that a signature is there.
+          pwsh -NoProfile -Command '$s = Get-AuthenticodeSignature $env:INSTALLER; $s | Format-List Status, SignerCertificate; if (-not $s.SignerCertificate) { exit 1 }'
+          "$GITHUB_WORKSPACE/node_modules/.bin/tauri" signer sign "$INSTALLER"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "latest.json" --clobber
+          SIG_FILE="$INSTALLER.sig" node -e '
+            const fs = require("fs");
+            const latest = JSON.parse(fs.readFileSync("latest.json", "utf8"));
+            const signature = fs.readFileSync(process.env.SIG_FILE, "utf8").trim();
+            for (const platform of ["windows-x86_64", "windows-x86_64-nsis"]) {
+              if (!latest.platforms[platform]) throw new Error(`latest.json has no ${platform}`);
+              latest.platforms[platform].signature = signature;
+            }
+            fs.writeFileSync("latest.json", JSON.stringify(latest, null, 2));
+          '
+          for attempt in 1 2 3; do
+            gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "$INSTALLER" "$INSTALLER.sig" latest.json --clobber && exit 0
+            echo "Upload attempt $attempt failed" >&2
+            sleep 10
+          done
+          exit 1
 
   desktop-macos:
     permissions:
@@ -73,7 +149,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Helicon ${{ github.ref_name }}"
-          releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (Muse for Windows natively, or inside WSL2). macOS builds are not Apple-notarized yet. On macOS 15 or later, first launch needs System Settings > Privacy & Security > Open Anyway (or run: xattr -dr com.apple.quarantine /Applications/Helicon.app). On macOS 14 or earlier, right-click the app, then Open."
+          releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (Muse for Windows natively, or inside WSL2). macOS builds are not Apple-notarized yet. On macOS 15 or later, first launch needs System Settings > Privacy & Security > Open Anyway (or run: xattr -dr com.apple.quarantine /Applications/Helicon.app). On macOS 14 or earlier, right-click the app, then Open. Windows code signing policy: https://helicon.sh/code-signing"
           releaseDraft: false
           # A full release, so the updater's releases/latest/download/latest.json always points at it.
           prerelease: false
@@ -162,7 +238,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Helicon ${{ github.ref_name }}"
-          releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (Muse for Windows natively, or inside WSL2). macOS builds are not Apple-notarized yet. On macOS 15 or later, first launch needs System Settings > Privacy & Security > Open Anyway (or run: xattr -dr com.apple.quarantine /Applications/Helicon.app). On macOS 14 or earlier, right-click the app, then Open."
+          releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (Muse for Windows natively, or inside WSL2). macOS builds are not Apple-notarized yet. On macOS 15 or later, first launch needs System Settings > Privacy & Security > Open Anyway (or run: xattr -dr com.apple.quarantine /Applications/Helicon.app). On macOS 14 or earlier, right-click the app, then Open. Windows code signing policy: https://helicon.sh/code-signing"
           releaseDraft: false
           # A full release, so the updater's releases/latest/download/latest.json always points at it.
           prerelease: false
