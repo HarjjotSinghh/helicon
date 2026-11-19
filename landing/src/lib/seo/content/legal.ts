@@ -234,6 +234,65 @@ export const LEGAL_PAGES: SeoPage[] = [
     related: ["muse-code-desktop-app", "terms", "features/approvals", "pricing"],
   },
   {
+    slug: "code-signing",
+    icon: "shield",
+    section: "page",
+    label: "Code signing policy",
+    title: "Code signing policy: how Helicon releases are signed",
+    h1: "Code signing policy",
+    description:
+      "How the Helicon Windows installer is signed. Free code signing provided by SignPath.io, certificate by SignPath Foundation, and who approves each release.",
+    answer:
+      "Free code signing provided by SignPath.io, certificate by SignPath Foundation. The Helicon Windows installer is built from the public repository on GitHub-hosted runners and is signed only after a maintainer approves that release. Releases up to 0.23.5 shipped unsigned; signing starts once SignPath Foundation issues the certificate. The certificate does not cover the macOS or Linux builds.",
+    keywords: ["helicon code signing", "helicon signed installer", "helicon signpath", "helicon windows smartscreen"],
+    updated: "2026-11-19",
+    ogEyebrow: "Code signing",
+    blocks: [
+      {
+        kind: "p",
+        text: "Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).",
+      },
+
+      { kind: "h2", text: "What is signed" },
+      {
+        kind: "p",
+        text: "The Windows installer, `Helicon_<version>_x64-setup.exe`, as offered on GitHub releases and by the in-app updater, starting with the first release after SignPath Foundation issues the certificate. Earlier releases, up to 0.23.5, are unsigned. The installer is built by the release workflow in this repository on a GitHub-hosted Windows runner, then sent to SignPath, which checks that it came from that workflow before signing it. Nothing built on a personal machine is signed.",
+      },
+      {
+        kind: "p",
+        text: "The installer carries Node.js, which the Node.js project signs itself. Helicon never signs third-party binaries with its certificate.",
+      },
+
+      { kind: "h2", text: "Team roles" },
+      {
+        kind: "table",
+        head: ["Role", "Who", "What they do"],
+        rows: [
+          ["Committers", "[Harjot Singh Rana](https://github.com/HarjjotSinghh)", "May change the source without a separate review"],
+          ["Reviewers", "[Harjot Singh Rana](https://github.com/HarjjotSinghh)", "Review every pull request from outside contributors before it is merged"],
+          ["Approvers", "[Harjot Singh Rana](https://github.com/HarjjotSinghh)", "Approve each signing request by hand before a release is signed"],
+        ],
+      },
+      {
+        kind: "p",
+        text: "Everyone with one of these roles uses multi-factor authentication on GitHub and on SignPath.",
+      },
+
+      { kind: "h2", text: "Privacy" },
+      {
+        kind: "p",
+        text: "The app has no account and no telemetry. The one request it makes for itself is the update check to helicon.sh. Pause updates in Settings stops the automatic checks; Check now still asks when you click it. Everything else goes only where you send it: your prompts go to Muse Code through the muse CLI you installed, under Meta's terms. The full details are in the [privacy policy](/privacy).",
+      },
+
+      { kind: "h2", text: "Reporting a problem" },
+      {
+        kind: "p",
+        text: "If a signed file looks wrong, or you think the certificate was misused, follow SECURITY.md in the repository or email hello@helicon.sh.",
+      },
+    ],
+    related: ["privacy", "legal", "terms"],
+  },
+  {
     slug: "terms",
     noindex: true,
     icon: "file",
