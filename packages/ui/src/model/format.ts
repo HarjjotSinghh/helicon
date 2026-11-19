@@ -1,4 +1,4 @@
-import type { ApprovalRequest, CuaDataFact, CuaStep, MspItem } from "../types.js";
+import type { ApprovalRequest, CuaBrowser, CuaDataFact, CuaStep, MspItem } from "../types.js";
 import { GOAL_TOOLS } from "./goal.js";
 
 /** Compact relative time for sidebars: now, 4m, 3h, 2d, 3w, then a short date. */
@@ -820,6 +820,19 @@ export function describeCuaStep(step: CuaStep): string {
     return `${action} at ${step.point.x}, ${step.point.y}`;
   }
   return action;
+}
+
+/** The notices a Computer Use card shows for a browser, one line each. The browser's name comes from the host, so it is cleaned and capped. */
+export function describeCuaBrowser(browser: CuaBrowser): string[] {
+  const name = plainAppText(browser.name ?? "").slice(0, 40) || "this browser";
+  const lines: string[] = [];
+  if (browser.firstUse) {
+    lines.push(`Computer Use hasn't used ${name} on this computer before. It will act as you, signed in to your accounts.`);
+  }
+  if (browser.windowConsent) {
+    lines.push(`Computer Use will open its own window in ${name} and bring ${name} to the front. It asks once per session.`);
+  }
+  return lines;
 }
 
 const SECRET_KINDS: Record<string, string> = {
