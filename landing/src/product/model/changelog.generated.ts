@@ -9,6 +9,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    "version": "0.23.5",
+    "body": "### Changed\n\n- **Muse Code SDK 1.4.23** ([#275](https://github.com/HarjjotSinghh/helicon/pull/275), closes [#273](https://github.com/HarjjotSinghh/helicon/issues/273)), up from 1.4.20. When a Computer Use approval is for a browser, the card now says so: that Computer Use hasn't used the browser on this computer before and will act signed in as you, or that it will open its own window and bring the browser to the front."
+  },
+  {
     "version": "0.23.4",
     "body": "### Fixed\n\n- **Windows: the window keeps drawing after a monitor or resolution change** ([#270](https://github.com/HarjjotSinghh/helicon/pull/270), fixes [#267](https://github.com/HarjjotSinghh/helicon/issues/267)). When a monitor came online, or the resolution or display scale changed, the window could stop drawing and ignore close from the taskbar. Helicon now redraws after display changes, recovers when the WebView2 renderer restarts, and closes even when the page has stopped responding. Thanks [@Janzstone](https://github.com/Janzstone)."
   },
