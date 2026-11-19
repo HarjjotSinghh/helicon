@@ -36,17 +36,19 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "Helicon ${{ github.ref_name }}"
           releaseBody: "Bundles Node.js, so the only requirement is the Muse CLI with muse login (Muse for Windows natively, or inside WSL2). macOS builds are not Apple-notarized yet. On macOS 15 or later, first launch needs System Settings > Privacy & Security > Open Anyway (or run: xattr -dr com.apple.quarantine /Applications/Helicon.app). On macOS 14 or earlier, right-click the app, then Open. Windows code signing policy: https://helicon.sh/code-signing"
-          releaseDraft: false
+          # A draft while signing is on: no updater or download page sees the release until the signed installer is in
+          # place and the last step below publishes it.
+          releaseDraft: ${{ vars.SIGNPATH_SIGNING_POLICY != '' }}
           # A full release, so the updater's releases/latest/download/latest.json always points at it.
           prerelease: false
           # GitHub sometimes refuses a large asset upload ("Error saving asset"); retrying saves a manual job rerun.
           retryAttempts: 3
           args: --target x86_64-pc-windows-msvc
-      # Code signing through SignPath Foundation (policy: https://helicon.sh/code-signing). tauri-action has already
-      # published the unsigned installer; these steps sign it, re-sign it for the updater (the .sig covers the exact
-      # bytes, and Authenticode changes them) and replace both on the release, the same way the Linux job swaps its
-      # AppImage. Off until the SIGNPATH_SIGNING_POLICY repository variable is set, so a release never waits on a
-      # SignPath project that is not ready. release-signing waits for a maintainer to approve the request on SignPath.
+      # Code signing through SignPath Foundation (policy: https://helicon.sh/code-signing). tauri-action has put the
+      # unsigned installer on a draft release; these steps sign it, re-sign it for the updater (the .sig covers the
+      # exact bytes, and Authenticode changes them), replace both on the draft and then publish it, so nobody is ever
+      # offered the unsigned file. Off until the SIGNPATH_SIGNING_POLICY repository variable is set, so a release never
+      # waits on a SignPath project that is not ready. release-signing waits for a maintainer to approve the request.
       - name: Stage unsigned installer
         id: unsigned
         if: ${{ vars.SIGNPATH_SIGNING_POLICY != '' }}
@@ -96,8 +98,7 @@ jobs:
           set -euo pipefail
           cd signing/signed
           [ -f "$INSTALLER" ] || { echo "SignPath returned no $INSTALLER: $(ls)" >&2; exit 1; }
-          # A test-signing certificate is not trusted by Windows, so only check that a signature is there.
-          pwsh -NoProfile -Command '$s = Get-AuthenticodeSignature $env:INSTALLER; $s | Format-List Status, SignerCertificate; if (-not $s.SignerCertificate) { exit 1 }'
+          SIGNING_POLICY="${{ vars.SIGNPATH_SIGNING_POLICY }}" pwsh -NoProfile -File "$GITHUB_WORKSPACE/.signpath/check-signature.ps1" "$INSTALLER"
           "$GITHUB_WORKSPACE/node_modules/.bin/tauri" signer sign "$INSTALLER"
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "latest.json" --clobber
           SIG_FILE="$INSTALLER.sig" node -e '
@@ -110,12 +111,16 @@ jobs:
             }
             fs.writeFileSync("latest.json", JSON.stringify(latest, null, 2));
           '
-          for attempt in 1 2 3; do
-            gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "$INSTALLER" "$INSTALLER.sig" latest.json --clobber && exit 0
-            echo "Upload attempt $attempt failed" >&2
-            sleep 10
+          # The release is still a draft (on a tag push), so a failed upload here is fixed by rerunning the job.
+          for asset in "$INSTALLER" "$INSTALLER.sig" latest.json; do
+            for attempt in 1 2 3; do
+              gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "$asset" --clobber && continue 2
+              echo "Upload of $asset, attempt $attempt failed" >&2
+              sleep 10
+            done
+            exit 1
           done
-          exit 1
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
 
   desktop-macos:
     permissions:

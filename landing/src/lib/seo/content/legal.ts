@@ -243,7 +243,7 @@ export const LEGAL_PAGES: SeoPage[] = [
     description:
       "How the Helicon Windows installer is signed. Free code signing provided by SignPath.io, certificate by SignPath Foundation, and who approves each release.",
     answer:
-      "Free code signing provided by SignPath.io, certificate by SignPath Foundation. The Helicon Windows installer is built from the public repository on GitHub-hosted runners and is signed only after a maintainer approves that release. Releases up to 0.23.5 shipped unsigned. The certificate does not cover the macOS or Linux builds.",
+      "Free code signing provided by SignPath.io, certificate by SignPath Foundation. The Helicon Windows installer is built from the public repository on GitHub-hosted runners and is signed only after a maintainer approves that release. Releases up to 0.23.5 shipped unsigned; signing starts once SignPath Foundation issues the certificate. The certificate does not cover the macOS or Linux builds.",
     keywords: ["helicon code signing", "helicon signed installer", "helicon signpath", "helicon windows smartscreen"],
     updated: "2026-11-19",
     ogEyebrow: "Code signing",
@@ -256,7 +256,7 @@ export const LEGAL_PAGES: SeoPage[] = [
       { kind: "h2", text: "What is signed" },
       {
         kind: "p",
-        text: "The Windows installer, `Helicon_<version>_x64-setup.exe`, on every GitHub release and in the in-app updater. It is built by the release workflow in this repository on a GitHub-hosted Windows runner, then sent to SignPath, which checks that it came from that workflow before signing it. Nothing built on a personal machine is signed.",
+        text: "The Windows installer, `Helicon_<version>_x64-setup.exe`, as offered on GitHub releases and by the in-app updater, starting with the first release after SignPath Foundation issues the certificate. Earlier releases, up to 0.23.5, are unsigned. The installer is built by the release workflow in this repository on a GitHub-hosted Windows runner, then sent to SignPath, which checks that it came from that workflow before signing it. Nothing built on a personal machine is signed.",
       },
       {
         kind: "p",
@@ -281,7 +281,7 @@ export const LEGAL_PAGES: SeoPage[] = [
       { kind: "h2", text: "Privacy" },
       {
         kind: "p",
-        text: "The app has no account and no telemetry. The one request it makes for itself is the update check to helicon.sh, which stops when you turn on Pause updates in Settings. Everything else goes only where you send it: your prompts go to Muse Code through the muse CLI you installed, under Meta's terms. The full details are in the [privacy policy](/privacy).",
+        text: "The app has no account and no telemetry. The one request it makes for itself is the update check to helicon.sh. Pause updates in Settings stops the automatic checks; Check now still asks when you click it. Everything else goes only where you send it: your prompts go to Muse Code through the muse CLI you installed, under Meta's terms. The full details are in the [privacy policy](/privacy).",
       },
 
       { kind: "h2", text: "Reporting a problem" },

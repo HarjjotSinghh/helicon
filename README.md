@@ -222,15 +222,16 @@ back to asking GitHub, as it always did.
 Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 
 The Windows installer is built by [the release workflow](.github/workflows/release.yml) on a GitHub-hosted runner and is
-signed only after a maintainer approves the signing request. Releases up to 0.23.5 shipped unsigned, and the macOS and
-Linux builds are not covered by this certificate. Helicon never signs third-party binaries such as the bundled Node.js.
+signed only after a maintainer approves the signing request. Signing starts with the first release after SignPath
+Foundation issues the certificate; releases up to 0.23.5 shipped unsigned. The macOS and Linux builds are not covered by
+this certificate. Helicon never signs third-party binaries such as the bundled Node.js.
 
 - Committers and reviewers: [Harjot Singh Rana](https://github.com/HarjjotSinghh). Every pull request from an outside contributor is reviewed before it is merged.
 - Approvers: [Harjot Singh Rana](https://github.com/HarjjotSinghh).
 - Everyone in these roles uses multi-factor authentication on GitHub and SignPath.
 
-Privacy: the only request the app makes for itself is the update check described above, and Pause updates in Settings
-stops it. Full policy: [helicon.sh/privacy](https://helicon.sh/privacy). The policy page is
+Privacy: the only request the app makes for itself is the update check described above. Pause updates in Settings
+stops the automatic checks; Check now still asks when you click it. Full policy: [helicon.sh/privacy](https://helicon.sh/privacy). The policy page is
 [helicon.sh/code-signing](https://helicon.sh/code-signing).
 
 ## Legal
