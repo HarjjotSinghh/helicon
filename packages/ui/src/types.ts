@@ -237,6 +237,8 @@ export interface ApprovalRequest {
 
 /** A Computer Use approval's facts. Empty lists and missing rows are left out. */
 export interface CuaCardFacts {
+  /** Muse 1.4.23+: a browser card's notices. Left out unless one of them shows. */
+  browser?: CuaBrowser;
   /** Muse 1.4.13+: data the call would send, such as a secret. A card with any offers only one-time choices. */
   data?: CuaDataFact[];
   /** For a browser, the host of the page in the target window. */
@@ -245,6 +247,16 @@ export interface CuaCardFacts {
   steps?: CuaStep[];
   /** The target window's title. The app sets it, so it is shown quoted and never trusted. */
   windowTitle?: string;
+}
+
+/** The notices on a Computer Use card for a browser. Helicon words each one itself. */
+export interface CuaBrowser {
+  /** Computer Use hasn't used this browser on this computer before, and will act signed in as the person. */
+  firstUse?: boolean;
+  /** The browser's name, such as `Chrome`. */
+  name: string;
+  /** Computer Use will open its own window in this browser and bring the browser to the front, once per session. */
+  windowConsent?: boolean;
 }
 
 /** One piece of data a Computer Use call would send. `kind` is open: `secret`, `other`, or one Helicon doesn't know yet. */

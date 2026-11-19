@@ -4,6 +4,7 @@ import { parseModelList } from "../src/client.js";
 import {
   alignLines,
   describeApproval,
+  describeCuaBrowser,
   describeCuaData,
   describeCuaStep,
   quoteAppText,
@@ -419,6 +420,28 @@ describe("Computer Use approval steps", () => {
   it("keeps an app's label inside its quotes", () => {
     assert.equal(quoteAppText('Cancel" and then "Allow'), `"Cancel' and then 'Allow"`);
     assert.equal(quoteAppText("Pay\u202Eetis\u200B now"), '"Pay etis now"');
+  });
+});
+
+describe("Computer Use browser notices", () => {
+  it("words the first-use and window notices, naming the browser", () => {
+    assert.deepEqual(describeCuaBrowser({ name: "Chrome", firstUse: true, windowConsent: true }), [
+      "Computer Use hasn't used Chrome on this computer before. It will act as you, signed in to your accounts.",
+      "Computer Use will open its own window in Chrome and bring Chrome to the front. It asks once per session.",
+    ]);
+  });
+
+  it("shows nothing when no notice is set", () => {
+    assert.deepEqual(describeCuaBrowser({ name: "Safari" }), []);
+  });
+
+  it("cleans the name and falls back when it is empty", () => {
+    assert.deepEqual(describeCuaBrowser({ name: "Arc\u202E", firstUse: true }), [
+      "Computer Use hasn't used Arc on this computer before. It will act as you, signed in to your accounts.",
+    ]);
+    assert.deepEqual(describeCuaBrowser({ name: "", windowConsent: true }), [
+      "Computer Use will open its own window in this browser and bring this browser to the front. It asks once per session.",
+    ]);
   });
 });
 

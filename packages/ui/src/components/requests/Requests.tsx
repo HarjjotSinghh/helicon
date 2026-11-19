@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "re
 import { useApp, useController } from "../../app/context.js";
 import { useImeGuard } from "../../app/ime.js";
 import type { LocalEcho } from "../../model/fold.js";
-import { describeApproval, describeCuaData, describeCuaStep, plainAppText, quoteAppText } from "../../model/format.js";
+import { describeApproval, describeCuaBrowser, describeCuaData, describeCuaStep, plainAppText, quoteAppText } from "../../model/format.js";
 import type { ApprovalChoice, ApprovalRequest, CuaCardFacts, TodoItem, UserInputAnswer, UserInputQuestion, UserInputRequest } from "../../types.js";
 import { Tip } from "../ui/overlays.js";
 import { Button, IconButton, Shortcut, Spinner, cn } from "../ui/primitives.js";
@@ -208,8 +208,9 @@ export function ApprovalPanel(props: { request: ApprovalRequest; primary: boolea
 
 /** What a Computer Use call will do, as Muse's host describes it. Page and window text come from the app, so they are quoted. */
 function CuaFacts(props: { facts: CuaCardFacts }) {
-  const { data = [], page, steps = [], windowTitle } = props.facts;
-  if (!page && !windowTitle && steps.length === 0 && data.length === 0) {
+  const { browser, data = [], page, steps = [], windowTitle } = props.facts;
+  const notices = browser ? describeCuaBrowser(browser) : [];
+  if (!page && !windowTitle && steps.length === 0 && data.length === 0 && notices.length === 0) {
     return null;
   }
   // A host with non-Latin letters can imitate another site, so its plain-letter form is shown next to it.
@@ -238,6 +239,11 @@ function CuaFacts(props: { facts: CuaCardFacts }) {
         </dl>
       ) : null}
       {lookalike ? <p className="text-pretty text-warn-text">This address has non-Latin letters. Check it's the site you expect.</p> : null}
+      {notices.map((notice) => (
+        <p key={notice} className="text-pretty text-warn-text">
+          {notice}
+        </p>
+      ))}
       {data.length > 0 ? (
         <ul className="flex flex-col gap-1 text-warn-text">
           {data.map((fact, index) => (
