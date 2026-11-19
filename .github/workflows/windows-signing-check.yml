@@ -31,19 +31,25 @@ jobs:
       - run: npm run build --workspace @helicon/daemon --workspace @helicon/ui --workspace @helicon/server
       - name: Build installer
         id: build
-        shell: bash
+        # PowerShell, like the release job: fetch-node.mjs unpacks Node with tar, and Git Bash's GNU tar reads a
+        # "D:\..." path as a remote host. Under PowerShell the Windows tar runs instead.
+        shell: pwsh
         env:
           HELICON_NODE_TARGET: x86_64-pc-windows-msvc
         run: |
-          set -euo pipefail
-          npm run tauri --workspace helicon-desktop -- build --target x86_64-pc-windows-msvc --bundles nsis \
-            --config '{"bundle":{"createUpdaterArtifacts":false}}'
-          installers=(apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Helicon_*_x64-setup.exe)
-          [ "${#installers[@]}" -eq 1 ] && [ -f "${installers[0]}" ] || { echo "Expected exactly one installer, got: ${installers[*]}" >&2; exit 1; }
-          mkdir -p signing/unsigned
-          cp "${installers[0]}" signing/unsigned/
-          echo "name=$(basename "${installers[0]}")" >> "$GITHUB_OUTPUT"
-          echo "version=$(node -p 'require("./apps/desktop/src-tauri/tauri.conf.json").version')" >> "$GITHUB_OUTPUT"
+          $ErrorActionPreference = 'Stop'
+          # No updater artifacts: they need the release signing key, which this check does not get.
+          $config = Join-Path $env:RUNNER_TEMP 'no-updater.json'
+          '{"bundle":{"createUpdaterArtifacts":false}}' | Set-Content -NoNewline -Encoding utf8NoBOM $config
+          npm run tauri --workspace helicon-desktop -- build --target x86_64-pc-windows-msvc --bundles nsis --config $config
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $installers = @(Get-ChildItem 'apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Helicon_*_x64-setup.exe')
+          if ($installers.Count -ne 1) { throw "Expected exactly one installer, got: $($installers.Name -join ', ')" }
+          New-Item -ItemType Directory -Force signing/unsigned | Out-Null
+          Copy-Item $installers[0].FullName signing/unsigned/
+          $version = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          "name=$($installers[0].Name)" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
       - name: Upload unsigned installer
         id: upload-unsigned
         uses: actions/upload-artifact@v4
