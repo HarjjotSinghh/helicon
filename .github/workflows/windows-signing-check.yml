@@ -36,6 +36,9 @@ jobs:
           HELICON_NODE_TARGET: x86_64-pc-windows-msvc
         run: |
           set -euo pipefail
+          # fetch-node.mjs unpacks Node with tar. Git Bash's GNU tar reads "D:\..." as a remote host, so use the
+          # Windows tar, the one the release job gets.
+          export PATH="/c/Windows/System32:$PATH"
           npm run tauri --workspace helicon-desktop -- build --target x86_64-pc-windows-msvc --bundles nsis \
             --config '{"bundle":{"createUpdaterArtifacts":false}}'
           installers=(apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Helicon_*_x64-setup.exe)
