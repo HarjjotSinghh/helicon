@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.5
+
+### Changed
+
+- **Muse Code SDK 1.4.23** ([#275](https://github.com/HarjjotSinghh/helicon/pull/275), closes [#273](https://github.com/HarjjotSinghh/helicon/issues/273)), up from 1.4.20. When a Computer Use approval is for a browser, the card now says so: that Computer Use hasn't used the browser on this computer before and will act signed in as you, or that it will open its own window and bring the browser to the front.
+
 ## 0.23.4
 
 ### Fixed
