@@ -260,6 +260,8 @@ export interface AppState {
   skills: Record<string, SkillsState>;
   /** A composer picker a slash command opened, like `/model`. */
   picker: ComposerPicker | null;
+  /** `/import-skills`: what Muse would copy in, waiting for a yes, then the import running. */
+  skillImport: SkillImportState | null;
   /** The subscription window Muse last reported; null until a host has seen one. */
   planUsage: PlanUsage | null;
   /** Every account Helicon can run; null until the first load answers. */
@@ -287,6 +289,13 @@ export type ComposerPicker = "model" | "effort" | "permissions" | "confirmFullAc
 export type AccountLoginState =
   | { accountId: string; url: string; code: string | null; status: "waiting" | "done" }
   | { accountId: string; fallback: string };
+
+export interface SkillImportState {
+  sessionId: string;
+  /** One dry run per source asked about. */
+  previews: import("../types.js").SkillImportReport[];
+  running: boolean;
+}
 
 export interface SkillsState {
   status: "loading" | "ready" | "error";
@@ -335,6 +344,7 @@ export function initialState(prefs: Prefs): AppState {
     updates: null,
     skills: {},
     picker: null,
+    skillImport: null,
   };
 }
 
