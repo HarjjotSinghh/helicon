@@ -29,6 +29,7 @@ use windows::Win32::UI::Controls::{
     InitCommonControlsEx, ICC_WIN95_CLASSES, INITCOMMONCONTROLSEX, TOOLTIPS_CLASSW, TTF_IDISHWND, TTM_ADDTOOLW,
     TTM_POP, TTM_RELAYEVENT, TTS_ALWAYSTIP, TTS_NOPREFIX, TTTOOLINFOW,
 };
+use windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyState, TrackMouseEvent, TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT, VK_LBUTTON,
 };
@@ -38,7 +39,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     RegisterClassW, SetWindowPos, ShowWindow, GWLP_ID, HMENU, HTCLOSE, HTMAXBUTTON, HTMINBUTTON, HWND_TOP,
     IDC_ARROW, SWP_NOACTIVATE, SWP_SHOWWINDOW, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, WINDOW_EX_STYLE,
     WM_CLOSE, WM_NCHITTEST, WM_NCLBUTTONDBLCLK, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP, WM_NCMOUSELEAVE,
-    WM_NCMOUSEMOVE, WINDOW_STYLE, WNDCLASSW, WS_CHILD, WS_CLIPSIBLINGS,
+    WM_NCMOUSEMOVE, WINDOW_STYLE, WNDCLASSW, WS_CHILD, WS_CLIPSIBLINGS, SM_CXFRAME, SM_CYFRAME,
 };
 
 /// The event the page sends with its buttons' rectangles, or with none when it stops drawing them.
@@ -134,9 +135,29 @@ pub fn reposition() {
     }
 }
 
-/// Where each hit area goes in a client area `client_width` pixels wide.
-pub fn button_bounds(layout: &[ButtonRect], client_width: i32) -> Vec<(i32, i32, i32, i32)> {
-    layout.iter().map(|b| (client_width - b.right, b.top, b.width, b.height)).collect()
+/// Where each hit area goes in a client area `client_width` pixels wide, kept clear of the resize
+/// border (`border` is its width at the sides and its height at the top, both zero when maximized).
+pub fn button_bounds(layout: &[ButtonRect], client_width: i32, border: (i32, i32)) -> Vec<(i32, i32, i32, i32)> {
+    let (border_x, border_y) = border;
+    layout
+        .iter()
+        .map(|b| {
+            let x = client_width - b.right;
+            let top = b.top.max(border_y);
+            let right = (x + b.width).min(client_width - border_x);
+            (x, top, (right - x).max(0), (b.top + b.height - top).max(0))
+        })
+        .collect()
+}
+
+/// The resize border Tauri keeps along the edges of an undecorated window that is not maximized:
+/// its drag-resize window takes the frame width at the sides and the frame height at the top.
+unsafe fn resize_border(parent: HWND) -> (i32, i32) {
+    if IsZoomed(parent).as_bool() {
+        return (0, 0);
+    }
+    let dpi = GetDpiForWindow(parent);
+    (GetSystemMetricsForDpi(SM_CXFRAME, dpi), GetSystemMetricsForDpi(SM_CYFRAME, dpi))
 }
 
 fn place(caption: &Caption) {
@@ -153,7 +174,8 @@ fn place(caption: &Caption) {
     if unsafe { GetClientRect(hwnd(caption.parent), &mut client) }.is_err() {
         return;
     }
-    for (button, (x, y, width, height)) in buttons.iter().zip(button_bounds(&caption.layout, client.right)) {
+    let border = unsafe { resize_border(hwnd(caption.parent)) };
+    for (button, (x, y, width, height)) in buttons.iter().zip(button_bounds(&caption.layout, client.right, border)) {
         // HWND_TOP every time: the webview's own windows must never end up above the hit areas.
         unsafe {
             let _ = SetWindowPos(hwnd(*button), Some(HWND_TOP), x, y, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
@@ -425,8 +447,22 @@ mod tests {
             ButtonRect { right: 69, top: 0, width: 69, height: 72 },
         ];
         assert_eq!(
-            button_bounds(&layout, 1920),
+            button_bounds(&layout, 1920, (0, 0)),
             vec![(1713, 0, 69, 72), (1782, 0, 69, 72), (1851, 0, 69, 72)]
+        );
+    }
+
+    #[test]
+    fn keeps_clear_of_the_resize_border_when_restored() {
+        let layout = [
+            ButtonRect { right: 207, top: 0, width: 69, height: 72 },
+            ButtonRect { right: 138, top: 0, width: 69, height: 72 },
+            ButtonRect { right: 69, top: 0, width: 69, height: 72 },
+        ];
+        // Only the top is inset for minimize and maximize; close also gives up the right edge.
+        assert_eq!(
+            button_bounds(&layout, 1920, (8, 8)),
+            vec![(1713, 8, 69, 64), (1782, 8, 69, 64), (1851, 8, 61, 64)]
         );
     }
 }
