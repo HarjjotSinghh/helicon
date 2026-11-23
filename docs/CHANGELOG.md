@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.6
+
+### Changed
+
+- **Muse Code SDK 1.4.25** ([#282](https://github.com/HarjjotSinghh/helicon/pull/282), closes [#277](https://github.com/HarjjotSinghh/helicon/issues/277) and [#281](https://github.com/HarjjotSinghh/helicon/issues/281)), up from 1.4.23. Helicon is now tested against Muse Code 1.4.25. Nothing changes in the app.
+
 ## 0.23.5
 
 ### Changed

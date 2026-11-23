@@ -2,6 +2,10 @@
 
 The extension ships the same Helicon as the desktop app. Full notes for every version: [helicon.sh/changelog](https://helicon.sh/changelog).
 
+## 0.23.6
+
+- Muse Code SDK 1.4.25. Nothing changes in the extension (#282).
+
 ## 0.23.5
 
 - Muse Code SDK 1.4.23. Computer Use approvals for a browser show first-use and window notices (#275).
