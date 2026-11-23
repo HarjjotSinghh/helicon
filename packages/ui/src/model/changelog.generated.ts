@@ -9,6 +9,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    "version": "0.23.6",
+    "body": "### Changed\n\n- **Muse Code SDK 1.4.25** ([#282](https://github.com/HarjjotSinghh/helicon/pull/282), closes [#277](https://github.com/HarjjotSinghh/helicon/issues/277) and [#281](https://github.com/HarjjotSinghh/helicon/issues/281)), up from 1.4.23. Helicon is now tested against Muse Code 1.4.25. Nothing changes in the app."
+  },
+  {
     "version": "0.23.5",
     "body": "### Changed\n\n- **Muse Code SDK 1.4.23** ([#275](https://github.com/HarjjotSinghh/helicon/pull/275), closes [#273](https://github.com/HarjjotSinghh/helicon/issues/273)), up from 1.4.20. When a Computer Use approval is for a browser, the card now says so: that Computer Use hasn't used the browser on this computer before and will act signed in as you, or that it will open its own window and bring the browser to the front."
   },
